@@ -43,10 +43,12 @@
         this.load.image('background', 'assets/background_one.png');
         this.load.image('ground', 'assets/ground.png')
         this.load.image('platform1', 'assets/platform.png')
+        this.load.image('axeman', 'assets/character1.png')
 
     }
     
     var platforms
+    var player
     function create ()
     {
         platforms = this.physics.add.staticGroup();
@@ -62,6 +64,7 @@
         platform.setDisplaySize(this.scale.width/2, this.scale.height/2);
         platform.refreshBody();
 
+        
     }
 
     function update ()
