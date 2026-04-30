@@ -44,7 +44,7 @@
         this.load.image('ground', 'assets/ground.png')
         this.load.image('platform1', 'assets/platform.png')
         this.load.image('axeman', 'assets/character1.png')
-
+        this.load.image('groundhitbox', 'assets/groundhitbox.png')
     }
     
     var platforms
@@ -60,7 +60,7 @@
         groundVisual.setDisplaySize(this.scale.width, 300);
 
         // Invisible collision ground
-        const ground = platforms.create(500, 575, 'ground');
+        const ground = platforms.create(500, 575, 'groundhitbox');
         ground.setScale(this.scale.width / ground.width, 1);
         ground.setVisible(false);
         ground.refreshBody();
