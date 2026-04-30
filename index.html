@@ -22,6 +22,13 @@
             mode: Phaser.Scale.FIT,
             autoCenter: Phaser.Scale.CENTER_BOTH
         },
+        physics: {
+            default: 'arcade',
+            arcade: {
+                gravity: { y: 500 },
+                debug: false
+            }
+        },
         scene: {
             preload: preload,
             create: create,
@@ -34,12 +41,22 @@
     function preload ()
     {
         this.load.image('background', 'assets/background_one.png');
-    }
+        this.load.image('ground', 'assets/ground.png')
 
+    }
+    
+    var platforms
     function create ()
     {
+        platforms = this.physics.add.staticGroup();
+
         const bg = this.add.image(500, 300, 'background');
         bg.setDisplaySize(this.scale.width, this.scale.height);
+
+        
+        const ground = platforms.create(500, 450, 'ground');
+        ground.setDisplaySize(this.scale.width, 300); // make it wide like a floor
+        ground.refreshBody();
     }
 
     function update ()
