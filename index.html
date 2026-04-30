@@ -49,6 +49,7 @@
     
     var platforms
     var player
+    var cursors
     function create ()
     {
         platforms = this.physics.add.staticGroup();
@@ -61,13 +62,26 @@
         ground.setDisplaySize(this.scale.width, 300); // make it wide like a floor
         ground.refreshBody();
         const platform = platforms.create(800, 410, 'platform1');
-        platform.setScale(2);
+        platform.setScale(0.5);
         platform.refreshBody();
 
         player = this.physics.sprite.add(0, 350, 'axeman');
         player.body.setGravityY(200)
         this.physics.add.collider(player, platforms);
+        cursors = this.input.keyboard.createCursorKeys();
+        if (cursors.left.isDown) {
+            player.setVelocityX(-160);
 
+            player.anims.play('left', true);
+        } else if (cursors.right.isDown) {
+            player.setVelocityX(160);
+        } else {
+            player.setVelocityX(0);
+        }
+
+        if (cursors.up.isDown && player.body.touching.down) {
+            player.setVelocityY(-330);
+        }
 
     }
 
