@@ -60,11 +60,15 @@
         const ground = platforms.create(500, 450, 'ground');
         ground.setDisplaySize(this.scale.width, 300); // make it wide like a floor
         ground.refreshBody();
-        const platform = platforms.create(700, 400, 'platform1');
-        platform.setDisplaySize(this.scale.width/2, this.scale.height/2);
+        const platform = platforms.create(800, 410, 'platform1');
+        platform.setScale(2);
         platform.refreshBody();
 
-        
+        player = this.physics.sprite.add(0, 350, 'axeman');
+        player.body.setGravityY(200)
+        this.physics.add.collider(player, platforms);
+
+
     }
 
     function update ()
