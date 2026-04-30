@@ -42,6 +42,7 @@
     {
         this.load.image('background', 'assets/background_one.png');
         this.load.image('ground', 'assets/ground.png')
+        this.load.image('platform1', 'assets/platform.png')
 
     }
     
@@ -57,6 +58,10 @@
         const ground = platforms.create(500, 450, 'ground');
         ground.setDisplaySize(this.scale.width, 300); // make it wide like a floor
         ground.refreshBody();
+        const platform = platforms.create(700, 400, 'platform');
+        platform.setDisplaySize(this.scale.width/2, this.scale.height/2);
+        platform.refreshBody();
+
     }
 
     function update ()
