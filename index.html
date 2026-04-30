@@ -38,7 +38,8 @@
 
     function create ()
     {
-        this.add.image(1000, 600, 'background');
+        const bg = this.add.image(500, 300, 'background');
+        bg.setDisplaySize(this.scale.width, this.scale.height);
     }
 
     function update ()
