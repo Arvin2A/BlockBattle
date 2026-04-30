@@ -65,7 +65,7 @@
         platform.setScale(0.5);
         platform.refreshBody();
 
-        player = this.physics.sprite.add(0, 350, 'axeman');
+        player = this.physics.add.sprite(0, 350, 'axeman');
         player.body.setGravityY(200)
         this.physics.add.collider(player, platforms);
         cursors = this.input.keyboard.createCursorKeys();
