@@ -57,10 +57,10 @@
         bg.setDisplaySize(this.scale.width, this.scale.height);
 
         const ground = platforms.create(500, 450, 'ground');
-        ground.setScale(this.scale.width / ground.width, 1);
+        ground.setDisplaySize(this.scale.width, 300);
         ground.refreshBody();
         
-        const platform = platforms.create(800, 410, 'platform1');
+        const platform = platforms.create(800, 475, 'platform1');
         platform.setScale(0.5);
         platform.refreshBody();
 
