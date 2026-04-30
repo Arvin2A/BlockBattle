@@ -56,10 +56,10 @@
         const bg = this.add.image(500, 300, 'background');
         bg.setDisplaySize(this.scale.width, this.scale.height);
 
-        const ground = platforms.create(500, 550, 'ground');    
-        ground.setDisplaySize(this.scale.width, 100);
+        const ground = platforms.create(500, 575, 'ground');
+        ground.setScale(this.scale.width / ground.width, 1);
         ground.refreshBody();
-
+        
         const platform = platforms.create(800, 410, 'platform1');
         platform.setScale(0.5);
         platform.refreshBody();
