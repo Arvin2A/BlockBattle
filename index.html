@@ -56,8 +56,13 @@
         const bg = this.add.image(500, 300, 'background');
         bg.setDisplaySize(this.scale.width, this.scale.height);
 
-        const ground = platforms.create(500, 450, 'ground');
-        ground.setDisplaySize(this.scale.width, 300);
+        const groundVisual = this.add.image(500, 450, 'ground');
+        groundVisual.setDisplaySize(this.scale.width, 300);
+
+        // Invisible collision ground
+        const ground = platforms.create(500, 575, 'ground');
+        ground.setScale(this.scale.width / ground.width, 1);
+        ground.setVisible(false);
         ground.refreshBody();
         
         const platform = platforms.create(800, 475, 'platform1');
