@@ -57,20 +57,28 @@
             frameWidth: 50,
             frameHeight: 50
         });
+        this.load.spritesheet('swordatkthird', 'assets/swordatk2.png', {
+            frameWidth: 50,
+            frameHeight: 50
+        });
+        this.load.spritesheet('axeatkthird', 'assets/axeatk2.png', {
+            frameWidth: 50,
+            frameHeight: 50
+        });
     }
     
-    var platforms
+    var platforms;
     var players = {
         player: null,
         player2: null
-    }
+    };
 
-    var player
-    var cursors
+    var player;
+    var cursors;
 
-    var wasd 
-    var attackKey1
-    var attackKey2
+    var wasd;
+    var attackKey1;
+    var attackKey2;
 
     function attackIsElligible(attacker, target) {
         if (!attacker.canAttack || attacker.hitstun) return false;
@@ -89,6 +97,14 @@
         attacker.atk.y = attacker.y + attacker.lastDir.y * 50;
 
         attacker.atk.setFlipX(-attacker.lastDir.x < 0);
+
+        if (attacker.lastDir.y < 0) {
+            attacker.atk.setAngle(90);
+        } else if (attacker.lastDir.y > 0) {
+            attacker.atk.setAngle(-90);
+        } else {
+            attacker.atk.setAngle(0);
+        }
 
         attacker.atk.setFrame(0);
         attacker.atk.play(animKey, true);
@@ -149,6 +165,13 @@
 
         attacker.atk.setFlipX(-attacker.lastDir.x < 0);
 
+        if (attacker.lastDir.y < 0) {
+            attacker.atk.setAngle(90);
+        } else if (attacker.lastDir.y > 0) {
+            attacker.atk.setAngle(-90);
+        } else {
+            attacker.atk.setAngle(0);
+        }
         //animation
 
         attacker.atk.setFrame(0);
@@ -169,7 +192,7 @@
             target.setVelocityY(-500);
         }
         attacker.canAttack = false;
-        scene.time.delayedCall(180, () => {
+        scene.time.delayedCall(250, () => {
             attacker.atk.stop();
             attacker.atk.setVisible(false);
         });
@@ -187,6 +210,17 @@
                 player.comboTimer = 0;
             }
         }
+    }
+    function tryAttack(scene, attacker, target, animKey, thirdAnimKey) {
+        if (scene.time.now < attacker.nextAttackTime) return;
+        if (!attacker.canAttack || attacker.hitstun) return;
+
+        if (attacker.combo >= 2) {
+            thirdAttack(scene, attacker, target, thirdAnimKey);
+        } else {
+            attack(scene, attacker, target, animKey);
+        }
+        attacker.nextAttackTime = scene.time.now + 400; // Attack cooldown
     }
     function create () {
         platforms = this.physics.add.staticGroup();
@@ -213,15 +247,27 @@
         //platform.refreshBody();
         this.anims.create({
             key: 'axeatk',
-            frames: this.anims.generateFrameNumbers('axeatk', { start: 0, end: 3 }),
-            frameRate: 16,
+            frames: this.anims.generateFrameNumbers('axeatk', { start: 0, end: 4 }),
+            frameRate: 32,
             repeat: 0
         });
 
         this.anims.create({
             key: 'swordatk',
-            frames: this.anims.generateFrameNumbers('swordatk', { start: 0, end: 3 }),
-            frameRate: 16,
+            frames: this.anims.generateFrameNumbers('swordatk', { start: 0, end: 4 }),
+            frameRate: 32,
+            repeat: 0
+        });
+        this.anims.create({
+            key: 'swordatkthird',
+            frames: this.anims.generateFrameNumbers('swordatkthird', { start: 0, end: 4 }),
+            frameRate: 32,
+            repeat: 0
+        });
+        this.anims.create({
+            key: 'axeatkthird',
+            frames: this.anims.generateFrameNumbers('axeatkthird', { start: 0, end: 4 }),
+            frameRate: 32,
             repeat: 0
         });
 
@@ -241,6 +287,9 @@
 
         players.player.freeze = false;
         players.player2.freeze = false;
+
+        players.player.nextAttackTime = 0;
+        players.player2.nextAttackTime = 0;
 
         players.player.combo = 0;
         players.player2.combo = 0;
@@ -269,25 +318,6 @@
         //---CONTROLS---\\
         attackKey1 = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.E);
         attackKey2 = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.SHIFT);
-        this.input.keyboard.on('keydown-E', () => {
-            const attacker = players.player;
-            const target = players.player2;
-            if (attacker.combo >= 2) {
-                thirdAttack(this, attacker, target, 'axeatk');
-            } else {
-                attack(this, attacker, target, 'axeatk');
-            }
-        });
-        this.input.keyboard.on('keydown-SHIFT', () => {
-            const attacker = players.player2;
-            const target = players.player;
-
-            if (attacker.combo >= 2) {
-                thirdAttack(this, attacker, target, 'swordatk');
-            } else {
-                attack(this, attacker, target, 'swordatk');
-            }
-        });
 
         for (const key in players) {
             const player = players[key];
@@ -308,6 +338,12 @@
     }
 
     function update () {
+        if (attackKey1.isDown) {
+            tryAttack(this, players.player, players.player2, 'axeatk', 'axeatkthird');
+        }
+        if (attackKey2.isDown) {
+            tryAttack(this, players.player2, players.player, 'swordatk', 'swordatkthird');
+        }
         if (players.player.freeze) {
             players.player.setVelocityX(0);
             players.player.setVelocityY(0);
