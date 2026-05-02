@@ -3,6 +3,7 @@
 <head> 
     <meta charset="UTF-8" />
     <title>BLOCK BATTLE!!</title>
+    <link rel="icon" type="image/x-icon" href="width_512.ico">
     <script src="phaser.js"></script>
     <style type="text/css">
         body {
@@ -16,7 +17,11 @@
     function sleep(ms) {
         return new Promise(resolve => setTimeout(resolve, ms));
     }
-    
+    async function loadFont() {
+        const font = new FontFace('GameFont', 'url(assets/fonts/GameFont.otf)');
+        await font.load();
+        document.fonts.add(font);
+    }
     var config = {
         type: Phaser.AUTO,
         width: 1000,
@@ -39,8 +44,11 @@
         }
     };
 
-    var game = new Phaser.Game(config);
-
+    var game;
+    
+    loadFont().then(() => {
+        game = new Phaser.Game(config);
+    });
     function preload ()
     {
         this.load.image('background', 'assets/background_one.png');
@@ -49,6 +57,9 @@
         this.load.image('axeman', 'assets/character1.png')
         this.load.image('swordman', 'assets/character2.png')
         this.load.image('groundhitbox', 'assets/groundhitbox.png')
+        this.load.image('redstat', 'assets/KBstatBG1.png')
+        this.load.image('bluestat', 'assets/KBstatBG2.png')
+
         this.load.spritesheet('axeatk', 'assets/axeatk1.png', {
             frameWidth: 50,
             frameHeight: 50
@@ -65,6 +76,11 @@
             frameWidth: 50,
             frameHeight: 50
         });
+        this.load.audio('swordthirdhitsfx', 'audio/swordlunge.wav');
+        this.load.audio('axethirdhitsfx', 'audio/snd_damage_c.wav');
+        this.load.audio('anyhit', 'audio/hit1.ogg');
+        this.load.audio('miss', 'audio/swordslash.wav');
+        this.load.audio('lunge', 'audio/Dodge3.wav');
     }
     
     var platforms;
@@ -86,7 +102,18 @@
         const dx = target.x - attacker.x;
         const dy = target.y - attacker.y;
         const distance = Math.hypot(dx, dy);
-        return distance <= 100; // Attack range
+        if (distance > 100) return false; // Too far away
+
+        const dirToTargetX = dx/distance;
+        const dirToTargetY = dy/distance;
+
+        const dot = dirToTargetX * attacker.lastDir.x + dirToTargetY * attacker.lastDir.y;
+        const isFacingUp = attacker.lastDir.y < -0.9 && Math.abs(attacker.lastDir.x) < 0.2;
+        const isTargetAbove = dy < -10;
+        const isAttackerAbove = dy > 10;
+        const una = isAttackerAbove && isFacingUp; // Prevent attacking upwards and pulling the player under the attacker
+        if (una) return false;
+        return dot > 0.7 || isFacingUp || isTargetAbove ; // Attack range and facing target
     }
     function attack(scene, attacker, target, animKey) {
 
@@ -123,8 +150,8 @@
             const dirY = attacker.lastDir.y;
             scene.time.delayedCall(50, () => {
                 console.log(dirX, dirY);
-                target.setVelocityX(300 * dirX);
-                target.setVelocityY(300 * dirY);
+                target.setVelocityX((300 * target.KBmultiplier) * dirX);
+                target.setVelocityY((300 * target.KBmultiplier) * dirY);
             });
             
         }
@@ -135,8 +162,11 @@
             target.setVelocityY(0);
             attacker.setVelocityX(0);
             attacker.setVelocityY(0);
+            scene.sound.play('anyhit');
+            target.KBmultiplier += 0.03; // Increase KB multiplier for third hit
         } else {
             attacker.combo = 0;
+            scene.sound.play('miss');
         }
 
         if (attacker.combo >= 3) {
@@ -182,14 +212,16 @@
             target.freeze = false;
             attacker.freeze = false;
             attacker.comboTimer = 600;
+            target.KBmultiplier += 0.07;
+            scene.sound.play(animKey === 'swordatkthird' ? 'swordthirdhitsfx' : 'axethirdhitsfx');
             const dirX = attacker.lastDir.x;
 
-            let dirY = -1;
-            if (dirY === 0) dirY = -1; //always launch upwards if on same level
+            let dirY = attacker.lastDir.y;
+            if (dirY === 0) dirY = -0.5; //always launch upwards if on same level
 
             //very stronk knockback
-            target.setVelocityX(500 * dirX);
-            target.setVelocityY(-500);
+            target.setVelocityX((500 * target.KBmultiplier) * dirX);
+            target.setVelocityY((500 * target.KBmultiplier) * dirY);
         }
         attacker.canAttack = false;
         scene.time.delayedCall(250, () => {
@@ -222,11 +254,64 @@
         }
         attacker.nextAttackTime = scene.time.now + 400; // Attack cooldown
     }
+    function tryLunge(scene, player, direction, currentTime, animKey = 'swordatk') {
+        const dtapDelay = 250;
+        const lungecd = 4000;
+
+        if (player.hitstun || player.freeze) return;
+        if (currentTime < player.nextLungeTime) return;
+        
+        //animation
+
+        player.atk.setFrame(0);
+        player.atk.play(animKey, true);
+        if (currentTime - player.lastTap[direction] < dtapDelay) {
+            player.atk.setVisible(true);
+            player.atk.x = player.x + player.lastDir.x * 50;
+            player.atk.y = player.y + player.lastDir.y * 50;
+
+            player.atk.setFlipX(-player.lastDir.x < 0);
+            player.isLunging = true;
+
+            if (player.lastDir.y < 0) {
+                player.atk.setAngle(90);
+            } else if (player.lastDir.y > 0) {
+                player.atk.setAngle(-90);
+            } else {
+                player.atk.setAngle(0);
+            }
+            const lspeed = 600;
+            if (direction === 'left') {
+                player.setVelocityX(-lspeed);
+            } else if (direction === 'right') {
+                player.setVelocityX(lspeed);
+            }
+
+            player.nextLungeTime = currentTime + lungecd;
+            scene.sound.play('lunge');
+
+            scene.time.delayedCall(400, () => {
+                player.isLunging = false;
+            });
+            
+            scene.time.delayedCall(400, () => {
+                player.atk.stop();
+                player.atk.setVisible(false);
+            });
+        }
+        player.lastTap[direction] = currentTime; 
+        
+    }
     function create () {
         platforms = this.physics.add.staticGroup();
 
         const bg = this.add.image(500, 300, 'background');
         bg.setDisplaySize(this.scale.width, this.scale.height);
+
+        const plr1StatImage = this.add.image(300, 65, 'redstat');
+        plr1StatImage.setScale(0.65);
+        const plr2StatImage = this.add.image(700, 65, 'bluestat');
+        plr2StatImage.setScale(0.65);
 
         const groundVisual = this.add.image(500, 450, 'ground');
         groundVisual.setDisplaySize(this.scale.width, 300);
@@ -237,12 +322,12 @@
         ground.setVisible(false);
         ground.refreshBody();
 
-        const ground2 = platforms.create(800, 470, 'groundhitbox');
+        const ground2 = platforms.create(725, 470, 'groundhitbox');
         ground2.setDisplaySize(this.scale.width/2, 0);
         ground2.setVisible(true);
         ground2.refreshBody();
 
-        const platform = this.add.image(800, 425, 'platform1');
+        const platform = this.add.image(725, 425, 'platform1');
         platform.setScale(0.5);
         //platform.refreshBody();
         this.anims.create({
@@ -274,13 +359,16 @@
         //---PLAYER---\\
 
         players.player = this.physics.add.sprite(50, 500, 'axeman');    
-        players.player.setCollideWorldBounds(true);
+        //players.player.setCollideWorldBounds(true);
 
         players.player2 = this.physics.add.sprite(800, 420, 'swordman');    
-        players.player2.setCollideWorldBounds(true);
+        //players.player2.setCollideWorldBounds(true);
 
         players.player.canAttack = true;
         players.player2.canAttack = true;
+
+        players.player.icon = 'axeman';
+        players.player2.icon = 'swordman';
 
         players.player.hitstun = false;
         players.player2.hitstun = false;
@@ -296,6 +384,16 @@
         
         players.player.comboTimer = 0;
         players.player2.comboTimer = 0;
+
+        players.player.airTime = 0;
+        players.player2.airTime = 0;
+
+        players.player.KBmultiplier = 1.00;
+        players.player2.KBmultiplier = 1.00;
+
+        players.player2.nextLungeTime = 0; //swordman only has lunge, so only he needs this
+        players.player2.lastTap = { left: 0, right: 0 };
+        players.player2.isLunging = false
 
         players.player.lastDir = { x: 1, y: 0 };
         players.player2.lastDir = { x: -1, y: 0 };
@@ -335,9 +433,29 @@
 
         cursors = this.input.keyboard.createCursorKeys();
         wasd = this.input.keyboard.addKeys({ up: 'W', left: 'A', down: 'S', right: 'D' });
+
+        //load icons for the KB stat display
+        const plr1Icon = this.add.image(250, 65, players.player.icon);
+        const plr2Icon = this.add.image(650, 65, players.player2.icon);
+
+
+        players.player.name = "AXEMAN";
+        players.player2.name = "SWORDMAN";
+
+        const plr1NameText = this.add.text(280, 47, players.player.name, {fontFamily: 'GameFont', fontSize: '10px', fill: '#FFFFFF'});
+        const plr2NameText = this.add.text(680, 47, players.player2.name, {fontFamily: 'GameFont', fontSize: '10px', fill: '#FFFFFF'});
+        plr1NameText.setStroke('#000000', 3);
+        plr2NameText.setStroke('#000000', 3);
+
+        players.player.KBText = this.add.text(285, 65, 'KB: 1.00', {fontFamily: 'GameFont', fontSize: '14px', fill: '#FFFFFF'});
+        players.player2.KBText = this.add.text(685, 65, 'KB: 1.00', {fontFamily: 'GameFont', fontSize: '14px', fill: '#FFFFFF'});
+        players.player.KBText.setStroke('#000000', 3);
+        players.player2.KBText.setStroke('#000000', 3);
     }
 
     function update () {
+
+        //---STATE UPDATES---\\
         if (attackKey1.isDown) {
             tryAttack(this, players.player, players.player2, 'axeatk', 'axeatkthird');
         }
@@ -349,9 +467,20 @@
             players.player.setVelocityY(0);
         }
         if (players.player2.freeze) {
-            players.player2.setVelocityX(0);
-            players.player2.setVelocityY(0);
-        }
+                players.player2.setVelocityX(0);
+                players.player2.setVelocityY(0);
+            }
+        for (const key in players) {
+            const player = players[key];
+            
+            if (player.body.touching.down) {
+                player.airTime = 0;
+            } else {
+                player.airTime += this.game.loop.delta;
+            }
+        };
+        players.player.KBText.setText('KB: ' + players.player.KBmultiplier.toFixed(2));
+        players.player2.KBText.setText('KB: ' + players.player2.KBmultiplier.toFixed(2));
         updateCombo(players.player, this.game.loop.delta);
         updateCombo(players.player2, this.game.loop.delta);
         if (wasd.left.isDown) players.player.lastDir = { x: -1, y: 0 };
@@ -377,6 +506,7 @@
             }
         }
         function decelerate(player) {
+            if (player.isLunging) return; 
             let vx = player.body.velocity.x;
 
             if (Math.abs(vx) > 10) {
@@ -393,10 +523,10 @@
 
         if (!players.player.hitstun) {
             if (wasd.left.isDown) {
-                players.player.setVelocityX(-160);
+                players.player.setVelocityX(-250);
             }
             else if (wasd.right.isDown) {
-                players.player.setVelocityX(160);
+                players.player.setVelocityX(250);
             }
             else {
                 if (!players.player.hitstun) {
@@ -409,17 +539,30 @@
             if (wasd.up.isUp && players.player.body.velocity.y < 0) {
                 players.player.setVelocityY(players.player.body.velocity.y / 2);
             }
+            if (wasd.down.isDown && players.player.airTime > 600) {
+                players.player.setVelocityY(800);
+            }
         }
         
 
         if (!players.player2.hitstun) {
 
             //Player 2 controls
+            if (Phaser.Input.Keyboard.JustDown(cursors.left)) {
+                tryLunge(this, players.player2, 'left', this.time.now);
+            }
+            if (Phaser.Input.Keyboard.JustDown(cursors.right)) {
+                tryLunge(this, players.player2, 'right', this.time.now);
+            }
             if (cursors.left.isDown) {
-                players.player2.setVelocityX(-160);
+                if (!players.player2.isLunging) {
+                    players.player2.setVelocityX(-250);
+                }
             }
             else if (cursors.right.isDown) {
-                players.player2.setVelocityX(160);
+                if (!players.player2.isLunging) {
+                    players.player2.setVelocityX(250);
+                }
             }
             else {
                 if (!players.player2.hitstun) {
@@ -431,6 +574,9 @@
             }
             if (cursors.up.isUp && players.player2.body.velocity.y < 0) {
                 players.player2.setVelocityY(players.player2.body.velocity.y / 2);
+            }
+            if (cursors.down.isDown && players.player2.airTime > 600) {
+                players.player2.setVelocityY(800);
             }
         }
     }
