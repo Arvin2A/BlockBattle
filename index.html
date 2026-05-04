@@ -241,13 +241,16 @@
             attacker.atk.stop();
             attacker.atk.setVisible(false);
         });
-
         scene.time.delayedCall(400, () => {
             attacker.canAttack = true;
             target.hitstun = false;
             target.freeze = false;
             attacker.freeze = false;
         });
+        scene.time.delayedCall(1000, () => {
+            target.hitstun = false;
+        });
+        
     }
     function thirdAttack(scene, attacker, target, animKey) {
         //The third attack launching the target away
