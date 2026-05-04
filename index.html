@@ -14,19 +14,64 @@
 <body>
 
 <script type="text/javascript">
+    // This is a 2D platform fighter game made using Phaser and Javascript. Requires a keyboard to play
+    //ENTIRE script is made by zamanarvin. Some assets were made by jeffrey, 
+    // and the sound effects were taken from various games as listed in the preload function.
+    //WASD controls the red axeman, arrow keys contrl the blue swordman.
+    //E is the axe attack, SHIFT is the sword attack.
+    //The swordman also has a lunge move that can be performed by double tapping left or right.
+    //I believe comments are necessary for this not only to explain the code but also to show my thought process and design decisions
+    // they are a big part of game development, and it shows my credibility for this.
+    // Phaser was definetely hard to learn in the span of a few days because of its really big documentary and complex object structures.
     function sleep(ms) {
         return new Promise(resolve => setTimeout(resolve, ms));
+        //was meant to be used, but was succeeded later after the discovery of scene.time.delayedCall
     }
     async function loadFont() {
         const font = new FontFace('GameFont', 'url(assets/fonts/GameFont.otf)');
         await font.load();
         document.fonts.add(font);
+        //load the gamefont that is very kool
     }
+
+    var MenuScene = {
+        //load the menu scene which is just a cool background image we made
+        //its also has the start button, initiating the game when clicked
+            key: 'MenuScene',
+            preload: function() {
+                this.load.image('menuBackground', 'assets/Homescreen.png');
+            },
+            create: function() {
+                const bg = this.add.image(500, 300, 'menuBackground');
+                bg.setDisplaySize(this.scale.width, this.scale.height);
+                // Create menu UI elements here
+                var startText = this.add.text(500, 500, 'Start Game', { fontFamily: 'GameFont', fontSize: '32px', fill: '#FFFFFF', stroke: '#000000', strokeThickness: 6 }).setOrigin(0.5).setInteractive({useHandCursor: true});
+                startText.setInteractive();
+                startText.on('pointerover', function () {
+                    startText.setStyle({ fill: '#228B22' });
+                });
+        
+                startText.on('pointerout', function () {
+                    startText.setStyle({ fill: '#FFFFFF' }); 
+                });
+                startText.on('pointerdown', function() {
+                    this.scene.start('GameScene'); 
+                }, this);
+            }
+        };
+    var GameScene = {
+        //gamescene in the form of a scene object format
+        key: 'GameScene',
+        preload: preload,
+        create: create,
+        update: update
+    };
     var config = {
         type: Phaser.AUTO,
         width: 1000,
         height: 600,
         scale: {
+            //essential for making the game fit for all screens
             mode: Phaser.Scale.FIT,
             autoCenter: Phaser.Scale.CENTER_BOTH
         },
@@ -37,11 +82,7 @@
                 debug: false
             }
         },
-        scene: {
-            preload: preload,
-            create: create,
-            update: update
-        }
+        scene: [MenuScene, GameScene]
     };
 
     var game;
@@ -51,6 +92,13 @@
     });
     function preload ()
     {
+        //pre load all the assets, including images, spritesheets, and audio
+        //AUDIO CREDITS: 
+        //sword lunge and slash is from the classic ROBLOX's linked sword sound effect
+        //hit1.ogg is from minecraft's hit sound effect
+        //Dodge3.wav is a dash sound effect from ULTRAKILL
+        //snd_damage_c.wav is from undertale, used for the axe's third hit for that extra 
+        //credits to jeffrey for making the app's icon (width_512.ico)
         this.load.image('background', 'assets/background_one.png');
         this.load.image('ground', 'assets/ground.png')
         this.load.image('platform1', 'assets/platform1.png')
@@ -82,7 +130,7 @@
         this.load.audio('miss', 'audio/swordslash.wav');
         this.load.audio('lunge', 'audio/Dodge3.wav');
     }
-    
+    //important game variables, including player objects, controls, and the platforms group
     var platforms;
     var players = {
         player: null,
@@ -96,6 +144,7 @@
     var attackKey1;
     var attackKey2;
 
+    var gameEnded = false;
     function attackIsElligible(attacker, target) {
         if (!attacker.canAttack || attacker.hitstun) return false;
 
@@ -108,15 +157,22 @@
         const dirToTargetY = dy/distance;
 
         const dot = dirToTargetX * attacker.lastDir.x + dirToTargetY * attacker.lastDir.y;
+        //dot product checks if the attacker is facing the target, which is the general rule for attacks in this game
+        //However, to add some depth and counterplay, I added two custom rules for fun
         const isFacingUp = attacker.lastDir.y < -0.9 && Math.abs(attacker.lastDir.x) < 0.2;
+        const isFacingDown = attacker.lastDir.y > 0.9 && Math.abs(attacker.lastDir.x) < 0.2;
+        //technically, decimal values are useless, because the values are only 0, 1, or -1
+        //but this just adds a bit of leniency just in case we add mobile or controller support later where the input might not be perfectly digital
         const isTargetAbove = dy < -10;
         const isAttackerAbove = dy > 10;
-        const una = isAttackerAbove && isFacingUp; // Prevent attacking upwards and pulling the player under the attacker
+        const una = isAttackerAbove && isFacingUp; // CUSTOM RULE: Prevent attacking upwards and pulling the player under the attacker
+        const una2 = isFacingDown && isTargetAbove; // SECOND CUSTOM RULE: Prevent attacking downwards if the target is above also to avoid pinning
         if (una) return false;
+        if (una2) return false;
         return dot > 0.7 || isFacingUp || isTargetAbove ; // Attack range and facing target
     }
     function attack(scene, attacker, target, animKey) {
-
+        //the core attack function that is used as of now
         if (!attacker.canAttack || attacker.hitstun) return;
 
         attacker.atk.setVisible(true);
@@ -135,8 +191,12 @@
 
         attacker.atk.setFrame(0);
         attacker.atk.play(animKey, true);
+        if (attacker.body.touching.down) {
+            attacker.freeze = true;
+        }
 
         let hit = false;
+
 
         if (attackIsElligible(attacker, target)) {
             hit = true;
@@ -188,7 +248,7 @@
         });
     }
     function thirdAttack(scene, attacker, target, animKey) {
-
+        //The third attack launching the target away
         attacker.atk.setVisible(true);
         attacker.atk.x = attacker.x + attacker.lastDir.x * 50;
         attacker.atk.y = attacker.y + attacker.lastDir.y * 50;
@@ -220,8 +280,17 @@
             if (dirY === 0) dirY = -0.5; //always launch upwards if on same level
 
             //very stronk knockback
-            target.setVelocityX((500 * target.KBmultiplier) * dirX);
-            target.setVelocityY((500 * target.KBmultiplier) * dirY);
+            //launch to the side if the target is pinned against the ground, otherwise launch in the direction of the attack
+            if (target.body.touching.down && dirY > 0.7) {
+                const randDir = Math.random() < 0.5 ? -1 : 1;
+                target.setVelocityX((400 * target.KBmultiplier) * randDir);
+                target.setVelocityY(-200 * target.KBmultiplier);
+            } else {
+                target.setVelocityX((500 * target.KBmultiplier) * dirX);
+                target.setVelocityY((500 * target.KBmultiplier) * dirY);
+            }
+            attacker.combo = 0;
+            attacker.comboTimer = 0;
         }
         attacker.canAttack = false;
         scene.time.delayedCall(250, () => {
@@ -244,6 +313,8 @@
         }
     }
     function tryAttack(scene, attacker, target, animKey, thirdAnimKey) {
+        //handles some other stuff before calling either attack functions
+        //such as checking if the attack is on cooldown, and whether to use the third attack or not
         if (scene.time.now < attacker.nextAttackTime) return;
         if (!attacker.canAttack || attacker.hitstun) return;
 
@@ -255,6 +326,10 @@
         attacker.nextAttackTime = scene.time.now + 400; // Attack cooldown
     }
     function tryLunge(scene, player, direction, currentTime, animKey = 'swordatk') {
+        //LUNGE: exclusive for the swordsman, this is performed by double tapping left or right
+        // It launches the player forward in the direction they are lunging in
+        //Why do this? Using arrow keys and right shift is harder than using WASD and E
+        //Basically it balances out the controls.
         const dtapDelay = 250;
         const lungecd = 4000;
 
@@ -304,7 +379,7 @@
     }
     function create () {
         platforms = this.physics.add.staticGroup();
-
+        //Making the background, platforms, and the KB stat display
         const bg = this.add.image(500, 300, 'background');
         bg.setDisplaySize(this.scale.width, this.scale.height);
 
@@ -316,12 +391,12 @@
         const groundVisual = this.add.image(500, 450, 'ground');
         groundVisual.setDisplaySize(this.scale.width, 300);
 
-        // Invisible collision ground
+        // Invisible collision ground, the actual ground
         const ground = platforms.create(500, 575, 'groundhitbox');
         ground.setDisplaySize(this.scale.width, 0);
         ground.setVisible(false);
         ground.refreshBody();
-
+        
         const ground2 = platforms.create(725, 470, 'groundhitbox');
         ground2.setDisplaySize(this.scale.width/2, 0);
         ground2.setVisible(true);
@@ -358,12 +433,15 @@
 
         //---PLAYER---\\
 
-        players.player = this.physics.add.sprite(50, 500, 'axeman');    
+        players.player = this.physics.add.sprite(50, 500, 'axeman');   
+        //REMOVED COLLIDE WORLD BOUNDS TO ALLOW FOR RING-OUTS, WHICH IS A FUNDAMENTAL PART OF THE GAME 
         //players.player.setCollideWorldBounds(true);
 
         players.player2 = this.physics.add.sprite(800, 420, 'swordman');    
         //players.player2.setCollideWorldBounds(true);
 
+        //Many different states for the players
+        //This is necessary to keep track of the different mechanics in the game, such as hitstun, KB multiplier, combos, and more
         players.player.canAttack = true;
         players.player2.canAttack = true;
 
@@ -384,6 +462,9 @@
         
         players.player.comboTimer = 0;
         players.player2.comboTimer = 0;
+
+        players.player.outOfBounds = false;
+        players.player2.outOfBounds = false;
 
         players.player.airTime = 0;
         players.player2.airTime = 0;
@@ -414,6 +495,7 @@
         players.player2.atk.setVisible(false);
 
         //---CONTROLS---\\
+        //Allows holding for the keys too. Later this will be revamped to allow charge attacks
         attackKey1 = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.E);
         attackKey2 = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.SHIFT);
 
@@ -438,7 +520,7 @@
         const plr1Icon = this.add.image(250, 65, players.player.icon);
         const plr2Icon = this.add.image(650, 65, players.player2.icon);
 
-
+        //Set player names and KB text
         players.player.name = "AXEMAN";
         players.player2.name = "SWORDMAN";
 
@@ -454,22 +536,26 @@
     }
 
     function update () {
-
+        //why put these in an update loop?
+        //In this game there are a lot of different states and mechanics that need to be updated in real time, 
+        // such as player's movement, attacks, acting upon hitstun/freeze, checking for win conditions, and more.
         //---STATE UPDATES---\\
+        if (gameEnded) {
+            players.player.setVelocityX(0);
+            players.player.setVelocityY(0);
+            players.player2.setVelocityX(0);
+            players.player2.setVelocityY(0);
+            return
+        }
         if (attackKey1.isDown) {
             tryAttack(this, players.player, players.player2, 'axeatk', 'axeatkthird');
         }
         if (attackKey2.isDown) {
             tryAttack(this, players.player2, players.player, 'swordatk', 'swordatkthird');
         }
-        if (players.player.freeze) {
-            players.player.setVelocityX(0);
-            players.player.setVelocityY(0);
-        }
-        if (players.player2.freeze) {
-                players.player2.setVelocityX(0);
-                players.player2.setVelocityY(0);
-            }
+        players.player.outOfBounds = players.player.y > 700 || players.player.x < -200 || players.player.x > 1200 || players.player.y < -200;
+        players.player2.outOfBounds = players.player2.y > 700 || players.player2.x < -200 || players.player2.x > 1200 || players.player2.y < -200;
+        
         for (const key in players) {
             const player = players[key];
             
@@ -579,6 +665,31 @@
                 players.player2.setVelocityY(800);
             }
         }
+        //PRIORITY
+        if (players.player.freeze) {
+            players.player.setVelocityX(0);
+            players.player.setVelocityY(0);
+        }
+        if (players.player2.freeze) {
+            players.player2.setVelocityX(0);
+            players.player2.setVelocityY(0);
+        }
+
+        //WIN CONDITION -- DETECT IF PLAYER IS LAUNCHED FAR OFF SCREEN
+        if (players.player.y > 700 || players.player.x < -200 || players.player.x > 1200 || players.player.y < -200) {
+                   }
+
+        if (!gameEnded) {
+            if (players.player.outOfBounds) {
+                gameEnded = true;
+                this.add.text(500, 300, players.player2.name + ' WINS!', {fontFamily: 'GameFont', fontSize: '32px', fill: '#FFFFFF'}).setOrigin(0.5).setStroke('#000000', 5);
+            } else if (players.player2.outOfBounds) {
+                gameEnded = true;
+                this.add.text(500, 300, players.player.name + ' WINS!', {fontFamily: 'GameFont', fontSize: '32px', fill: '#FFFFFF'}).setOrigin(0.5).setStroke('#000000', 5);
+            }
+        }
+
+        
     }
 
 </script>
