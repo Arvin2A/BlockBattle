@@ -555,10 +555,10 @@
             players.player2.setVelocityY(0);
             return
         }
-        if (attackKey1.isDown && !player.player.hitstun) {
+        if (attackKey1.isDown && !players.player.hitstun) {
             tryAttack(this, players.player, players.player2, 'axeatk', 'axeatkthird');
         }
-        if (attackKey2.isDown && !player.player2.hitstun) {
+        if (attackKey2.isDown && !players.player2.hitstun) {
             tryAttack(this, players.player2, players.player, 'swordatk', 'swordatkthird');
         }
         players.player.outOfBounds = players.player.y > 700 || players.player.x < -200 || players.player.x > 1200 || players.player.y < -200;
