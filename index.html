@@ -301,8 +301,11 @@
         });
         scene.time.delayedCall(400, () => {
             attacker.canAttack = true;
+        });
+        scene.time.delayedCall(1000, () => {
             target.hitstun = false;
         });
+        
     }
 
     function updateCombo(player, dt) {
