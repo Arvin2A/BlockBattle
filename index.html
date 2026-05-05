@@ -109,6 +109,7 @@
         this.load.image('groundhitbox', 'assets/groundhitbox.png')
         this.load.image('redstat', 'assets/KBstatBG1.png')
         this.load.image('bluestat', 'assets/KBstatBG2.png')
+        this.load.image('winbar', 'assets/WINbar.png')
 
         this.load.spritesheet('axeatk', 'assets/axeatk1.png', {
             frameWidth: 50,
@@ -145,7 +146,11 @@
     var wasd;
     var attackKey1;
     var attackKey2;
-
+    var winNumber = 3; //number of rounds needed to win as of now
+    var lastWinState = {
+        p1: 0,
+        p2: 0
+    };
     var gameEnded = false;
     function attackIsElligible(attacker, target) {
         if (!attacker.canAttack || attacker.hitstun) return false;
@@ -206,6 +211,7 @@
             target.hitstun = true;
             target.freeze = true;
             attacker.freeze = true;
+            attacker.willDecelerate = false;
             attacker.comboTimer = 600;
 
             const dirX = attacker.lastDir.x;
@@ -241,14 +247,17 @@
             attacker.atk.stop();
             attacker.atk.setVisible(false);
         });
-        scene.time.delayedCall(400, () => {
+        if (attacker.revokeAggressorStun) scene.time.removeEvent(attacker.revokeAggressorStun);
+        if (target.revokeVictimStun) scene.time.removeEvent(target.revokeVictimStun);
+        attacker.revokeAggressorStun = scene.time.delayedCall(400, () => {
             attacker.canAttack = true;
+            attacker.freeze = false;
+            attacker.willDecelerate = true;
+        });
+        target.revokeVictimStun = scene.time.delayedCall(500, () => {
             target.hitstun = false;
             target.freeze = false;
-            attacker.freeze = false;
-        });
-        scene.time.delayedCall(1000, () => {
-            target.hitstun = false;
+            target.willDecelerate = true;
         });
         
     }
@@ -274,8 +283,10 @@
         console.log("Third Attack!");
         if (attackIsElligible(attacker, target)) {
             target.hitstun = true;
+            target.willDecelerate = false;
             target.freeze = false;
             attacker.freeze = false;
+            attacker.willDecelerate = true;
             attacker.comboTimer = 600;
             target.KBmultiplier += 0.07;
             scene.sound.play(animKey === 'swordatkthird' ? 'swordthirdhitsfx' : 'axethirdhitsfx');
@@ -305,8 +316,14 @@
         scene.time.delayedCall(400, () => {
             attacker.canAttack = true;
         });
-        scene.time.delayedCall(1000, () => {
+        if (attacker.revokeAggressorStun) scene.time.removeEvent(attacker.revokeAggressorStun);
+        if (target.revokeVictimStun) scene.time.removeEvent(target.revokeVictimStun);
+        scene.time.delayedCall(600, () => {
             target.hitstun = false;
+        });
+        scene.time.delayedCall(1000, () => {
+            console.log(target.willDecelerate);
+            target.willDecelerate = true;
         });
         
     }
@@ -385,11 +402,19 @@
         player.lastTap[direction] = currentTime; 
         
     }
+    var winBar;
     function create () {
         platforms = this.physics.add.staticGroup();
         //Making the background, platforms, and the KB stat display
         const bg = this.add.image(500, 300, 'background');
         bg.setDisplaySize(this.scale.width, this.scale.height);
+
+        winBar = this.add.image(500, 300, 'winbar');
+        winBar.setDisplaySize(this.scale.width, 150);
+        winBar.setScale(1, 0);
+        winBar.setVisible(false);
+
+
 
         const plr1StatImage = this.add.image(300, 65, 'redstat');
         plr1StatImage.setScale(0.65);
@@ -453,6 +478,12 @@
         players.player.canAttack = true;
         players.player2.canAttack = true;
 
+        players.player.revokeAggressorStun = null;
+        players.player.revokeVictimStun = null;
+
+        players.player2.revokeAggressorStun = null;
+        players.player2.revokeVictimStun = null;
+
         players.player.icon = 'axeman';
         players.player2.icon = 'swordman';
 
@@ -462,6 +493,9 @@
         players.player.freeze = false;
         players.player2.freeze = false;
 
+        players.player.willDecelerate = true;
+        players.player2.willDecelerate = true;
+
         players.player.nextAttackTime = 0;
         players.player2.nextAttackTime = 0;
 
@@ -470,6 +504,21 @@
         
         players.player.comboTimer = 0;
         players.player2.comboTimer = 0;
+        
+        players.player.winNumber = 0;
+        players.player2.winNumber = 0;
+
+        players.player.winText = this.add.text(400, 300, '', {
+            fontFamily: 'GameFont',
+            fontSize: '32px',
+            fill: '#FFFFFF'
+        }).setOrigin(0.5).setStroke('#000000', 4).setVisible(false);
+
+        players.player2.winText = this.add.text(600, 300, '', {
+            fontFamily: 'GameFont',
+            fontSize: '32px',
+            fill: '#FFFFFF'
+        }).setOrigin(0.5).setStroke('#000000', 4).setVisible(false);
 
         players.player.outOfBounds = false;
         players.player2.outOfBounds = false;
@@ -542,7 +591,41 @@
         players.player.KBText.setStroke('#000000', 3);
         players.player2.KBText.setStroke('#000000', 3);
     }
+    function updateWins(scene) {
+        if (players.player.winNumber !== lastWinState.p1 || players.player2.winNumber !== lastWinState.p2) {
+            console.log("update!")
+           lastWinState.p1 = players.player.winNumber;
+           lastWinState.p2 = players.player2.winNumber;
 
+           winBar.setVisible(true);
+            scene.tweens.add({
+                targets: winBar,
+                scaleY: 1, // from 0 → full height
+                duration: 300,
+                ease: 'Cubic.easeOut'
+            });
+            scene.time.delayedCall(1000, () => {
+                players.player.winText.setVisible(false);
+                players.player2.winText.setVisible(false);
+                scene.tweens.add({
+                    targets: winBar,
+                    scaleY: 0, // from 0 → full height
+                    duration: 300,
+                    ease: 'Cubic.easeOut'
+                });
+                winBar.setVisible(false)
+            });
+
+            players.player.winText.setText(players.player.winNumber);
+            players.player2.winText.setText(players.player2.winNumber);
+
+            
+        }
+    }
+    function teleportBackToArena(player) {
+        player.setPosition(500, 0)
+        player.setVelocityY(0)
+    }
     function update () {
         //why put these in an update loop?
         //In this game there are a lot of different states and mechanics that need to be updated in real time, 
@@ -623,7 +706,7 @@
                 players.player.setVelocityX(250);
             }
             else {
-                if (!players.player.hitstun) {
+                if (players.player.willDecelerate) {
                     decelerate(players.player);
                 }
             }
@@ -659,7 +742,7 @@
                 }
             }
             else {
-                if (!players.player2.hitstun) {
+                if (players.player2.willDecelerate) {
                     decelerate(players.player2);
                 }
             }
@@ -684,17 +767,29 @@
         }
 
         //WIN CONDITION -- DETECT IF PLAYER IS LAUNCHED FAR OFF SCREEN
-        if (players.player.y > 700 || players.player.x < -200 || players.player.x > 1200 || players.player.y < -200) {
-                   }
 
         if (!gameEnded) {
-            if (players.player.outOfBounds) {
-                gameEnded = true;
-                this.add.text(500, 300, players.player2.name + ' WINS!', {fontFamily: 'GameFont', fontSize: '32px', fill: '#FFFFFF'}).setOrigin(0.5).setStroke('#000000', 5);
-            } else if (players.player2.outOfBounds) {
-                gameEnded = true;
-                this.add.text(500, 300, players.player.name + ' WINS!', {fontFamily: 'GameFont', fontSize: '32px', fill: '#FFFFFF'}).setOrigin(0.5).setStroke('#000000', 5);
+            if (players.player.winNumber >= winNumber || players.player2.winNumber >= winNumber) {
+                if (players.player.outOfBounds) {
+                    gameEnded = true;
+                    this.add.text(500, 300, players.player2.name + ' WINS!', {fontFamily: 'GameFont', fontSize: '32px', fill: '#FFFFFF'}).setOrigin(0.5).setStroke('#000000', 5);
+                } else if (players.player2.outOfBounds) {
+                    gameEnded = true;
+                    this.add.text(500, 300, players.player.name + ' WINS!', {fontFamily: 'GameFont', fontSize: '32px', fill: '#FFFFFF'}).setOrigin(0.5).setStroke('#000000', 5);
+                }
+            } else {
+                if (players.player.outOfBounds) {
+                    players.player2.winNumber = players.player2.winNumber + 1;
+                    console.log(players.player2.winNumber)
+                    updateWins(this)
+                    teleportBackToArena(players.player)
+                } else if (players.player2.outOfBounds) {
+                    players.player.winNumber = players.player.winNumber + 1;
+                    updateWins(this)
+                    teleportBackToArena(players.player2)
+                }
             }
+
         }
 
         
