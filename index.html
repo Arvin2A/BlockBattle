@@ -155,12 +155,12 @@
         p2: 0
     };
     var gameEnded = false;
-    function attackIsElligible(attacker, target) {
+    function attackIsElligible(attacker, target, range = 100) {
         if (!attacker.canAttack || attacker.hitstun) return false;
         const dx = target.x - attacker.x;
         const dy = target.y - attacker.y;
         const distance = Math.hypot(dx, dy);
-        if (distance > 100) return false; // Too far away
+        if (distance > range) return false; // Too far away
 
         const dirToTargetX = dx/distance;
         const dirToTargetY = dy/distance;
@@ -283,7 +283,7 @@
         attacker.atk.setFrame(0);
         attacker.atk.play(animKey, true);
         console.log("Third Attack!");
-        if (attackIsElligible(attacker, target)) {
+        if (attackIsElligible(attacker, target, 200)) {
             target.hitstun = true;
             target.willDecelerate = false;
             target.freeze = false;
