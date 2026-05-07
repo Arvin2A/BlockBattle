@@ -334,8 +334,8 @@ function update() {
             player.airTime += this.game.loop.delta;
         }
     };
-    players.player.KBText.setText('KB: ' + (players.player.KBmultiplier.toFixed(1) * 100) - 100);
-    players.player2.KBText.setText('KB: ' + (players.player2.KBmultiplier.toFixed(1) * 100) - 100);
+    players.player.KBText.setText('KB: ' + ((players.player.KBmultiplier * 100) - 100));
+    players.player2.KBText.setText('KB: ' + ((players.player2.KBmultiplier * 100) - 100));
     updateCombo(players.player, this.game.loop.delta);
     updateCombo(players.player2, this.game.loop.delta);
     if (wasd.left.isDown) players.player.lastDir = { x: -1, y: 0 };
