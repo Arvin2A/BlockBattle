@@ -126,7 +126,7 @@ export function superSwing(scene, attacker, target, animKey) {
     attacker.atk.setFrame(0);
     attacker.atk.play(animKey, true);
     console.log("Third Attack!");
-    if (attackIsElligible(attacker, target, 200)) {
+    if (attackIsElligible(attacker, target, 150)) {
         target.hitstun = true;
         target.willDecelerate = false;
         target.freeze = false;
