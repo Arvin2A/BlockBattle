@@ -10,9 +10,15 @@ import { initiatePlayers, updateCombo } from './players.js';
 //    This is to kinda discourage spamming and rather strategy
 // 2. Axe cleave: Bigger range, was near impossible to land and wasn't worth it.
 // 3. Sword lunge: Can now deal damage, isn't just a mobility tool.
-// 4. DOUBLE JUMP: Both players can perform a double jump, adding more maneuverabiity to the game.
+// 4. DOUBLE JUMP: Both players can perform a double jump, adding more maneuverability to the game.
 
-
+//TESTER CREDITS:
+//Thank you all testers for this game, including several students in my grade
+//The most impactful testers I'd wish to mention are:
+//Aidan Z, Deyu Z, Luke Ch, Augustus L, Jaylen L, Presley F, Giovanni M, Jeffrey C, Mr. Primm
+//While they might have told others about the game, those are who I know about who have played and tested the game
+//Not only did they play the game, but I was also able to work up to some of their suggestions.
+//The ones impactful are the ones I've also observed mistakes in the game from, whether stating it to me or watching them play, so I can add fixes to the code
 
 // This is a 2D platform fighter game made using Phaser and Javascript. Requires a keyboard to play
 //ENTIRE script is made by zamanarvin. Some assets were made by Jeffrey Chen, others by me 
