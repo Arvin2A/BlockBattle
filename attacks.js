@@ -191,7 +191,7 @@ export function pushAttack(scene, attacker, target, animKey) {
     attacker.atk.setFrame(0);
     attacker.atk.play(animKey, true);
     console.log("push!");
-    if (attackIsElligible(attacker, target)) {
+    if (attackIsElligible(attacker, target, 125)) {
         target.hitstun = true;
         target.willDecelerate = false;
         target.freeze = false;
