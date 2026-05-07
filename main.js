@@ -21,7 +21,7 @@ import { initiatePlayers, updateCombo } from './players.js';
 //The ones impactful are the ones I've also observed mistakes in the game from, whether stating it to me or watching them play, so I can add fixes to the code
 
 // This is a 2D platform fighter game made using Phaser and Javascript. Requires a keyboard to play
-//ENTIRE script is made by zamanarvin. Some assets were made by Jeffrey Chen, others by me 
+//ENTIRE script is made by zamanarvin. Some assets were made by Jeffrey C, others by me 
 //NOTE: mohsina007 and arvin2a are the same person, ARVIN ZAMAN
 // its just that mohsina007 is the account that was hard-set as the account for VSCode, the application I used to make this game.
 // and the sound effects were taken from various games as listed in the preload function.
