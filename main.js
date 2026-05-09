@@ -493,7 +493,6 @@ function update() {
         }
         if (!players.player.hasHitSideSpecial && players.player.isUsingSideSpecial) {
             superSwing(this, players.player, players.player2, 'axeatkthird');
-            players.player.hasHitSideSpecial = true;
         }
         if (wasd.left.isDown) {
             if (!players.player.isUsingSideSpecial) {
