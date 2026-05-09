@@ -342,9 +342,12 @@ function teleportBackToArena(player) {
     player.setVelocityX(0);
 }
 const accelFactor = 20;
+var winCooldown = false;
+
 const baseZoom = 1;
 const minZoom = 0.6;
 const maxZoom = 1.2;
+
 
 function update() {
 
@@ -389,8 +392,8 @@ function update() {
     if (attackKey2.isDown && !players.player2.hitstun) {
         tryAttack(this, players.player2, players.player, 'swordatk', 'swordatkthird');
     }
-    players.player.outOfBounds = players.player.y > 0 || players.player.x < -200 || players.player.x > 2200 || players.player.y < -600;
-    players.player2.outOfBounds = players.player2.y > 0 || players.player2.x < -200 || players.player2.x > 2200 || players.player2.y < -600;
+    players.player.outOfBounds = players.player.y > 1200 || players.player.x < 0 || players.player.x > 2000 || players.player.y < 0;
+    players.player2.outOfBounds = players.player2.y > 1200 || players.player2.x < 0 || players.player2.x > 2000 || players.player2.y < 0;
 
     for (const key in players) {
         const player = players[key];
@@ -560,17 +563,25 @@ function update() {
 
     //WIN CONDITION -- DETECT IF PLAYER IS LAUNCHED FAR OFF SCREEN
 
-    if (!gameEnded) {
+    if (!gameEnded && !winCooldown) {
 
         if (players.player.outOfBounds) {
+            winCooldown = true;
             players.player2.winNumber = players.player2.winNumber + 1;
             console.log(players.player2.winNumber)
             updateWins(this)
             teleportBackToArena(players.player)
+            this.time.delayedCall(1500, () => {
+                winCooldown = false;
+            });
         } else if (players.player2.outOfBounds) {
+            winCooldown = true;
             players.player.winNumber = players.player.winNumber + 1;
             updateWins(this)
             teleportBackToArena(players.player2)
+            this.time.delayedCall(1500, () => {
+                winCooldown = false;
+            });
         }
 
         if (players.player.winNumber >= winNumber || players.player2.winNumber >= winNumber) {
