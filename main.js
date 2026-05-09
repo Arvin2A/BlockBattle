@@ -405,11 +405,11 @@ function update() {
 
     this.cameras.main.scrollX += (
         midX - this.cameras.main.width / 2 - this.cameras.main.scrollX
-    ) * 0.08;
+    ) * 0.12;
 
     this.cameras.main.scrollY += (
         midY - this.cameras.main.height / 2 - this.cameras.main.scrollY
-    ) * 0.08;
+    ) * 0.12;
 
     this.cameras.main.zoom += (
         zoom - this.cameras.main.zoom
