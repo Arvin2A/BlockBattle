@@ -266,7 +266,7 @@ export function lungePush(scene, attacker, target, animKey) {
         attacker.freeze = false;
         attacker.willDecelerate = true;
         attacker.comboTimer = 600;
-        target.KBmultiplier += 0.05;
+        target.KBmultiplier += 0.30;
         scene.sound.play('anyhit');
         const dirX = attacker.lastDir.x;
 
