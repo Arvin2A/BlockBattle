@@ -1,11 +1,12 @@
-//lets start off ez with a quick and effective refactor: players
+const xOff = 500;
+const yOff = 300;
 export function initiatePlayers(scene) {
     const players = {
         player: null,
         player2: null
     };
-    players.player = scene.physics.add.sprite(50, 500, 'axeman');
-    players.player2 = scene.physics.add.sprite(800, 420, 'swordman');
+    players.player = scene.physics.add.sprite(xOff+50, yOff+500, 'axeman');
+    players.player2 = scene.physics.add.sprite(xOff+800, yOff+420, 'swordman');
     
     for (const key in players) {
         const p = players[key];
@@ -31,6 +32,8 @@ export function initiatePlayers(scene) {
             p.x,
             p.y + 40, 'doublejump');
         p.doubleJumpEffect.setAlpha(0);
+        scene.objs.add(p);
+        p.setDepth(2);
     }
     players.player.lastDir = { x: 1, y: 0 };
     players.player2.lastDir = { x: -1, y: 0 };
@@ -46,26 +49,32 @@ export function initiatePlayers(scene) {
         fontSize: '48px',
         fill: '#FFFFFF'
     }).setOrigin(0.5).setStroke('#000000', 4).setVisible(false);
-
+    scene.hud.add(players.player.winText);
+    scene.hud.add(players.player2.winText);
 
     players.player.atk = scene.add.sprite(
         players.player.x + (players.player.lastDir.x * 50),
         players.player.y + (players.player.lastDir.y * 50),
         'axeatk'
     );
-
+    scene.objs.add(players.player.atk);
     players.player2.atk = scene.add.sprite(
         players.player2.x + (players.player2.lastDir.x * 50),
         players.player2.y + (players.player2.lastDir.y * 50),
         'swordatk'
     );
-
+    scene.objs.add(players.player2.atk);
 
     players.player.atk.setVisible(false);
     players.player2.atk.setVisible(false);
 
     players.player.name = "AXEMAN";
     players.player2.name = "SWORDMAN";
+
+    players.player.icon = "axeman";
+    players.player2.icon = "swordman";
+
+
     
     console.log(players.player)
     return players;
