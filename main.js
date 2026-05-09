@@ -1,4 +1,4 @@
-import { attack, pushAttack, thirdAttack, superSwing, tryAttack, attackIsElligible, tryLunge, tryCleave } from './attacks.js';
+import { attack, pushAttack, lungePush, thirdAttack, superSwing, tryAttack, attackIsElligible, tryLunge, tryCleave } from './attacks.js';
 import { initiatePlayers, updateCombo } from './players.js';
 //UPDATE: HUGE REFACTOR OF CODE!! THIS IS FOR CLEANLINESS AND FOR THE FURTHER DEVELOPMENT OF THIS WEB APP
 //3 NEW SCRIPTS: main.js (current), players.js, attacks.js
@@ -113,6 +113,7 @@ function preload() {
     //credits to jeffrey for making the app's icon (width_512.ico)
     this.load.image('background', 'assets/background_one.png');
     this.load.image('ground', 'assets/ground.png')
+    this.load.image('betterground', 'assets/betterground.png')
     this.load.image('platform1', 'assets/platform1.png')
     this.load.image('axeman', 'assets/character1.png')
     this.load.image('swordman', 'assets/character2.png')
@@ -160,19 +161,27 @@ var lastWinState = {
     p2: 0
 };
 var gameEnded = false;
+const xOff = 500;
+const yOff = 300;
 
 
 var winBar;
 function create() {
+    this.hud = this.add.container(0, 0);
+    this.objs = this.add.container(0,0);
+    this.objcam = this.cameras.add(0,0,1000,600, false, "hudCam");
     platforms = this.physics.add.staticGroup();
     //Making the background, platforms, and the KB stat display
-    const bg = this.add.image(500, 300, 'background');
-    bg.setDisplaySize(this.scale.width, this.scale.height);
+    const bg = this.add.image(1000, 600, 'background');
+    bg.setDisplaySize(this.scale.width*2, this.scale.height*2);
+    bg.setDepth(-1);
+    this.objs.add(bg);
 
-    winBar = this.add.image(500, 300, 'winbar');
+    winBar = this.add.image(500 , 300, 'winbar');
     winBar.setDisplaySize(this.scale.width, 150);
     winBar.setScale(1, 0);
     winBar.setVisible(false);
+    this.hud.add(winBar);
 
 
 
@@ -180,23 +189,33 @@ function create() {
     plr1StatImage.setScale(0.65);
     const plr2StatImage = this.add.image(700, 65, 'bluestat');
     plr2StatImage.setScale(0.65);
+    this.hud.add(plr1StatImage);
+    this.hud.add(plr2StatImage);
 
-    const groundVisual = this.add.image(500, 450, 'ground');
-    groundVisual.setDisplaySize(this.scale.width, 300);
+    const platform = this.add.image(xOff+ 725, yOff+425, 'platform1');
+    platform.setScale(0.5);
+    platform.setDepth(0);
+    this.objs.add(platform);
+
+    const groundVisual = this.add.image(xOff+ 500, yOff+1085, 'betterground');
+    groundVisual.setDisplaySize(this.scale.width, 1200);
+    this.objs.add(groundVisual);
+    groundVisual.setDepth(1);
 
     // Invisible collision ground, the actual ground
-    const ground = platforms.create(500, 575, 'groundhitbox');
+    const ground = platforms.create(xOff+ 500, yOff+575, 'groundhitbox');
     ground.setDisplaySize(this.scale.width, 0);
     ground.setVisible(false);
     ground.refreshBody();
+    this.objs.add(ground);
 
-    const ground2 = platforms.create(725, 470, 'groundhitbox');
+    const ground2 = platforms.create(xOff+ 725, yOff+470, 'groundhitbox');
     ground2.setDisplaySize(this.scale.width / 2, 0);
     ground2.setVisible(true);
     ground2.refreshBody();
+    this.objs.add(ground2);
 
-    const platform = this.add.image(725, 425, 'platform1');
-    platform.setScale(0.5);
+
     //platform.refreshBody();
     this.anims.create({
         key: 'axeatk',
@@ -227,6 +246,13 @@ function create() {
     //---PLAYER---\\
     players = initiatePlayers(this);
 
+    //a bit of cam intiation:
+    this.physics.world.setBounds(0, 0, 2000, 1200);
+    this.cameras.main.setBounds(0, 0, 2000, 1200);
+    this.cameras.main.ignore(this.hud);
+    this.objcam.ignore(this.objs);
+
+
     for (const key in players) {
         const player = players[key];
         this.physics.add.collider(player, platforms);
@@ -244,16 +270,22 @@ function create() {
     //load icons for the KB stat display
     const plr1Icon = this.add.image(250, 65, players.player.icon);
     const plr2Icon = this.add.image(650, 65, players.player2.icon);
+    this.hud.add(plr1Icon);
+    this.hud.add(plr2Icon);
 
     const plr1NameText = this.add.text(280, 47, players.player.name, { fontFamily: 'GameFont', fontSize: '10px', fill: '#FFFFFF' });
     const plr2NameText = this.add.text(680, 47, players.player2.name, { fontFamily: 'GameFont', fontSize: '10px', fill: '#FFFFFF' });
     plr1NameText.setStroke('#000000', 3);
     plr2NameText.setStroke('#000000', 3);
-
+    this.hud.add(plr1NameText);
+    this.hud.add(plr2NameText);
     players.player.KBText = this.add.text(285, 65, 'KB: 1.00', { fontFamily: 'GameFont', fontSize: '14px', fill: '#FFFFFF' });
     players.player2.KBText = this.add.text(685, 65, 'KB: 1.00', { fontFamily: 'GameFont', fontSize: '14px', fill: '#FFFFFF' });
     players.player.KBText.setStroke('#000000', 3);
     players.player2.KBText.setStroke('#000000', 3);
+    this.hud.add(players.player2.KBText);
+    this.hud.add(players.player.KBText);
+    
 
     //---CONTROLS---\\
     //Allows holding for the keys too. Later this will be revamped to allow charge attacks
@@ -297,33 +329,63 @@ function updateWins(scene) {
         players.player2.winText.setVisible(true);
 
     }
+
 }
 function teleportBackToArena(player) {
-    player.setPosition(500, 0)
-    player.setVelocityY(0)
-    player.setVelocityX(0)
+    player.setPosition(1000, 0);
+    player.setVelocityY(0);
+    player.setVelocityX(0);
 }
-const accelFactor = 20
+const accelFactor = 20;
+const baseZoom = 1;
+const minZoom = 0.6;
+const maxZoom = 1.2;
+
 function update() {
-    //why put these in an update loop?
-    //In this game there are a lot of different states and mechanics that need to be updated in real time, 
-    // such as player's movement, attacks, acting upon hitstun/freeze, checking for win conditions, and more.
-    //---STATE UPDATES---\\
+
     if (gameEnded) {
-        players.player.setVelocityX(0);
-        players.player.setVelocityY(0);
-        players.player2.setVelocityX(0);
-        players.player2.setVelocityY(0);
-        return
+        players.player.setVelocity(0, 0);
+        players.player2.setVelocity(0, 0);
+        return;
     }
+
+    const p1 = players.player;
+    const p2 = players.player2;
+
+    const midX = (p1.x + p2.x) / 2;
+    const midY = (p1.y + p2.y) / 2;
+
+    // distance between players
+    const distX = Math.abs(p1.x - p2.x);
+    const distY = Math.abs(p1.y - p2.y);
+
+    const distance = Math.max(distX, distY);
+
+    let zoom = baseZoom - (distance / 2000);
+
+    zoom = Phaser.Math.Clamp(zoom, minZoom, maxZoom);
+
+    this.cameras.main.scrollX += (
+        midX - this.cameras.main.width / 2 - this.cameras.main.scrollX
+    ) * 0.08;
+
+    this.cameras.main.scrollY += (
+        midY - this.cameras.main.height / 2 - this.cameras.main.scrollY
+    ) * 0.08;
+
+    this.cameras.main.zoom += (
+        zoom - this.cameras.main.zoom
+    ) * 0.05;
+
+
     if (attackKey1.isDown && !players.player.hitstun) {
         tryAttack(this, players.player, players.player2, 'axeatk', 'axeatkthird');
     }
     if (attackKey2.isDown && !players.player2.hitstun) {
         tryAttack(this, players.player2, players.player, 'swordatk', 'swordatkthird');
     }
-    players.player.outOfBounds = players.player.y > 700 || players.player.x < -400 || players.player.x > 1400 || players.player.y < -200;
-    players.player2.outOfBounds = players.player2.y > 700 || players.player2.x < -400 || players.player2.x > 1400 || players.player2.y < -200;
+    players.player.outOfBounds = players.player.y > 1000 || players.player.x < -900 || players.player.x > 2400 || players.player.y < -600;
+    players.player2.outOfBounds = players.player2.y > 1000 || players.player2.x < -900 || players.player2.x > 2400 || players.player2.y < -600;
 
     for (const key in players) {
         const player = players[key];
@@ -439,7 +501,7 @@ function update() {
             tryLunge(this, players.player2, 'right', this.time.now);
         }
         if (!players.player2.hasHitSideSpecial && players.player2.isUsingSideSpecial) {
-            pushAttack(this, players.player2, players.player, 'swordatkthird');
+            lungePush(this, players.player2, players.player, 'swordatkthird');
             players.player.hasHitSideSpecial = true;
         }
         if (cursors.left.isDown) {
@@ -509,10 +571,10 @@ function update() {
         if (players.player.winNumber >= winNumber || players.player2.winNumber >= winNumber) {
             if (players.player.outOfBounds) {
                 gameEnded = true;
-                this.add.text(500, 400, players.player2.name + ' WINS!', { fontFamily: 'GameFont', fontSize: '32px', fill: '#00008B' }).setOrigin(0.5).setStroke('#000000', 5);
+                this.add.text(xOff+ 500, yOff+400, players.player2.name + ' WINS!', { fontFamily: 'GameFont', fontSize: '32px', fill: '#00008B' }).setOrigin(0.5).setStroke('#000000', 5);
             } else if (players.player2.outOfBounds) {
                 gameEnded = true;
-                this.add.text(500, 400, players.player.name + ' WINS!', { fontFamily: 'GameFont', fontSize: '32px', fill: '#8B0000' }).setOrigin(0.5).setStroke('#000000', 5);
+                this.add.text(xOff+ 500, yOff+400, players.player.name + ' WINS!', { fontFamily: 'GameFont', fontSize: '32px', fill: '#8B0000' }).setOrigin(0.5).setStroke('#000000', 5);
             }
         }
     }
