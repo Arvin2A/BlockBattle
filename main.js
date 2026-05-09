@@ -147,6 +147,7 @@ function preload() {
 }
 //important game variables, including player objects, controls, and the platforms group
 var platforms;
+var topPlatforms;
 var players;
 
 var player;
@@ -171,6 +172,7 @@ function create() {
     this.objs = this.add.container(0,0);
     this.objcam = this.cameras.add(0,0,1000,600, false, "hudCam");
     platforms = this.physics.add.staticGroup();
+    topPlatforms = this.physics.add.staticGroup();
     //Making the background, platforms, and the KB stat display
     const bg = this.add.image(1000, 600, 'background');
     bg.setDisplaySize(this.scale.width*2, this.scale.height*2);
@@ -209,11 +211,12 @@ function create() {
     ground.refreshBody();
     this.objs.add(ground);
 
-    const ground2 = platforms.create(xOff+ 725, yOff+470, 'groundhitbox');
+    const ground2 = topPlatforms.create(xOff+ 725, yOff+470, 'groundhitbox');
     ground2.setDisplaySize(this.scale.width / 2, 0);
     ground2.setVisible(true);
     ground2.refreshBody();
     this.objs.add(ground2);
+    ground2.body.checkCollision.down = false
 
 
     //platform.refreshBody();
@@ -256,7 +259,9 @@ function create() {
     for (const key in players) {
         const player = players[key];
         this.physics.add.collider(player, platforms);
+        this.physics.add.collider(player, topPlatforms);
     }
+
     const keys = Object.keys(players);
 
     for (let i = 0; i < keys.length; i++) {
@@ -384,8 +389,8 @@ function update() {
     if (attackKey2.isDown && !players.player2.hitstun) {
         tryAttack(this, players.player2, players.player, 'swordatk', 'swordatkthird');
     }
-    players.player.outOfBounds = players.player.y > 1000 || players.player.x < -900 || players.player.x > 2400 || players.player.y < -600;
-    players.player2.outOfBounds = players.player2.y > 1000 || players.player2.x < -900 || players.player2.x > 2400 || players.player2.y < -600;
+    players.player.outOfBounds = players.player.y > 0 || players.player.x < -200 || players.player.x > 2200 || players.player.y < -600;
+    players.player2.outOfBounds = players.player2.y > 0 || players.player2.x < -200 || players.player2.x > 2200 || players.player2.y < -600;
 
     for (const key in players) {
         const player = players[key];
