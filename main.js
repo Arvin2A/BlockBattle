@@ -112,16 +112,18 @@ function preload() {
     //snd_damage_c.wav is from Undertale by Toby Fox, used for the axe's third hit for that extra 
     //credits to jeffrey for making the app's icon (width_512.ico)
     this.load.image('background', 'assets/background_one.png');
-    this.load.image('ground', 'assets/ground.png')
-    this.load.image('betterground', 'assets/betterground.png')
-    this.load.image('platform1', 'assets/platform1.png')
-    this.load.image('axeman', 'assets/character1.png')
-    this.load.image('swordman', 'assets/character2.png')
-    this.load.image('groundhitbox', 'assets/groundhitbox.png')
-    this.load.image('redstat', 'assets/KBstatBG1.png')
-    this.load.image('bluestat', 'assets/KBstatBG2.png')
-    this.load.image('winbar', 'assets/WINbar.png')
-    this.load.image('doublejump', 'assets/DoubleJump.png')
+    this.load.image('ground', 'assets/ground.png');
+    this.load.image('betterground', 'assets/betterground.png');
+    this.load.image('platform1', 'assets/platform1.png');
+    this.load.image('axeman', 'assets/character1.png');
+    this.load.image('swordman', 'assets/character2.png');
+    this.load.image('groundhitbox', 'assets/groundhitbox.png');
+    this.load.image('redstat', 'assets/KBstatBG1.png');
+    this.load.image('bluestat', 'assets/KBstatBG2.png');
+    this.load.image('winbar', 'assets/WINbar.png');
+    this.load.image('doublejump', 'assets/DoubleJump.png');
+    this.load.image('restartBtn', 'assets/restartBtn.png');
+    this.load.image('restartBtnPressed', 'assets/pressedRestart.png');
 
     this.load.spritesheet('axeatk', 'assets/axeatk1.png', {
         frameWidth: 50,
@@ -167,7 +169,10 @@ const yOff = 300;
 
 
 var winBar;
+var restartBtn;
+var restartBtnPressed;
 function create() {
+    gameEnded = false;
     this.hud = this.add.container(0, 0);
     this.objs = this.add.container(0,0);
     this.objcam = this.cameras.add(0,0,1000,600, false, "hudCam");
@@ -184,6 +189,31 @@ function create() {
     winBar.setScale(1, 0);
     winBar.setVisible(false);
     this.hud.add(winBar);
+
+    restartBtn = this.add.image(500,450, 'restartBtn');
+    restartBtn.setScale(0.35);
+    restartBtn.setVisible(false);
+    this.hud.add(restartBtn);
+
+    restartBtnPressed = this.add.image(500,450, 'restartBtnPressed');
+    restartBtnPressed.setScale(0.35);
+    restartBtnPressed.setVisible(false);
+    this.hud.add(restartBtnPressed)
+
+    restartBtn.setInteractive({ useHandCursor: true });
+    restartBtn.on('pointerdown', () => {
+        restartBtn.setVisible(false);
+        restartBtnPressed.setVisible(true);
+        this.time.delayedCall(75, () => {
+            restartBtn.setVisible(true);
+            restartBtnPressed.setVisible(false);
+        });
+        this.time.delayedCall(150, () => {
+            restartBtn.setVisible(false);
+            this.scene.restart();
+        });
+    });
+
 
 
 
@@ -222,26 +252,26 @@ function create() {
     //platform.refreshBody();
     this.anims.create({
         key: 'axeatk',
-        frames: this.anims.generateFrameNumbers('axeatk', { start: 0, end: 4 }),
+        frames: this.anims.generateFrameNumbers('axeatk', { start: 0, end: 3 }),
         frameRate: 32,
         repeat: 0
     });
 
     this.anims.create({
         key: 'swordatk',
-        frames: this.anims.generateFrameNumbers('swordatk', { start: 0, end: 4 }),
+        frames: this.anims.generateFrameNumbers('swordatk', { start: 0, end: 3 }),
         frameRate: 32,
         repeat: 0
     });
     this.anims.create({
         key: 'swordatkthird',
-        frames: this.anims.generateFrameNumbers('swordatkthird', { start: 0, end: 4 }),
+        frames: this.anims.generateFrameNumbers('swordatkthird', { start: 0, end: 3 }),
         frameRate: 32,
         repeat: 0
     });
     this.anims.create({
         key: 'axeatkthird',
-        frames: this.anims.generateFrameNumbers('axeatkthird', { start: 0, end: 4 }),
+        frames: this.anims.generateFrameNumbers('axeatkthird', { start: 0, end: 3 }),
         frameRate: 32,
         repeat: 0
     });
@@ -592,6 +622,7 @@ function update() {
                 gameEnded = true;
                 this.add.text(xOff+ 500, yOff+400, players.player.name + ' WINS!', { fontFamily: 'GameFont', fontSize: '32px', fill: '#8B0000' }).setOrigin(0.5).setStroke('#000000', 5);
             }
+            restartBtn.setVisible(true);
         }
     }
 }
