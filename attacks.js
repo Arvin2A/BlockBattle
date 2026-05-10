@@ -264,6 +264,7 @@ export function lungePush(scene, attacker, target, animKey) {
         target.willDecelerate = false;
         target.freeze = false;
         attacker.freeze = false;
+        //fix for lunge
         attacker.hasHitSideSpecial = true;
         attacker.willDecelerate = true;
         attacker.comboTimer = 600;
