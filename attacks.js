@@ -285,7 +285,7 @@ export function lungePush(scene, attacker, target, animKey) {
         }
         attacker.combo = 0;
         attacker.comboTimer = 0;
-        attacker.hasHitSideSpecial = false;
+        attacker.hasHitSideSpecial = true;
     }
     attacker.canAttack = false;
     scene.time.delayedCall(250, () => {
