@@ -539,7 +539,6 @@ function update() {
         }
         if (!players.player2.hasHitSideSpecial && players.player2.isUsingSideSpecial) {
             lungePush(this, players.player2, players.player, 'swordatkthird');
-            players.player2.hasHitSideSpecial = true;
         }
         if (cursors.left.isDown) {
             if (!players.player2.isUsingSideSpecial) {
