@@ -422,8 +422,8 @@ function update() {
     if (attackKey2.isDown && !players.player2.hitstun) {
         tryAttack(this, players.player2, players.player, 'swordatk', 'swordatkthird');
     }
-    players.player.outOfBounds = players.player.y > 1200 || players.player.x < 0 || players.player.x > 2000 || players.player.y < 0;
-    players.player2.outOfBounds = players.player2.y > 1200 || players.player2.x < 0 || players.player2.x > 2000 || players.player2.y < 0;
+    players.player.outOfBounds = players.player.y > 1600 || players.player.x < -400 || players.player.x > 2400 || players.player.y < 0;
+    players.player2.outOfBounds = players.player2.y > 1600 || players.player2.x < -400 || players.player2.x > 2400 || players.player2.y < 0;
 
     for (const key in players) {
         const player = players[key];
