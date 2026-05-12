@@ -115,8 +115,11 @@ function preload() {
     this.load.image('ground', 'assets/ground.png');
     this.load.image('betterground', 'assets/betterground.png');
     this.load.image('platform1', 'assets/platform1.png');
+    //chars
     this.load.image('axeman', 'assets/character1.png');
     this.load.image('swordman', 'assets/character2.png');
+    this.load.image('fisherman', 'assets/character3.png')
+    //other
     this.load.image('groundhitbox', 'assets/groundhitbox.png');
     this.load.image('redstat', 'assets/KBstatBG1.png');
     this.load.image('bluestat', 'assets/KBstatBG2.png');
@@ -138,6 +141,10 @@ function preload() {
         frameHeight: 50
     });
     this.load.spritesheet('axeatkthird', 'assets/axeatk2.png', {
+        frameWidth: 50,
+        frameHeight: 50
+    });
+    this.load.spritesheet('rodatk', 'assets/rodatk1.png', {
         frameWidth: 50,
         frameHeight: 50
     });
