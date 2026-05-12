@@ -133,7 +133,7 @@ export function superSwing(scene, attacker, target, animKey) {
         attacker.freeze = false;
         attacker.willDecelerate = true;
         attacker.comboTimer = 600;
-        target.KBmultiplier += 0.07;
+        target.KBmultiplier += 0.14;
         scene.sound.play(animKey === 'swordatkthird' ? 'swordthirdhitsfx' : 'axethirdhitsfx');
         const dirX = attacker.lastDir.x;
 
