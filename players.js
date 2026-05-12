@@ -52,7 +52,8 @@ export function initiatePlayers(scene, p1Select = 'axeman', p2Select = 'swordman
     scene.hud.add(players.player.winText);
     scene.hud.add(players.player2.winText);
 
-    players.player.atk = scene.add.sprite(
+
+    /*players.player.atk = scene.add.sprite(
         players.player.x + (players.player.lastDir.x * 50),
         players.player.y + (players.player.lastDir.y * 50),
         'axeatk'
@@ -62,18 +63,41 @@ export function initiatePlayers(scene, p1Select = 'axeman', p2Select = 'swordman
         players.player2.x + (players.player2.lastDir.x * 50),
         players.player2.y + (players.player2.lastDir.y * 50),
         'swordatk'
-    );
-    scene.objs.add(players.player2.atk);
-
-    players.player.atk.setVisible(false);
-    players.player2.atk.setVisible(false);
-
+    );*/
     players.player.name = p1Select.toUpperCase();
     players.player2.name = p2Select.toUpperCase();
 
     players.player.icon = p1Select;
     players.player2.icon = p2Select;
 
+    for (const key in players) {
+        const p = players[key];
+        if (p.name === "SWORDMAN") {
+            p.atk = scene.add.sprite(
+                p.x + (p.lastDir.x * 50),
+                p.y + (p.lastDir.y * 50),
+                'swordatk'
+            );
+        } else if (p.name === "AXEMAN") {
+            p.atk = scene.add.sprite(
+                p.x + (p.lastDir.x * 50),
+                p.y + (p.lastDir.y * 50),
+                'axeatk'
+            );
+        } else {
+            //fallback to axe sprite
+            p.atk = scene.add.sprite(
+                p.x + (p.lastDir.x * 50),
+                p.y + (p.lastDir.y * 50),
+                'axeatk'
+            );
+        }
+        
+        scene.objs.add(p.atk);
+    }
+
+    players.player.atk.setVisible(false);
+    players.player2.atk.setVisible(false);
 
     
     console.log(players.player)
