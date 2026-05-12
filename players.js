@@ -1,12 +1,12 @@
 const xOff = 500;
 const yOff = 300;
-export function initiatePlayers(scene) {
+export function initiatePlayers(scene, p1Select = 'axeman', p2Select = 'swordman') {
     const players = {
         player: null,
         player2: null
     };
-    players.player = scene.physics.add.sprite(xOff+50, yOff+500, 'axeman');
-    players.player2 = scene.physics.add.sprite(xOff+800, yOff+420, 'swordman');
+    players.player = scene.physics.add.sprite(xOff+50, yOff+500, p1Select);
+    players.player2 = scene.physics.add.sprite(xOff+800, yOff+420, p2Select);
     
     for (const key in players) {
         const p = players[key];
@@ -68,11 +68,11 @@ export function initiatePlayers(scene) {
     players.player.atk.setVisible(false);
     players.player2.atk.setVisible(false);
 
-    players.player.name = "AXEMAN";
-    players.player2.name = "SWORDMAN";
+    players.player.name = p1Select.toUpperCase();
+    players.player2.name = p2Select.toUpperCase();
 
-    players.player.icon = "axeman";
-    players.player2.icon = "swordman";
+    players.player.icon = p1Select;
+    players.player2.icon = p2Select;
 
 
     
