@@ -150,6 +150,7 @@ function preload() {
     });
     this.load.audio('swordthirdhitsfx', 'audio/swordlunge.wav');
     this.load.audio('axethirdhitsfx', 'audio/snd_damage_c.wav');
+    this.load.audio('rodthridhitsfx', 'audio/whipcrack.wav')
     this.load.audio('anyhit', 'audio/hit1.ogg');
     this.load.audio('miss', 'audio/swordslash.wav');
     this.load.audio('lunge', 'audio/Dodge3.wav');
