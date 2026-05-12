@@ -476,3 +476,24 @@ export function tryCleave(scene, player, direction, currentTime) {
 
     player.lastTap[direction] = currentTime;
 }
+export function handleAttack(scene, attacker, victim) {
+    if (attacker.name === "SWORDMAN") {
+        tryAttack(scene, attacker, victim ,'swordatk', 'swordatkthird');
+    } else if (attacker.name === "AXEMAN") {
+        tryAttack(scene, attacker, victim ,'axeatk', 'axeatkthird');
+    }
+}
+export function handleDirSpecial(scene, attacker, direction, currentTime) {
+    if (attacker.name === "SWORDMAN") {
+        tryLunge(scene, attacker, direction, currentTime);
+    } else if (attacker.name === "AXEMAN") {
+        tryCleave(scene, attacker, direction, currentTime);
+    }
+}
+export function handleDirSpecialAttack(scene, attacker, victim) {
+    if (attacker.name === "SWORDMAN") {
+        lungePush(scene, attacker, victim, 'swordatkthird');
+    } else if (attacker.name === "AXEMAN") {
+        superSwing(scene, attacker, victim, 'axeatkthird');
+    }
+}

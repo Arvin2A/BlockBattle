@@ -1,4 +1,4 @@
-import { attack, pushAttack, lungePush, thirdAttack, superSwing, tryAttack, attackIsElligible, tryLunge, tryCleave } from './attacks.js';
+import { attack, pushAttack, lungePush, thirdAttack, superSwing, tryAttack, attackIsElligible, tryLunge, tryCleave, handleAttack, handleDirSpecial, handleDirSpecialAttack} from './attacks.js';
 import { initiatePlayers, updateCombo } from './players.js';
 //UPDATE: HUGE REFACTOR OF CODE!! THIS IS FOR CLEANLINESS AND FOR THE FURTHER DEVELOPMENT OF THIS WEB APP
 //3 NEW SCRIPTS: main.js (current), players.js, attacks.js
@@ -417,10 +417,10 @@ function update() {
 
 
     if (attackKey1.isDown && !players.player.hitstun) {
-        tryAttack(this, players.player, players.player2, 'axeatk', 'axeatkthird');
+        handleAttack(this, players.player, players.player2);
     }
     if (attackKey2.isDown && !players.player2.hitstun) {
-        tryAttack(this, players.player2, players.player, 'swordatk', 'swordatkthird');
+        handleAttack(this, players.player2, players.player);
     }
     players.player.outOfBounds = players.player.y > 1600 || players.player.x < -400 || players.player.x > 2400 || players.player.y < 0;
     players.player2.outOfBounds = players.player2.y > 1600 || players.player2.x < -400 || players.player2.x > 2400 || players.player2.y < 0;
@@ -486,13 +486,13 @@ function update() {
 
     if (!players.player.hitstun) {
         if (Phaser.Input.Keyboard.JustDown(wasd.left)) {
-            tryCleave(this, players.player, 'left', this.time.now);
+            handleDirSpecial(this, players.player, 'left', this.time.now);
         }
         if (Phaser.Input.Keyboard.JustDown(wasd.right)) {
-            tryCleave(this, players.player, 'right', this.time.now);
+            handleDirSpecial(this, players.player, 'right', this.time.now);
         }
         if (!players.player.hasHitSideSpecial && players.player.isUsingSideSpecial) {
-            superSwing(this, players.player, players.player2, 'axeatkthird');
+            handleDirSpecialAttack(this, players.player, players.player2);
         }
         if (wasd.left.isDown) {
             if (!players.player.isUsingSideSpecial) {
@@ -532,13 +532,14 @@ function update() {
 
         //Player 2 controls
         if (Phaser.Input.Keyboard.JustDown(cursors.left)) {
-            tryLunge(this, players.player2, 'left', this.time.now);
+            handleDirSpecial(this, players.player2, 'left', this.time.now);
         }
         if (Phaser.Input.Keyboard.JustDown(cursors.right)) {
-            tryLunge(this, players.player2, 'right', this.time.now);
+            //tryLunge(this, players.player2, 'right', this.time.now);
+            handleDirSpecial(this, players.player2, 'right', this.time.now);
         }
         if (!players.player2.hasHitSideSpecial && players.player2.isUsingSideSpecial) {
-            lungePush(this, players.player2, players.player, 'swordatkthird');
+            handleDirSpecialAttack(this, players.player2, players.player);
         }
         if (cursors.left.isDown) {
             if (!players.player2.isUsingSideSpecial) {
