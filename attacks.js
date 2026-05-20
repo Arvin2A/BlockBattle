@@ -506,7 +506,7 @@ export function tryPull(scene, player, target, direction, currentTime) {
 
         // HOOK PROJECTILE
         const hook = scene.physics.add.sprite(
-            player.x + player.lastDir.x * 40,
+            player.x + player.lastDir.x * 60,
             player.y - 20,
             'hook' // make a small hook sprite
         );
