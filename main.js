@@ -68,8 +68,213 @@ var MenuScene = {
             startText.setStyle({ fill: '#FFFFFF' });
         });
         startText.on('pointerdown', function () {
-            this.scene.start('GameScene');
+            this.scene.start('CharacterSelectScene');
         }, this);
+    }
+};
+var player1Character = '';
+var player2Character = '';
+var CharacterSelectScene = {
+
+    key: 'CharacterSelectScene',
+
+    create: function () {
+
+        // -----------------------------
+        // DATA
+        // -----------------------------
+
+        this.characters = [
+            'swordman',
+            'axeman',
+            'fisherman'
+        ];
+
+        this.p1Index = 1;
+        this.p2Index = 0;
+
+        // background
+        this.cameras.main.setBackgroundColor('#1b1b1b');
+
+        // -----------------------------
+        // TITLE
+        // -----------------------------
+
+        this.add.text(
+            500,
+            70,
+            'Select Characters...',
+            {
+                fontFamily: 'GameFont',
+                fontSize: '42px',
+                fill: '#ffffff',
+                stroke: '#000000',
+                strokeThickness: 6
+            }
+        ).setOrigin(0.5);
+
+        // -----------------------------
+        // CHARACTER LIST
+        // -----------------------------
+
+        this.characterTexts = [];
+
+        for (let i = 0; i < this.characters.length; i++) {
+
+            const txt = this.add.text(
+                500,
+                180 + i * 90,
+                this.characters[i],
+                {
+                    fontFamily: 'GameFont',
+                    fontSize: '36px',
+                    fill: '#ffffff',
+                    stroke: '#000000',
+                    strokeThickness: 5
+                }
+            ).setOrigin(0.5);
+
+            this.characterTexts.push(txt);
+        }
+
+        // -----------------------------
+        // PLAYER CURSORS
+        // -----------------------------
+
+        this.p1Cursor = this.add.text(
+            250,
+            180,
+            '⚔ P1',
+            {
+                fontFamily: 'GameFont',
+                fontSize: '28px',
+                fill: '#00aaff'
+            }
+        ).setOrigin(0.5);
+
+        this.p2Cursor = this.add.text(
+            750,
+            270,
+            '🪓 P2',
+            {
+                fontFamily: 'GameFont',
+                fontSize: '28px',
+                fill: '#ff4444'
+            }
+        ).setOrigin(0.5);
+
+        // -----------------------------
+        // PLAY BUTTON
+        // -----------------------------
+
+        const playBox = this.add.rectangle(
+            500,
+            520,
+            220,
+            70,
+            0x228B22
+        );
+
+        playBox.setStrokeStyle(4, 0xffffff);
+
+        const playText = this.add.text(
+            500,
+            520,
+            'PLAY',
+            {
+                fontFamily: 'GameFont',
+                fontSize: '38px',
+                fill: '#ffffff'
+            }
+        ).setOrigin(0.5);
+
+        playBox.setInteractive({ useHandCursor: true });
+
+        playBox.on('pointerover', () => {
+            playBox.setFillStyle(0x2ecc71);
+        });
+
+        playBox.on('pointerout', () => {
+            playBox.setFillStyle(0x228B22);
+        });
+
+        playBox.on('pointerdown', () => {
+
+            this.scene.start('GameScene');
+            player1Character = this.characters[this.p1Index];
+            player2Character = this.characters[this.p2Index];
+
+        });
+
+        // -----------------------------
+        // INPUT
+        // -----------------------------
+
+        this.keys = this.input.keyboard.addKeys({
+
+            w: Phaser.Input.Keyboard.KeyCodes.W,
+            s: Phaser.Input.Keyboard.KeyCodes.S,
+
+            up: Phaser.Input.Keyboard.KeyCodes.UP,
+            down: Phaser.Input.Keyboard.KeyCodes.DOWN
+
+        });
+
+    },
+
+    update: function () {
+
+        // -----------------------------
+        // P1 CONTROLS
+        // -----------------------------
+
+        if (Phaser.Input.Keyboard.JustDown(this.keys.w)) {
+
+            this.p1Index--;
+
+            if (this.p1Index < 0) {
+                this.p1Index = this.characters.length - 1;
+            }
+        }
+
+        if (Phaser.Input.Keyboard.JustDown(this.keys.s)) {
+
+            this.p1Index++;
+
+            if (this.p1Index >= this.characters.length) {
+                this.p1Index = 0;
+            }
+        }
+
+        // -----------------------------
+        // P2 CONTROLS
+        // -----------------------------
+
+        if (Phaser.Input.Keyboard.JustDown(this.keys.up)) {
+
+            this.p2Index--;
+
+            if (this.p2Index < 0) {
+                this.p2Index = this.characters.length - 1;
+            }
+        }
+
+        if (Phaser.Input.Keyboard.JustDown(this.keys.down)) {
+
+            this.p2Index++;
+
+            if (this.p2Index >= this.characters.length) {
+                this.p2Index = 0;
+            }
+        }
+
+        // -----------------------------
+        // UPDATE CURSOR POSITIONS
+        // -----------------------------
+
+        this.p1Cursor.y = 180 + this.p1Index * 90;
+
+        this.p2Cursor.y = 180 + this.p2Index * 90;
     }
 };
 var GameScene = {
@@ -95,7 +300,7 @@ var config = {
             debug: false
         }
     },
-    scene: [MenuScene, GameScene]
+    scene: [MenuScene, CharacterSelectScene, GameScene]
 };
 
 var game;
@@ -150,10 +355,11 @@ function preload() {
     });
     this.load.audio('swordthirdhitsfx', 'audio/swordlunge.wav');
     this.load.audio('axethirdhitsfx', 'audio/snd_damage_c.wav');
-    this.load.audio('rodthridhitsfx', 'audio/whipcrack.wav')
+    this.load.audio('rodthirdhitsfx', 'audio/whipcrack.wav')
     this.load.audio('anyhit', 'audio/hit1.ogg');
     this.load.audio('miss', 'audio/swordslash.wav');
     this.load.audio('lunge', 'audio/Dodge3.wav');
+    this.load.audio('whoosh', 'audio/hookwhoosh.wav')
 }
 //important game variables, including player objects, controls, and the platforms group
 var platforms;
@@ -283,9 +489,15 @@ function create() {
         frameRate: 32,
         repeat: 0
     });
+    this.anims.create({
+        key: 'rodatk',
+        frames: this.anims.generateFrameNumbers('rodatk', { start: 0, end: 3 }),
+        frameRate: 28,
+        repeat: 0
+    })
 
     //---PLAYER---\\
-    players = initiatePlayers(this);
+    players = initiatePlayers(this, player1Character, player2Character);
 
     //a bit of cam intiation:
     this.physics.world.setBounds(0, 0, 2000, 1200);
@@ -494,10 +706,10 @@ function update() {
 
     if (!players.player.hitstun) {
         if (Phaser.Input.Keyboard.JustDown(wasd.left)) {
-            handleDirSpecial(this, players.player, 'left', this.time.now);
+            handleDirSpecial(this, players.player, 'left', this.time.now,players.player);
         }
         if (Phaser.Input.Keyboard.JustDown(wasd.right)) {
-            handleDirSpecial(this, players.player, 'right', this.time.now);
+            handleDirSpecial(this, players.player, 'right', this.time.now,players.player2);
         }
         if (!players.player.hasHitSideSpecial && players.player.isUsingSideSpecial) {
             handleDirSpecialAttack(this, players.player, players.player2);
@@ -540,11 +752,11 @@ function update() {
 
         //Player 2 controls
         if (Phaser.Input.Keyboard.JustDown(cursors.left)) {
-            handleDirSpecial(this, players.player2, 'left', this.time.now);
+            handleDirSpecial(this, players.player2, 'left', this.time.now,players.player);
         }
         if (Phaser.Input.Keyboard.JustDown(cursors.right)) {
             //tryLunge(this, players.player2, 'right', this.time.now);
-            handleDirSpecial(this, players.player2, 'right', this.time.now);
+            handleDirSpecial(this, players.player2, 'right', this.time.now,players.player);
         }
         if (!players.player2.hasHitSideSpecial && players.player2.isUsingSideSpecial) {
             handleDirSpecialAttack(this, players.player2, players.player);
