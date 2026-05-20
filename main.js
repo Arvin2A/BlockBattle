@@ -102,12 +102,12 @@ var CharacterSelectScene = {
 
         this.add.text(
             500,
-            70,
-            'Select Characters...',
+            50,
+            'PRESS W + S TO SELECT WITH P1, \nUP AND DOWN ARROW FOR P2',
             {
                 fontFamily: 'GameFont',
-                fontSize: '42px',
-                fill: '#ffffff',
+                fontSize: '30px',
+                fill: '#c300d4',
                 stroke: '#000000',
                 strokeThickness: 6
             }
