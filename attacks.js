@@ -133,7 +133,7 @@ export function superSwing(scene, attacker, target, animKey) {
         attacker.freeze = false;
         attacker.willDecelerate = true;
         attacker.comboTimer = 600;
-        target.KBmultiplier += 0.14;
+        target.KBmultiplier += 0.32;
         scene.sound.play(animKey === 'swordatkthird' ? 'swordthirdhitsfx' : 'axethirdhitsfx');
         const dirX = attacker.lastDir.x;
 
@@ -335,7 +335,13 @@ export function thirdAttack(scene, attacker, target, animKey) {
         attacker.willDecelerate = true;
         attacker.comboTimer = 600;
         target.KBmultiplier += 0.07;
-        scene.sound.play(animKey === 'swordatkthird' ? 'swordthirdhitsfx' : 'axethirdhitsfx');
+        if (attacker.name == "SWORDMAN") {
+            scene.sound.play('swordthirdhitsfx');
+        } else if (attacker.name == "AXEMAN") {
+            scene.sound.play('axethirdhitsfx');
+        } else if (attacker.name == "FISHERMAN") {
+            scene.sound.play('rodthirdhitsfx');
+        }
         const dirX = attacker.lastDir.x;
 
         let dirY = attacker.lastDir.y;
@@ -476,18 +482,155 @@ export function tryCleave(scene, player, direction, currentTime) {
 
     player.lastTap[direction] = currentTime;
 }
+export function tryPull(scene, player, target, direction, currentTime) {
+    const dtapDelay = 250;
+    const pullCD = 3500;
+
+    if (player.hitstun || player.freeze) return;
+    if (currentTime < player.nextSideSpecialTime) return;
+
+    if (currentTime - player.lastTap[direction] < dtapDelay) {
+
+        player.isUsingSideSpecial = true;
+        player.hasHitSideSpecial = false;
+
+        // face direction
+        if (direction === 'left') {
+            player.lastDir = { x: -1, y: 0 };
+        } else {
+            player.lastDir = { x: 1, y: 0 };
+        }
+
+        // GRAPHICS FOR ROPE
+        const rope = scene.add.graphics();
+
+        // HOOK PROJECTILE
+        const hook = scene.physics.add.sprite(
+            player.x + player.lastDir.x * 40,
+            player.y - 20,
+            'hook' // make a small hook sprite
+        );
+        hook.setTint(0x8b5a2b);
+
+        hook.setScale(0.8);
+        hook.body.allowGravity = true;
+        hook.body.gravity.y = 700;
+
+        // initial launch speed
+        hook.setVelocity(
+            player.lastDir.x * 700,
+            -250
+        );
+
+        scene.sound.play('whoosh');
+
+        // collision
+        scene.physics.add.overlap(hook, target, () => {
+
+            if (player.hasHitSideSpecial) return;
+
+            player.hasHitSideSpecial = true;
+
+            target.hitstun = true;
+
+            // pull target toward player
+            const dx = player.x - target.x;
+            const dy = player.y - target.y;
+
+            const dist = Math.hypot(dx, dy);
+
+            const pullStrength = 900;
+
+            target.setVelocity(
+                (dx / dist) * pullStrength,
+                (dy / dist) * pullStrength
+            );
+
+            scene.sound.play('anyhit');
+            target.KBmultiplier += 0.12;
+            // optional slight recoil
+            player.setVelocityX(-player.lastDir.x * 100);
+            scene.events.off('update', ropeUpdate);
+
+            rope.destroy();
+            hook.destroy();
+
+            player.isUsingSideSpecial = false;
+            scene.time.delayedCall(350, () => {
+                target.hitstun = false;
+            });
+
+        });
+
+        // DRAW CURVED ROPE
+        const ropeUpdate = () => {
+
+            // prevent crashes after destroy
+            if (!hook.active || !hook.body || !rope.active) {
+                return;
+            }
+
+            rope.clear();
+
+            rope.lineStyle(3, 0x8b5a2b);
+
+            const startX = player.x;
+            const startY = player.y - 20;
+
+            const endX = hook.x;
+            const endY = hook.y;
+
+            rope.beginPath();
+
+            rope.moveTo(startX, startY);
+
+            // draw straight rope
+            rope.lineTo(endX, endY);
+
+            rope.strokePath();
+
+            // artificial drag
+            hook.body.velocity.x *= 0.985;
+            hook.body.velocity.y *= 0.992;
+        };
+
+        scene.events.on('update', ropeUpdate);
+
+        // cleanup
+        scene.time.delayedCall(1000, () => {
+            if (!player.isUsingSideSpecial) {
+                return;
+            }
+            scene.events.off('update', ropeUpdate);
+
+            rope.destroy();
+            hook.destroy();
+
+            player.isUsingSideSpecial = false;
+
+        });
+
+        player.nextSideSpecialTime = currentTime + pullCD;
+    }
+
+    player.lastTap[direction] = currentTime;
+}
 export function handleAttack(scene, attacker, victim) {
     if (attacker.name === "SWORDMAN") {
         tryAttack(scene, attacker, victim ,'swordatk', 'swordatkthird');
     } else if (attacker.name === "AXEMAN") {
         tryAttack(scene, attacker, victim ,'axeatk', 'axeatkthird');
+    } else if (attacker.name === "FISHERMAN") {
+        tryAttack(scene, attacker, victim ,'rodatk', 'rodatk');
     }
 }
-export function handleDirSpecial(scene, attacker, direction, currentTime) {
+export function handleDirSpecial(scene, attacker, direction, currentTime, victim) {
     if (attacker.name === "SWORDMAN") {
         tryLunge(scene, attacker, direction, currentTime);
     } else if (attacker.name === "AXEMAN") {
         tryCleave(scene, attacker, direction, currentTime);
+    } else if (attacker.name === "FISHERMAN") {
+        tryPull(scene, attacker, victim, direction, currentTime);
     }
 }
 export function handleDirSpecialAttack(scene, attacker, victim) {
@@ -495,5 +638,7 @@ export function handleDirSpecialAttack(scene, attacker, victim) {
         lungePush(scene, attacker, victim, 'swordatkthird');
     } else if (attacker.name === "AXEMAN") {
         superSwing(scene, attacker, victim, 'axeatkthird');
+    } else if (attacker.name === "FISHERMAN") {
+        //tryAttack(scene, attacker, victim ,'rodatk', 'rodatk');
     }
 }

@@ -84,6 +84,12 @@ export function initiatePlayers(scene, p1Select = 'axeman', p2Select = 'swordman
                 p.y + (p.lastDir.y * 50),
                 'axeatk'
             );
+        } else if (p.name === "FISHERMAN") {
+            p.atk = scene.add.sprite(
+                p.x + (p.lastDir.x * 50),
+                p.y + (p.lastDir.y * 50),
+                'rodatk'
+            );
         } else {
             //fallback to axe sprite
             p.atk = scene.add.sprite(
@@ -92,9 +98,9 @@ export function initiatePlayers(scene, p1Select = 'axeman', p2Select = 'swordman
                 'axeatk'
             );
         }
-        
         scene.objs.add(p.atk);
     }
+
 
     players.player.atk.setVisible(false);
     players.player2.atk.setVisible(false);
