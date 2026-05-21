@@ -500,6 +500,7 @@ export function tryPull(scene, player, target, direction, currentTime) {
         } else {
             player.lastDir = { x: 1, y: 0 };
         }
+        console.log(player.lastDir)
 
         // GRAPHICS FOR ROPE
         const rope = scene.add.graphics();
@@ -507,12 +508,12 @@ export function tryPull(scene, player, target, direction, currentTime) {
         // HOOK PROJECTILE
         const hook = scene.physics.add.sprite(
             player.x + player.lastDir.x * 60,
-            player.y - 20,
+            player.y,
             'hook' // make a small hook sprite
         );
         hook.setTint(0x8b5a2b);
 
-        hook.setScale(0.8);
+        hook.setScale(1.3);
         hook.body.allowGravity = true;
         hook.body.gravity.y = 700;
 
@@ -531,6 +532,7 @@ export function tryPull(scene, player, target, direction, currentTime) {
 
             player.hasHitSideSpecial = true;
 
+            console.log("hit!")
             target.hitstun = true;
 
             // pull target toward player
@@ -548,8 +550,7 @@ export function tryPull(scene, player, target, direction, currentTime) {
 
             scene.sound.play('anyhit');
             target.KBmultiplier += 0.12;
-            // optional slight recoil
-            player.setVelocityX(-player.lastDir.x * 100);
+
             scene.events.off('update', ropeUpdate);
 
             rope.destroy();
@@ -575,7 +576,7 @@ export function tryPull(scene, player, target, direction, currentTime) {
             rope.lineStyle(3, 0x8b5a2b);
 
             const startX = player.x;
-            const startY = player.y - 20;
+            const startY = player.y;
 
             const endX = hook.x;
             const endY = hook.y;

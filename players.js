@@ -101,6 +101,10 @@ export function initiatePlayers(scene, p1Select = 'axeman', p2Select = 'swordman
         scene.objs.add(p.atk);
     }
 
+    players.player.header = scene.add.text(players.player.x, players.player.y - 50, "P1" ,{ fontFamily: 'GameFont', fontSize: '15px', fill: '#ff4343' });
+    players.player2.header = scene.add.text(players.player2.x, players.player2.y - 50, "P2" ,{ fontFamily: 'GameFont', fontSize: '15px', fill: '#0051ff' });
+    scene.objs.add(players.player.header);
+    scene.objs.add(players.player2.header);
 
     players.player.atk.setVisible(false);
     players.player2.atk.setVisible(false);
