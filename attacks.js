@@ -737,7 +737,7 @@ export function tryPull(scene, player, target, direction, currentTime) {
 
         // initial launch speed
         hook.setVelocity(
-            player.lastDir.x * 700,
+            player.lastDir.x * 1000,
             -250
         );
 
