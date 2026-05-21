@@ -58,10 +58,20 @@ var MenuScene = {
         const bg = this.add.image(500, 300, 'menuBackground');
         bg.setDisplaySize(this.scale.width, this.scale.height);
         // Create menu UI elements here
+        const startBox = this.add.rectangle(
+            500,
+            500,
+            500,
+            70,
+            0x228B22
+        );
+        startBox.setStrokeStyle(4, 0xffffff);
+
         var startText = this.add.text(500, 500, 'Start Game', { fontFamily: 'GameFont', fontSize: '32px', fill: '#FFFFFF', stroke: '#000000', strokeThickness: 6 }).setOrigin(0.5).setInteractive({ useHandCursor: true });
+        
         startText.setInteractive();
         startText.on('pointerover', function () {
-            startText.setStyle({ fill: '#228B22' });
+            startText.setStyle({ fill: '#0b410b' });
         });
 
         startText.on('pointerout', function () {
@@ -78,6 +88,9 @@ var CharacterSelectScene = {
 
     key: 'CharacterSelectScene',
 
+    preload: function () {
+        this.load.audio('hover', 'audio/hover.wav')
+    },
     create: function () {
 
         // -----------------------------
@@ -230,7 +243,7 @@ var CharacterSelectScene = {
         // -----------------------------
 
         if (Phaser.Input.Keyboard.JustDown(this.keys.w)) {
-
+            this.sound.play('hover');
             this.p1Index--;
 
             if (this.p1Index < 0) {
@@ -239,6 +252,7 @@ var CharacterSelectScene = {
         }
 
         if (Phaser.Input.Keyboard.JustDown(this.keys.s)) {
+            this.sound.play('hover');
 
             this.p1Index++;
 
@@ -252,7 +266,7 @@ var CharacterSelectScene = {
         // -----------------------------
 
         if (Phaser.Input.Keyboard.JustDown(this.keys.up)) {
-
+            this.sound.play('hover');
             this.p2Index--;
 
             if (this.p2Index < 0) {
@@ -261,7 +275,7 @@ var CharacterSelectScene = {
         }
 
         if (Phaser.Input.Keyboard.JustDown(this.keys.down)) {
-
+            this.sound.play('hover');
             this.p2Index++;
 
             if (this.p2Index >= this.characters.length) {
@@ -336,6 +350,11 @@ function preload() {
     this.load.image('restartBtnPressed', 'assets/pressedRestart.png');
     this.load.image('hook', 'assets/hook.png');
     this.load.image('whitescythe', 'assets/whitescythe.png')
+    this.load.image('slasheffect', 'assets/slasheffect.png')
+
+    for (let i = 1; i < 5; i++) {
+        this.load.image('countdown'+i, 'assets/countdown'+i+'.png')
+    }
 
     this.load.spritesheet('axeatk', 'assets/axeatk1.png', {
         frameWidth: 50,
@@ -370,7 +389,9 @@ function preload() {
     this.load.audio('anyhit', 'audio/hit1.ogg');
     this.load.audio('miss', 'audio/swordslash.wav');
     this.load.audio('lunge', 'audio/Dodge3.wav');
-    this.load.audio('whoosh', 'audio/hookwhoosh.wav')
+    this.load.audio('whoosh', 'audio/hookwhoosh.wav');
+    this.load.audio('countdown', 'audio/countdown.wav');
+    
 }
 //important game variables, including player objects, controls, and the platforms group
 var platforms;
@@ -577,7 +598,61 @@ function create() {
     cursors = this.input.keyboard.createCursorKeys();
     wasd = this.input.keyboard.addKeys({ up: 'W', left: 'A', down: 'S', right: 'D' });
 
-    
+    //3-2-1 COUNTDOWN
+
+    players.player.freeze = true;
+    players.player.hitstun = true;
+    players.player2.freeze = true;
+    players.player2.hitstun = true;
+
+    this.time.delayedCall(1000, () => {
+        const counter = this.add.image(500, 300, 'countdown1');
+        this.hud.add(counter);
+        this.sound.play('countdown');
+        this.tweens.add({
+            targets: counter,
+            alpha: 0,
+            duration: 500,
+            onComplete: () => counter.destroy()
+        });
+        this.time.delayedCall(1000, () => {
+            const counter1 = this.add.image(500, 300, 'countdown2');
+            this.hud.add(counter1);
+            this.tweens.add({
+                targets: counter1,
+                alpha: 0,
+                duration: 500,
+                onComplete: () => counter1.destroy()
+            });
+            this.time.delayedCall(1000, () => {
+                const counter2 = this.add.image(500, 300, 'countdown3');
+                this.hud.add(counter2);
+                this.tweens.add({
+                    targets: counter2,
+                    alpha: 0,
+                    duration: 500,
+                    onComplete: () => counter2.destroy()
+                });
+                this.time.delayedCall(1000, () => {
+                    const counter4 = this.add.image(500, 300, 'countdown4');
+                    this.hud.add(counter4);
+                    this.tweens.add({
+                        targets: counter4,
+                        alpha: 0,
+                        duration: 500,
+                        onComplete: () => counter4.destroy()
+                    });
+                    players.player.freeze = false;
+                    players.player2.freeze = false;
+                    players.player.hitstun = false;
+                    players.player2.hitstun = false;
+
+                });   
+            });   
+        });    
+    });    
+
+
 }
 function updateWins(scene) {
     if (players.player.winNumber !== lastWinState.p1 || players.player2.winNumber !== lastWinState.p2) {
