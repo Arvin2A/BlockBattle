@@ -637,7 +637,7 @@ export function tryPull(scene, player, target, direction, currentTime) {
             );
 
             scene.sound.play('anyhit');
-            target.KBmultiplier += 0.12;
+            target.KBmultiplier += 0.22;
 
             scene.events.off('update', ropeUpdate);
 
