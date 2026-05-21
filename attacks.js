@@ -63,8 +63,8 @@ export function attack(scene, attacker, target, animKey) {
         const dirY = attacker.lastDir.y;
         scene.time.delayedCall(50, () => {
             console.log(dirX, dirY);
-            target.setVelocityX((300 * target.KBmultiplier) * dirX);
-            target.setVelocityY((300 * target.KBmultiplier) * dirY);
+            target.setVelocityX(100 * dirX);
+            target.setVelocityY(100 * dirY);
         });
 
     }
