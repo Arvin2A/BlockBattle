@@ -630,6 +630,14 @@ export function tryMow(scene, player, target, direction, currentTime) {
             if (!canhit) return;
             target.freeze = true;
             target.hitstun = true;
+            const slash = scene.add.image(target.x, target.y, 'slasheffect');
+            slash.setScale(2);
+            scene.tweens.add({
+                targets: slash,
+                alpha: 0, 
+                duration: 100,
+                onComplete: () => slash.destroy()
+            });
             canhit = false;
             console.log("tuch")
             scene.time.delayedCall(40, () => {
