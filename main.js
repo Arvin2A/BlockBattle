@@ -776,7 +776,7 @@ function update() {
 
     if (!players.player.hitstun) {
         if (Phaser.Input.Keyboard.JustDown(wasd.left)) {
-            handleDirSpecial(this, players.player, 'left', this.time.now,players.player);
+            handleDirSpecial(this, players.player, 'left', this.time.now,players.player2);
         }
         if (Phaser.Input.Keyboard.JustDown(wasd.right)) {
             handleDirSpecial(this, players.player, 'right', this.time.now,players.player2);
