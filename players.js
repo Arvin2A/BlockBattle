@@ -34,6 +34,8 @@ export function initiatePlayers(scene, p1Select = 'axeman', p2Select = 'swordman
         p.doubleJumpEffect.setAlpha(0);
         scene.objs.add(p);
         p.setDepth(2);
+        p.afterimage = false;
+        p.afterimageTimer = 0;
     }
     players.player.lastDir = { x: 1, y: 0 };
     players.player2.lastDir = { x: -1, y: 0 };

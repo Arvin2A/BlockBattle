@@ -412,6 +412,8 @@ export function slamThirdAttack(scene, attacker, target, animKey) {
             scene.sound.play('axethirdhitsfx');
         } else if (attacker.name == "FISHERMAN") {
             scene.sound.play('rodthirdhitsfx');
+        } else if (attacker.name == "SCYTHEMAN") {
+            scene.sound.play('scythethirdhitsfx');
         }
         const dirX = attacker.lastDir.x;
 
@@ -505,6 +507,7 @@ export function tryLunge(scene, player, direction, currentTime, animKey = 'sword
 
         player.atk.setFlipX(-player.lastDir.x < 0);
         player.isUsingSideSpecial = true;
+        player.afterimage = true;
         player.hasHitSideSpecial = false;
 
         if (player.lastDir.y < 0) {
@@ -526,6 +529,7 @@ export function tryLunge(scene, player, direction, currentTime, animKey = 'sword
 
         scene.time.delayedCall(500, () => {
             player.isUsingSideSpecial = false;
+            player.afterimage = false;
         });
 
         scene.time.delayedCall(400, () => {
@@ -549,6 +553,8 @@ export function tryCleave(scene, player, direction, currentTime) {
         player.hasHitSideSpecial = false;
 
         const speed = 400;
+        player.afterimage = true;
+
 
         if (direction === 'left') {
             player.setVelocityX(-speed);
@@ -563,12 +569,137 @@ export function tryCleave(scene, player, direction, currentTime) {
 
         scene.time.delayedCall(200, () => {
             player.isUsingSideSpecial = false;
+            player.afterimage = false;
         });
 
         player.nextSideSpecialTime = currentTime + cleaveCD;
     }
 
     player.lastTap[direction] = currentTime;
+}
+export function tryMow(scene, player, target, direction, currentTime) {
+    const dtapDelay = 250;
+    const mowCD = 3500;
+    if (player.hitstun || player.freeze) return;
+    if (currentTime < player.nextSideSpecialTime) return;
+
+    if (currentTime - player.lastTap[direction] < dtapDelay) {
+        //summon a mowing scythe
+        player.isUsingSideSpecial = true;
+        player.hasHitSideSpecial = false;
+
+        if (direction === 'left') {
+            player.lastDir = { x: -1, y: 0 };
+        } else {
+            player.lastDir = { x: 1, y: 0 };
+        }
+
+        const fakescythe = scene.add.image(player.x, player.y, 'whitescythe');
+        fakescythe.setScale(3);
+
+        console.log("GO");
+
+        scene.physics.add.existing(fakescythe);
+
+        const speed = 1500;
+
+        //set speed
+        fakescythe.body.setVelocity(
+            player.lastDir.x * speed,
+            -100
+        );
+        //most w thing here
+        fakescythe.body.allowGravity = false;
+
+        // spin
+        const spinSpeed =
+            player.lastDir.x > 0 ? 0.45 : -0.45;
+
+        let returning = false;
+
+        scene.time.delayedCall(550, () => {
+            returning = true;
+        });
+        let canhit = true;
+        let mowsound = scene.sound.add('twirl', {
+            loop: true
+        });
+        mowsound.play();
+        scene.physics.add.overlap(fakescythe, target, () => {
+            if (player.hasHitSideSpecial) return;
+            if (!canhit) return;
+            target.freeze = true;
+            target.hitstun = true;
+            canhit = false;
+            console.log("tuch")
+            scene.time.delayedCall(40, () => {
+                canhit = true;
+            });  
+            scene.time.delayedCall(1000, () => {
+                player.hasHitSideSpecial = true;
+                target.freeze = false;
+                target.hitstun = false;
+            });   
+
+            scene.sound.play('slash');
+            target.KBmultiplier += 0.04;
+
+        });
+        const scytheUpdate = () => {
+
+            if (!fakescythe.active) return;
+
+            fakescythe.rotation += spinSpeed;
+
+            // boomerang return
+            if (returning) {
+                //nearest distance calculation to the player
+                const dx = player.x - fakescythe.x;
+                const dy = player.y - fakescythe.y;
+
+                const dist = Math.hypot(dx, dy);
+
+                // home toward player
+                fakescythe.body.setVelocity(
+                    (dx / dist) * 1500,
+                    (dy / dist) * 1500
+                );
+
+                // reached player
+                if (dist < 20) {
+
+                    scene.events.off('update', scytheUpdate);
+
+                    fakescythe.destroy();
+
+                    player.isUsingSideSpecial = false;
+
+                    mowsound.stop();
+                }
+            }
+        };
+
+        scene.events.on('update', scytheUpdate);
+
+        // emergency cleanup
+        scene.time.delayedCall(3000, () => {
+
+            if (fakescythe.active) {
+
+                scene.events.off('update', scytheUpdate);
+
+                fakescythe.destroy();
+
+                player.isUsingSideSpecial = false;
+            }
+        });
+
+        player.nextSideSpecialTime = currentTime + mowCD;
+
+    }
+
+    player.lastTap[direction] = currentTime;
+
 }
 export function tryPull(scene, player, target, direction, currentTime) {
     const dtapDelay = 250;
@@ -588,7 +719,6 @@ export function tryPull(scene, player, target, direction, currentTime) {
         } else {
             player.lastDir = { x: 1, y: 0 };
         }
-        console.log(player.lastDir)
 
         // GRAPHICS FOR ROPE
         const rope = scene.add.graphics();
@@ -722,6 +852,8 @@ export function handleDirSpecial(scene, attacker, direction, currentTime, victim
         tryCleave(scene, attacker, direction, currentTime);
     } else if (attacker.name === "FISHERMAN") {
         tryPull(scene, attacker, victim, direction, currentTime);
+    } else if (attacker.name === "SCYTHEMAN") {
+        tryMow(scene, attacker, victim, direction, currentTime);
     }
 }
 export function handleDirSpecialAttack(scene, attacker, victim) {
@@ -729,7 +861,5 @@ export function handleDirSpecialAttack(scene, attacker, victim) {
         lungePush(scene, attacker, victim, 'swordatkthird');
     } else if (attacker.name === "AXEMAN") {
         superSwing(scene, attacker, victim, 'axeatkthird');
-    } else if (attacker.name === "FISHERMAN") {
-        //tryAttack(scene, attacker, victim ,'rodatk', 'rodatk');
     }
 }

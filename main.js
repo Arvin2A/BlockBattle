@@ -364,6 +364,9 @@ function preload() {
     this.load.audio('swordthirdhitsfx', 'audio/swordlunge.wav');
     this.load.audio('axethirdhitsfx', 'audio/snd_damage_c.wav');
     this.load.audio('rodthirdhitsfx', 'audio/whipcrack.wav')
+    this.load.audio('scythethirdhitsfx', 'audio/scythethird.wav');
+    this.load.audio('slash', 'audio/slash.ogg');
+    this.load.audio('twirl', 'audio/Twirling.ogg')
     this.load.audio('anyhit', 'audio/hit1.ogg');
     this.load.audio('miss', 'audio/swordslash.wav');
     this.load.audio('lunge', 'audio/Dodge3.wav');
@@ -620,7 +623,30 @@ const baseZoom = 1;
 const minZoom = 0.6;
 const maxZoom = 1.2;
 
+function spawnAfterimage(scene, player) {
 
+    const ghost = scene.add.sprite(
+        player.x,
+        player.y,
+        player.icon
+    );
+
+    ghost.setFrame(player.frame.name);
+
+    ghost.setScale(player.scaleX, player.scaleY);
+    ghost.setFlipX(player.flipX);
+
+    ghost.setAlpha(0.5);
+
+    ghost.setDepth(player.depth - 1);
+
+    scene.tweens.add({
+        targets: ghost,
+        alpha: 0,
+        duration: 100,
+        onComplete: () => ghost.destroy()
+    });
+}
 function update() {
 
     if (gameEnded) {
@@ -732,6 +758,22 @@ function update() {
     players.player2.header.x = players.player2.x - 10;
     players.player2.header.y = players.player2.y - 50;
 
+    if (players.player.afterimage) {
+        if (this.time.now > players.player.afterimageTimer) {
+
+            spawnAfterimage(this, players.player);
+
+            players.player.afterimageTimer = this.time.now + 40;
+        }
+    } 
+    if (players.player2.afterimage) {
+        if (this.time.now > players.player2.afterimageTimer) {
+            spawnAfterimage(this, players.player2);
+
+            players.player2.afterimageTimer = this.time.now + 40;
+        }
+    }
+
     if (!players.player.hitstun) {
         if (Phaser.Input.Keyboard.JustDown(wasd.left)) {
             handleDirSpecial(this, players.player, 'left', this.time.now,players.player);
@@ -761,6 +803,9 @@ function update() {
         if (players.player.body.blocked.down) {
             players.player.hasDoubleJumped = false;
         }
+        if (players.player.body.blocked.down &&  players.player.isUsingSideSpecial === false) {
+            players.player.afterimage = false;
+        }
         if (Phaser.Input.Keyboard.JustDown(wasd.up) && !players.player.body.touching.down && !players.player.hasDoubleJumped) {
             players.player.setVelocityY(-400);
             players.player.doubleJumpEffect.setAlpha(1);
@@ -772,6 +817,7 @@ function update() {
         }
         if (wasd.down.isDown && players.player.airTime > 600) {
             players.player.setVelocityY(800);
+            players.player.afterimage = true;
         }
     }
 
@@ -810,6 +856,9 @@ function update() {
         if (players.player2.body.touching.down) {
             players.player2.hasDoubleJumped = false;
         }
+        if (players.player2.body.blocked.down &&  players.player2.isUsingSideSpecial === false) {
+            players.player2.afterimage = false;
+        }
         if (Phaser.Input.Keyboard.JustDown(cursors.up) && !players.player2.body.touching.down && !players.player2.hasDoubleJumped) {
             players.player2.setVelocityY(-400);
             players.player2.doubleJumpEffect.setAlpha(1);
@@ -825,6 +874,7 @@ function update() {
             players.player2.setVelocityY(players.player2.body.velocity.y / 2);
         }
         if (cursors.down.isDown && players.player2.airTime > 600) {
+            players.player2.afterimage = true;
             players.player2.setVelocityY(800);
         }
     }
