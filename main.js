@@ -87,7 +87,8 @@ var CharacterSelectScene = {
         this.characters = [
             'swordman',
             'axeman',
-            'fisherman'
+            'fisherman',
+            'scytheman'
         ];
 
         this.p1Index = 1;
@@ -123,11 +124,11 @@ var CharacterSelectScene = {
 
             const txt = this.add.text(
                 500,
-                180 + i * 90,
+                180 + i * 50,
                 this.characters[i],
                 {
                     fontFamily: 'GameFont',
-                    fontSize: '36px',
+                    fontSize: '32px',
                     fill: '#ffffff',
                     stroke: '#000000',
                     strokeThickness: 5
@@ -272,9 +273,9 @@ var CharacterSelectScene = {
         // UPDATE CURSOR POSITIONS
         // -----------------------------
 
-        this.p1Cursor.y = 180 + this.p1Index * 90;
+        this.p1Cursor.y = 180 + this.p1Index * 50;
 
-        this.p2Cursor.y = 180 + this.p2Index * 90;
+        this.p2Cursor.y = 180 + this.p2Index * 50;
     }
 };
 var GameScene = {
@@ -323,7 +324,8 @@ function preload() {
     //chars
     this.load.image('axeman', 'assets/character1.png');
     this.load.image('swordman', 'assets/character2.png');
-    this.load.image('fisherman', 'assets/character3.png')
+    this.load.image('fisherman', 'assets/character3.png');
+    this.load.image('scytheman', 'assets/character4.png')
     //other
     this.load.image('groundhitbox', 'assets/groundhitbox.png');
     this.load.image('redstat', 'assets/KBstatBG1.png');

@@ -378,6 +378,77 @@ export function thirdAttack(scene, attacker, target, animKey) {
     });
 
 }
+export function slamThirdAttack(scene, attacker, target, animKey) {
+    //The third attack launching the target away
+    attacker.atk.setVisible(true);
+    attacker.atk.x = attacker.x + attacker.lastDir.x * 50;
+    attacker.atk.y = attacker.y + attacker.lastDir.y * 50;
+
+    attacker.atk.setFlipX(-attacker.lastDir.x < 0);
+
+    if (attacker.lastDir.y < 0) {
+        attacker.atk.setAngle(90);
+    } else if (attacker.lastDir.y > 0) {
+        attacker.atk.setAngle(-90);
+    } else {
+        attacker.atk.setAngle(0);
+    }
+    //animation
+
+    attacker.atk.setFrame(0);
+    attacker.atk.play(animKey, true);
+    console.log("Third Attack!");
+    if (attackIsElligible(attacker, target)) {
+        target.hitstun = true;
+        target.willDecelerate = false;
+        target.freeze = false;
+        attacker.freeze = false;
+        attacker.willDecelerate = true;
+        attacker.comboTimer = 600;
+        target.KBmultiplier += 0.07;
+        if (attacker.name == "SWORDMAN") {
+            scene.sound.play('swordthirdhitsfx');
+        } else if (attacker.name == "AXEMAN") {
+            scene.sound.play('axethirdhitsfx');
+        } else if (attacker.name == "FISHERMAN") {
+            scene.sound.play('rodthirdhitsfx');
+        }
+        const dirX = attacker.lastDir.x;
+
+        let dirY = attacker.lastDir.y;
+        if (dirY === 0) dirY = -0.5; //always launch upwards if on same level
+
+        //very stronk knockback
+        //launch to the side if the target is pinned against the ground, otherwise launch in the direction of the attack
+        if (target.body.touching.down && dirY > 0.7) {
+            const randDir = Math.random() < 0.5 ? -1 : 1;
+            target.setVelocityX((400 * target.KBmultiplier) * randDir);
+            target.setVelocityY(-200 * target.KBmultiplier);
+        } else {
+            target.setVelocityX((350 * target.KBmultiplier) * dirX);
+            target.setVelocityY((700 * target.KBmultiplier) * dirY);
+        }
+        attacker.combo = 0;
+        attacker.comboTimer = 0;
+    }
+    attacker.canAttack = false;
+    scene.time.delayedCall(250, () => {
+        attacker.atk.stop();
+        attacker.atk.setVisible(false);
+    });
+    scene.time.delayedCall(400, () => {
+        attacker.canAttack = true;
+    });
+    if (attacker.revokeAggressorStun) scene.time.removeEvent(attacker.revokeAggressorStun);
+    if (target.revokeVictimStun) scene.time.removeEvent(target.revokeVictimStun);
+    scene.time.delayedCall(600, () => {
+        target.hitstun = false;
+    });
+    scene.time.delayedCall(1000, () => {
+        target.willDecelerate = true;
+    });
+
+}
 export function tryAttack(scene, attacker, target, animKey, thirdAnimKey) {
     //handles some other stuff before calling either attack functions
     //such as checking if the attack is on cooldown, and whether to use the third attack or not
@@ -386,6 +457,23 @@ export function tryAttack(scene, attacker, target, animKey, thirdAnimKey) {
 
     if (attacker.combo >= 2) {
         thirdAttack(scene, attacker, target, thirdAnimKey);
+    } else {
+        if (Math.abs(attacker.body.velocity.x) >= 200) {
+            pushAttack(scene, attacker, target, animKey);
+        } else {
+            attack(scene, attacker, target, animKey);
+        }
+    }
+    attacker.nextAttackTime = scene.time.now + 400; // Attack cooldown
+}
+export function tryAttack2(scene, attacker, target, animKey, thirdAnimKey) {
+    //handles some other stuff before calling either attack functions
+    //such as checking if the attack is on cooldown, and whether to use the third attack or not
+    if (scene.time.now < attacker.nextAttackTime) return;
+    if (!attacker.canAttack || attacker.hitstun) return;
+
+    if (attacker.combo >= 2) {
+        slamThirdAttack(scene, attacker, target, thirdAnimKey);
     } else {
         if (Math.abs(attacker.body.velocity.x) >= 200) {
             pushAttack(scene, attacker, target, animKey);
@@ -623,6 +711,8 @@ export function handleAttack(scene, attacker, victim) {
         tryAttack(scene, attacker, victim ,'axeatk', 'axeatkthird');
     } else if (attacker.name === "FISHERMAN") {
         tryAttack(scene, attacker, victim ,'rodatk', 'rodatk');
+    } else if (attacker.name === "SCYTHEMAN") {
+        tryAttack2(scene, attacker, victim ,'scytheatk', 'scytheatk');
     }
 }
 export function handleDirSpecial(scene, attacker, direction, currentTime, victim) {
