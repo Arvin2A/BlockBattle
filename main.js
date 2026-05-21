@@ -148,7 +148,7 @@ var CharacterSelectScene = {
             {
                 fontFamily: 'GameFont',
                 fontSize: '28px',
-                fill: '#00aaff'
+                fill: '#ff4444'
             }
         ).setOrigin(0.5);
 
@@ -159,7 +159,7 @@ var CharacterSelectScene = {
             {
                 fontFamily: 'GameFont',
                 fontSize: '28px',
-                fill: '#ff4444'
+                fill: '#00aaff'
             }
         ).setOrigin(0.5);
 
@@ -332,6 +332,8 @@ function preload() {
     this.load.image('doublejump', 'assets/DoubleJump.png');
     this.load.image('restartBtn', 'assets/restartBtn.png');
     this.load.image('restartBtnPressed', 'assets/pressedRestart.png');
+    this.load.image('hook', 'assets/hook.png');
+    this.load.image('whitescythe', 'assets/whitescythe.png')
 
     this.load.spritesheet('axeatk', 'assets/axeatk1.png', {
         frameWidth: 50,
@@ -350,6 +352,10 @@ function preload() {
         frameHeight: 50
     });
     this.load.spritesheet('rodatk', 'assets/rodatk1.png', {
+        frameWidth: 50,
+        frameHeight: 50
+    });
+    this.load.spritesheet('scytheatk', 'assets/scytheatk1.png', {
         frameWidth: 50,
         frameHeight: 50
     });
@@ -387,6 +393,14 @@ var restartBtn;
 var restartBtnPressed;
 function create() {
     gameEnded = false;
+    gameEnded = false;
+    winCooldown = false;
+
+    lastWinState = {
+        p1: 0,
+        p2: 0
+    };
+
     this.hud = this.add.container(0, 0);
     this.objs = this.add.container(0,0);
     this.objcam = this.cameras.add(0,0,1000,600, false, "hudCam");
@@ -494,7 +508,13 @@ function create() {
         frames: this.anims.generateFrameNumbers('rodatk', { start: 0, end: 3 }),
         frameRate: 28,
         repeat: 0
-    })
+    });
+    this.anims.create({
+        key: 'scytheatk',
+        frames: this.anims.generateFrameNumbers('scytheatk', { start: 0, end: 3 }),
+        frameRate: 32,
+        repeat: 0
+    });
 
     //---PLAYER---\\
     players = initiatePlayers(this, player1Character, player2Character);
@@ -698,11 +718,17 @@ function update() {
     players.player2.atk.x = players.player2.x + (players.player2.lastDir.x * 50);
     players.player2.atk.y = players.player2.y + (players.player2.lastDir.y * 50);
 
-    players.player.doubleJumpEffect.x = players.player.x
-    players.player.doubleJumpEffect.y = players.player.y + 40
+    players.player.doubleJumpEffect.x = players.player.x;
+    players.player.doubleJumpEffect.y = players.player.y + 40;
 
-    players.player2.doubleJumpEffect.x = players.player2.x
-    players.player2.doubleJumpEffect.y = players.player2.y + 40
+    players.player2.doubleJumpEffect.x = players.player2.x;
+    players.player2.doubleJumpEffect.y = players.player2.y + 40;
+
+    players.player.header.x = players.player.x - 10;
+    players.player.header.y = players.player.y - 50;
+
+    players.player2.header.x = players.player2.x - 10;
+    players.player2.header.y = players.player2.y - 50;
 
     if (!players.player.hitstun) {
         if (Phaser.Input.Keyboard.JustDown(wasd.left)) {
