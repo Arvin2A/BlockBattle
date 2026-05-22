@@ -43,9 +43,6 @@ export function attack(scene, attacker, target, animKey) {
 
     attacker.atk.setFrame(0);
     attacker.atk.play(animKey, true);
-    if (attacker.body.touching.down) {
-        attacker.freeze = true;
-    }
 
     let hit = false;
 
