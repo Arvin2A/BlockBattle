@@ -674,7 +674,7 @@ export function tryMow(scene, player, target, direction, currentTime) {
                 );
 
                 // reached player
-                if (dist < 20) {
+                if (dist < 60) {
 
                     scene.events.off('update', scytheUpdate);
 
