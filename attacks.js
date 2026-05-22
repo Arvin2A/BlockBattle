@@ -640,14 +640,14 @@ export function tryMow(scene, player, target, direction, currentTime) {
             scene.time.delayedCall(40, () => {
                 canhit = true;
             });  
-            scene.time.delayedCall(1000, () => {
+            scene.time.delayedCall(1350, () => {
                 player.hasHitSideSpecial = true;
                 target.freeze = false;
                 target.hitstun = false;
             });   
 
             scene.sound.play('slash');
-            target.KBmultiplier += 0.04;
+            target.KBmultiplier += 0.07;
 
         });
         const scytheUpdate = () => {
