@@ -647,7 +647,7 @@ export function tryMow(scene, player, target, direction, currentTime) {
             });   
 
             scene.sound.play('slash');
-            target.KBmultiplier += 0.07;
+            target.KBmultiplier += 0.04;
 
         });
         const scytheUpdate = () => {
