@@ -336,6 +336,7 @@ function preload() {
     this.load.image('ground', 'assets/ground.png');
     this.load.image('betterground', 'assets/betterground.png');
     this.load.image('platform1', 'assets/platform1.png');
+    this.load.image('platform', 'assets/platform.png');
     //chars
     this.load.image('axeman', 'assets/character1.png');
     this.load.image('swordman', 'assets/character2.png');
@@ -491,6 +492,12 @@ function create() {
     platform.setDepth(0);
     this.objs.add(platform);
 
+    const secondplatform = this.add.image(xOff+ 275, yOff+425, 'platform');
+    secondplatform.setScale(0.5);
+    secondplatform.setDepth(0);
+    this.objs.add(secondplatform);
+
+
     const groundVisual = this.add.image(xOff+ 500, yOff+1085, 'betterground');
     groundVisual.setDisplaySize(this.scale.width, 1200);
     this.objs.add(groundVisual);
@@ -509,6 +516,13 @@ function create() {
     ground2.refreshBody();
     this.objs.add(ground2);
     ground2.body.checkCollision.down = false
+
+    const ground3 = topPlatforms.create(xOff+ 275, yOff+337, 'groundhitbox');
+    ground3.setDisplaySize(this.scale.width / 2, 0);
+    ground3.setVisible(true);
+    ground3.refreshBody();
+    this.objs.add(ground2);
+    ground3.body.checkCollision.down = false
 
 
     //platform.refreshBody();

@@ -5,8 +5,8 @@ export function initiatePlayers(scene, p1Select = 'axeman', p2Select = 'swordman
         player: null,
         player2: null
     };
-    players.player = scene.physics.add.sprite(xOff+50, yOff+525, p1Select);
-    players.player2 = scene.physics.add.sprite(xOff+800, yOff+420, p2Select);
+    players.player = scene.physics.add.sprite(xOff+50, yOff+545, p1Select);
+    players.player2 = scene.physics.add.sprite(xOff+800, yOff+440, p2Select);
     
     for (const key in players) {
         const p = players[key];
