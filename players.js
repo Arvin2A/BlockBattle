@@ -98,6 +98,12 @@ export function initiatePlayers(scene, p1Select = 'axeman', p2Select = 'swordman
                 p.y + (p.lastDir.y * 50),
                 'scytheatk'
             );
+        } else if (p.name == "HAMMERMAN") {
+            p.atk = scene.add.sprite(
+                p.x + (p.lastDir.x * 50),
+                p.y + (p.lastDir.y * 50),
+                'hammeratk'
+            );
         } else {
             //fallback to axe sprite
             p.atk = scene.add.sprite(

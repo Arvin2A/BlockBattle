@@ -196,7 +196,83 @@ export function pushAttack(scene, attacker, target, animKey) {
         attacker.willDecelerate = true;
         attacker.comboTimer = 600;
         target.KBmultiplier += 0.05;
-        scene.sound.play('anyhit');
+        if (attacker.name === "HAMMERMAN") {
+            scene.sound.play('hammerhit');
+        } else {
+            scene.sound.play('anyhit');
+        }
+        const dirX = attacker.lastDir.x;
+
+        let dirY = attacker.lastDir.y;
+        if (dirY === 0) dirY = -0.5; //always launch upwards if on same level
+
+        //very stronk knockback
+        //launch to the side if the target is pinned against the ground, otherwise launch in the direction of the attack
+        if (target.body.touching.down && dirY > 0.7) {
+            const randDir = Math.random() < 0.5 ? -1 : 1;
+            target.setVelocityX((275 * target.KBmultiplier) * randDir);
+            target.setVelocityY(-200 * target.KBmultiplier);
+        } else {
+            target.setVelocityX((250 * target.KBmultiplier) * dirX);
+            target.setVelocityY((500 * target.KBmultiplier) * dirY);
+        }
+        attacker.combo = 0;
+        attacker.comboTimer = 0;
+    } else {
+        attacker.combo = 0;
+        scene.sound.play('miss');
+    }
+    attacker.canAttack = false;
+    scene.time.delayedCall(250, () => {
+        attacker.atk.stop();
+        attacker.atk.setVisible(false);
+    });
+    scene.time.delayedCall(400, () => {
+        attacker.canAttack = true;
+    });
+    if (attacker.revokeAggressorStun) scene.time.removeEvent(attacker.revokeAggressorStun);
+    if (target.revokeVictimStun) scene.time.removeEvent(target.revokeVictimStun);
+    scene.time.delayedCall(600, () => {
+        target.hitstun = false;
+    });
+    scene.time.delayedCall(1000, () => {
+        target.willDecelerate = true;
+    });
+
+}
+export function hardSwing(scene, attacker, target, animKey) {
+    //Push attacks happen if the player is at maximum velocity
+    attacker.atk.setVisible(true);
+    attacker.atk.x = attacker.x + attacker.lastDir.x * 50;
+    attacker.atk.y = attacker.y + attacker.lastDir.y * 50;
+
+    attacker.atk.setFlipX(-attacker.lastDir.x < 0);
+
+    if (attacker.lastDir.y < 0) {
+        attacker.atk.setAngle(90);
+    } else if (attacker.lastDir.y > 0) {
+        attacker.atk.setAngle(-90);
+    } else {
+        attacker.atk.setAngle(0);
+    }
+    //animation
+
+    attacker.atk.setFrame(0);
+    attacker.atk.play(animKey, true);
+    console.log("push!");
+    if (attackIsElligible(attacker, target, 125)) {
+        target.hitstun = true;
+        target.willDecelerate = false;
+        target.freeze = false;
+        attacker.freeze = false;
+        attacker.willDecelerate = true;
+        attacker.comboTimer = 600;
+        target.KBmultiplier += 0.15;
+        if (attacker.name === "HAMMERMAN") {
+            scene.sound.play('hammerhit');
+        } else {
+            scene.sound.play('anyhit');
+        }
         const dirX = attacker.lastDir.x;
 
         let dirY = attacker.lastDir.y;
@@ -482,6 +558,23 @@ export function tryAttack2(scene, attacker, target, animKey, thirdAnimKey) {
     }
     attacker.nextAttackTime = scene.time.now + 400; // Attack cooldown
 }
+export function tryAttack3(scene, attacker, target, animKey, thirdAnimKey) {
+    //handles some other stuff before calling either attack functions
+    //such as checking if the attack is on cooldown, and whether to use the third attack or not
+    if (scene.time.now < attacker.nextAttackTime) return;
+    if (!attacker.canAttack || attacker.hitstun) return;
+
+    if (attacker.combo >= 2) {
+        hardSwing(scene, attacker, target, thirdAnimKey);
+    } else {
+        if (Math.abs(attacker.body.velocity.x) >= 200) {
+            hardSwing(scene, attacker, target, animKey);
+        } else {
+            hardSwing(scene, attacker, target, animKey);
+        }
+    }
+    attacker.nextAttackTime = scene.time.now + 400; // Attack cooldown
+}
 export function tryLunge(scene, player, direction, currentTime, animKey = 'swordatk') {
     //LUNGE: exclusive for the swordsman, this is performed by double tapping left or right
     // It launches the player forward in the direction they are lunging in
@@ -706,6 +799,72 @@ export function tryMow(scene, player, target, direction, currentTime) {
     player.lastTap[direction] = currentTime;
 
 }
+export function tryRepair(scene, player, target, direction, currentTime) {
+    const dtapDelay = 250;
+    const repairCD = 3500;
+    if (player.hitstun || player.freeze) return;
+    if (currentTime < player.nextSideSpecialTime) return;
+
+    if (currentTime - player.lastTap[direction] < dtapDelay) {
+
+        player.isUsingSideSpecial = true;
+        player.hasHitSideSpecial = false;
+
+        // face direction
+        player.atk.setVisible(true);
+        player.atk.x = player.x + player.lastDir.x * 50;
+        player.atk.y = player.y + player.lastDir.y * 50;
+
+        player.atk.setFlipX(-player.lastDir.x < 0);
+
+        scene.sound.play("repair");
+
+        const spawnRepairBox = () => {
+            const box = scene.add.rectangle(
+                player.x,
+                player.y,
+                50,
+                50,
+                0x00ff00
+            );
+
+            scene.tweens.add({
+                targets: box,
+                alpha: 0,
+                duration: 100,
+                onComplete: () => {
+                    box.destroy();
+                }
+            });
+        };
+
+        spawnRepairBox();
+        pushAttack(scene, player, target, "hammeratk");
+        player.KBmultiplier -= 0.10;
+        player.isUsingSideSpecial = false;
+
+        scene.time.delayedCall(250, () => {
+            scene.sound.play("repair");
+
+            spawnRepairBox();
+            pushAttack(scene, player, target, "hammeratk");
+            player.KBmultiplier -= 0.10;
+
+            scene.time.delayedCall(250, () => {
+                scene.sound.play("repair");
+
+                spawnRepairBox();
+                pushAttack(scene, player, target, "hammeratk");
+                player.KBmultiplier -= 0.10;
+                player.atk.setVisible(true);
+
+            });
+        });
+        player.nextSideSpecialTime = currentTime + repairCD;
+    }
+
+    player.lastTap[direction] = currentTime;
+}
 export function tryPull(scene, player, target, direction, currentTime) {
     const dtapDelay = 250;
     const pullCD = 3500;
@@ -848,6 +1007,8 @@ export function handleAttack(scene, attacker, victim) {
         tryAttack(scene, attacker, victim ,'rodatk', 'rodatk');
     } else if (attacker.name === "SCYTHEMAN") {
         tryAttack2(scene, attacker, victim ,'scytheatk', 'scytheatk');
+    } else if (attacker.name === "HAMMERMAN") {
+        tryAttack3(scene, attacker, victim ,'hammeratk', 'hammeratk');
     }
 }
 export function handleDirSpecial(scene, attacker, direction, currentTime, victim) {
@@ -859,7 +1020,10 @@ export function handleDirSpecial(scene, attacker, direction, currentTime, victim
         tryPull(scene, attacker, victim, direction, currentTime);
     } else if (attacker.name === "SCYTHEMAN") {
         tryMow(scene, attacker, victim, direction, currentTime);
+    } else if (attacker.name === "HAMMERMAN") {
+        tryRepair(scene, attacker, victim ,direction, currentTime);
     }
+
 }
 export function handleDirSpecialAttack(scene, attacker, victim) {
     if (attacker.name === "SWORDMAN") {

@@ -101,7 +101,8 @@ var CharacterSelectScene = {
             'swordman',
             'axeman',
             'fisherman',
-            'scytheman'
+            'scytheman',
+            'hammerman'
         ];
 
         this.p1Index = 1;
@@ -339,7 +340,8 @@ function preload() {
     this.load.image('axeman', 'assets/character1.png');
     this.load.image('swordman', 'assets/character2.png');
     this.load.image('fisherman', 'assets/character3.png');
-    this.load.image('scytheman', 'assets/character4.png')
+    this.load.image('scytheman', 'assets/character4.png');
+    this.load.image('hammerman', 'assets/character5.png');
     //other
     this.load.image('groundhitbox', 'assets/groundhitbox.png');
     this.load.image('redstat', 'assets/KBstatBG1.png');
@@ -380,6 +382,10 @@ function preload() {
         frameWidth: 50,
         frameHeight: 50
     });
+    this.load.spritesheet('hammeratk', 'assets/hammeratk1.png', {
+        frameWidth: 50,
+        frameHeight: 50
+    });
     this.load.audio('swordthirdhitsfx', 'audio/swordlunge.wav');
     this.load.audio('axethirdhitsfx', 'audio/snd_damage_c.wav');
     this.load.audio('rodthirdhitsfx', 'audio/whipcrack.wav')
@@ -391,6 +397,8 @@ function preload() {
     this.load.audio('lunge', 'audio/Dodge3.wav');
     this.load.audio('whoosh', 'audio/hookwhoosh.wav');
     this.load.audio('countdown', 'audio/countdown.wav');
+    this.load.audio('hammerhit', 'audio/punch.wav');
+    this.load.audio('repair', 'audio/Hitwrench.ogg');
     
 }
 //important game variables, including player objects, controls, and the platforms group
@@ -538,6 +546,12 @@ function create() {
     this.anims.create({
         key: 'scytheatk',
         frames: this.anims.generateFrameNumbers('scytheatk', { start: 0, end: 3 }),
+        frameRate: 32,
+        repeat: 0
+    });
+    this.anims.create({
+        key: 'hammeratk',
+        frames: this.anims.generateFrameNumbers('hammeratk', { start: 0, end: 3 }),
         frameRate: 32,
         repeat: 0
     });
