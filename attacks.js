@@ -839,7 +839,7 @@ export function tryRepair(scene, player, target, direction, currentTime) {
 
         spawnRepairBox();
         pushAttack(scene, player, target, "hammeratk");
-        player.KBmultiplier -= 0.10;
+        player.KBmultiplier -= 0.05;
         player.isUsingSideSpecial = false;
 
         scene.time.delayedCall(250, () => {
@@ -847,14 +847,14 @@ export function tryRepair(scene, player, target, direction, currentTime) {
 
             spawnRepairBox();
             pushAttack(scene, player, target, "hammeratk");
-            player.KBmultiplier -= 0.10;
+            player.KBmultiplier -= 0.05;
 
             scene.time.delayedCall(250, () => {
                 scene.sound.play("repair");
 
                 spawnRepairBox();
                 pushAttack(scene, player, target, "hammeratk");
-                player.KBmultiplier -= 0.10;
+                player.KBmultiplier -= 0.05;
                 player.atk.setVisible(true);
 
             });
