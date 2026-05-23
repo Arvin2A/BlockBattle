@@ -3,14 +3,6 @@ import { initiatePlayers, updateCombo } from './players.js';
 //UPDATE: HUGE REFACTOR OF CODE!! THIS IS FOR CLEANLINESS AND FOR THE FURTHER DEVELOPMENT OF THIS WEB APP
 //3 NEW SCRIPTS: main.js (current), players.js, attacks.js
 
-//FUTURE UPDATES: More controls to the game. Working on blocking attacks and parrying.
-
-//BALANCE CHANGES: 
-// 1. Charging towards the opponent as fast as possible will perform a PUSH attack.
-//    This is to kinda discourage spamming and rather strategy
-// 2. Axe cleave: Bigger range, was near impossible to land and wasn't worth it.
-// 3. Sword lunge: Can now deal damage, isn't just a mobility tool.
-// 4. DOUBLE JUMP: Both players can perform a double jump, adding more maneuverability to the game.
 
 //TESTER CREDITS:
 //Thank you all testers for this game, including several students in my grade
@@ -25,14 +17,15 @@ import { initiatePlayers, updateCombo } from './players.js';
 //NOTE: mohsina007 and arvin2a are the same person, ARVIN ZAMAN
 // its just that mohsina007 is the account that was hard-set as the account for VSCode, the application I used to make this game.
 // and the sound effects were taken from various games as listed in the preload function.
-//WASD controls the red axeman, arrow keys contrl the blue swordman.
-//E is the axe attack, SHIFT is the sword attack.
-//The swordman also has a lunge move that can be performed by double tapping left or right.
-//I believe comments are necessary for this not only to explain the code but also to show my thought process and design decisions
-// they are a big part of game development, and it shows my credibility for this.
-// Phaser was definetely hard to learn in the span of a few days because of its really big documentary and complex object structures.
+//WASD controls the first player , arrow keys control the second player.
+//E is the player1 attack, SHIFT is the player2 attack.
+//You can double tap each player's corresponding side buttons (A + D), or (LEFT ARROW + RIGHT ARROW KEY) to do a special attack.
 
 //We will still continue to work on this project, its really fun.
+
+
+//UPDATE: ADDED 3 NEW CHARACTERS: FISHERMAN, SCYTHEMAN, AND HAMMERMAN
+//FUTURE UPDATES: ADD VFX AND POLISH
 function sleep(ms) {
     return new Promise(resolve => setTimeout(resolve, ms));
     //was meant to be used, but was succeeded later after the discovery of scene.time.delayedCall
@@ -105,6 +98,14 @@ var CharacterSelectScene = {
             'hammerman'
         ];
 
+        this.characterData = [
+            { name: 'SWORDMAN', desc: 'Beware of the slashing sword. \n\nDIR SPECIAL: LUNGE \n\n Mediocre knockback on hit, however it has insane clutch potential.', color: '#0080ff' },
+            { name: 'AXEMAN', desc: 'Beware of the chopping axe. \n\nDIR SPECIAL: POWER SWING \n\n The most knockback you can ever do in this entire game, send your foes across the galaxy!', color: '#ff4444' },
+            { name: 'FISHERMAN', desc: 'Using a fishing rod as a whip?? \n\nDIR SPECIAL: GRAPPLE \n\n Throw your hook far for the chance to reel your opponent in.', color: '#00318d' },
+            { name: 'SCYTHEMAN', desc: 'Its third neutral hit goes slightly higher. \n\nDIR SPECIAL: MOW \n\n Throw a scythe thats 3X your size like a boomerang that deals crazy damage.', color: '#686868' },
+            { name: 'HAMMERMAN', desc: 'EVERY hit is a knockback attack. \n\nDIR SPECIAL: REPAIR \n\n 3 strikes that remove 15% KB, while also having attack potential of 5% per strike.', color: '#3da115' }
+        ];
+
         this.p1Index = 1;
         this.p2Index = 0;
 
@@ -142,7 +143,7 @@ var CharacterSelectScene = {
                 this.characters[i],
                 {
                     fontFamily: 'GameFont',
-                    fontSize: '32px',
+                    fontSize: '24px',
                     fill: '#ffffff',
                     stroke: '#000000',
                     strokeThickness: 5
@@ -157,26 +158,85 @@ var CharacterSelectScene = {
         // -----------------------------
 
         this.p1Cursor = this.add.text(
-            250,
+            325,
             180,
             '⚔ P1',
             {
                 fontFamily: 'GameFont',
-                fontSize: '28px',
+                fontSize: '20px',
                 fill: '#ff4444'
             }
         ).setOrigin(0.5);
 
         this.p2Cursor = this.add.text(
-            750,
+            675,
             270,
             '🪓 P2',
             {
                 fontFamily: 'GameFont',
-                fontSize: '28px',
+                fontSize: '20px',
                 fill: '#00aaff'
             }
         ).setOrigin(0.5);
+
+        //DESCRIPTIONS:
+        const DESCBOX1 = this.add.rectangle(
+            130,
+            350,
+            225,
+            400,
+            0x171717
+        );
+        const DESCBOX2 = this.add.rectangle(
+            870,
+            350,
+            225,
+            400,
+            0x171717
+        );
+        this.p1NameText = this.add.text(130, 200, '', {
+            fontFamily: 'GameFont',
+            fontSize: '18px',
+            fill: '#ffffff',
+            align: 'center',
+        }).setOrigin(0.5);
+
+        this.p1DescText = this.add.text(130, 350, '', {
+            fontFamily: 'VCROSD',
+            fontSize: '20px',
+            fill: '#ffffff',
+            align: 'center',
+            wordWrap: { width: 200 }
+        }).setOrigin(0.5);
+
+        this.p2NameText = this.add.text(870, 200, '', {
+            fontFamily: 'GameFont',
+            fontSize: '18px',
+            fill: '#ffffff'
+        }).setOrigin(0.5);
+
+        this.p2DescText = this.add.text(870, 350, '', {
+            fontFamily: 'VCROSD',
+            fontSize: '20px',
+            fill: '#ffffff',
+            align: 'center',
+            wordWrap: { width: 200 }
+        }).setOrigin(0.5);
+        
+        this.updateCharacterDescriptions = function() {
+            const p1 = this.characterData[this.p1Index];
+            const p2 = this.characterData[this.p2Index];
+
+            this.p1NameText.setText(p1.name);
+            this.p1NameText.setColor(p1.color);
+
+            this.p1DescText.setText(p1.desc);
+
+            this.p2NameText.setText(p2.name);
+            this.p2NameText.setColor(p2.color);
+
+            this.p2DescText.setText(p2.desc);
+        };
 
         // -----------------------------
         // PLAY BUTTON
@@ -235,6 +295,7 @@ var CharacterSelectScene = {
 
         });
 
+        this.updateCharacterDescriptions();
     },
 
     update: function () {
@@ -250,6 +311,7 @@ var CharacterSelectScene = {
             if (this.p1Index < 0) {
                 this.p1Index = this.characters.length - 1;
             }
+            this.updateCharacterDescriptions();
         }
 
         if (Phaser.Input.Keyboard.JustDown(this.keys.s)) {
@@ -260,6 +322,7 @@ var CharacterSelectScene = {
             if (this.p1Index >= this.characters.length) {
                 this.p1Index = 0;
             }
+            this.updateCharacterDescriptions();
         }
 
         // -----------------------------
@@ -273,6 +336,7 @@ var CharacterSelectScene = {
             if (this.p2Index < 0) {
                 this.p2Index = this.characters.length - 1;
             }
+            this.updateCharacterDescriptions();
         }
 
         if (Phaser.Input.Keyboard.JustDown(this.keys.down)) {
@@ -282,6 +346,7 @@ var CharacterSelectScene = {
             if (this.p2Index >= this.characters.length) {
                 this.p2Index = 0;
             }
+            this.updateCharacterDescriptions();
         }
 
         // -----------------------------
@@ -347,6 +412,9 @@ function preload() {
     this.load.image('groundhitbox', 'assets/groundhitbox.png');
     this.load.image('redstat', 'assets/KBstatBG1.png');
     this.load.image('bluestat', 'assets/KBstatBG2.png');
+    this.load.image('p1guide', 'assets/p1guide.png');
+    this.load.image('p2guide', 'assets/p2guide.png');
+
     this.load.image('winbar', 'assets/WINbar.png');
     this.load.image('doublejump', 'assets/DoubleJump.png');
     this.load.image('restartBtn', 'assets/restartBtn.png');
@@ -435,7 +503,7 @@ function create() {
         p1: 0,
         p2: 0
     };
-
+    this.baseZoom = 1;
     this.hud = this.add.container(0, 0);
     this.objs = this.add.container(0,0);
     this.objcam = this.cameras.add(0,0,1000,600, false, "hudCam");
@@ -451,6 +519,7 @@ function create() {
     winBar.setDisplaySize(this.scale.width, 150);
     winBar.setScale(1, 0);
     winBar.setVisible(false);
+    winBar.setAlpha(0.85);
     this.hud.add(winBar);
 
     restartBtn = this.add.image(500,450, 'restartBtn');
@@ -486,6 +555,13 @@ function create() {
     plr2StatImage.setScale(0.65);
     this.hud.add(plr1StatImage);
     this.hud.add(plr2StatImage);
+
+    const p1guide = this.add.image(450, 65, 'p1guide');
+    p1guide.setAlpha(0.85);
+    this.hud.add(p1guide);
+    const p2guide = this.add.image(850, 65, 'p2guide');
+    p2guide.setAlpha(0.85);
+    this.hud.add(p2guide);
 
     const platform = this.add.image(xOff+ 725, yOff+425, 'platform1');
     platform.setScale(0.5);
@@ -691,6 +767,9 @@ function updateWins(scene) {
         lastWinState.p2 = players.player2.winNumber;
 
         winBar.setVisible(true);
+        if (players.player.winNumber >= 3 || players.player2.winNumber >= 3) {
+            winBar.setVisible(false);
+        }
         scene.tweens.add({
             targets: winBar,
             scaleY: 1, // from 0 → full height
@@ -712,6 +791,10 @@ function updateWins(scene) {
         players.player2.winText.setText(players.player2.winNumber);
         players.player.winText.setVisible(true);
         players.player2.winText.setVisible(true);
+        if (players.player.winNumber >= 3 || players.player2.winNumber >= 3) {
+            players.player.winText.setVisible(false);
+            players.player2.winText.setVisible(false);
+        }
 
     }
 
@@ -726,7 +809,7 @@ var winCooldown = false;
 
 const baseZoom = 1;
 const minZoom = 0.6;
-const maxZoom = 1.2;
+const maxZoom = 1.4;
 
 function spawnAfterimage(scene, player) {
 
@@ -737,14 +820,13 @@ function spawnAfterimage(scene, player) {
     );
 
     ghost.setFrame(player.frame.name);
-
     ghost.setScale(player.scaleX, player.scaleY);
     ghost.setFlipX(player.flipX);
 
     ghost.setAlpha(0.5);
 
     ghost.setDepth(player.depth - 1);
-
+    scene.objs.add(ghost);
     scene.tweens.add({
         targets: ghost,
         alpha: 0,
@@ -772,7 +854,7 @@ function update() {
 
     const distance = Math.max(distX, distY);
 
-    let zoom = baseZoom - (distance / 2000);
+    let zoom = this.baseZoom - (distance / 2000);
 
     zoom = Phaser.Math.Clamp(zoom, minZoom, maxZoom);
 
@@ -1018,16 +1100,18 @@ function update() {
             winCooldown = true;
             players.player2.winNumber = players.player2.winNumber + 1;
             console.log(players.player2.winNumber)
-            updateWins(this)
-            teleportBackToArena(players.player)
+            updateWins(this);
+            teleportBackToArena(players.player);
+            
             this.time.delayedCall(1500, () => {
                 winCooldown = false;
             });
         } else if (players.player2.outOfBounds) {
             winCooldown = true;
             players.player.winNumber = players.player.winNumber + 1;
-            updateWins(this)
-            teleportBackToArena(players.player2)
+            updateWins(this);
+            teleportBackToArena(players.player2);
+            
             this.time.delayedCall(1500, () => {
                 winCooldown = false;
             });
@@ -1036,10 +1120,12 @@ function update() {
         if (players.player.winNumber >= winNumber || players.player2.winNumber >= winNumber) {
             if (players.player.outOfBounds) {
                 gameEnded = true;
-                this.add.text(xOff+ 500, yOff+400, players.player2.name + ' WINS!', { fontFamily: 'GameFont', fontSize: '32px', fill: '#00008B' }).setOrigin(0.5).setStroke('#000000', 5);
+                const winner = this.add.text(500, 300, players.player2.name + ' ( P1 )  WINS!', { fontFamily: 'GameFont', fontSize: '32px', fill: '#00008B' }).setOrigin(0.5).setStroke('#ffffff', 5);
+                this.hud.add(winner);
             } else if (players.player2.outOfBounds) {
                 gameEnded = true;
-                this.add.text(xOff+ 500, yOff+400, players.player.name + ' WINS!', { fontFamily: 'GameFont', fontSize: '32px', fill: '#8B0000' }).setOrigin(0.5).setStroke('#000000', 5);
+                const winner = this.add.text(500, 300, players.player.name + ' ( P2 )  WINS!', { fontFamily: 'GameFont', fontSize: '32px', fill: '#8B0000' }).setOrigin(0.5).setStroke('#ffffff', 5);
+                this.hud.add(winner);
             }
             restartBtn.setVisible(true);
         }

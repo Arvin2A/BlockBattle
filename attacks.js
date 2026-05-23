@@ -23,10 +23,36 @@ export function attackIsElligible(attacker, target, range = 100) {
     if (una2) return false;
     return dot > 0.7 || isFacingUp || isTargetAbove; // Attack range and facing target
 }
-export function attack(scene, attacker, target, animKey) {
-    //the core attack function that is used as of now
-    if (!attacker.canAttack || attacker.hitstun) return;
+function hitFreeze(scene, ms = 50) {
+    scene.physics.world.pause();
+    if (ms >= 200) {
+        scene.baseZoom = 1.4;
+    }  
+    if (ms >= 100) {
+        const flash = scene.add.rectangle(
+            500,
+            300,
+            1000,
+            600,
+            0xff0000,
+            0.25
+        );
+        scene.hud.add(flash);
 
+        flash.setDepth(9999);
+        scene.tweens.add({
+            targets: flash,
+            alpha: 0,
+            duration: ms,
+            onComplete: () => flash.destroy()
+        });
+    }
+    scene.time.delayedCall(ms, () => {
+        scene.physics.world.resume();
+        scene.baseZoom = 1
+    });
+}
+export function setAttackSprite(attacker, animKey) {
     attacker.atk.setVisible(true);
     attacker.atk.x = attacker.x + attacker.lastDir.x * 50;
     attacker.atk.y = attacker.y + attacker.lastDir.y * 50;
@@ -40,9 +66,16 @@ export function attack(scene, attacker, target, animKey) {
     } else {
         attacker.atk.setAngle(0);
     }
+    //animation
 
     attacker.atk.setFrame(0);
     attacker.atk.play(animKey, true);
+}
+export function attack(scene, attacker, target, animKey) {
+    //the core attack function that is used as of now
+    if (!attacker.canAttack || attacker.hitstun) return;
+
+    setAttackSprite(attacker, animKey);
 
     let hit = false;
 
@@ -105,23 +138,7 @@ export function attack(scene, attacker, target, animKey) {
 }
 export function superSwing(scene, attacker, target, animKey) {
     //The third attack launching the target away
-    attacker.atk.setVisible(true);
-    attacker.atk.x = attacker.x + attacker.lastDir.x * 50;
-    attacker.atk.y = attacker.y + attacker.lastDir.y * 50;
-
-    attacker.atk.setFlipX(-attacker.lastDir.x < 0);
-
-    if (attacker.lastDir.y < 0) {
-        attacker.atk.setAngle(90);
-    } else if (attacker.lastDir.y > 0) {
-        attacker.atk.setAngle(-90);
-    } else {
-        attacker.atk.setAngle(0);
-    }
-    //animation
-
-    attacker.atk.setFrame(0);
-    attacker.atk.play(animKey, true);
+    setAttackSprite(attacker, animKey);
     console.log("Third Attack!");
     if (attackIsElligible(attacker, target, 150)) {
         target.hitstun = true;
@@ -131,7 +148,10 @@ export function superSwing(scene, attacker, target, animKey) {
         attacker.willDecelerate = true;
         attacker.comboTimer = 600;
         target.KBmultiplier += 0.32;
-        scene.sound.play(animKey === 'swordatkthird' ? 'swordthirdhitsfx' : 'axethirdhitsfx');
+        hitFreeze(scene, 250);
+        scene.time.delayedCall(50, () => {
+            scene.sound.play('axethirdhitsfx');
+        });
         const dirX = attacker.lastDir.x;
 
         let dirY = attacker.lastDir.y;
@@ -170,23 +190,7 @@ export function superSwing(scene, attacker, target, animKey) {
 }
 export function pushAttack(scene, attacker, target, animKey) {
     //Push attacks happen if the player is at maximum velocity
-    attacker.atk.setVisible(true);
-    attacker.atk.x = attacker.x + attacker.lastDir.x * 50;
-    attacker.atk.y = attacker.y + attacker.lastDir.y * 50;
-
-    attacker.atk.setFlipX(-attacker.lastDir.x < 0);
-
-    if (attacker.lastDir.y < 0) {
-        attacker.atk.setAngle(90);
-    } else if (attacker.lastDir.y > 0) {
-        attacker.atk.setAngle(-90);
-    } else {
-        attacker.atk.setAngle(0);
-    }
-    //animation
-
-    attacker.atk.setFrame(0);
-    attacker.atk.play(animKey, true);
+    setAttackSprite(attacker, animKey);
     console.log("push!");
     if (attackIsElligible(attacker, target, 125)) {
         target.hitstun = true;
@@ -196,6 +200,7 @@ export function pushAttack(scene, attacker, target, animKey) {
         attacker.willDecelerate = true;
         attacker.comboTimer = 600;
         target.KBmultiplier += 0.05;
+        hitFreeze(scene, 50);
         if (attacker.name === "HAMMERMAN") {
             scene.sound.play('hammerhit');
         } else {
@@ -242,23 +247,7 @@ export function pushAttack(scene, attacker, target, animKey) {
 }
 export function hardSwing(scene, attacker, target, animKey) {
     //Push attacks happen if the player is at maximum velocity
-    attacker.atk.setVisible(true);
-    attacker.atk.x = attacker.x + attacker.lastDir.x * 50;
-    attacker.atk.y = attacker.y + attacker.lastDir.y * 50;
-
-    attacker.atk.setFlipX(-attacker.lastDir.x < 0);
-
-    if (attacker.lastDir.y < 0) {
-        attacker.atk.setAngle(90);
-    } else if (attacker.lastDir.y > 0) {
-        attacker.atk.setAngle(-90);
-    } else {
-        attacker.atk.setAngle(0);
-    }
-    //animation
-
-    attacker.atk.setFrame(0);
-    attacker.atk.play(animKey, true);
+    setAttackSprite(attacker, animKey);
     if (attackIsElligible(attacker, target, 125)) {
         target.hitstun = true;
         target.willDecelerate = false;
@@ -267,6 +256,7 @@ export function hardSwing(scene, attacker, target, animKey) {
         attacker.willDecelerate = true;
         attacker.comboTimer = 600;
         target.KBmultiplier += 0.15;
+        hitFreeze(scene, 100);
         if (attacker.name === "HAMMERMAN") {
             scene.sound.play('hammerhit');
         } else {
@@ -313,23 +303,7 @@ export function hardSwing(scene, attacker, target, animKey) {
 }
 export function lungePush(scene, attacker, target, animKey) {
     //Push attacks happen if the player is at maximum velocity
-    attacker.atk.setVisible(true);
-    attacker.atk.x = attacker.x + attacker.lastDir.x * 50;
-    attacker.atk.y = attacker.y + attacker.lastDir.y * 50;
-
-    attacker.atk.setFlipX(-attacker.lastDir.x < 0);
-
-    if (attacker.lastDir.y < 0) {
-        attacker.atk.setAngle(90);
-    } else if (attacker.lastDir.y > 0) {
-        attacker.atk.setAngle(-90);
-    } else {
-        attacker.atk.setAngle(0);
-    }
-    //animation
-
-    attacker.atk.setFrame(0);
-    attacker.atk.play(animKey, true);
+    setAttackSprite(attacker, animKey);
     if (attackIsElligible(attacker, target, 155)) {
         target.hitstun = true;
         target.willDecelerate = false;
@@ -340,6 +314,7 @@ export function lungePush(scene, attacker, target, animKey) {
         attacker.willDecelerate = true;
         attacker.comboTimer = 600;
         target.KBmultiplier += 0.30;
+        hitFreeze(scene);
         scene.sound.play('anyhit');
         const dirX = attacker.lastDir.x;
 
@@ -380,23 +355,7 @@ export function lungePush(scene, attacker, target, animKey) {
 }
 export function thirdAttack(scene, attacker, target, animKey) {
     //The third attack launching the target away
-    attacker.atk.setVisible(true);
-    attacker.atk.x = attacker.x + attacker.lastDir.x * 50;
-    attacker.atk.y = attacker.y + attacker.lastDir.y * 50;
-
-    attacker.atk.setFlipX(-attacker.lastDir.x < 0);
-
-    if (attacker.lastDir.y < 0) {
-        attacker.atk.setAngle(90);
-    } else if (attacker.lastDir.y > 0) {
-        attacker.atk.setAngle(-90);
-    } else {
-        attacker.atk.setAngle(0);
-    }
-    //animation
-
-    attacker.atk.setFrame(0);
-    attacker.atk.play(animKey, true);
+    setAttackSprite(attacker, animKey);
     console.log("Third Attack!");
     if (attackIsElligible(attacker, target)) {
         target.hitstun = true;
@@ -451,23 +410,7 @@ export function thirdAttack(scene, attacker, target, animKey) {
 }
 export function slamThirdAttack(scene, attacker, target, animKey) {
     //The third attack launching the target away
-    attacker.atk.setVisible(true);
-    attacker.atk.x = attacker.x + attacker.lastDir.x * 50;
-    attacker.atk.y = attacker.y + attacker.lastDir.y * 50;
-
-    attacker.atk.setFlipX(-attacker.lastDir.x < 0);
-
-    if (attacker.lastDir.y < 0) {
-        attacker.atk.setAngle(90);
-    } else if (attacker.lastDir.y > 0) {
-        attacker.atk.setAngle(-90);
-    } else {
-        attacker.atk.setAngle(0);
-    }
-    //animation
-
-    attacker.atk.setFrame(0);
-    attacker.atk.play(animKey, true);
+    setAttackSprite(attacker, animKey);
     console.log("Third Attack!");
     if (attackIsElligible(attacker, target)) {
         target.hitstun = true;
@@ -714,6 +657,7 @@ export function tryMow(scene, player, target, direction, currentTime) {
             loop: true
         });
         mowsound.play();
+        player.isUsingSideSpecial = false;
         scene.physics.add.overlap(fakescythe, target, () => {
             if (player.hasHitSideSpecial) return;
             if (!canhit) return;
