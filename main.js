@@ -858,7 +858,7 @@ function update() {
     if (players.player.KBmultiplier < 1) {
         players.player.KBText.setColor("#ff0000");
     } else {
-        players.player2.KBText.setColor("#ffffff");
+        players.player.KBText.setColor("#ffffff");
     }
     if (players.player2.KBmultiplier < 1) {
         players.player2.KBText.setColor("#ff0000");
