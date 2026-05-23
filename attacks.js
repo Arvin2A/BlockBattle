@@ -259,7 +259,6 @@ export function hardSwing(scene, attacker, target, animKey) {
 
     attacker.atk.setFrame(0);
     attacker.atk.play(animKey, true);
-    console.log("push!");
     if (attackIsElligible(attacker, target, 125)) {
         target.hitstun = true;
         target.willDecelerate = false;
@@ -331,7 +330,6 @@ export function lungePush(scene, attacker, target, animKey) {
 
     attacker.atk.setFrame(0);
     attacker.atk.play(animKey, true);
-    console.log("push!");
     if (attackIsElligible(attacker, target, 155)) {
         target.hitstun = true;
         target.willDecelerate = false;
@@ -700,6 +698,7 @@ export function tryMow(scene, player, target, direction, currentTime) {
         );
         //most w thing here
         fakescythe.body.allowGravity = false;
+        scene.objs.add(fakescythe);
 
         // spin
         const spinSpeed =
@@ -827,7 +826,7 @@ export function tryRepair(scene, player, target, direction, currentTime) {
                 50,
                 0x00ff00
             );
-
+            scene.objs.add(box);
             scene.tweens.add({
                 targets: box,
                 alpha: 0,
@@ -898,6 +897,8 @@ export function tryPull(scene, player, target, direction, currentTime) {
         hook.setScale(1.3);
         hook.body.allowGravity = true;
         hook.body.gravity.y = 700;
+        scene.objs.add(hook);
+        scene.objs.add(rope);
 
         // initial launch speed
         hook.setVelocity(
