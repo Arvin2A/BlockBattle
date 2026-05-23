@@ -619,6 +619,8 @@ function create() {
     players.player2.freeze = true;
     players.player2.hitstun = true;
 
+    
+
     this.time.delayedCall(1000, () => {
         const counter = this.add.image(500, 300, 'countdown1');
         this.hud.add(counter);
@@ -846,6 +848,23 @@ function update() {
 
     players.player2.header.x = players.player2.x - 10;
     players.player2.header.y = players.player2.y - 50;
+
+    if (players.player.KBmultiplier < 0.9) {
+        players.player.KBmultiplier = 0.90;
+    }
+    if (players.player2.KBmultiplier < 0.9) {
+        players.player2.KBmultiplier = 0.9;
+    }
+    if (players.player.KBmultiplier < 1) {
+        players.player.KBText.setColor("#ff0000");
+    } else {
+        players.player2.KBText.setColor("#ffffff");
+    }
+    if (players.player2.KBmultiplier < 1) {
+        players.player2.KBText.setColor("#ff0000");
+    } else {
+        players.player2.KBText.setColor("#ffffff");
+    }
 
     if (players.player.afterimage) {
         if (this.time.now > players.player.afterimageTimer) {
