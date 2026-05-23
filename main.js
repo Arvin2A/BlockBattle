@@ -82,7 +82,8 @@ var CharacterSelectScene = {
     key: 'CharacterSelectScene',
 
     preload: function () {
-        this.load.audio('hover', 'audio/hover.wav')
+        this.load.audio('hover', 'audio/hover.wav');
+        this.load.image('arenapreview', 'assets/arenapreview.png');
     },
     create: function () {
 
@@ -111,6 +112,16 @@ var CharacterSelectScene = {
 
         // background
         this.cameras.main.setBackgroundColor('#1b1b1b');
+
+        this.add.image(500, 300, 'arenapreview');
+        const overlay = this.add.rectangle(
+            500,
+            300,
+            1000,
+            600,
+            0x1b1b1b,
+            0.90
+        );
 
         // -----------------------------
         // TITLE
@@ -274,8 +285,10 @@ var CharacterSelectScene = {
         });
 
         playBox.on('pointerdown', () => {
-
-            this.scene.start('GameScene');
+            this.cameras.main.fadeOut(200, 0, 0, 0);
+            this.time.delayedCall(200, () => {
+                this.scene.start('GameScene');
+            });
             player1Character = this.characters[this.p1Index];
             player2Character = this.characters[this.p2Index];
 
@@ -514,6 +527,7 @@ function create() {
     bg.setDisplaySize(this.scale.width*2, this.scale.height*2);
     bg.setDepth(-1);
     this.objs.add(bg);
+    this.cameras.main.fadeIn(500, 0, 0, 0);
 
     winBar = this.add.image(500 , 300, 'winbar');
     winBar.setDisplaySize(this.scale.width, 150);
@@ -1120,11 +1134,11 @@ function update() {
         if (players.player.winNumber >= winNumber || players.player2.winNumber >= winNumber) {
             if (players.player.outOfBounds) {
                 gameEnded = true;
-                const winner = this.add.text(500, 300, players.player2.name + ' ( P1 )  WINS!', { fontFamily: 'GameFont', fontSize: '32px', fill: '#00008B' }).setOrigin(0.5).setStroke('#ffffff', 5);
+                const winner = this.add.text(500, 300, players.player2.name + ' WINS!', { fontFamily: 'GameFont', fontSize: '32px', fill: '#00008B' }).setOrigin(0.5).setStroke('#000000', 5);
                 this.hud.add(winner);
             } else if (players.player2.outOfBounds) {
                 gameEnded = true;
-                const winner = this.add.text(500, 300, players.player.name + ' ( P2 )  WINS!', { fontFamily: 'GameFont', fontSize: '32px', fill: '#8B0000' }).setOrigin(0.5).setStroke('#ffffff', 5);
+                const winner = this.add.text(500, 300, players.player.name + ' WINS!', { fontFamily: 'GameFont', fontSize: '32px', fill: '#8B0000' }).setOrigin(0.5).setStroke('#000000', 5);
                 this.hud.add(winner);
             }
             restartBtn.setVisible(true);
