@@ -499,6 +499,30 @@ var lastWinState = {
     p1: 0,
     p2: 0
 };
+var mobileControls = {
+    p1: {
+        left: false,
+        leftPressed: false,
+        right: false,
+        rightPressed: false,
+        up: false,
+        upPressed: false,
+        down: false,
+        downPressed: false,
+        attack: false
+    },
+    p2: {
+        left: false,
+        leftPressed: false,
+        right: false,
+        rightPressed: false,
+        up: false,
+        upPressed: false,
+        down: false,
+        downPressed: false,
+        attack: false
+    }
+};
 var gameEnded = false;
 const xOff = 500;
 const yOff = 300;
@@ -516,6 +540,7 @@ function create() {
         p1: 0,
         p2: 0
     };
+    
     this.baseZoom = 1;
     this.hud = this.add.container(0, 0);
     this.objs = this.add.container(0,0);
@@ -659,6 +684,74 @@ function create() {
         frameRate: 32,
         repeat: 0
     });
+
+
+    //mobile support:
+    const isMobile = this.sys.game.device.input.touch;
+
+    if (isMobile) {
+
+        function makeButton(scene, x, y, text, keyRef) {
+
+            const btn = scene.add.circle(x, y, 40, 0x000000, 0.45)
+                .setScrollFactor(0)
+                .setDepth(999)
+                .setInteractive();
+
+            const label = scene.add.text(x, y, text, {
+                fontSize: '32px',
+                color: '#ffffff',
+                fontFamily: 'Arial'
+            })
+            .setOrigin(0.5)
+            .setScrollFactor(0)
+            .setDepth(1000);
+
+            btn.on('pointerdown', () => {
+                keyRef.obj[keyRef.key] = true;
+                keyRef.obj[keyRef.key + "Pressed"] = true;
+            });
+
+            btn.on('pointerup', () => {
+                keyRef.obj[keyRef.key] = false;
+            });
+
+            btn.on('pointerout', () => {
+                keyRef.obj[keyRef.key] = false;
+            });
+
+            scene.hud.add(btn);
+            scene.hud.add(label);
+        }
+
+        const p1 = mobileControls.p1;
+        const p2 = mobileControls.p2;
+
+        //P1
+        const p1Buttons = [
+            [60, 520, '←', p1, 'left'],
+            [220, 520, '→', p1, 'right'],
+            [140, 440, '↑', p1, 'up'],
+            [140, 520, '↓', p1, 'down'],
+            [220, 440, 'A', p1, 'attack']
+        ];
+
+        //P2
+        const p2Buttons = [
+            [760, 520, '←', p2, 'left'],
+            [920, 520, '→', p2, 'right'],
+            [840, 440, '↑', p2, 'up'],
+            [840, 520, '↓', p2, 'down'],
+            [760, 440, 'A', p2, 'attack']
+        ];
+
+        [...p1Buttons, ...p2Buttons].forEach(btn => {
+            makeButton(this, btn[0], btn[1], btn[2], {
+                obj: btn[3],
+                key: btn[4]
+            });
+        });
+    }
 
     //---PLAYER---\\
     players = initiatePlayers(this, player1Character, player2Character);
@@ -885,10 +978,10 @@ function update() {
     ) * 0.05;
 
 
-    if (attackKey1.isDown && !players.player.hitstun) {
+    if ((attackKey1.isDown || mobileControls.p1.attack) && !players.player.hitstun) {
         handleAttack(this, players.player, players.player2);
     }
-    if (attackKey2.isDown && !players.player2.hitstun) {
+    if ((attackKey2.isDown || mobileControls.p2.attack) && !players.player2.hitstun) {
         handleAttack(this, players.player2, players.player);
     }
     players.player.outOfBounds = players.player.y > 1600 || players.player.x < -400 || players.player.x > 2400 || players.player.y < 0;
@@ -909,16 +1002,16 @@ function update() {
     players.player2.KBText.setText(`KB: ${cal2.toFixed(1)}%`);
     updateCombo(players.player, this.game.loop.delta);
     updateCombo(players.player2, this.game.loop.delta);
-    if (wasd.left.isDown) players.player.lastDir = { x: -1, y: 0 };
-    else if (wasd.right.isDown) players.player.lastDir = { x: 1, y: 0 };
-    else if (wasd.up.isDown) players.player.lastDir = { x: 0, y: -1 };
-    else if (wasd.down.isDown) players.player.lastDir = { x: 0, y: 1 };
+    if (wasd.left.isDown || mobileControls.p1.left) players.player.lastDir = { x: -1, y: 0 };
+    else if (wasd.right.isDown || mobileControls.p1.right) players.player.lastDir = { x: 1, y: 0 };
+    else if (wasd.up.isDown || mobileControls.p1.up) players.player.lastDir = { x: 0, y: -1 };
+    else if (wasd.down.isDown || mobileControls.p1.down) players.player.lastDir = { x: 0, y: 1 };
 
     // PLAYER 2 (arrows)
-    if (cursors.left.isDown) players.player2.lastDir = { x: -1, y: 0 };
-    else if (cursors.right.isDown) players.player2.lastDir = { x: 1, y: 0 };
-    else if (cursors.up.isDown) players.player2.lastDir = { x: 0, y: -1 };
-    else if (cursors.down.isDown) players.player2.lastDir = { x: 0, y: 1 };
+    if (cursors.left.isDown || mobileControls.p2.left) players.player2.lastDir = { x: -1, y: 0 };
+    else if (cursors.right.isDown || mobileControls.p2.right) players.player2.lastDir = { x: 1, y: 0 };
+    else if (cursors.up.isDown || mobileControls.p2.up) players.player2.lastDir = { x: 0, y: -1 };
+    else if (cursors.down.isDown || mobileControls.p2.down) players.player2.lastDir = { x: 0, y: 1 };
     function decelerateAll() {
         for (const key in players) {
             const player = players[key];
@@ -993,20 +1086,22 @@ function update() {
     }
 
     if (!players.player.hitstun) {
-        if (Phaser.Input.Keyboard.JustDown(wasd.left)) {
+        if (Phaser.Input.Keyboard.JustDown(wasd.left) || mobileControls.p1.leftPressed) {
             handleDirSpecial(this, players.player, 'left', this.time.now,players.player2);
+            mobileControls.p1.leftPressed = false;
         }
-        if (Phaser.Input.Keyboard.JustDown(wasd.right)) {
+        if (Phaser.Input.Keyboard.JustDown(wasd.right) || mobileControls.p1.rightPressed) {
             handleDirSpecial(this, players.player, 'right', this.time.now,players.player2);
+            mobileControls.p1.rightPressed = false;
         }
         if (!players.player.hasHitSideSpecial && players.player.isUsingSideSpecial) {
             handleDirSpecialAttack(this, players.player, players.player2);
         }
-        if (wasd.left.isDown) {
+        if (wasd.left.isDown || mobileControls.p1.left) {
             if (!players.player.isUsingSideSpecial) {
                 players.player.setVelocityX(Phaser.Math.Clamp(players.player.body.velocity.x - accelFactor, -250, 250));
             }
-        } else if (wasd.right.isDown) {
+        } else if (wasd.right.isDown || mobileControls.p1.right) {
             if (!players.player.isUsingSideSpecial) {
                 players.player.setVelocityX(Phaser.Math.Clamp(players.player.body.velocity.x + accelFactor, -250, 250));
             }
@@ -1015,7 +1110,7 @@ function update() {
                 decelerate(players.player);
             }
         }
-        if (wasd.up.isDown && players.player.body.touching.down) {
+        if ((wasd.up.isDown || mobileControls.p1.up) && players.player.body.touching.down) {
             players.player.setVelocityY(-400);
         }
         if (players.player.body.blocked.down) {
@@ -1024,16 +1119,17 @@ function update() {
         if (players.player.body.blocked.down &&  players.player.isUsingSideSpecial === false) {
             players.player.afterimage = false;
         }
-        if (Phaser.Input.Keyboard.JustDown(wasd.up) && !players.player.body.touching.down && !players.player.hasDoubleJumped) {
+        if ((Phaser.Input.Keyboard.JustDown(wasd.up) || mobileControls.p1.upPressed) && !players.player.body.touching.down && !players.player.hasDoubleJumped) {
             players.player.setVelocityY(-400);
             players.player.doubleJumpEffect.setAlpha(1);
             players.player.hasDoubleJumped = true;
             this.tweens.add({targets: players.player.doubleJumpEffect,alpha: 0,duration: 200,ease: 'Cubic.easeOut'});
+            mobileControls.p1.upPressed = false;
         }
-        if (wasd.up.isUp && players.player.body.velocity.y < 0) {
+        if ((wasd.up.isUp || mobileControls.p1.up) && players.player.body.velocity.y < 0) {
             players.player.setVelocityY(players.player.body.velocity.y / 2);
         }
-        if (wasd.down.isDown && players.player.airTime > 600) {
+        if ((wasd.down.isDown || mobileControls.p1.down) && players.player.airTime > 600) {
             players.player.setVelocityY(800);
             players.player.afterimage = true;
         }
@@ -1042,25 +1138,33 @@ function update() {
 
     if (!players.player2.hitstun) {
 
-        //Player 2 controls
-        if (Phaser.Input.Keyboard.JustDown(cursors.left)) {
-            handleDirSpecial(this, players.player2, 'left', this.time.now,players.player);
+        // Player 2 controls
+        if (Phaser.Input.Keyboard.JustDown(cursors.left) || mobileControls.p2.leftPressed) {
+            handleDirSpecial(this, players.player2, 'left', this.time.now, players.player);
+            mobileControls.p2.leftPressed = false;
         }
-        if (Phaser.Input.Keyboard.JustDown(cursors.right)) {
-            //tryLunge(this, players.player2, 'right', this.time.now);
-            handleDirSpecial(this, players.player2, 'right', this.time.now,players.player);
+
+        if (Phaser.Input.Keyboard.JustDown(cursors.right) || mobileControls.p2.rightPressed) {
+            handleDirSpecial(this, players.player2, 'right', this.time.now, players.player);
+            mobileControls.p2.rightPressed = false;
         }
+
         if (!players.player2.hasHitSideSpecial && players.player2.isUsingSideSpecial) {
             handleDirSpecialAttack(this, players.player2, players.player);
         }
-        if (cursors.left.isDown) {
+
+        if (cursors.left.isDown || mobileControls.p2.left) {
             if (!players.player2.isUsingSideSpecial) {
-                players.player2.setVelocityX(Phaser.Math.Clamp(players.player2.body.velocity.x - accelFactor, -250, 250));
+                players.player2.setVelocityX(
+                    Phaser.Math.Clamp(players.player2.body.velocity.x - accelFactor, -250, 250)
+                );
             }
         }
-        else if (cursors.right.isDown) {
+        else if (cursors.right.isDown || mobileControls.p2.right) {
             if (!players.player2.isUsingSideSpecial) {
-                players.player2.setVelocityX(Phaser.Math.Clamp(players.player2.body.velocity.x + accelFactor, -250, 250));
+                players.player2.setVelocityX(
+                    Phaser.Math.Clamp(players.player2.body.velocity.x + accelFactor, -250, 250)
+                );
             }
         }
         else {
@@ -1068,30 +1172,43 @@ function update() {
                 decelerate(players.player2);
             }
         }
-        if (cursors.up.isDown && players.player2.body.touching.down) {
+
+        if ((cursors.up.isDown || mobileControls.p2.up) && players.player2.body.touching.down) {
             players.player2.setVelocityY(-400);
         }
+
         if (players.player2.body.touching.down) {
             players.player2.hasDoubleJumped = false;
         }
-        if (players.player2.body.blocked.down &&  players.player2.isUsingSideSpecial === false) {
+
+        if (players.player2.body.blocked.down && players.player2.isUsingSideSpecial === false) {
             players.player2.afterimage = false;
         }
-        if (Phaser.Input.Keyboard.JustDown(cursors.up) && !players.player2.body.touching.down && !players.player2.hasDoubleJumped) {
+
+        if (
+            (Phaser.Input.Keyboard.JustDown(cursors.up) || mobileControls.p2.upPressed) &&
+            !players.player2.body.touching.down &&
+            !players.player2.hasDoubleJumped
+        ) {
             players.player2.setVelocityY(-400);
             players.player2.doubleJumpEffect.setAlpha(1);
             players.player2.hasDoubleJumped = true;
+
             this.tweens.add({
                 targets: players.player2.doubleJumpEffect,
                 alpha: 0,
                 duration: 300,
                 ease: 'Cubic.easeOut'
             });
+
+            mobileControls.p2.upPressed = false;
         }
-        if (cursors.up.isUp && players.player2.body.velocity.y < 0) {
+
+        if ((cursors.up.isUp || mobileControls.p2.up) && players.player2.body.velocity.y < 0) {
             players.player2.setVelocityY(players.player2.body.velocity.y / 2);
         }
-        if (cursors.down.isDown && players.player2.airTime > 600) {
+
+        if ((cursors.down.isDown || mobileControls.p2.down) && players.player2.airTime > 600) {
             players.player2.afterimage = true;
             players.player2.setVelocityY(800);
         }
