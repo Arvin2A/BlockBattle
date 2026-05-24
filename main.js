@@ -571,10 +571,10 @@ function create() {
     this.hud.add(plr2StatImage);
 
     const p1guide = this.add.image(450, 65, 'p1guide');
-    p1guide.setAlpha(0.85);
+    p1guide.setAlpha(0.65);
     this.hud.add(p1guide);
     const p2guide = this.add.image(850, 65, 'p2guide');
-    p2guide.setAlpha(0.85);
+    p2guide.setAlpha(0.65);
     this.hud.add(p2guide);
 
     const platform = this.add.image(xOff+ 725, yOff+425, 'platform1');
