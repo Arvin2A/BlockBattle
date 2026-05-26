@@ -1119,6 +1119,7 @@ function update() {
         if (players.player.body.blocked.down &&  players.player.isUsingSideSpecial === false) {
             players.player.afterimage = false;
         }
+        
         if ((Phaser.Input.Keyboard.JustDown(wasd.up) || mobileControls.p1.upPressed) && !players.player.body.touching.down && !players.player.hasDoubleJumped) {
             players.player.setVelocityY(-400);
             players.player.doubleJumpEffect.setAlpha(1);
@@ -1126,9 +1127,18 @@ function update() {
             this.tweens.add({targets: players.player.doubleJumpEffect,alpha: 0,duration: 200,ease: 'Cubic.easeOut'});
             mobileControls.p1.upPressed = false;
         }
-        if ((wasd.up.isUp || !mobileControls.p1.up) && players.player.body.velocity.y < 0) {
+
+        const usingMobile = this.sys.game.device.input.touch;
+
+
+        const jumpReleased = usingMobile
+            ? !mobileControls.p1.up
+            : wasd.up.isUp;
+
+        if (jumpReleased && players.player.body.velocity.y < 0) {
             players.player.setVelocityY(players.player.body.velocity.y / 2);
         }
+
         if ((wasd.down.isDown || mobileControls.p1.down) && players.player.airTime > 600) {
             players.player.setVelocityY(800);
             players.player.afterimage = true;
@@ -1204,10 +1214,16 @@ function update() {
             mobileControls.p2.upPressed = false;
         }
 
-        if ((cursors.up.isUp || !mobileControls.p2.up) && players.player2.body.velocity.y < 0) {
+        const usingMobile = this.sys.game.device.input.touch;
+
+
+        const jumpReleased = usingMobile
+            ? !mobileControls.p2.up
+            : cursors.up.isUp;
+
+        if (jumpReleased && players.player2.body.velocity.y < 0) {
             players.player2.setVelocityY(players.player2.body.velocity.y / 2);
         }
-
         if ((cursors.down.isDown || mobileControls.p2.down) && players.player2.airTime > 600) {
             players.player2.afterimage = true;
             players.player2.setVelocityY(800);
