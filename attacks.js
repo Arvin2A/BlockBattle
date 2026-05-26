@@ -248,7 +248,7 @@ export function pushAttack(scene, attacker, target, animKey) {
 export function hardSwing(scene, attacker, target, animKey) {
     //Push attacks happen if the player is at maximum velocity
     setAttackSprite(attacker, animKey);
-    if (attackIsElligible(attacker, target, 125)) {
+    if (attackIsElligible(attacker, target, 100)) {
         target.hitstun = true;
         target.willDecelerate = false;
         target.freeze = false;
