@@ -180,7 +180,7 @@ export function superSwing(scene, attacker, target, animKey) {
     });
     if (attacker.revokeAggressorStun) scene.time.removeEvent(attacker.revokeAggressorStun);
     if (target.revokeVictimStun) scene.time.removeEvent(target.revokeVictimStun);
-    scene.time.delayedCall(600, () => {
+    scene.time.delayedCall(600 * target.KBmultiplier, () => {
         target.hitstun = false;
     });
     scene.time.delayedCall(1000, () => {
@@ -237,7 +237,7 @@ export function pushAttack(scene, attacker, target, animKey) {
     });
     if (attacker.revokeAggressorStun) scene.time.removeEvent(attacker.revokeAggressorStun);
     if (target.revokeVictimStun) scene.time.removeEvent(target.revokeVictimStun);
-    scene.time.delayedCall(600, () => {
+    scene.time.delayedCall(450 * target.KBmultiplier, () => {
         target.hitstun = false;
     });
     scene.time.delayedCall(1000, () => {
@@ -293,7 +293,7 @@ export function hardSwing(scene, attacker, target, animKey) {
     });
     if (attacker.revokeAggressorStun) scene.time.removeEvent(attacker.revokeAggressorStun);
     if (target.revokeVictimStun) scene.time.removeEvent(target.revokeVictimStun);
-    scene.time.delayedCall(600, () => {
+    scene.time.delayedCall(400 * target.KBmultiplier, () => {
         target.hitstun = false;
     });
     scene.time.delayedCall(1000, () => {
@@ -345,7 +345,7 @@ export function lungePush(scene, attacker, target, animKey) {
     });
     if (attacker.revokeAggressorStun) scene.time.removeEvent(attacker.revokeAggressorStun);
     if (target.revokeVictimStun) scene.time.removeEvent(target.revokeVictimStun);
-    scene.time.delayedCall(600, () => {
+    scene.time.delayedCall(300 * target.KBmultiplier, () => {
         target.hitstun = false;
     });
     scene.time.delayedCall(1000, () => {
@@ -400,7 +400,7 @@ export function thirdAttack(scene, attacker, target, animKey) {
     });
     if (attacker.revokeAggressorStun) scene.time.removeEvent(attacker.revokeAggressorStun);
     if (target.revokeVictimStun) scene.time.removeEvent(target.revokeVictimStun);
-    scene.time.delayedCall(600, () => {
+    scene.time.delayedCall(500 * target.KBmultiplier, () => {
         target.hitstun = false;
     });
     scene.time.delayedCall(1000, () => {
@@ -457,7 +457,7 @@ export function slamThirdAttack(scene, attacker, target, animKey) {
     });
     if (attacker.revokeAggressorStun) scene.time.removeEvent(attacker.revokeAggressorStun);
     if (target.revokeVictimStun) scene.time.removeEvent(target.revokeVictimStun);
-    scene.time.delayedCall(600, () => {
+    scene.time.delayedCall(500 * target.KBmultiplier, () => {
         target.hitstun = false;
     });
     scene.time.delayedCall(1000, () => {
