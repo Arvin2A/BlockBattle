@@ -31,6 +31,7 @@ export function initiatePlayers(scene, p1Select = 'axeman', p2Select = 'swordman
         p.doubleJumpEffect = scene.add.image(
             p.x,
             p.y + 40, 'doublejump');
+        scene.objs.add(p.doubleJumpEffect);
         p.doubleJumpEffect.setAlpha(0);
         scene.objs.add(p);
         p.setDepth(2);

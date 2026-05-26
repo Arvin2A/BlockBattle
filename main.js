@@ -699,7 +699,7 @@ function create() {
                 .setInteractive();
 
             const label = scene.add.text(x, y, text, {
-                fontSize: '32px',
+                fontSize: '48px',
                 color: '#ffffff',
                 fontFamily: 'Arial'
             })
@@ -1126,7 +1126,7 @@ function update() {
             this.tweens.add({targets: players.player.doubleJumpEffect,alpha: 0,duration: 200,ease: 'Cubic.easeOut'});
             mobileControls.p1.upPressed = false;
         }
-        if ((wasd.up.isUp || mobileControls.p1.up) && players.player.body.velocity.y < 0) {
+        if ((wasd.up.isUp || !mobileControls.p1.up) && players.player.body.velocity.y < 0) {
             players.player.setVelocityY(players.player.body.velocity.y / 2);
         }
         if ((wasd.down.isDown || mobileControls.p1.down) && players.player.airTime > 600) {
@@ -1204,7 +1204,7 @@ function update() {
             mobileControls.p2.upPressed = false;
         }
 
-        if ((cursors.up.isUp || mobileControls.p2.up) && players.player2.body.velocity.y < 0) {
+        if ((cursors.up.isUp || !mobileControls.p2.up) && players.player2.body.velocity.y < 0) {
             players.player2.setVelocityY(players.player2.body.velocity.y / 2);
         }
 
