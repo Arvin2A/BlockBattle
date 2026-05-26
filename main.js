@@ -689,7 +689,7 @@ function create() {
     //mobile support:
     const isMobile = this.sys.game.device.input.touch;
 
-    if (isMobile) {
+    if (false) {
 
         function makeButton(scene, x, y, text, keyRef) {
 
@@ -1135,7 +1135,7 @@ function update() {
             ? !mobileControls.p1.up
             : wasd.up.isUp;
 
-        if (jumpReleased && players.player.body.velocity.y < 0) {
+        if (wasd.up.isUp && players.player.body.velocity.y < 0) {
             players.player.setVelocityY(players.player.body.velocity.y / 2);
         }
 
@@ -1221,7 +1221,7 @@ function update() {
             ? !mobileControls.p2.up
             : cursors.up.isUp;
 
-        if (jumpReleased && players.player2.body.velocity.y < 0) {
+        if (cursors.up.isUp && players.player2.body.velocity.y < 0) {
             players.player2.setVelocityY(players.player2.body.velocity.y / 2);
         }
         if ((cursors.down.isDown || mobileControls.p2.down) && players.player2.airTime > 600) {
