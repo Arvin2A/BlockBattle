@@ -716,7 +716,7 @@ function create() {
                 keyRef.obj[keyRef.key] = false;
             });
 
-            btn.on('pointerout', () => {
+            btn.on('pointerupoutside', () => {
                 keyRef.obj[keyRef.key] = false;
             });
 
