@@ -626,7 +626,7 @@ export function tryMow(scene, player, target, direction, currentTime) {
         }
 
         const fakescythe = scene.add.image(player.x, player.y, 'whitescythe');
-        fakescythe.setScale(3);
+        fakescythe.setScale(2);
 
         console.log("GO");
 
