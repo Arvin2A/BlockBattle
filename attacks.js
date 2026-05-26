@@ -837,8 +837,9 @@ export function tryPull(scene, player, target, direction, currentTime) {
             'hook' // make a small hook sprite
         );
         hook.setTint(0x8b5a2b);
+        hook.body.setMass(0);
 
-        hook.setScale(1.3);
+        hook.setScale(2);
         hook.body.allowGravity = true;
         hook.body.gravity.y = 700;
         scene.objs.add(hook);
