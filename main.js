@@ -1052,11 +1052,11 @@ function update() {
     players.player2.header.x = players.player2.x - 10;
     players.player2.header.y = players.player2.y - 50;
 
-    if (players.player.KBmultiplier < 0.9) {
-        players.player.KBmultiplier = 0.90;
+    if (players.player.KBmultiplier < 0.7) {
+        players.player.KBmultiplier = 0.70;
     }
-    if (players.player2.KBmultiplier < 0.9) {
-        players.player2.KBmultiplier = 0.9;
+    if (players.player2.KBmultiplier < 0.7) {
+        players.player2.KBmultiplier = 0.70;
     }
     if (players.player.KBmultiplier < 1) {
         players.player.KBText.setColor("#ff0000");
