@@ -10,6 +10,7 @@ export function initiatePlayers(scene, p1Select = 'axeman', p2Select = 'swordman
     
     for (const key in players) {
         const p = players[key];
+        p.setDepth(5);
         p.canAttack = true;
         p.revokeAggressorStun = null;
         p.revokeVictimStun = null;
@@ -23,6 +24,7 @@ export function initiatePlayers(scene, p1Select = 'axeman', p2Select = 'swordman
         p.outOfBounds = false;
         p.airTime = 0;
         p.KBmultiplier = 1.00;
+        p.lastKBmultiplier = 1.00;
         p.nextSideSpecialTime = 0;
         p.lastTap = { left: 0, right: 0 };
         p.isUsingSideSpecial = false;
@@ -37,6 +39,36 @@ export function initiatePlayers(scene, p1Select = 'axeman', p2Select = 'swordman
         p.setDepth(2);
         p.afterimage = false;
         p.afterimageTimer = 0;
+        p.lastInput = {
+            left: 0,
+            right: 0,
+            up: 0,
+            down: 0
+        };
+        p.lastAttackTime = 0
+        p.flashObject = scene.add.rectangle(p.x, p.y, 50, 50, 0xffffff);
+        p.flashObject.setAlpha(0);
+        p.flashObject.setDepth(9999);
+        scene.objs.add(p.flashObject);
+        p.flash = function() {
+            console.log("flash!");
+            
+            p.flashObject.setAlpha(0.5);
+            console.log(p.flashObject);
+
+            scene.tweens.add({
+                targets: p.flashObject,
+                alpha: 0,
+                duration: 200
+            });
+        }
+        p.plunged = false;
+        p.lastPlungeTick = 0;
+
+        p.plungeMark;
+
+        p.movementSpeed = 250;
+        p.baseDamageScale = 1;
     }
     players.player.lastDir = { x: 1, y: 0 };
     players.player2.lastDir = { x: -1, y: 0 };
@@ -54,19 +86,6 @@ export function initiatePlayers(scene, p1Select = 'axeman', p2Select = 'swordman
     }).setOrigin(0.5).setStroke('#000000', 4).setVisible(false);
     scene.hud.add(players.player.winText);
     scene.hud.add(players.player2.winText);
-
-
-    /*players.player.atk = scene.add.sprite(
-        players.player.x + (players.player.lastDir.x * 50),
-        players.player.y + (players.player.lastDir.y * 50),
-        'axeatk'
-    );
-    scene.objs.add(players.player.atk);
-    players.player2.atk = scene.add.sprite(
-        players.player2.x + (players.player2.lastDir.x * 50),
-        players.player2.y + (players.player2.lastDir.y * 50),
-        'swordatk'
-    );*/
     players.player.name = p1Select.toUpperCase();
     players.player2.name = p2Select.toUpperCase();
 
@@ -105,6 +124,13 @@ export function initiatePlayers(scene, p1Select = 'axeman', p2Select = 'swordman
                 p.y + (p.lastDir.y * 50),
                 'hammeratk'
             );
+        } else if (p.name == "SLATEMAN") {
+            p.atk = scene.add.sprite(
+                p.x + (p.lastDir.x * 50),
+                p.y + (p.lastDir.y * 50),
+                'slateatk'
+            );
+            p.KBmultiplier = 0.70;
         } else {
             //fallback to axe sprite
             p.atk = scene.add.sprite(

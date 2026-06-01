@@ -1,9 +1,12 @@
+const finalplungeMultiplier = 0.50;
 export function attackIsElligible(attacker, target, range = 100) {
     if (!attacker.canAttack || attacker.hitstun) return false;
     const dx = target.x - attacker.x;
     const dy = target.y - attacker.y;
     const distance = Math.hypot(dx, dy);
     if (distance > range) return false; // Too far away
+    target.flash();
+    console.log("IN RANGE");
 
     const dirToTargetX = dx / distance;
     const dirToTargetY = dy / distance;
@@ -15,12 +18,13 @@ export function attackIsElligible(attacker, target, range = 100) {
     const isFacingDown = attacker.lastDir.y > 0.9 && Math.abs(attacker.lastDir.x) < 0.2;
     //technically, decimal values are useless, because the values are only 0, 1, or -1
     //but this just adds a bit of leniency just in case we add mobile or controller support later where the input might not be perfectly digital
-    const isTargetAbove = dy < -10;
-    const isAttackerAbove = dy > 10;
+    const isTargetAbove = dy < -25;
+    const isAttackerAbove = dy > 25;
     const una = isAttackerAbove && isFacingUp; // CUSTOM RULE: Prevent attacking upwards and pulling the player under the attacker
     const una2 = isFacingDown && isTargetAbove; // SECOND CUSTOM RULE: Prevent attacking downwards if the target is above also to avoid pinning
     if (una) return false;
     if (una2) return false;
+    //if (dot > 0.7 || isFacingUp || isTargetAbove) target.flash();
     return dot > 0.7 || isFacingUp || isTargetAbove; // Attack range and facing target
 }
 function hitFreeze(scene, ms = 50) {
@@ -57,7 +61,13 @@ export function setAttackSprite(attacker, animKey) {
     attacker.atk.x = attacker.x + attacker.lastDir.x * 50;
     attacker.atk.y = attacker.y + attacker.lastDir.y * 50;
 
-    attacker.atk.setFlipX(-attacker.lastDir.x < 0);
+    if (animKey == "scytheatktilt") {
+        attacker.atk.setFlipX(attacker.lastDir.x < 0);
+
+    } else {
+        attacker.atk.setFlipX(-attacker.lastDir.x < 0);
+    }
+    
 
     if (attacker.lastDir.y < 0) {
         attacker.atk.setAngle(90);
@@ -106,7 +116,7 @@ export function attack(scene, attacker, target, animKey) {
         attacker.setVelocityX(0);
         attacker.setVelocityY(0);
         scene.sound.play('anyhit');
-        target.KBmultiplier += 0.03; // Increase KB multiplier for third hit
+        target.KBmultiplier += 0.03 * attacker.baseDamageScale; // Increase KB multiplier for third hit
     } else {
         attacker.combo = 0;
         scene.sound.play('miss');
@@ -137,9 +147,7 @@ export function attack(scene, attacker, target, animKey) {
 
 }
 export function superSwing(scene, attacker, target, animKey) {
-    //The third attack launching the target away
     setAttackSprite(attacker, animKey);
-    console.log("Third Attack!");
     if (attackIsElligible(attacker, target, 150)) {
         target.hitstun = true;
         target.willDecelerate = false;
@@ -147,7 +155,7 @@ export function superSwing(scene, attacker, target, animKey) {
         attacker.freeze = false;
         attacker.willDecelerate = true;
         attacker.comboTimer = 600;
-        target.KBmultiplier += 0.32;
+        target.KBmultiplier += 0.32* attacker.baseDamageScale;
         hitFreeze(scene, 250);
         scene.time.delayedCall(50, () => {
             scene.sound.play('axethirdhitsfx');
@@ -155,32 +163,31 @@ export function superSwing(scene, attacker, target, animKey) {
         const dirX = attacker.lastDir.x;
 
         let dirY = attacker.lastDir.y;
-        if (dirY === 0) dirY = -0.5; //always launch upwards if on same level
+        if (dirY === 0) dirY = -0.5;
 
-        //very stronk knockback
-        //launch to the side if the target is pinned against the ground, otherwise launch in the direction of the attack
         if (target.body.touching.down && dirY > 0.7) {
             const randDir = Math.random() < 0.5 ? -1 : 1;
-            target.setVelocityX((600 * target.KBmultiplier) * randDir);
-            target.setVelocityY(-200 * target.KBmultiplier);
+            target.setVelocityX((600 * target.KBmultiplier * attacker.baseDamageScale) * randDir);
+            target.setVelocityY(-200 * target.KBmultiplier * attacker.baseDamageScale);
         } else {
-            target.setVelocityX((700 * target.KBmultiplier) * dirX);
-            target.setVelocityY((500 * target.KBmultiplier) * dirY);
+            target.setVelocityX((700 * target.KBmultiplier * attacker.baseDamageScale) * dirX);
+            target.setVelocityY((500 * target.KBmultiplier * attacker.baseDamageScale) * dirY);
         }
         attacker.combo = 0;
-        attacker.comboTimer = 0;
+        attacker.comboTimer = 0; 
     }
     attacker.canAttack = false;
     scene.time.delayedCall(250, () => {
         attacker.atk.stop();
         attacker.atk.setVisible(false);
     });
-    scene.time.delayedCall(400, () => {
+    scene.time.delayedCall(1500, () => {
+        //super swing is OP, so you wont be able to attack for a long time if missed or even after landing it
         attacker.canAttack = true;
     });
     if (attacker.revokeAggressorStun) scene.time.removeEvent(attacker.revokeAggressorStun);
     if (target.revokeVictimStun) scene.time.removeEvent(target.revokeVictimStun);
-    scene.time.delayedCall(600 * target.KBmultiplier, () => {
+    scene.time.delayedCall(510 * target.KBmultiplier, () => {
         target.hitstun = false;
     });
     scene.time.delayedCall(1000, () => {
@@ -191,7 +198,6 @@ export function superSwing(scene, attacker, target, animKey) {
 export function pushAttack(scene, attacker, target, animKey) {
     //Push attacks happen if the player is at maximum velocity
     setAttackSprite(attacker, animKey);
-    console.log("push!");
     if (attackIsElligible(attacker, target, 125)) {
         target.hitstun = true;
         target.willDecelerate = false;
@@ -199,7 +205,7 @@ export function pushAttack(scene, attacker, target, animKey) {
         attacker.freeze = false;
         attacker.willDecelerate = true;
         attacker.comboTimer = 600;
-        target.KBmultiplier += 0.05;
+        target.KBmultiplier += 0.05* attacker.baseDamageScale;
         hitFreeze(scene, 50);
         if (attacker.name === "HAMMERMAN") {
             scene.sound.play('hammerhit');
@@ -213,12 +219,13 @@ export function pushAttack(scene, attacker, target, animKey) {
 
         //very stronk knockback
         //launch to the side if the target is pinned against the ground, otherwise launch in the direction of the attack
+        const plungeMultiplier = target.plunged ? finalplungeMultiplier : 0;
         if (target.body.touching.down && dirY > 0.7) {
             const randDir = Math.random() < 0.5 ? -1 : 1;
-            target.setVelocityX((275 * target.KBmultiplier) * randDir);
+            target.setVelocityX((325 * target.KBmultiplier * (attacker.baseDamageScale + plungeMultiplier)) * randDir);
             target.setVelocityY(-200 * target.KBmultiplier);
         } else {
-            target.setVelocityX((250 * target.KBmultiplier) * dirX);
+            target.setVelocityX((400 * target.KBmultiplier * (attacker.baseDamageScale + plungeMultiplier)) * dirX );
             target.setVelocityY((500 * target.KBmultiplier) * dirY);
         }
         attacker.combo = 0;
@@ -240,7 +247,7 @@ export function pushAttack(scene, attacker, target, animKey) {
     scene.time.delayedCall(450 * target.KBmultiplier, () => {
         target.hitstun = false;
     });
-    scene.time.delayedCall(1000, () => {
+    scene.time.delayedCall(600, () => {
         target.willDecelerate = true;
     });
 
@@ -255,7 +262,7 @@ export function hardSwing(scene, attacker, target, animKey) {
         attacker.freeze = false;
         attacker.willDecelerate = true;
         attacker.comboTimer = 600;
-        target.KBmultiplier += 0.15;
+        target.KBmultiplier += 0.075* attacker.baseDamageScale;
         hitFreeze(scene, 100);
         if (attacker.name === "HAMMERMAN") {
             scene.sound.play('hammerhit');
@@ -271,10 +278,10 @@ export function hardSwing(scene, attacker, target, animKey) {
         //launch to the side if the target is pinned against the ground, otherwise launch in the direction of the attack
         if (target.body.touching.down && dirY > 0.7) {
             const randDir = Math.random() < 0.5 ? -1 : 1;
-            target.setVelocityX((275 * target.KBmultiplier) * randDir);
+            target.setVelocityX((375 * target.KBmultiplier * attacker.baseDamageScale) * randDir);
             target.setVelocityY(-200 * target.KBmultiplier);
         } else {
-            target.setVelocityX((250 * target.KBmultiplier) * dirX);
+            target.setVelocityX((350 * target.KBmultiplier * attacker.baseDamageScale) * dirX);
             target.setVelocityY((500 * target.KBmultiplier) * dirY);
         }
         attacker.combo = 0;
@@ -313,7 +320,7 @@ export function lungePush(scene, attacker, target, animKey) {
         attacker.hasHitSideSpecial = true;
         attacker.willDecelerate = true;
         attacker.comboTimer = 600;
-        target.KBmultiplier += 0.30;
+        target.KBmultiplier += 0.30* attacker.baseDamageScale;
         hitFreeze(scene);
         scene.sound.play('anyhit');
         const dirX = attacker.lastDir.x;
@@ -325,10 +332,10 @@ export function lungePush(scene, attacker, target, animKey) {
         //launch to the side if the target is pinned against the ground, otherwise launch in the direction of the attack
         if (target.body.touching.down && dirY > 0.7) {
             const randDir = Math.random() < 0.5 ? -1 : 1;
-            target.setVelocityX((275 * target.KBmultiplier) * randDir);
+            target.setVelocityX((275 * target.KBmultiplier * attacker.baseDamageScale) * randDir);
             target.setVelocityY(-200 * target.KBmultiplier);
         } else {
-            target.setVelocityX((250 * target.KBmultiplier) * dirX);
+            target.setVelocityX((250 * target.KBmultiplier * attacker.baseDamageScale) * dirX);
             target.setVelocityY((500 * target.KBmultiplier) * dirY);
         }
         attacker.combo = 0;
@@ -364,13 +371,15 @@ export function thirdAttack(scene, attacker, target, animKey) {
         attacker.freeze = false;
         attacker.willDecelerate = true;
         attacker.comboTimer = 600;
-        target.KBmultiplier += 0.07;
+        target.KBmultiplier += 0.07* attacker.baseDamageScale;
         if (attacker.name == "SWORDMAN") {
             scene.sound.play('swordthirdhitsfx');
-        } else if (attacker.name == "AXEMAN") {
+        } else if (attacker.name === "AXEMAN") {
             scene.sound.play('axethirdhitsfx');
-        } else if (attacker.name == "FISHERMAN") {
+        } else if (attacker.name === "FISHERMAN") {
             scene.sound.play('rodthirdhitsfx');
+        } else if (attacker.name === "SLATEMAN") {
+            scene.sound.play('slatepunch');
         }
         const dirX = attacker.lastDir.x;
 
@@ -379,12 +388,13 @@ export function thirdAttack(scene, attacker, target, animKey) {
 
         //very stronk knockback
         //launch to the side if the target is pinned against the ground, otherwise launch in the direction of the attack
+        const plungeMultiplier = target.plunged ? finalplungeMultiplier : 0;
         if (target.body.touching.down && dirY > 0.7) {
             const randDir = Math.random() < 0.5 ? -1 : 1;
-            target.setVelocityX((400 * target.KBmultiplier) * randDir);
+            target.setVelocityX((400 * target.KBmultiplier * (attacker.baseDamageScale * plungeMultiplier)) * randDir);
             target.setVelocityY(-200 * target.KBmultiplier);
         } else {
-            target.setVelocityX((500 * target.KBmultiplier) * dirX);
+            target.setVelocityX((500 * target.KBmultiplier * (attacker.baseDamageScale + plungeMultiplier)) * dirX);
             target.setVelocityY((500 * target.KBmultiplier) * dirY);
         }
         attacker.combo = 0;
@@ -419,7 +429,7 @@ export function slamThirdAttack(scene, attacker, target, animKey) {
         attacker.freeze = false;
         attacker.willDecelerate = true;
         attacker.comboTimer = 600;
-        target.KBmultiplier += 0.07;
+        target.KBmultiplier += 0.07* attacker.baseDamageScale;
         if (attacker.name == "SWORDMAN") {
             scene.sound.play('swordthirdhitsfx');
         } else if (attacker.name == "AXEMAN") {
@@ -438,10 +448,10 @@ export function slamThirdAttack(scene, attacker, target, animKey) {
         //launch to the side if the target is pinned against the ground, otherwise launch in the direction of the attack
         if (target.body.touching.down && dirY > 0.7) {
             const randDir = Math.random() < 0.5 ? -1 : 1;
-            target.setVelocityX((400 * target.KBmultiplier) * randDir);
+            target.setVelocityX((400 * target.KBmultiplier * attacker.baseDamageScale) * randDir);
             target.setVelocityY(-200 * target.KBmultiplier);
         } else {
-            target.setVelocityX((350 * target.KBmultiplier) * dirX);
+            target.setVelocityX((350 * target.KBmultiplier * attacker.baseDamageScale) * dirX);
             target.setVelocityY((700 * target.KBmultiplier) * dirY);
         }
         attacker.combo = 0;
@@ -461,6 +471,77 @@ export function slamThirdAttack(scene, attacker, target, animKey) {
         target.hitstun = false;
     });
     scene.time.delayedCall(1000, () => {
+        target.willDecelerate = true;
+    });
+
+}
+export function tiltAttack(scene, attacker, target, {
+    animKey,
+    kb = 0.1,
+    xMul = 1,
+    yMul = 0,
+    range = 100,
+    freeze = 80,
+    sfx = 'anyhit',
+    kbTime = 200,
+    onHit = null,
+    onUse = null
+}) {
+    //they aren't really tilt attacks
+    if (!attacker.canAttack || attacker.hitstun) return;
+    setAttackSprite(attacker, animKey);
+    if (onUse) {
+        onUse(scene);
+    }
+    if (attackIsElligible(attacker, target, range)) {
+        target.hitstun = true;
+        target.willDecelerate = false;
+        target.freeze = false;
+        attacker.freeze = false;
+        attacker.willDecelerate = true;
+        attacker.comboTimer = 600;
+        target.KBmultiplier += kb* attacker.baseDamageScale;
+        if (onHit) {
+            onHit(scene);
+        }
+        hitFreeze(scene, freeze);
+        scene.sound.play(sfx);
+        const dirX = attacker.lastDir.x;
+
+        let dirY = attacker.lastDir.y;
+        if (dirY === 0) dirY = -0.5; //always launch upwards if on same level
+
+        //very stronk knockback
+        //launch to the side if the target is pinned against the ground, otherwise launch in the direction of the attack
+        const plungeMultiplier = target.plunged ? finalplungeMultiplier : 0;
+        if (target.body.touching.down && dirY > 0.7) {
+            const randDir = Math.random() < 0.5 ? -1 : 1;
+            target.setVelocityX(325 * (target.KBmultiplier/2 * (attacker.baseDamageScale + plungeMultiplier)) * randDir);
+            target.setVelocityY(-200 * (target.KBmultiplier/2));
+        } else {
+            target.setVelocityX((500 * xMul * (attacker.baseDamageScale + plungeMultiplier)) * dirX);
+            target.setVelocityY((500 * yMul) * dirY);
+        }
+        attacker.combo = 0;
+        attacker.comboTimer = 0;
+    } else {
+        attacker.combo = 0;
+        scene.sound.play('miss');
+    }
+    attacker.canAttack = false;
+    scene.time.delayedCall(250, () => {
+        attacker.atk.stop();
+        attacker.atk.setVisible(false);
+    });
+    scene.time.delayedCall(300, () => {
+        attacker.canAttack = true;
+    });
+    if (attacker.revokeAggressorStun) scene.time.removeEvent(attacker.revokeAggressorStun);
+    if (target.revokeVictimStun) scene.time.removeEvent(target.revokeVictimStun);
+    scene.time.delayedCall(kbTime, () => {
+        target.hitstun = false;
+    });
+    scene.time.delayedCall(kbTime + 150, () => {
         target.willDecelerate = true;
     });
 
@@ -683,7 +764,8 @@ export function tryMow(scene, player, target, direction, currentTime) {
             });   
 
             scene.sound.play('slash');
-            target.KBmultiplier += 0.055;
+            target.KBmultiplier += 0.055* player.baseDamageScale;
+            target.flash();
 
         });
         const scytheUpdate = () => {
@@ -808,6 +890,105 @@ export function tryRepair(scene, player, target, direction, currentTime) {
 
     player.lastTap[direction] = currentTime;
 }
+export function markPlunge(scene, attacker, target, dir) {
+    //Marks attack for plunge
+    let hit = false;
+    if (attackIsElligible(attacker, target, 125)) {
+        hit = true;
+        target.hitstun = true;
+        target.willDecelerate = false;
+        target.freeze = false;
+        attacker.freeze = false;
+        attacker.willDecelerate = true;
+        attacker.comboTimer = 600;
+        target.KBmultiplier += 0.075* attacker.baseDamageScale;
+        target.plunged = true;
+        hitFreeze(scene, 50);
+        scene.sound.play('plunge');
+        const dirX = attacker.lastDir.x;
+
+        let dirY = attacker.lastDir.y;
+        if (dirY === 0) dirY = -0.5; //always launch upwards if on same level
+
+        //very stronk knockback
+        //launch to the side if the target is pinned against the ground, otherwise launch in the direction of the attack
+        if (target.body.touching.down && dirY > 0.7) {
+            const randDir = Math.random() < 0.5 ? -1 : 1;
+            target.setVelocityX((325 * target.KBmultiplier * attacker.baseDamageScale) * randDir);
+            target.setVelocityY(-200 * target.KBmultiplier);
+        } else {
+            target.setVelocityX((300 * target.KBmultiplier * attacker.baseDamageScale) * dir);
+            target.setVelocityY((500 * target.KBmultiplier) * dirY);
+        }
+        attacker.combo = 0;
+        attacker.comboTimer = 0;
+    } else {
+        attacker.combo = 0;
+    }
+    attacker.canAttack = false;
+    scene.time.delayedCall(400, () => {
+        attacker.canAttack = true;
+    });
+    if (attacker.revokeAggressorStun) scene.time.removeEvent(attacker.revokeAggressorStun);
+    if (target.revokeVictimStun) scene.time.removeEvent(target.revokeVictimStun);
+    scene.time.delayedCall(450 * target.KBmultiplier, () => {
+        target.hitstun = false;
+    });
+    scene.time.delayedCall(600, () => {
+        target.willDecelerate = true;
+    });
+    scene.time.delayedCall(2500, () => {
+        target.plunged = false;
+    });
+    return hit;
+}
+export function tryPlunge(scene, player, target, direction, currentTime) {
+    const dtapDelay = 250;
+    const pullCD = 3500;
+
+    if (player.hitstun || player.freeze) return;
+    if (currentTime < player.nextSideSpecialTime) return;
+
+    if (currentTime - player.lastTap[direction] < dtapDelay) {
+
+        let currentLastDir = player.lastDir.x;
+
+        const dagger = scene.physics.add.sprite(player.x + (currentLastDir * 25) , player.y, 'slateplunge');
+        dagger.setOrigin(0.5, 0.5);
+        dagger.setFrame(0);
+        dagger.setFlipX(-player.lastDir.x < 0);
+        scene.objs.add(dagger);
+        const daggerTrack = () => {
+            dagger.x = player.x + (currentLastDir * 25);
+            dagger.y = player.y;
+        };
+        scene.events.on('update', daggerTrack);
+        dagger.play('slateplunge')
+        dagger.on('animationcomplete-slateplunge', () => {
+            scene.events.off('update', daggerTrack);
+            dagger.destroy(); 
+        });
+        let plungeCanceled = false;
+        dagger.on('animationupdate', (animation, frame) => {
+            const currentFrame = frame.index; 
+            if (plungeCanceled) return;
+            
+            if (currentFrame >= 6 && currentFrame <= 10) {
+                let plungeResult = markPlunge(scene, player, target, currentLastDir);
+                if (plungeResult) {
+                    plungeCanceled = true;
+                }
+                if (!plungeResult && currentFrame === 10) {
+                    scene.sound.play('miss');
+                }
+            }
+        });
+
+        player.nextSideSpecialTime = currentTime + pullCD;
+    }
+
+    player.lastTap[direction] = currentTime;
+}
 export function tryPull(scene, player, target, direction, currentTime) {
     const dtapDelay = 250;
     const pullCD = 3500;
@@ -877,7 +1058,7 @@ export function tryPull(scene, player, target, direction, currentTime) {
             );
 
             scene.sound.play('anyhit');
-            target.KBmultiplier += 0.22;
+            target.KBmultiplier += 0.22* player.baseDamageScale;
 
             scene.events.off('update', ropeUpdate);
 
@@ -955,6 +1136,8 @@ export function handleAttack(scene, attacker, victim) {
         tryAttack2(scene, attacker, victim ,'scytheatk', 'scytheatk');
     } else if (attacker.name === "HAMMERMAN") {
         tryAttack3(scene, attacker, victim ,'hammeratk', 'hammeratk');
+    } else if (attacker.name === "SLATEMAN") {
+        tryAttack(scene, attacker, victim ,'slateatk', 'slateatkthird');
     }
 }
 export function handleDirSpecial(scene, attacker, direction, currentTime, victim) {
@@ -968,6 +1151,8 @@ export function handleDirSpecial(scene, attacker, direction, currentTime, victim
         tryMow(scene, attacker, victim, direction, currentTime);
     } else if (attacker.name === "HAMMERMAN") {
         tryRepair(scene, attacker, victim ,direction, currentTime);
+    } else if (attacker.name === "SLATEMAN") {
+        tryPlunge(scene, attacker, victim ,direction, currentTime);
     }
 
 }
@@ -976,5 +1161,164 @@ export function handleDirSpecialAttack(scene, attacker, victim) {
         lungePush(scene, attacker, victim, 'swordatkthird');
     } else if (attacker.name === "AXEMAN") {
         superSwing(scene, attacker, victim, 'axeatkthird');
+    }
+}
+export function handleHorizantalTilt(scene, attacker, victim, direction) {
+    if (attacker.name === "SWORDMAN") {
+        tiltAttack(scene, attacker, victim, {
+            animKey: 'swordatktilt',
+            kb: 0.035,
+            xMul: 0.7,
+            yMul: 0.2,
+            range: 125,
+            freeze: 80,
+            sfx: 'swosh',
+            kbTime: 300,
+            }
+        );
+    } else if (attacker.name === "AXEMAN") {
+        tiltAttack(scene, attacker, victim, {
+            animKey: 'axeatktilt',
+            kb: 0.035,
+            xMul: 0.9,
+            yMul: 0.2,
+            range: 125,
+            freeze: 80,
+            sfx: 'swosh',
+            kbTime: 300,
+        });
+    } else if (attacker.name === "FISHERMAN") {
+        tryAttack(scene, attacker, victim ,'rodatk', 'rodatk');
+    } else if (attacker.name === "SCYTHEMAN") {
+        tiltAttack(scene, attacker, victim, {
+            animKey: 'scytheatktilt',
+            kb: 0.035,
+            xMul: 0.7,
+            yMul: 0.2,
+            range: 125,
+            freeze: 80,
+            sfx: 'swosh',
+            kbTime: 300,
+            
+        });
+    } else if (attacker.name === "HAMMERMAN") {
+        tryAttack3(scene, attacker, victim ,'hammeratk', 'hammeratk');
+    } else if (attacker.name === "SLATEMAN") {
+        tiltAttack(scene, attacker, victim, {
+            animKey: 'slateatktilt',
+            kb: 0.035,
+            xMul: 0.7,
+            yMul: 0.2,
+            range: 125,
+            freeze: 80,
+            sfx: 'swosh',
+            kbTime: 300,
+        });
+    }
+}
+export function handleDownTilt(scene, attacker, victim) {
+    if (attacker.name === "SWORDMAN") {
+        tiltAttack(scene, attacker, victim, {
+            animKey: 'swordatktilt',
+            kb: 0.035,
+            xMul: 0,
+            yMul: 2,
+            range: 150,
+            freeze: 80,
+            sfx: 'swosh',
+            kbTime: 300,
+            }
+        );
+    } else if (attacker.name === "AXEMAN") {
+        tiltAttack(scene, attacker, victim, {
+            animKey: 'axeatktilt',
+            kb: 0.035,
+            xMul: 0,
+            yMul: 2,
+            range: 150,
+            freeze: 80,
+            sfx: 'swosh',
+            kbTime: 300,
+            }
+        );
+    } else if (attacker.name === "FISHERMAN") {
+        tryAttack(scene, attacker, victim ,'rodatk', 'rodatk');
+    } else if (attacker.name === "SCYTHEMAN") {
+        tiltAttack(scene, attacker, victim, {
+            animKey: 'scytheatktilt',
+            kb: 0.035,
+            xMul: 0,
+            yMul: 2,
+            range: 125,
+            freeze: 80,
+            sfx: 'swosh',
+            kbTime: 300,
+            
+        });
+    } else if (attacker.name === "HAMMERMAN") {
+        tryAttack3(scene, attacker, victim ,'hammeratk', 'hammeratk');
+    } else if (attacker.name === "SLATEMAN") {
+        tiltAttack(scene, attacker, victim, {
+            animKey: 'slateatktilt',
+            kb: 0.035,
+            xMul: 0,
+            yMul: 2,
+            range: 125,
+            freeze: 80,
+            sfx: 'swosh',
+            kbTime: 300
+        });
+    }
+}
+export function handleUpTilt(scene, attacker, victim) {
+    if (attacker.name === "SWORDMAN") {
+        tiltAttack(scene, attacker, victim, {
+            animKey: 'swordatktilt',
+            kb: 0.035,
+            xMul: 0,
+            yMul: 0.88,
+            range: 150,
+            freeze: 80,
+            sfx: 'swosh',
+            kbTime: 300,
+            }
+        );
+    } else if (attacker.name === "AXEMAN") {
+        tiltAttack(scene, attacker, victim, {
+            animKey: 'axeatktilt',
+            kb: 0.035,
+            xMul: 0,
+            yMul: 0.88,
+            range: 125,
+            freeze: 80,
+            sfx: 'swosh',
+            kbTime: 300,
+        });
+    } else if (attacker.name === "FISHERMAN") {
+        tryAttack(scene, attacker, victim ,'rodatk', 'rodatk');
+    } else if (attacker.name === "SCYTHEMAN") {
+        tiltAttack(scene, attacker, victim, {
+            animKey: 'scytheatktilt',
+            kb: 0.035,
+            xMul: 0,
+            yMul: 0.88,
+            range: 125,
+            freeze: 80,
+            sfx: 'swosh',
+            kbTime: 300,
+        });
+    } else if (attacker.name === "HAMMERMAN") {
+        tryAttack3(scene, attacker, victim ,'hammeratk', 'hammeratk');
+    } else if (attacker.name === "SLATEMAN") {
+        tiltAttack(scene, attacker, victim, {
+            animKey: 'slateatktilt',
+            kb: 0.035,
+            xMul: 0,
+            yMul: 0.88,
+            range: 125,
+            freeze: 80,
+            sfx: 'swosh',
+            kbTime: 300,
+        });
     }
 }
