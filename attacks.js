@@ -1,4 +1,4 @@
-const finalplungeMultiplier = 0.50;
+const finalplungeMultiplier = 1.0;
 export function attackIsElligible(attacker, target, range = 100) {
     if (!attacker.canAttack || attacker.hitstun) return false;
     const dx = target.x - attacker.x;
