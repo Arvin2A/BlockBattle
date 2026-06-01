@@ -958,19 +958,31 @@ export function tryPlunge(scene, player, target, direction, currentTime) {
         dagger.setFrame(0);
         dagger.setFlipX(-player.lastDir.x < 0);
         scene.objs.add(dagger);
+        let plungeCanceled = false;
+        let globcurrentFrame = 0;
         const daggerTrack = () => {
             dagger.x = player.x + (currentLastDir * 25);
             dagger.y = player.y;
+            if (currentFrame >= 6 && currentFrame <= 10 && !plungeCanceled) {
+                let plungeResult = markPlunge(scene, player, target, currentLastDir);
+                if (plungeResult) {
+                    plungeCanceled = true;
+                }
+            }
         };
         scene.events.on('update', daggerTrack);
-        dagger.play('slateplunge')
+        dagger.play('slateplunge');
+        
         dagger.on('animationcomplete-slateplunge', () => {
             scene.events.off('update', daggerTrack);
             dagger.destroy(); 
+            
         });
-        let plungeCanceled = false;
+        
+        
         dagger.on('animationupdate', (animation, frame) => {
             const currentFrame = frame.index; 
+            globcurrentFrame = currentFrame;
             if (plungeCanceled) return;
             
             if (currentFrame >= 6 && currentFrame <= 10) {
