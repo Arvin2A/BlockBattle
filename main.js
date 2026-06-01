@@ -1457,6 +1457,7 @@ function update() {
         if (players.player.outOfBounds) {
             winCooldown = true;
             players.player2.winNumber = players.player2.winNumber + 1;
+            players.player.KBmultiplier = 1.00;
             console.log(players.player2.winNumber)
             updateWins(this);
             teleportBackToArena(players.player);
@@ -1467,6 +1468,7 @@ function update() {
         } else if (players.player2.outOfBounds) {
             winCooldown = true;
             players.player.winNumber = players.player.winNumber + 1;
+            players.player2.KBmultiplier = 1.00;
             updateWins(this);
             teleportBackToArena(players.player2);
             
