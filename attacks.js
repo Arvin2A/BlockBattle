@@ -963,12 +963,6 @@ export function tryPlunge(scene, player, target, direction, currentTime) {
         const daggerTrack = () => {
             dagger.x = player.x + (currentLastDir * 25);
             dagger.y = player.y;
-            if (currentFrame >= 6 && currentFrame <= 10 && !plungeCanceled) {
-                let plungeResult = markPlunge(scene, player, target, currentLastDir);
-                if (plungeResult) {
-                    plungeCanceled = true;
-                }
-            }
         };
         scene.events.on('update', daggerTrack);
         dagger.play('slateplunge');
