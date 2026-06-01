@@ -1168,7 +1168,7 @@ export function handleHorizantalTilt(scene, attacker, victim, direction) {
         tiltAttack(scene, attacker, victim, {
             animKey: 'swordatktilt',
             kb: 0.035,
-            xMul: 0.7,
+            xMul: 0.9,
             yMul: 0.2,
             range: 125,
             freeze: 80,
@@ -1193,7 +1193,7 @@ export function handleHorizantalTilt(scene, attacker, victim, direction) {
         tiltAttack(scene, attacker, victim, {
             animKey: 'scytheatktilt',
             kb: 0.035,
-            xMul: 0.7,
+            xMul: 0.9,
             yMul: 0.2,
             range: 125,
             freeze: 80,
@@ -1207,7 +1207,7 @@ export function handleHorizantalTilt(scene, attacker, victim, direction) {
         tiltAttack(scene, attacker, victim, {
             animKey: 'slateatktilt',
             kb: 0.035,
-            xMul: 0.7,
+            xMul: 0.9,
             yMul: 0.2,
             range: 125,
             freeze: 80,
