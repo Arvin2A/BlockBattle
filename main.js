@@ -1,4 +1,4 @@
-import { attack, pushAttack, lungePush, thirdAttack, superSwing, tryAttack, attackIsElligible, tryLunge, tryCleave, handleAttack, handleDirSpecial, handleDirSpecialAttack} from './attacks.js';
+import {handleAttack, handleDirSpecial, handleDirSpecialAttack, handleHorizantalTilt, handleDownTilt, handleUpTilt} from './attacks.js';
 import { initiatePlayers, updateCombo } from './players.js';
 //UPDATE: HUGE REFACTOR OF CODE!! THIS IS FOR CLEANLINESS AND FOR THE FURTHER DEVELOPMENT OF THIS WEB APP
 //3 NEW SCRIPTS: main.js (current), players.js, attacks.js
@@ -7,19 +7,20 @@ import { initiatePlayers, updateCombo } from './players.js';
 //TESTER CREDITS:
 //w testers for this game, including several students in my grade
 //The most impactful testers I'd wish to mention are:
-//Aidan Z, Deyu Z, Luke Ch, Augustus L, Jaylen L, Presley F, Giovanni M, Jeffrey C, Mr. Primm
+//Aidan Z, Deyu Z, Luke Ch, Augustus L, Jaylen L, Presley F, Giovanni M, Jeffrey C, Kenneth L, Mr. Primm
 //While they might have told others about the game, those are who I know about who have played and tested the game
 //Not only did they play the game, but I was also able to work up to some of their suggestions.
 //The ones impactful are the ones I've also observed mistakes in the game from, whether stating it to me or watching them play, so I can add fixes to the code
 
 // This is a 2D platform fighter game made using Phaser and Javascript. Requires a keyboard to play
 //ENTIRE script is made by zamanarvin. Some assets were made by Jeffrey C, others by me 
-//NOTE: mohsina007 and arvin2a are the same person, ARVIN ZAMAN
+//NOTE: mohsina007 and arvin2a are the same person
 // its just that mohsina007 is the account that was hard-set as the account for VSCode, the application I used to make this game.
 // and the sound effects were taken from various games as listed in the preload function.
 //WASD controls the first player , arrow keys control the second player.
 //E is the player1 attack, SHIFT is the player2 attack.
 //You can double tap each player's corresponding side buttons (A + D), or (LEFT ARROW + RIGHT ARROW KEY) to do a special attack.
+//NEW UPDATE - LIGHT ATTACKS: Press a movement key, then quickly press the attack key to do a light attack. This can be helpful for comboing
 
 //We will still continue to work on this project, its really fun.
 
@@ -96,7 +97,8 @@ var CharacterSelectScene = {
             'axeman',
             'fisherman',
             'scytheman',
-            'hammerman'
+            'hammerman',
+            'slateman'
         ];
 
         this.characterData = [
@@ -104,7 +106,9 @@ var CharacterSelectScene = {
             { name: 'AXEMAN', desc: 'Beware of the chopping axe. \n\nDIR SPECIAL: POWER SWING \n\n The most knockback you can ever do in this entire game, send your foes across the galaxy!', color: '#ff4444' },
             { name: 'FISHERMAN', desc: 'Using a fishing rod as a whip?? \n\nDIR SPECIAL: GRAPPLE \n\n Throw your hook far for the chance to reel your opponent in.', color: '#00318d' },
             { name: 'SCYTHEMAN', desc: 'Its third neutral hit goes slightly higher. \n\nDIR SPECIAL: MOW \n\n Throw a scythe thats 3X your size like a boomerang that deals crazy damage.', color: '#686868' },
-            { name: 'HAMMERMAN', desc: 'EVERY hit is a knockback attack. \n\nDIR SPECIAL: REPAIR \n\n 3 strikes that remove 15% KB, while also having attack potential of 5% per strike.', color: '#3da115' }
+            { name: 'HAMMERMAN', desc: 'EVERY hit is a knockback attack. \n\nDIR SPECIAL: REPAIR \n\n 3 strikes that remove 15% KB, while also having attack potential of 5% per strike.', color: '#3da115' },
+            { name: 'SLATEMAN', desc: 'Start with extra resistance to attacks. The more damage you take the faster you get, but deal less damage. \n\nDIR SPECIAL: PLUNGE \n\n Apply PLUNGED to your opponent, which makes the foe take 50% more knockback for the next hits within 2.5 seconds! It also deals 2.5% damage every 0.5 seconds', color: '#ffffff', fontSize: 15}
+
         ];
 
         this.p1Index = 1;
@@ -242,11 +246,21 @@ var CharacterSelectScene = {
             this.p1NameText.setColor(p1.color);
 
             this.p1DescText.setText(p1.desc);
+            if (p1.fontSize) {
+                this.p1DescText.setFontSize(p1.fontSize);
+            } else {
+                this.p1DescText.setFontSize(20);
+            }
 
             this.p2NameText.setText(p2.name);
             this.p2NameText.setColor(p2.color);
 
             this.p2DescText.setText(p2.desc);
+            if (p2.fontSize) {
+                this.p2DescText.setFontSize(p2.fontSize);
+            } else {
+                this.p2DescText.setFontSize(20);
+            }
         };
 
         // -----------------------------
@@ -421,6 +435,12 @@ function preload() {
     this.load.image('fisherman', 'assets/character3.png');
     this.load.image('scytheman', 'assets/character4.png');
     this.load.image('hammerman', 'assets/character5.png');
+    //chars - SLATEMAN + PHASES
+    this.load.image('slateman', 'assets/slateman1.png');
+    this.load.image('slatemanphase1', 'assets/slateman2.png');
+    this.load.image('slatemanphase2', 'assets/slateman3.png');
+    this.load.image('slatemanphase3', 'assets/slateman4.png');
+    
     //other
     this.load.image('groundhitbox', 'assets/groundhitbox.png');
     this.load.image('redstat', 'assets/KBstatBG1.png');
@@ -433,13 +453,15 @@ function preload() {
     this.load.image('restartBtn', 'assets/restartBtn.png');
     this.load.image('restartBtnPressed', 'assets/pressedRestart.png');
     this.load.image('hook', 'assets/hook.png');
-    this.load.image('whitescythe', 'assets/whitescythe.png')
-    this.load.image('slasheffect', 'assets/slasheffect.png')
+    this.load.image('whitescythe', 'assets/whitescythe.png');
+    this.load.image('slasheffect', 'assets/slasheffect.png');
+    this.load.image('plungedAura', 'assets/plungedAura.png');
 
     for (let i = 1; i < 5; i++) {
         this.load.image('countdown'+i, 'assets/countdown'+i+'.png')
     }
 
+    //attacks
     this.load.spritesheet('axeatk', 'assets/axeatk1.png', {
         frameWidth: 50,
         frameHeight: 50
@@ -451,6 +473,14 @@ function preload() {
     this.load.spritesheet('swordatkthird', 'assets/swordatk2.png', {
         frameWidth: 50,
         frameHeight: 50
+    });
+    this.load.spritesheet('swordatktilt', 'assets/swordatk3.png', {
+        frameWidth: 75,
+        frameHeight: 75
+    });
+    this.load.spritesheet('axeatktilt', 'assets/axetilt.png', {
+        frameWidth: 75,
+        frameHeight: 75
     });
     this.load.spritesheet('axeatkthird', 'assets/axeatk2.png', {
         frameWidth: 50,
@@ -464,10 +494,38 @@ function preload() {
         frameWidth: 50,
         frameHeight: 50
     });
+    this.load.spritesheet('scytheatktilt', 'assets/scythelightatk.png', {
+        frameWidth: 75,
+        frameHeight: 75
+    });
     this.load.spritesheet('hammeratk', 'assets/hammeratk1.png', {
         frameWidth: 50,
         frameHeight: 50
     });
+    this.load.spritesheet('slateatk', 'assets/slateatk.png', {
+        frameWidth: 50,
+        frameHeight: 50
+    });
+    this.load.spritesheet('slateatkthird', 'assets/slateatkthird.png', {
+        frameWidth: 50,
+        frameHeight: 50
+    });
+    this.load.spritesheet('slateatktilt', 'assets/slateatktilt.png', {
+        frameWidth: 75,
+        frameHeight: 75
+    });
+    this.load.spritesheet('slateplunge', 'assets/slateplunge.png', {
+        frameWidth: 100,
+        frameHeight: 50
+    });
+
+    //misc
+    this.load.spritesheet('upbambooGrow', 'assets/upBamboo.png', {
+        frameWidth: 50,
+        frameHeight: 50
+    });
+
+    //AUDIO
     this.load.audio('swordthirdhitsfx', 'audio/swordlunge.wav');
     this.load.audio('axethirdhitsfx', 'audio/snd_damage_c.wav');
     this.load.audio('rodthirdhitsfx', 'audio/whipcrack.wav')
@@ -481,7 +539,10 @@ function preload() {
     this.load.audio('countdown', 'audio/countdown.wav');
     this.load.audio('hammerhit', 'audio/punch.wav');
     this.load.audio('repair', 'audio/Hitwrench.ogg');
-    
+    this.load.audio('bamboo', 'audio/snd_spearrise.wav');
+    this.load.audio('swosh', 'audio/swosh.wav');
+    this.load.audio('plunge', 'audio/plunge.ogg');  
+    this.load.audio('slatepunch', 'audio/slatepunch.wav');
 }
 //important game variables, including player objects, controls, and the platforms group
 var platforms;
@@ -641,13 +702,20 @@ function create() {
 
 
     //platform.refreshBody();
+
+    //attacks
     this.anims.create({
         key: 'axeatk',
         frames: this.anims.generateFrameNumbers('axeatk', { start: 0, end: 3 }),
         frameRate: 32,
         repeat: 0
     });
-
+    this.anims.create({
+        key: 'axeatktilt',
+        frames: this.anims.generateFrameNumbers('axeatktilt', { start: 0, end: 3 }),
+        frameRate: 32,
+        repeat: 0
+    });
     this.anims.create({
         key: 'swordatk',
         frames: this.anims.generateFrameNumbers('swordatk', { start: 0, end: 3 }),
@@ -657,6 +725,12 @@ function create() {
     this.anims.create({
         key: 'swordatkthird',
         frames: this.anims.generateFrameNumbers('swordatkthird', { start: 0, end: 3 }),
+        frameRate: 32,
+        repeat: 0
+    });
+    this.anims.create({
+        key: 'swordatktilt',
+        frames: this.anims.generateFrameNumbers('swordatktilt', { start: 0, end: 3 }),
         frameRate: 32,
         repeat: 0
     });
@@ -679,11 +753,51 @@ function create() {
         repeat: 0
     });
     this.anims.create({
+        key: 'scytheatktilt',
+        frames: this.anims.generateFrameNumbers('scytheatktilt', { start: 0, end: 4 }),
+        frameRate: 48,
+        repeat: 0
+    });
+    this.anims.create({
         key: 'hammeratk',
         frames: this.anims.generateFrameNumbers('hammeratk', { start: 0, end: 3 }),
         frameRate: 32,
         repeat: 0
     });
+    this.anims.create({
+        key: 'slateatk',
+        frames: this.anims.generateFrameNumbers('slateatk', { start: 0, end: 3 }),
+        frameRate: 32,
+        repeat: 0
+    });
+    this.anims.create({
+        key: 'slateatktilt',
+        frames: this.anims.generateFrameNumbers('slateatktilt', { start: 0, end: 4 }),
+        frameRate: 32,
+        repeat: 0
+    });
+    this.anims.create({
+        key: 'slateatkthird',
+        frames: this.anims.generateFrameNumbers('slateatkthird', { start: 0, end: 3 }),
+        frameRate: 32,
+        repeat: 0
+    });
+    this.anims.create({
+        key: 'slateplunge',
+        frames: this.anims.generateFrameNumbers('slateplunge', { start: 0, end: 10 }),
+        frameRate: 24,
+        repeat: 0
+    });
+
+    //misc
+    this.anims.create({
+        key: 'upbambooGrow',
+        frames: this.anims.generateFrameNumbers('upbambooGrow', { start: 0, end: 3 }),
+        frameRate: 18,
+        repeat: 0
+    });
+
+
 
 
     //mobile support:
@@ -918,6 +1032,8 @@ const baseZoom = 1;
 const minZoom = 0.6;
 const maxZoom = 1.4;
 
+const tiltThreshold = 150;
+
 function spawnAfterimage(scene, player) {
 
     const ghost = scene.add.sprite(
@@ -940,6 +1056,49 @@ function spawnAfterimage(scene, player) {
         duration: 100,
         onComplete: () => ghost.destroy()
     });
+}
+function updateKB(scene) {
+    for (const key in players) {
+        const player = players[key];
+
+        // Plunge DoT
+        if (player.plunged) {
+
+            if (!player.lastPlungeTick) {
+                player.lastPlungeTick = scene.time.now;
+            }
+
+            if (scene.time.now - player.lastPlungeTick >= 450) {
+                player.KBmultiplier += 0.025; // 3.5%
+                player.flash();
+                scene.sound.play('anyhit');
+                player.lastPlungeTick = scene.time.now;
+            }
+        } else {
+            player.lastPlungeTick = null;
+        }
+
+        if (player.lastKBmultiplier !== player.KBmultiplier) {
+            // KB multiplier changed
+
+            if (player.name === "SLATEMAN") {
+                if (player.KBmultiplier < 1.50) player.setTexture('slateman');
+                if (player.KBmultiplier >= 1.50) player.setTexture('slatemanphase1');
+                if (player.KBmultiplier >= 2.00) player.setTexture('slatemanphase2');
+                if (player.KBmultiplier >= 2.50) player.setTexture('slatemanphase3');
+
+                player.movementSpeed = 250 + ((player.KBmultiplier - 1) * 150);
+
+                player.baseDamageScale =
+                    1 - ((player.KBmultiplier - 1) * 0.35);
+
+                player.baseDamageScale =
+                    Math.max(0.1, player.baseDamageScale);
+            }
+        }
+
+        player.lastKBmultiplier = player.KBmultiplier;
+    }
 }
 function update() {
 
@@ -977,15 +1136,41 @@ function update() {
         zoom - this.cameras.main.zoom
     ) * 0.05;
 
-
+    
     if ((attackKey1.isDown || mobileControls.p1.attack) && !players.player.hitstun) {
-        handleAttack(this, players.player, players.player2);
+        const now = this.time.now;
+        if (now - players.player.lastInput.up < tiltThreshold) {
+            //placeholder
+            handleUpTilt(this, players.player, players.player2);
+        } else if (now - players.player.lastInput.down < tiltThreshold) {
+            //placeholder
+            handleDownTilt(this, players.player, players.player2);
+        } else if (now - players.player.lastInput.left < tiltThreshold) {
+            //placeholder
+            handleHorizantalTilt(this, players.player, players.player2, "left");
+        } else if (now - players.player.lastInput.right < tiltThreshold) {
+            //placeholder
+            handleHorizantalTilt(this, players.player, players.player2, "right");
+        } else {
+            handleAttack(this, players.player, players.player2);
+        }
     }
     if ((attackKey2.isDown || mobileControls.p2.attack) && !players.player2.hitstun) {
-        handleAttack(this, players.player2, players.player);
+        const now = this.time.now;
+        if (now - players.player2.lastInput.up < tiltThreshold) {
+            handleUpTilt(this, players.player2, players.player);
+        } else if (now - players.player2.lastInput.down < tiltThreshold) {
+            handleDownTilt(this, players.player2, players.player);
+        } else if (now - players.player2.lastInput.left < tiltThreshold) {
+            handleHorizantalTilt(this, players.player2, players.player, "left");
+        } else if (now - players.player2.lastInput.right < tiltThreshold) {
+            handleHorizantalTilt(this, players.player2, players.player, "right");
+        } else {
+            handleAttack(this, players.player2, players.player);
+        }
     }
-    players.player.outOfBounds = players.player.y > 1600 || players.player.x < -400 || players.player.x > 2400 || players.player.y < 0;
-    players.player2.outOfBounds = players.player2.y > 1600 || players.player2.x < -400 || players.player2.x > 2400 || players.player2.y < 0;
+    players.player.outOfBounds = players.player.y > 1600 || players.player.x < -400 || players.player.x > 2400 || players.player.y < -400;
+    players.player2.outOfBounds = players.player2.y > 1600 || players.player2.x < -400 || players.player2.x > 2400 || players.player2.y < -400;
 
     for (const key in players) {
         const player = players[key];
@@ -995,6 +1180,7 @@ function update() {
         } else {
             player.airTime += this.game.loop.delta;
         }
+        player.flashObject.setPosition(player.x, player.y);
     };
     const cal1 = ((players.player.KBmultiplier * 100) - 100);
     const cal2 = ((players.player2.KBmultiplier * 100) - 100);
@@ -1087,10 +1273,12 @@ function update() {
 
     if (!players.player.hitstun) {
         if (Phaser.Input.Keyboard.JustDown(wasd.left) || mobileControls.p1.leftPressed) {
+            players.player.lastInput.left = this.time.now;
             handleDirSpecial(this, players.player, 'left', this.time.now,players.player2);
             mobileControls.p1.leftPressed = false;
         }
         if (Phaser.Input.Keyboard.JustDown(wasd.right) || mobileControls.p1.rightPressed) {
+            players.player.lastInput.right = this.time.now;
             handleDirSpecial(this, players.player, 'right', this.time.now,players.player2);
             mobileControls.p1.rightPressed = false;
         }
@@ -1099,11 +1287,11 @@ function update() {
         }
         if (wasd.left.isDown || mobileControls.p1.left) {
             if (!players.player.isUsingSideSpecial) {
-                players.player.setVelocityX(Phaser.Math.Clamp(players.player.body.velocity.x - accelFactor, -250, 250));
+                players.player.setVelocityX(Phaser.Math.Clamp(players.player.body.velocity.x - accelFactor, -players.player.movementSpeed, players.player.movementSpeed));
             }
         } else if (wasd.right.isDown || mobileControls.p1.right) {
             if (!players.player.isUsingSideSpecial) {
-                players.player.setVelocityX(Phaser.Math.Clamp(players.player.body.velocity.x + accelFactor, -250, 250));
+                players.player.setVelocityX(Phaser.Math.Clamp(players.player.body.velocity.x + accelFactor, -players.player.movementSpeed, players.player.movementSpeed));
             }
         } else {
             if (players.player.willDecelerate) {
@@ -1120,12 +1308,20 @@ function update() {
             players.player.afterimage = false;
         }
         
-        if ((Phaser.Input.Keyboard.JustDown(wasd.up) || mobileControls.p1.upPressed) && !players.player.body.touching.down && !players.player.hasDoubleJumped) {
-            players.player.setVelocityY(-400);
-            players.player.doubleJumpEffect.setAlpha(1);
-            players.player.hasDoubleJumped = true;
-            this.tweens.add({targets: players.player.doubleJumpEffect,alpha: 0,duration: 200,ease: 'Cubic.easeOut'});
+        if ((Phaser.Input.Keyboard.JustDown(wasd.up) || mobileControls.p1.upPressed)) {
+            players.player.lastInput.up = this.time.now;
+            if (!players.player.body.touching.down && !players.player.hasDoubleJumped) {
+                players.player.setVelocityY(-400);
+                players.player.doubleJumpEffect.setAlpha(1);
+                players.player.hasDoubleJumped = true;
+                this.tweens.add({targets: players.player.doubleJumpEffect,alpha: 0,duration: 200,ease: 'Cubic.easeOut'});
+                
+            }
             mobileControls.p1.upPressed = false;
+            
+        }
+        if (Phaser.Input.Keyboard.JustDown(wasd.down)) {
+            players.player.lastInput.down = this.time.now;
         }
 
         const usingMobile = this.sys.game.device.input.touch;
@@ -1143,6 +1339,7 @@ function update() {
             players.player.setVelocityY(800);
             players.player.afterimage = true;
         }
+
     }
 
 
@@ -1150,11 +1347,13 @@ function update() {
 
         // Player 2 controls
         if (Phaser.Input.Keyboard.JustDown(cursors.left) || mobileControls.p2.leftPressed) {
+            players.player2.lastInput.left = this.time.now;
             handleDirSpecial(this, players.player2, 'left', this.time.now, players.player);
             mobileControls.p2.leftPressed = false;
         }
 
         if (Phaser.Input.Keyboard.JustDown(cursors.right) || mobileControls.p2.rightPressed) {
+            players.player2.lastInput.right = this.time.now;
             handleDirSpecial(this, players.player2, 'right', this.time.now, players.player);
             mobileControls.p2.rightPressed = false;
         }
@@ -1166,14 +1365,14 @@ function update() {
         if (cursors.left.isDown || mobileControls.p2.left) {
             if (!players.player2.isUsingSideSpecial) {
                 players.player2.setVelocityX(
-                    Phaser.Math.Clamp(players.player2.body.velocity.x - accelFactor, -250, 250)
+                    Phaser.Math.Clamp(players.player2.body.velocity.x - accelFactor, -players.player2.movementSpeed, players.player2.movementSpeed)
                 );
             }
         }
         else if (cursors.right.isDown || mobileControls.p2.right) {
             if (!players.player2.isUsingSideSpecial) {
                 players.player2.setVelocityX(
-                    Phaser.Math.Clamp(players.player2.body.velocity.x + accelFactor, -250, 250)
+                    Phaser.Math.Clamp(players.player2.body.velocity.x + accelFactor, -players.player2.movementSpeed, players.player2.movementSpeed)
                 );
             }
         }
@@ -1196,22 +1395,25 @@ function update() {
         }
 
         if (
-            (Phaser.Input.Keyboard.JustDown(cursors.up) || mobileControls.p2.upPressed) &&
-            !players.player2.body.touching.down &&
-            !players.player2.hasDoubleJumped
+            (Phaser.Input.Keyboard.JustDown(cursors.up) || mobileControls.p2.upPressed)
         ) {
-            players.player2.setVelocityY(-400);
-            players.player2.doubleJumpEffect.setAlpha(1);
-            players.player2.hasDoubleJumped = true;
+            if (!players.player2.body.touching.down && !players.player2.hasDoubleJumped) {
+                players.player2.setVelocityY(-400);
+                players.player2.doubleJumpEffect.setAlpha(1);
+                players.player2.hasDoubleJumped = true;
 
-            this.tweens.add({
-                targets: players.player2.doubleJumpEffect,
-                alpha: 0,
-                duration: 300,
-                ease: 'Cubic.easeOut'
-            });
-
+                this.tweens.add({
+                    targets: players.player2.doubleJumpEffect,
+                    alpha: 0,
+                    duration: 300,
+                    ease: 'Cubic.easeOut'
+                });
+            }
+            players.player2.lastInput.up = this.time.now;
             mobileControls.p2.upPressed = false;
+        }
+        if (Phaser.Input.Keyboard.JustDown(cursors.down)) {
+            players.player2.lastInput.down = this.time.now;
         }
 
         const usingMobile = this.sys.game.device.input.touch;
@@ -1227,6 +1429,15 @@ function update() {
         if ((cursors.down.isDown || mobileControls.p2.down) && players.player2.airTime > 600) {
             players.player2.afterimage = true;
             players.player2.setVelocityY(800);
+        }
+
+        //second directional special/tilt attack
+
+        for (const direction in cursors) {
+            const key = cursors[direction];
+            if (Phaser.Input.Keyboard.JustDown(key)) {
+                players.player2.lastInput[direction] = this.time.now;
+            }
         }
     }
     //PRIORITY
@@ -1277,4 +1488,6 @@ function update() {
             restartBtn.setVisible(true);
         }
     }
+    updateKB(this);
+    
 }
