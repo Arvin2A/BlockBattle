@@ -278,7 +278,7 @@ export function hardSwing(scene, attacker, target, animKey) {
         //launch to the side if the target is pinned against the ground, otherwise launch in the direction of the attack
         if (target.body.touching.down && dirY > 0.7) {
             const randDir = Math.random() < 0.5 ? -1 : 1;
-            target.setVelocityX((375 * target.KBmultiplier * attacker.baseDamageScale) * randDir);
+            target.setVelocityX((375 * target.KBmultiplier) * randDir);
             target.setVelocityY(-200 * target.KBmultiplier);
         } else {
             target.setVelocityX((350 * target.KBmultiplier * attacker.baseDamageScale) * dirX);
@@ -391,7 +391,7 @@ export function thirdAttack(scene, attacker, target, animKey) {
         const plungeMultiplier = target.plunged ? finalplungeMultiplier : 0;
         if (target.body.touching.down && dirY > 0.7) {
             const randDir = Math.random() < 0.5 ? -1 : 1;
-            target.setVelocityX((400 * target.KBmultiplier * (attacker.baseDamageScale * plungeMultiplier)) * randDir);
+            target.setVelocityX((400 * target.KBmultiplier) * randDir);
             target.setVelocityY(-200 * target.KBmultiplier);
         } else {
             target.setVelocityX((500 * target.KBmultiplier * (attacker.baseDamageScale + plungeMultiplier)) * dirX);
@@ -448,7 +448,7 @@ export function slamThirdAttack(scene, attacker, target, animKey) {
         //launch to the side if the target is pinned against the ground, otherwise launch in the direction of the attack
         if (target.body.touching.down && dirY > 0.7) {
             const randDir = Math.random() < 0.5 ? -1 : 1;
-            target.setVelocityX((400 * target.KBmultiplier * attacker.baseDamageScale) * randDir);
+            target.setVelocityX((400 * target.KBmultiplier) * randDir);
             target.setVelocityY(-200 * target.KBmultiplier);
         } else {
             target.setVelocityX((350 * target.KBmultiplier * attacker.baseDamageScale) * dirX);
