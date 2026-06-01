@@ -1112,9 +1112,11 @@ function update() {
     if (p1.winNumber >= 3) {
         midX = p1.x;
         midY = p1.y;
+        this.baseZoom = 1.4;
     } else if (p2.winNumber >= 3) {
         midX = p2.x;
         midY = p2.y;
+        this.baseZoom = 1.4;
     }
 
     // distance between players
