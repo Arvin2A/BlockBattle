@@ -1102,23 +1102,35 @@ function updateKB(scene) {
 }
 function update() {
 
-    if (gameEnded) {
-        players.player.setVelocity(0, 0);
-        players.player2.setVelocity(0, 0);
-        return;
-    }
+    
 
     const p1 = players.player;
     const p2 = players.player2;
 
-    const midX = (p1.x + p2.x) / 2;
-    const midY = (p1.y + p2.y) / 2;
+    var midX = (p1.x + p2.x) / 2;
+    var midY = (p1.y + p2.y) / 2;
+    if (p1.winNumber >= 3) {
+        midX = p1.x;
+        midY = p1.y;
+    } else if (p2.winNumber >= 3) {
+        midX = p2.x;
+        midY = p2.y;
+    }
 
     // distance between players
-    const distX = Math.abs(p1.x - p2.x);
-    const distY = Math.abs(p1.y - p2.y);
+    var distX = Math.abs(p1.x - p2.x);
+    var distY = Math.abs(p1.y - p2.y);
 
-    const distance = Math.max(distX, distY);
+    if (p1.winNumber >= 3) {
+        distX = Math.abs(p1.x);
+        distY = Math.abs(p1.y);
+    } else if (p2.winNumber >= 3) {
+        distX = Math.abs(p2.x);
+        distY = Math.abs(p2.y);
+    }
+
+    var distance = Math.max(distX, distY);
+    
 
     let zoom = this.baseZoom - (distance / 2000);
 
@@ -1136,6 +1148,11 @@ function update() {
         zoom - this.cameras.main.zoom
     ) * 0.05;
 
+    if (gameEnded) {
+        players.player.setVelocity(0, 0);
+        players.player2.setVelocity(0, 0);
+        return;
+    }
     
     if ((attackKey1.isDown || mobileControls.p1.attack) && !players.player.hitstun) {
         const now = this.time.now;
