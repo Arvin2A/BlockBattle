@@ -144,7 +144,7 @@ export function attack(scene, attacker, target, animKey) {
         target.freeze = false;
         target.willDecelerate = true;
     });
-
+    return hit;
 }
 export function superSwing(scene, attacker, target, animKey) {
     setAttackSprite(attacker, animKey);
@@ -198,7 +198,10 @@ export function superSwing(scene, attacker, target, animKey) {
 export function pushAttack(scene, attacker, target, animKey) {
     //Push attacks happen if the player is at maximum velocity
     setAttackSprite(attacker, animKey);
+    let hit = false;
     if (attackIsElligible(attacker, target, 125)) {
+        hit = true;
+        
         target.hitstun = true;
         target.willDecelerate = false;
         target.freeze = false;
@@ -250,7 +253,7 @@ export function pushAttack(scene, attacker, target, animKey) {
     scene.time.delayedCall(600, () => {
         target.willDecelerate = true;
     });
-
+    return hit;
 }
 export function hardSwing(scene, attacker, target, animKey) {
     //Push attacks happen if the player is at maximum velocity
@@ -863,24 +866,33 @@ export function tryRepair(scene, player, target, direction, currentTime) {
             });
         };
 
-        spawnRepairBox();
-        pushAttack(scene, player, target, "hammeratk");
-        player.KBmultiplier -= 0.05;
+        
+        const hasAttacked = pushAttack(scene, player, target, "hammeratk");
+        if (hasAttacked) {
+            spawnRepairBox();
+            player.KBmultiplier -= 0.1;
+        }
         player.isUsingSideSpecial = false;
 
         scene.time.delayedCall(250, () => {
             scene.sound.play("repair");
 
-            spawnRepairBox();
-            pushAttack(scene, player, target, "hammeratk");
-            player.KBmultiplier -= 0.05;
+            
+            const hasAttacked1 = pushAttack(scene, player, target, "hammeratk");
+            if (hasAttacked1) {
+                player.KBmultiplier -= 0.1;
+                spawnRepairBox();
+            }
 
             scene.time.delayedCall(250, () => {
                 scene.sound.play("repair");
 
-                spawnRepairBox();
-                pushAttack(scene, player, target, "hammeratk");
-                player.KBmultiplier -= 0.05;
+                
+                const hasAttacked2 = pushAttack(scene, player, target, "hammeratk");
+                if (hasAttacked2) {
+                    spawnRepairBox();
+                    player.KBmultiplier -= 0.1;
+                }
                 player.atk.setVisible(true);
 
             });
