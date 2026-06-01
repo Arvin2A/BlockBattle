@@ -893,7 +893,7 @@ export function tryRepair(scene, player, target, direction, currentTime) {
 export function markPlunge(scene, attacker, target, dir) {
     //Marks attack for plunge
     let hit = false;
-    if (attackIsElligible(attacker, target, 125)) {
+    if (attackIsElligible(attacker, target, 150)) {
         hit = true;
         target.hitstun = true;
         target.willDecelerate = false;
