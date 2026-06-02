@@ -70,7 +70,7 @@ export function initiatePlayers(scene, p1Select = 'axeman', p2Select = 'swordman
         p.movementSpeed = 250;
         p.baseDamageScale = 1;
 
-        p.plungeAura = scene.physics.add.sprite(p.x, p.y, 'plungedAura');
+        p.plungeAura = scene.add.image(p.x, p.y, 'plungedAura');
         p.plungeAura.visible = false;
         scene.objs.add(p.plungeAura);
     }
