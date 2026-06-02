@@ -72,6 +72,7 @@ export function initiatePlayers(scene, p1Select = 'axeman', p2Select = 'swordman
 
         p.plungeAura = scene.physics.add.sprite(p.x, p.y, 'plungedAura');
         p.plungeAura.visible = false;
+        scene.objs.add(p.plungeAura);
     }
     players.player.lastDir = { x: 1, y: 0 };
     players.player2.lastDir = { x: -1, y: 0 };
