@@ -1499,11 +1499,11 @@ function update() {
         if (players.player.winNumber >= winNumber || players.player2.winNumber >= winNumber) {
             if (players.player.outOfBounds) {
                 gameEnded = true;
-                const winner = this.add.text(500, 300, players.player2.name + ' WINS!', { fontFamily: 'GameFont', fontSize: '32px', fill: '#00008B' }).setOrigin(0.5).setStroke('#000000', 5);
+                const winner = this.add.text(500, 150, players.player2.name + ' WINS!', { fontFamily: 'GameFont', fontSize: '32px', fill: '#00008B' }).setOrigin(0.5).setStroke('#000000', 5);
                 this.hud.add(winner);
             } else if (players.player2.outOfBounds) {
                 gameEnded = true;
-                const winner = this.add.text(500, 300, players.player.name + ' WINS!', { fontFamily: 'GameFont', fontSize: '32px', fill: '#8B0000' }).setOrigin(0.5).setStroke('#000000', 5);
+                const winner = this.add.text(500, 150, players.player.name + ' WINS!', { fontFamily: 'GameFont', fontSize: '32px', fill: '#8B0000' }).setOrigin(0.5).setStroke('#000000', 5);
                 this.hud.add(winner);
             }
             restartBtn.setVisible(true);
