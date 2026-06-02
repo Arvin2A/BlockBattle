@@ -7,7 +7,7 @@ import { initiatePlayers, updateCombo } from './players.js';
 //TESTER CREDITS:
 //w testers for this game, including several students in my grade
 //The most impactful testers I'd wish to mention are:
-//Aidan Z, Deyu Z, Luke Ch, Augustus L, Jaylen L, Presley F, Giovanni M, Jeffrey C, Kenneth L, Mr. Primm
+//Aidan Z, Deyu Z, Luke Ch, Augustus L, Jaylen L, Presley F, Giovanni M, Jeffrey C, Kenneth L, Abrar A , Mr. Primm
 //While they might have told others about the game, those are who I know about who have played and tested the game
 //Not only did they play the game, but I was also able to work up to some of their suggestions.
 //The ones impactful are the ones I've also observed mistakes in the game from, whether stating it to me or watching them play, so I can add fixes to the code
