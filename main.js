@@ -1067,6 +1067,7 @@ function updateKB(scene) {
             if (!player.lastPlungeTick) {
                 player.lastPlungeTick = scene.time.now;
             }
+            player.plungeAura.visible = true;
 
             if (scene.time.now - player.lastPlungeTick >= 450) {
                 player.KBmultiplier += 0.025; // 3.5%
@@ -1075,6 +1076,7 @@ function updateKB(scene) {
                 player.lastPlungeTick = scene.time.now;
             }
         } else {
+            player.plungeAura.visible = false;
             player.lastPlungeTick = null;
         }
 
@@ -1096,7 +1098,8 @@ function updateKB(scene) {
                     Math.max(0.1, player.baseDamageScale);
             }
         }
-
+        player.plungeAura.x = player.x;
+        player.plungeAura.y = player.y
         player.lastKBmultiplier = player.KBmultiplier;
     }
 }
