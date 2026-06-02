@@ -55,13 +55,13 @@ var MenuScene = {
         const startBox = this.add.rectangle(
             500,
             500,
-            500,
+            400,
             70,
             0x228B22
         );
-        startBox.setStrokeStyle(4, 0xffffff);
+        startBox.setStrokeStyle(3, 0x154a17);
 
-        var startText = this.add.text(500, 500, 'Start Game', { fontFamily: 'GameFont', fontSize: '32px', fill: '#FFFFFF', stroke: '#000000', strokeThickness: 6 }).setOrigin(0.5).setInteractive({ useHandCursor: true });
+        var startText = this.add.text(500, 500, 'Start Game', { fontFamily: 'GameFont', fontSize: '28px', fill: '#FFFFFF', stroke: '#000000', strokeThickness: 6 }).setOrigin(0.5).setInteractive({ useHandCursor: true });
         
         startText.setInteractive();
         startText.on('pointerover', function () {
