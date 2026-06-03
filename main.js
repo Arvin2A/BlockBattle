@@ -865,7 +865,9 @@ function create() {
             .setScrollFactor(0)
             .setDepth(1000);
 
-            btn.on('pointerdown', () => {
+            btn.activePointerID = null;
+
+            btn.on('pointerdown', (pointer) => {
                 keyRef.obj[keyRef.key] = true;
                 keyRef.obj[keyRef.key + "Pressed"] = true;
                 if (keyRef.obj === mobileControls.p1) {
@@ -880,14 +882,22 @@ function create() {
                     });
                     inputMode.p2 = "touch";
                 }
+                btn.activePointerID = pointer.id;
             });
 
-            btn.on('pointerup', () => {
-                keyRef.obj[keyRef.key] = false;
+            btn.on('pointerup', (pointer) => {
+                if (pointer.id === btn.activePointerID) {
+                    keyRef.obj[keyRef.key] = false;
+                    btn.activePointerID = null;
+                }
+                
             });
 
-            btn.on('pointerupoutside', () => {
-                keyRef.obj[keyRef.key] = false;
+            btn.on('pointerupoutside', (pointer) => {
+                if (pointer.id === btn.activePointerID) {
+                    keyRef.obj[keyRef.key] = false;
+                    btn.activePointerID = null;
+                }
             });
 
             scene.hud.add(btn);
