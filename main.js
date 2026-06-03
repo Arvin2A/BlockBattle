@@ -847,10 +847,8 @@ function create() {
     if (true) {
 
         function makeButton(scene, x, y, text, keyRef) {
-
-
             
-            const btn = scene.add.circle(x, y, 40, 0x000000, 0.45)
+            const btn = scene.add.circle(x, y, 45, 0x000000, 0.45)
                 .setScrollFactor(0)
                 .setDepth(999)
                 .setInteractive();
@@ -918,19 +916,19 @@ function create() {
         //P1
         const p1Buttons = [
             [60, 420, '←', p1, 'left'],
-            [220, 420, '→', p1, 'right'],
-            [140, 340, '↑', p1, 'up'],
-            [140, 420, '↓', p1, 'down'],
-            [220, 340, 'A', p1, 'attack']
+            [240, 420, '→', p1, 'right'],
+            [150, 330, '↑', p1, 'up'],
+            [150, 420, '↓', p1, 'down'],
+            [285, 330, 'A', p1, 'attack']
         ];
 
         //P2
         const p2Buttons = [
-            [760, 420, '←', p2, 'left'],
+            [740, 420, '←', p2, 'left'],
             [920, 420, '→', p2, 'right'],
-            [840, 340, '↑', p2, 'up'],
-            [840, 420, '↓', p2, 'down'],
-            [760, 340, 'A', p2, 'attack']
+            [830, 330, '↑', p2, 'up'],
+            [830, 420, '↓', p2, 'down'],
+            [740, 330, 'A', p2, 'attack']
         ];
 
         p1Buttons.forEach(btn => {
