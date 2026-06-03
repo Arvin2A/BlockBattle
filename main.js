@@ -593,8 +593,8 @@ var lastWinState = {
     p2: 0
 };
 var inputMode = {
-    p1: "keyboard",
-    p2: "keyboard",
+    p1: "touch",
+    p2: "touch",
 }
 var mobileControls = {
     p1: {
@@ -844,7 +844,7 @@ function create() {
     //mobile support:
     const isMobile = this.sys.game.device.input.touch;
 
-    if (isMobile) {
+    if (true) {
 
         function makeButton(scene, x, y, text, keyRef) {
 
