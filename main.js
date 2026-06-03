@@ -849,21 +849,7 @@ function create() {
         function makeButton(scene, x, y, text, keyRef) {
 
 
-            if (keyRef.obj === mobileControls.p1) {
-                if (inputMode.p1 !== "touch") {
-                    this.mobileButtons.p1.forEach(obj => {
-                        if (obj) obj.setAlpha(1);  
-                    });
-                }
-                inputMode.p1 = "touch";
-            } else {
-                if (inputMode.p2 !== "touch") {
-                    this.mobileButtons.p2.forEach(obj => {
-                        if (obj) obj.setAlpha(1);  
-                    });
-                }
-                inputMode.p2 = "touch";
-            }
+            
             const btn = scene.add.circle(x, y, 40, 0x000000, 0.45)
                 .setScrollFactor(0)
                 .setDepth(999)
@@ -881,6 +867,18 @@ function create() {
             btn.on('pointerdown', () => {
                 keyRef.obj[keyRef.key] = true;
                 keyRef.obj[keyRef.key + "Pressed"] = true;
+                if (keyRef.obj === mobileControls.p1) {
+                    this.mobileButtons.p1.forEach(obj => {
+                        if (obj) obj.setAlpha(1);  
+                    });
+                
+                    inputMode.p1 = "touch";
+                } else {
+                    this.mobileButtons.p2.forEach(obj => {
+                        if (obj) obj.setAlpha(1);  
+                    });
+                    inputMode.p2 = "touch";
+                }
             });
 
             btn.on('pointerup', () => {
@@ -922,7 +920,7 @@ function create() {
                 obj: btn[3],
                 key: btn[4]
             });
-            this.mobileButtons.p2.push(butn);
+            this.mobileButtons.p1.push(butn);
         });
 
         p2Buttons.forEach(btn => {
