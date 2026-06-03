@@ -1282,21 +1282,6 @@ function update() {
     else if (wasd.up.isDown || mobileControls.p1.up) p1.lastDir = { x: 0, y: -1 };
     else if (wasd.down.isDown || mobileControls.p1.down) p1.lastDir = { x: 0, y: 1 };
 
-    if (
-        Phaser.Input.Keyboard.JustDown(wasd.left) ||
-        Phaser.Input.Keyboard.JustDown(wasd.right) ||
-        Phaser.Input.Keyboard.JustDown(wasd.up) ||
-        Phaser.Input.Keyboard.JustDown(wasd.down) ||
-        Phaser.Input.Keyboard.JustDown(attackKey1)
-    ) {
-        if (inputMode.p1 !== "keyboard") {
-            
-            this.mobileButtons.p1.forEach(obj => {
-                obj.setAlpha(0.25);
-            });
-        }
-        inputMode.p1 = "keyboard";
-    }
 
     // PLAYER 2 (arrows)
     if (cursors.left.isDown || mobileControls.p2.left) p2.lastDir = { x: -1, y: 0 };
@@ -1304,21 +1289,6 @@ function update() {
     else if (cursors.up.isDown || mobileControls.p2.up) p2.lastDir = { x: 0, y: -1 };
     else if (cursors.down.isDown || mobileControls.p2.down) p2.lastDir = { x: 0, y: 1 };
 
-    if (
-        Phaser.Input.Keyboard.JustDown(cursors.left) ||
-        Phaser.Input.Keyboard.JustDown(cursors.right) ||
-        Phaser.Input.Keyboard.JustDown(cursors.up) ||
-        Phaser.Input.Keyboard.JustDown(cursors.down) ||
-        Phaser.Input.Keyboard.JustDown(attackKey2)
-    ) {
-        if (inputMode.p2 !== "keyboard") {
-            
-            this.mobileButtons.p2.forEach(obj => {
-                obj.setAlpha(0.25);
-            });
-        }
-        inputMode.p2 = "keyboard"; 
-    }
     function decelerateAll() {
         for (const key in players) {
             const player = players[key];
@@ -1395,11 +1365,25 @@ function update() {
     if (!p1.hitstun) {
         if (Phaser.Input.Keyboard.JustDown(wasd.left) || mobileControls.p1.leftPressed) {
             p1.lastInput.left = this.time.now;
+            if (inputMode.p1 !== "keyboard" && !mobileControls.p1.leftPressed) {
+            
+                this.mobileButtons.p1.forEach(obj => {
+                    obj.setAlpha(0.25);
+                });
+            }
+            inputMode.p1 = "keyboard";
             handleDirSpecial(this, p1, 'left', this.time.now,p2);
             mobileControls.p1.leftPressed = false;
         }
         if (Phaser.Input.Keyboard.JustDown(wasd.right) || mobileControls.p1.rightPressed) {
             p1.lastInput.right = this.time.now;
+            if (inputMode.p1 !== "keyboard" && !mobileControls.p1.rightPressed) {
+            
+                this.mobileButtons.p1.forEach(obj => {
+                    obj.setAlpha(0.25);
+                });
+            }
+            inputMode.p1 = "keyboard";
             handleDirSpecial(this, p1, 'right', this.time.now,p2);
             mobileControls.p1.rightPressed = false;
         }
@@ -1431,6 +1415,13 @@ function update() {
         
         if ((Phaser.Input.Keyboard.JustDown(wasd.up) || mobileControls.p1.upPressed)) {
             p1.lastInput.up = this.time.now;
+            if (inputMode.p1 !== "keyboard" && !mobileControls.p1.upPressed) {
+            
+                this.mobileButtons.p1.forEach(obj => {
+                    obj.setAlpha(0.25);
+                });
+            }
+            inputMode.p1 = "keyboard";
             if (!p1.body.touching.down && !p1.hasDoubleJumped) {
                 p1.setVelocityY(-400);
                 p1.doubleJumpEffect.setAlpha(1);
@@ -1441,8 +1432,16 @@ function update() {
             mobileControls.p1.upPressed = false;
             
         }
-        if (Phaser.Input.Keyboard.JustDown(wasd.down)) {
+        if (Phaser.Input.Keyboard.JustDown(wasd.down) || mobileControls.p1.downPressed) {
             p1.lastInput.down = this.time.now;
+            if (inputMode.p1 !== "keyboard" && !mobileControls.p1.downPressed) {
+            
+                this.mobileButtons.p1.forEach(obj => {
+                    obj.setAlpha(0.25);
+                });
+            }
+            inputMode.p1 = "keyboard"; 
+            mobileControls.p1.downPressed = false;
         }
 
         const usingMobile = this.sys.game.device.input.touch;
@@ -1470,12 +1469,26 @@ function update() {
         // Player 2 controls
         if (Phaser.Input.Keyboard.JustDown(cursors.left) || mobileControls.p2.leftPressed) {
             p2.lastInput.left = this.time.now;
+            if (inputMode.p2 !== "keyboard" && !mobileControls.p2.leftPressed) {
+            
+                this.mobileButtons.p2.forEach(obj => {
+                    obj.setAlpha(0.25);
+                });
+            }
+            inputMode.p2 = "keyboard"; 
             handleDirSpecial(this, p2, 'left', this.time.now, p1);
             mobileControls.p2.leftPressed = false;
         }
 
         if (Phaser.Input.Keyboard.JustDown(cursors.right) || mobileControls.p2.rightPressed) {
             p2.lastInput.right = this.time.now;
+            if (inputMode.p2 !== "keyboard" && !mobileControls.p2.rightPressed) {
+            
+                this.mobileButtons.p2.forEach(obj => {
+                    obj.setAlpha(0.25);
+                });
+            }
+            inputMode.p2 = "keyboard"; 
             handleDirSpecial(this, p2, 'right', this.time.now, p1);
             mobileControls.p2.rightPressed = false;
         }
@@ -1532,10 +1545,25 @@ function update() {
                 });
             }
             p2.lastInput.up = this.time.now;
+            if (inputMode.p2 !== "keyboard" && !mobileControls.p2.upPressed) {
+            
+                this.mobileButtons.p2.forEach(obj => {
+                    obj.setAlpha(0.25);
+                });
+            }
+            inputMode.p2 = "keyboard"; 
             mobileControls.p2.upPressed = false;
         }
-        if (Phaser.Input.Keyboard.JustDown(cursors.down)) {
+        if (Phaser.Input.Keyboard.JustDown(cursors.down) || mobileControls.p2.downPressed) {
             p2.lastInput.down = this.time.now;
+            if (inputMode.p2 !== "keyboard" && !mobileControls.p2.downPressed) {
+            
+                this.mobileButtons.p2.forEach(obj => {
+                    obj.setAlpha(0.25);
+                });
+            }
+            inputMode.p2 = "keyboard"; 
+            mobileControls.p2.downPressed = false;
         }
 
         const usingMobile = this.sys.game.device.input.touch;
