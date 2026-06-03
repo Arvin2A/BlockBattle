@@ -861,6 +861,7 @@ function create() {
                 fontFamily: 'Arial'
             })
             .setOrigin(0.5)
+            .setAlpha(0.5)
             .setScrollFactor(0)
             .setDepth(1000);
 
@@ -1291,7 +1292,7 @@ function update() {
         if (inputMode.p1 !== "keyboard") {
             
             this.mobileButtons.p1.forEach(obj => {
-                obj.setAlpha(0.15);
+                obj.setAlpha(0.25);
             });
         }
         inputMode.p1 = "keyboard";
@@ -1313,7 +1314,7 @@ function update() {
         if (inputMode.p2 !== "keyboard") {
             
             this.mobileButtons.p2.forEach(obj => {
-                obj.setAlpha(0.15);
+                obj.setAlpha(0.25);
             });
         }
         inputMode.p2 = "keyboard"; 
