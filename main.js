@@ -134,11 +134,11 @@ var CharacterSelectScene = {
         this.add.text(
             500,
             50,
-            'PRESS W + S TO SELECT WITH P1, \nUP AND DOWN ARROW FOR P2',
+            'SELECT YOUR CHARACTER',
             {
-                fontFamily: 'GameFont',
-                fontSize: '30px',
-                fill: '#c300d4',
+                fontFamily: 'VCROSD',
+                fontSize: '35px',
+                fill: '#f691ff',
                 stroke: '#000000',
                 strokeThickness: 6
             }
@@ -323,6 +323,38 @@ var CharacterSelectScene = {
         });
 
         this.updateCharacterDescriptions();
+
+
+        this.input.on('pointerdown', (pointer) => {
+            // Ignore clicks on the PLAY button area
+            if (
+                pointer.x >= 390 &&
+                pointer.x <= 610 &&
+                pointer.y >= 485 &&
+                pointer.y <= 555
+            ) {
+                return;
+            }
+
+            // Character list starts at y=180 and each row is 50px apart
+            const index = Math.round((pointer.y - 180) / 50);
+
+            if (index < 0 || index >= this.characters.length) {
+                return;
+            }
+
+            this.sound.play('hover');
+
+            if (pointer.x < 500) {
+                // P1 selection
+                this.p1Index = index;
+            } else {
+                // P2 selection
+                this.p2Index = index;
+            }
+
+            this.updateCharacterDescriptions();
+        });
     },
 
     update: function () {
@@ -560,6 +592,10 @@ var lastWinState = {
     p1: 0,
     p2: 0
 };
+var inputMode = {
+    p1: "touch",
+    p2: "touch",
+}
 var mobileControls = {
     p1: {
         left: false,
@@ -584,6 +620,7 @@ var mobileControls = {
         attack: false
     }
 };
+
 var gameEnded = false;
 const xOff = 500;
 const yOff = 300;
@@ -606,6 +643,10 @@ function create() {
     this.hud = this.add.container(0, 0);
     this.objs = this.add.container(0,0);
     this.objcam = this.cameras.add(0,0,1000,600, false, "hudCam");
+    this.mobileButtons = {
+        p1: [],
+        p2: []
+    }
     platforms = this.physics.add.staticGroup();
     topPlatforms = this.physics.add.staticGroup();
     //Making the background, platforms, and the KB stat display
@@ -807,6 +848,22 @@ function create() {
 
         function makeButton(scene, x, y, text, keyRef) {
 
+
+            if (keyRef.obj === mobileControls.p1) {
+                if (inputMode.p1 !== "touch") {
+                    this.mobileButtons.p1.forEach(obj => {
+                        if (obj) obj.setAlpha(1);  
+                    });
+                }
+                inputMode.p1 = "touch";
+            } else {
+                if (inputMode.p2 !== "touch") {
+                    this.mobileButtons.p2.forEach(obj => {
+                        if (obj) obj.setAlpha(1);  
+                    });
+                }
+                inputMode.p2 = "touch";
+            }
             const btn = scene.add.circle(x, y, 40, 0x000000, 0.45)
                 .setScrollFactor(0)
                 .setDepth(999)
@@ -836,6 +893,7 @@ function create() {
 
             scene.hud.add(btn);
             scene.hud.add(label);
+            return btn;
         }
 
         const p1 = mobileControls.p1;
@@ -859,12 +917,22 @@ function create() {
             [760, 440, 'A', p2, 'attack']
         ];
 
-        [...p1Buttons, ...p2Buttons].forEach(btn => {
-            makeButton(this, btn[0], btn[1], btn[2], {
+        p1Buttons.forEach(btn => {
+            const butn = makeButton(this, btn[0], btn[1], btn[2], {
                 obj: btn[3],
                 key: btn[4]
             });
+            this.mobileButtons.p2.push(butn);
         });
+
+        p2Buttons.forEach(btn => {
+            const butn = makeButton(this, btn[0], btn[1], btn[2], {
+                obj: btn[3],
+                key: btn[4]
+            });
+            this.mobileButtons.p2.push(butn);
+        });
+
     }
 
     //---PLAYER---\\
@@ -1215,11 +1283,43 @@ function update() {
     else if (wasd.up.isDown || mobileControls.p1.up) p1.lastDir = { x: 0, y: -1 };
     else if (wasd.down.isDown || mobileControls.p1.down) p1.lastDir = { x: 0, y: 1 };
 
+    if (
+        Phaser.Input.Keyboard.JustDown(wasd.left) ||
+        Phaser.Input.Keyboard.JustDown(wasd.right) ||
+        Phaser.Input.Keyboard.JustDown(wasd.up) ||
+        Phaser.Input.Keyboard.JustDown(wasd.down) ||
+        Phaser.Input.Keyboard.JustDown(attackKey1)
+    ) {
+        if (inputMode.p1 !== "keyboard") {
+            
+            this.mobileButtons.p1.forEach(obj => {
+                obj.setAlpha(0.15);
+            });
+        }
+        inputMode.p1 = "keyboard";
+    }
+
     // PLAYER 2 (arrows)
     if (cursors.left.isDown || mobileControls.p2.left) p2.lastDir = { x: -1, y: 0 };
     else if (cursors.right.isDown || mobileControls.p2.right) p2.lastDir = { x: 1, y: 0 };
     else if (cursors.up.isDown || mobileControls.p2.up) p2.lastDir = { x: 0, y: -1 };
     else if (cursors.down.isDown || mobileControls.p2.down) p2.lastDir = { x: 0, y: 1 };
+
+    if (
+        Phaser.Input.Keyboard.JustDown(cursors.left) ||
+        Phaser.Input.Keyboard.JustDown(cursors.right) ||
+        Phaser.Input.Keyboard.JustDown(cursors.up) ||
+        Phaser.Input.Keyboard.JustDown(cursors.down) ||
+        Phaser.Input.Keyboard.JustDown(attackKey2)
+    ) {
+        if (inputMode.p2 !== "keyboard") {
+            
+            this.mobileButtons.p2.forEach(obj => {
+                obj.setAlpha(0.15);
+            });
+        }
+        inputMode.p2 = "keyboard"; 
+    }
     function decelerateAll() {
         for (const key in players) {
             const player = players[key];
@@ -1349,9 +1449,10 @@ function update() {
         const usingMobile = this.sys.game.device.input.touch;
 
 
-        const jumpReleased = usingMobile
-            ? !mobileControls.p1.up
-            : wasd.up.isUp;
+        const jumpReleased =
+            inputMode.p1 === "touch"
+                ? !mobileControls.p1.up
+                : wasd.up.isUp;
 
         if (jumpReleased && p1.body.velocity.y < 0) {
             p1.setVelocityY(p1.body.velocity.y / 2);
@@ -1441,9 +1542,10 @@ function update() {
         const usingMobile = this.sys.game.device.input.touch;
 
 
-        const jumpReleased2 = usingMobile
-            ? !mobileControls.p2.up
-            : cursors.up.isUp;
+        const jumpReleased2 =
+            inputMode.p2 === "touch"
+                ? !mobileControls.p2.up
+                : cursors.up.isUp;
 
         if (jumpReleased2 && p2.body.velocity.y < 0) {
             p2.setVelocityY(p2.body.velocity.y / 2);
