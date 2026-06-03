@@ -868,13 +868,13 @@ function create() {
                 keyRef.obj[keyRef.key] = true;
                 keyRef.obj[keyRef.key + "Pressed"] = true;
                 if (keyRef.obj === mobileControls.p1) {
-                    this.mobileButtons.p1.forEach(obj => {
+                    scene.mobileButtons.p1.forEach(obj => {
                         if (obj) obj.setAlpha(1);  
                     });
                 
                     inputMode.p1 = "touch";
                 } else {
-                    this.mobileButtons.p2.forEach(obj => {
+                    scene.mobileButtons.p2.forEach(obj => {
                         if (obj) obj.setAlpha(1);  
                     });
                     inputMode.p2 = "touch";
