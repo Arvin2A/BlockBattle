@@ -1228,6 +1228,11 @@ function update() {
     
     if ((attackKey1.isDown || mobileControls.p1.attack) && !p1.hitstun) {
         const now = this.time.now;
+        if (inputMode.p1 !== "keyboard" && !mobileControls.p1.attack) {
+            this.mobileButtons.p1.forEach(obj => {
+                obj.setAlpha(0.25);
+            });
+        }        
         if (now - p1.lastInput.up < tiltThreshold) {
             //placeholder
             handleUpTilt(this, p1, p2);
@@ -1246,6 +1251,11 @@ function update() {
     }
     if ((attackKey2.isDown || mobileControls.p2.attack) && !p2.hitstun) {
         const now = this.time.now;
+        if (inputMode.p2 !== "keyboard" && !mobileControls.p2.attack) {
+            this.mobileButtons.p2.forEach(obj => {
+                obj.setAlpha(0.25);
+            });
+        }
         if (now - p2.lastInput.up < tiltThreshold) {
             handleUpTilt(this, p2, p1);
         } else if (now - p2.lastInput.down < tiltThreshold) {
