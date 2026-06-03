@@ -874,7 +874,7 @@ function create() {
                     });
                 
                     inputMode.p1 = "touch";
-                } else {
+                } else if (keyRef.obj === mobileControls.p2) {
                     scene.mobileButtons.p2.forEach(obj => {
                         if (obj) obj.setAlpha(1);  
                     });
@@ -1485,8 +1485,9 @@ function update() {
                 this.mobileButtons.p2.forEach(obj => {
                     obj.setAlpha(0.25);
                 });
+                inputMode.p2 = "keyboard"; 
             }
-            inputMode.p2 = "keyboard"; 
+            
             handleDirSpecial(this, p2, 'left', this.time.now, p1);
             mobileControls.p2.leftPressed = false;
         }
@@ -1498,8 +1499,8 @@ function update() {
                 this.mobileButtons.p2.forEach(obj => {
                     obj.setAlpha(0.25);
                 });
+                inputMode.p2 = "keyboard"; 
             }
-            inputMode.p2 = "keyboard"; 
             handleDirSpecial(this, p2, 'right', this.time.now, p1);
             mobileControls.p2.rightPressed = false;
         }
@@ -1561,8 +1562,8 @@ function update() {
                 this.mobileButtons.p2.forEach(obj => {
                     obj.setAlpha(0.25);
                 });
+                inputMode.p2 = "keyboard"; 
             }
-            inputMode.p2 = "keyboard"; 
             mobileControls.p2.upPressed = false;
         }
         if (Phaser.Input.Keyboard.JustDown(cursors.down) || mobileControls.p2.downPressed) {
@@ -1572,8 +1573,8 @@ function update() {
                 this.mobileButtons.p2.forEach(obj => {
                     obj.setAlpha(0.25);
                 });
+                inputMode.p2 = "keyboard"; 
             }
-            inputMode.p2 = "keyboard"; 
             mobileControls.p2.downPressed = false;
         }
 
