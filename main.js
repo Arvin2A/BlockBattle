@@ -593,8 +593,8 @@ var lastWinState = {
     p2: 0
 };
 var inputMode = {
-    p1: "touch",
-    p2: "touch",
+    p1: "keyboard",
+    p2: "keyboard",
 }
 var mobileControls = {
     p1: {
