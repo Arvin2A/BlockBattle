@@ -892,6 +892,13 @@ function create() {
                 }
                 
             });
+            btn.on('pointerout', (pointer) => {
+                if (pointer.id === btn.activePointerID) {
+                    keyRef.obj[keyRef.key] = false;
+                    btn.activePointerID = null;
+                }
+                
+            });
 
             btn.on('pointerupoutside', (pointer) => {
                 if (pointer.id === btn.activePointerID) {
@@ -1664,5 +1671,4 @@ function update() {
         }
     }
     updateKB(this);
-    
 }
