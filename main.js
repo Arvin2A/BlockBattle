@@ -1380,8 +1380,9 @@ function update() {
                 this.mobileButtons.p1.forEach(obj => {
                     obj.setAlpha(0.25);
                 });
+                inputMode.p1 = "keyboard";
             }
-            inputMode.p1 = "keyboard";
+            
             handleDirSpecial(this, p1, 'left', this.time.now,p2);
             mobileControls.p1.leftPressed = false;
         }
@@ -1392,8 +1393,8 @@ function update() {
                 this.mobileButtons.p1.forEach(obj => {
                     obj.setAlpha(0.25);
                 });
+                inputMode.p1 = "keyboard";
             }
-            inputMode.p1 = "keyboard";
             handleDirSpecial(this, p1, 'right', this.time.now,p2);
             mobileControls.p1.rightPressed = false;
         }
@@ -1430,8 +1431,8 @@ function update() {
                 this.mobileButtons.p1.forEach(obj => {
                     obj.setAlpha(0.25);
                 });
+                inputMode.p1 = "keyboard";
             }
-            inputMode.p1 = "keyboard";
             if (!p1.body.touching.down && !p1.hasDoubleJumped) {
                 p1.setVelocityY(-400);
                 p1.doubleJumpEffect.setAlpha(1);
@@ -1449,8 +1450,8 @@ function update() {
                 this.mobileButtons.p1.forEach(obj => {
                     obj.setAlpha(0.25);
                 });
+                inputMode.p1 = "keyboard"; 
             }
-            inputMode.p1 = "keyboard"; 
             mobileControls.p1.downPressed = false;
         }
 
