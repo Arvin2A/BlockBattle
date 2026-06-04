@@ -170,7 +170,7 @@ export function superSwing(scene, attacker, target, animKey) {
             target.setVelocityX((600 * target.KBmultiplier * attacker.baseDamageScale) * randDir);
             target.setVelocityY(-200 * target.KBmultiplier * attacker.baseDamageScale);
         } else {
-            target.setVelocityX((700 * target.KBmultiplier * attacker.baseDamageScale) * dirX);
+            target.setVelocityX((1000 * attacker.baseDamageScale) * dirX);
             target.setVelocityY((500 * target.KBmultiplier * attacker.baseDamageScale) * dirY);
         }
         attacker.combo = 0;
@@ -181,7 +181,7 @@ export function superSwing(scene, attacker, target, animKey) {
         attacker.atk.stop();
         attacker.atk.setVisible(false);
     });
-    scene.time.delayedCall(1500, () => {
+    scene.time.delayedCall(2500, () => {
         //super swing is OP, so you wont be able to attack for a long time if missed or even after landing it
         attacker.canAttack = true;
     });
