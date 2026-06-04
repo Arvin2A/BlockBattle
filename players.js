@@ -18,6 +18,7 @@ export function initiatePlayers(scene, p1Select = 'axeman', p2Select = 'swordman
         p.freeze = false;
         p.willDecelerate = true;
         p.nextAttackTime = 0;
+        p.nextTiltTime = 0;
         p.combo = 0;
         p.comboTimer = 0;
         p.winNumber = 0;
