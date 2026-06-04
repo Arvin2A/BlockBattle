@@ -491,6 +491,7 @@ export function tiltAttack(scene, attacker, target, {
     onUse = null
 }) {
     //they aren't really tilt attacks
+    if (scene.time.now < attacker.nextTiltTime) return;
     if (!attacker.canAttack || attacker.hitstun) return;
     setAttackSprite(attacker, animKey);
     if (onUse) {
@@ -547,7 +548,7 @@ export function tiltAttack(scene, attacker, target, {
     scene.time.delayedCall(kbTime + 150, () => {
         target.willDecelerate = true;
     });
-
+    attacker.nextTiltTime = scene.time.now + 400;
 }
 export function tryAttack(scene, attacker, target, animKey, thirdAnimKey) {
     //handles some other stuff before calling either attack functions
