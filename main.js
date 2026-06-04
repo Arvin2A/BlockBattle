@@ -919,7 +919,7 @@ function create() {
             [240, 420, '→', p1, 'right'],
             [150, 330, '↑', p1, 'up'],
             [150, 420, '↓', p1, 'down'],
-            [330, 420, 'A', p1, 'attack']
+            [240, 330, 'A', p1, 'attack']
         ];
 
         //P2
@@ -928,7 +928,7 @@ function create() {
             [920, 420, '→', p2, 'right'],
             [830, 330, '↑', p2, 'up'],
             [830, 420, '↓', p2, 'down'],
-            [650, 420, 'A', p2, 'attack']
+            [920, 330, 'A', p2, 'attack']
         ];
 
         p1Buttons.forEach(btn => {
