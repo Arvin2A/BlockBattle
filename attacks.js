@@ -870,9 +870,9 @@ export function tryRepair(scene, player, target, direction, currentTime) {
         
         const hasAttacked = pushAttack(scene, player, target, "hammeratk");
         if (hasAttacked) {
-            player.KBmultiplier -= 0.25;
+            player.KBmultiplier -= 0.20;
         } else {
-            player.KBmultiplier -= 0.25;
+            player.KBmultiplier -= 0.02;
         }
         spawnRepairBox();
         player.isUsingSideSpecial = false;
