@@ -722,7 +722,7 @@ function create() {
     groundVisual.setDepth(1);
 
     // Invisible collision ground, the actual ground
-    const ground = platforms.create(xOff+ 500, yOff+600, 'thickgroundhitbox');
+    const ground = platforms.create(xOff+ 500, yOff+575, 'thickgroundhitbox');
     ground.setDisplaySize(this.scale.width, 0);
     ground.setVisible(false);
     ground.refreshBody();
