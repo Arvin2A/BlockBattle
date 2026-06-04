@@ -871,6 +871,8 @@ export function tryRepair(scene, player, target, direction, currentTime) {
         const hasAttacked = pushAttack(scene, player, target, "hammeratk");
         if (hasAttacked) {
             player.KBmultiplier -= 0.25;
+        } else {
+            player.KBmultiplier -= 0.25;
         }
         spawnRepairBox();
         player.isUsingSideSpecial = false;
@@ -881,7 +883,7 @@ export function tryRepair(scene, player, target, direction, currentTime) {
             
             const hasAttacked1 = pushAttack(scene, player, target, "hammeratk");
             if (hasAttacked1) {
-                player.KBmultiplier -= 0.25
+                player.KBmultiplier -= 0.20;
             } else {
                 player.KBmultiplier -= 0.02;
             }
@@ -893,7 +895,7 @@ export function tryRepair(scene, player, target, direction, currentTime) {
                 
                 const hasAttacked2 = pushAttack(scene, player, target, "hammeratk");
                 if (hasAttacked2) {
-                    player.KBmultiplier -= 0.25;
+                    player.KBmultiplier -= 0.20;
                 } else {
                     player.KBmultiplier -= 0.02;
                 }
