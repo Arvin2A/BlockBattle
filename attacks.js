@@ -265,7 +265,7 @@ export function hardSwing(scene, attacker, target, animKey) {
         attacker.freeze = false;
         attacker.willDecelerate = true;
         attacker.comboTimer = 600;
-        target.KBmultiplier += 0.075* attacker.baseDamageScale;
+        target.KBmultiplier += 0.18* attacker.baseDamageScale;
         hitFreeze(scene, 100);
         if (attacker.name === "HAMMERMAN") {
             scene.sound.play('hammerhit');
