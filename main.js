@@ -1142,6 +1142,24 @@ function spawnAfterimage(scene, player) {
 function updateKB(scene) {
     for (const key in players) {
         const player = players[key];
+        const spawnBox = () => {
+            const box = scene.add.rectangle(
+                player.x,
+                player.y,
+                50,
+                50,
+                0xffbf00
+            );
+            scene.objs.add(box);
+            scene.tweens.add({
+                targets: box,
+                alpha: 0,
+                duration: 100,
+                onComplete: () => {
+                    box.destroy();
+                }
+            });
+        };
 
         // Plunge DoT
         if (player.plunged) {
@@ -1183,6 +1201,9 @@ function updateKB(scene) {
         player.plungeAura.x = player.x;
         player.plungeAura.y = player.y;
         player.lastKBmultiplier = player.KBmultiplier;
+        if (scene.time.now > player.nextSideSpecialTime && scene.time.now - player.nextSideSpeciaTime < 100) {
+            spawnBox();
+        }
     }
 }
 function update() {
