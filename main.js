@@ -1207,8 +1207,10 @@ function updateKB(scene) {
         }
     }
 }
+var fiveframecount = 0;
 function update() {
 
+    fiveframecount += 1;
     
 
     const p1 = players.player;
@@ -1435,7 +1437,7 @@ function update() {
             handleDirSpecial(this, p1, 'right', this.time.now,p2);
             mobileControls.p1.rightPressed = false;
         }
-        if (!p1.hasHitSideSpecial && p1.isUsingSideSpecial) {
+        if (!p1.hasHitSideSpecial && p1.isUsingSideSpecial && fiveframecount === 5) {
             handleDirSpecialAttack(this, p1, p2);
         }
         if (wasd.left.isDown || mobileControls.p1.left) {
@@ -1542,7 +1544,7 @@ function update() {
             mobileControls.p2.rightPressed = false;
         }
 
-        if (!p2.hasHitSideSpecial && p2.isUsingSideSpecial) {
+        if (!p2.hasHitSideSpecial && p2.isUsingSideSpecial && fiveframecount === 5) {
             handleDirSpecialAttack(this, p2, p1);
         }
 
@@ -1691,4 +1693,7 @@ function update() {
         }
     }
     updateKB(this);
+    if (fiveframecount >= 5) {
+        fiveframecount = 0;
+    }
 }
