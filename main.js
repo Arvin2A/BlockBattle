@@ -475,7 +475,7 @@ function preload() {
     
     //other
     this.load.image('groundhitbox', 'assets/groundhitbox.png');
-    this.load.image('thickgroundhitbox', 'assets/groundhitbox.png');
+    this.load.image('thickgroundhitbox', 'assets/groundhitbox2.png');
     this.load.image('redstat', 'assets/KBstatBG1.png');
     this.load.image('bluestat', 'assets/KBstatBG2.png');
     this.load.image('p1guide', 'assets/p1guide.png');
