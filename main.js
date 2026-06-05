@@ -1502,7 +1502,7 @@ function update() {
                 ? !mobileControls.p1.up
                 : wasd.up.isUp;
 
-        if (jumpReleased && p1.body.velocity.y < 0) {
+        if (jumpReleased && p1.body.velocity.y < 0 && !p1.hasDoubleJumped) {
             p1.setVelocityY(p1.body.velocity.y / 2);
         }
 
@@ -1625,7 +1625,7 @@ function update() {
                 ? !mobileControls.p2.up
                 : cursors.up.isUp;
 
-        if (jumpReleased2 && p2.body.velocity.y < 0) {
+        if (jumpReleased2 && p2.body.velocity.y < 0 && !p1.hasDoubleJumped) {
             p2.setVelocityY(p2.body.velocity.y / 2);
         }
         if ((cursors.down.isDown || mobileControls.p2.down) && p2.airTime > 600) {
