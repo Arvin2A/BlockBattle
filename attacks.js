@@ -170,7 +170,7 @@ export function superSwing(scene, attacker, target, animKey) {
             target.setVelocityX((600 * target.KBmultiplier * attacker.baseDamageScale) * randDir);
             target.setVelocityY(-200 * target.KBmultiplier * attacker.baseDamageScale);
         } else {
-            target.setVelocityX((1000 * attacker.baseDamageScale) * dirX);
+            target.setVelocityX((900 * attacker.baseDamageScale) * dirX);
             target.setVelocityY((500 * target.KBmultiplier * attacker.baseDamageScale) * dirY);
         }
         attacker.combo = 0;
@@ -265,7 +265,7 @@ export function hardSwing(scene, attacker, target, animKey) {
         attacker.freeze = false;
         attacker.willDecelerate = true;
         attacker.comboTimer = 600;
-        target.KBmultiplier += 0.18* attacker.baseDamageScale;
+        target.KBmultiplier += 0.13* attacker.baseDamageScale;
         hitFreeze(scene, 100);
         if (attacker.name === "HAMMERMAN") {
             scene.sound.play('hammerhit');
@@ -491,7 +491,7 @@ export function tiltAttack(scene, attacker, target, {
     onUse = null
 }) {
     //they aren't really tilt attacks
-    if (scene.time.now < attacker.nextTiltTime) return;
+    if (scene.time.now < attacker.nextAttackTime) return;
     if (!attacker.canAttack || attacker.hitstun) return;
     setAttackSprite(attacker, animKey);
     if (onUse) {
@@ -548,7 +548,7 @@ export function tiltAttack(scene, attacker, target, {
     scene.time.delayedCall(kbTime + 150, () => {
         target.willDecelerate = true;
     });
-    attacker.nextTiltTime = scene.time.now + 400;
+    attacker.nextAttackTime = scene.time.now + 400;
 }
 export function tryAttack(scene, attacker, target, animKey, thirdAnimKey) {
     //handles some other stuff before calling either attack functions
@@ -749,7 +749,7 @@ export function tryMow(scene, player, target, direction, currentTime) {
             target.freeze = true;
             target.hitstun = true;
             const slash = scene.add.image(target.x, target.y, 'slasheffect');
-            slash.setScale(2);
+            slash.setScale(1.5);
             scene.tweens.add({
                 targets: slash,
                 alpha: 0, 
