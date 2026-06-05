@@ -139,7 +139,7 @@ export function attack(scene, attacker, target, animKey) {
         attacker.freeze = false;
         attacker.willDecelerate = true;
     });
-    target.revokeVictimStun = scene.time.delayedCall(500, () => {
+    target.revokeVictimStun = scene.time.delayedCall(650, () => {
         target.hitstun = false;
         target.freeze = false;
         target.willDecelerate = true;
