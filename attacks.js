@@ -1182,10 +1182,19 @@ export function handleDirSpecial(scene, attacker, direction, currentTime, victim
 
 }
 export function handleDirSpecialAttack(scene, attacker, victim) {
-    if (attacker.name === "SWORDMAN") {
-        lungePush(scene, attacker, victim, 'swordatkthird');
-    } else if (attacker.name === "AXEMAN") {
-        superSwing(scene, attacker, victim, 'axeatkthird');
+    const distance = Phaser.Math.Distance.Between(
+        attacker.x,
+        attacker.y,
+        victim.x,
+        victim.y
+    );
+
+    if (distance <= 100) {
+        if (attacker.name === "SWORDMAN") {
+            lungePush(scene, attacker, victim, 'swordatkthird');
+        } else if (attacker.name === "AXEMAN") {
+            superSwing(scene, attacker, victim, 'axeatkthird');
+        }
     }
 }
 export function handleHorizantalTilt(scene, attacker, victim, direction) {
