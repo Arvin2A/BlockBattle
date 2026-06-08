@@ -1,5 +1,6 @@
 import {handleAttack, handleDirSpecial, handleDirSpecialAttack, handleHorizantalTilt, handleDownTilt, handleUpTilt} from './attacks.js';
 import { initiatePlayers, updateCombo } from './players.js';
+import { Commands, executeStateCommand} from './commands.js';
 //UPDATE: HUGE REFACTOR OF CODE!! THIS IS FOR CLEANLINESS AND FOR THE FURTHER DEVELOPMENT OF THIS WEB APP
 //3 NEW SCRIPTS: main.js (current), players.js, attacks.js
 
@@ -1337,19 +1338,6 @@ function update() {
     else if (cursors.right.isDown || mobileControls.p2.right) p2.lastDir = { x: 1, y: 0 };
     else if (cursors.up.isDown || mobileControls.p2.up) p2.lastDir = { x: 0, y: -1 };
     else if (cursors.down.isDown || mobileControls.p2.down) p2.lastDir = { x: 0, y: 1 };
-
-    function decelerateAll() {
-        for (const key in players) {
-            const player = players[key];
-            let vx = player.body.velocity.x;
-
-            if (Math.abs(vx) > 10) {
-                player.setVelocityX(vx * 0.9);
-            } else {
-                player.setVelocityX(0);
-            }
-        }
-    }
     function decelerate(player) {
         if (player.isUsingSideSpecial) return;
         let vx = player.body.velocity.x;
@@ -1441,20 +1429,27 @@ function update() {
             handleDirSpecialAttack(this, p1, p2);
         }
         if (wasd.left.isDown || mobileControls.p1.left) {
-            if (!p1.isUsingSideSpecial) {
-                p1.setVelocityX(Phaser.Math.Clamp(p1.body.velocity.x - accelFactor, -p1.movementSpeed, p1.movementSpeed));
-            }
+            //transplant successful!
+            executeStateCommand(this, players, {
+                playerID: p1.id,
+                type: Commands.LEFT
+            });
         } else if (wasd.right.isDown || mobileControls.p1.right) {
-            if (!p1.isUsingSideSpecial) {
-                p1.setVelocityX(Phaser.Math.Clamp(p1.body.velocity.x + accelFactor, -p1.movementSpeed, p1.movementSpeed));
-            }
+            executeStateCommand(this, players, {
+                playerID: p1.id,
+                type: Commands.RIGHT
+            });
         } else {
-            if (p1.willDecelerate) {
-                decelerate(p1);
-            }
+            executeStateCommand(this, players, {
+                playerID: p1.id,
+                type: Commands.NONE
+            });
         }
         if ((wasd.up.isDown || mobileControls.p1.up) && p1.body.touching.down) {
-            p1.setVelocityY(-400);
+            executeStateCommand(this, players, {
+                playerID: p1.id,
+                type: Commands.UP
+            });
         }
         if (p1.body.blocked.down) {
             p1.hasDoubleJumped = false;
@@ -1473,10 +1468,10 @@ function update() {
                 inputMode.p1 = "keyboard";
             }
             if (!p1.body.touching.down && !p1.hasDoubleJumped) {
-                p1.setVelocityY(-400);
-                p1.doubleJumpEffect.setAlpha(1);
-                p1.hasDoubleJumped = true;
-                this.tweens.add({targets: p1.doubleJumpEffect,alpha: 0,duration: 200,ease: 'Cubic.easeOut'});
+                executeStateCommand(this, players, {
+                    playerID: p1.id,
+                    type: Commands.DOUBLE_UP
+                });
                 
             }
             mobileControls.p1.upPressed = false;
@@ -1503,12 +1498,17 @@ function update() {
                 : wasd.up.isUp;
 
         if (jumpReleased && p1.body.velocity.y < 0 && !p1.hasDoubleJumped) {
-            p1.setVelocityY(p1.body.velocity.y / 2);
+            executeStateCommand(this, players, {
+                playerID: p1.id,
+                type: Commands.UP_CANCEL
+            });
         }
 
         if ((wasd.down.isDown || mobileControls.p1.down) && p1.airTime > 600) {
-            p1.setVelocityY(800);
-            p1.afterimage = true;
+            executeStateCommand(this, players, {
+                playerID: p1.id,
+                type: Commands.DOWNSLAM
+            });
         }
 
     }
@@ -1550,26 +1550,32 @@ function update() {
 
         if (cursors.left.isDown || mobileControls.p2.left) {
             if (!p2.isUsingSideSpecial) {
-                p2.setVelocityX(
-                    Phaser.Math.Clamp(p2.body.velocity.x - accelFactor, -p2.movementSpeed, p2.movementSpeed)
-                );
+                executeStateCommand(this, players, {
+                    playerID: p2.id,
+                    type: Commands.LEFT
+                });
             }
         }
         else if (cursors.right.isDown || mobileControls.p2.right) {
             if (!p2.isUsingSideSpecial) {
-                p2.setVelocityX(
-                    Phaser.Math.Clamp(p2.body.velocity.x + accelFactor, -p2.movementSpeed, p2.movementSpeed)
-                );
+                executeStateCommand(this, players, {
+                    playerID: p2.id,
+                    type: Commands.RIGHT
+                });
             }
         }
         else {
-            if (p2.willDecelerate) {
-                decelerate(p2);
-            }
+            executeStateCommand(this, players, {
+                playerID: p2.id,
+                type: Commands.NONE
+            });
         }
 
         if ((cursors.up.isDown || mobileControls.p2.up) && p2.body.touching.down) {
-            p2.setVelocityY(-400);
+            executeStateCommand(this, players, {
+                playerID: p2.id,
+                type: Commands.UP
+            });
         }
 
         if (p2.body.touching.down) {
@@ -1584,15 +1590,9 @@ function update() {
             (Phaser.Input.Keyboard.JustDown(cursors.up) || mobileControls.p2.upPressed)
         ) {
             if (!p2.body.touching.down && !p2.hasDoubleJumped) {
-                p2.setVelocityY(-400);
-                p2.doubleJumpEffect.setAlpha(1);
-                p2.hasDoubleJumped = true;
-
-                this.tweens.add({
-                    targets: p2.doubleJumpEffect,
-                    alpha: 0,
-                    duration: 300,
-                    ease: 'Cubic.easeOut'
+                executeStateCommand(this, players, {
+                    playerID: p2.id,
+                    type: Commands.DOUBLE_UP
                 });
             }
             p2.lastInput.up = this.time.now;
@@ -1626,11 +1626,16 @@ function update() {
                 : cursors.up.isUp;
 
         if (jumpReleased2 && p2.body.velocity.y < 0 && !p2.hasDoubleJumped) {
-            p2.setVelocityY(p2.body.velocity.y / 2);
+            executeStateCommand(this, players, {
+                playerID: p2.id,
+                type: Commands.UP_CANCEL
+            });
         }
         if ((cursors.down.isDown || mobileControls.p2.down) && p2.airTime > 600) {
-            p2.afterimage = true;
-            p2.setVelocityY(800);
+            executeStateCommand(this, players, {
+                playerID: p2.id,
+                type: Commands.DOWNSLAM
+            });
         }
 
         //second directional special/tilt attack
