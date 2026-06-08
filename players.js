@@ -7,6 +7,8 @@ export function initiatePlayers(scene, p1Select = 'axeman', p2Select = 'swordman
     };
     players.player = scene.physics.add.sprite(xOff+50, yOff+545, p1Select);
     players.player2 = scene.physics.add.sprite(xOff+800, yOff+440, p2Select);
+    players.player.id = 1;
+    players.player2.id = 2;
     
     for (const key in players) {
         const p = players[key];
@@ -68,7 +70,7 @@ export function initiatePlayers(scene, p1Select = 'axeman', p2Select = 'swordman
 
         p.plungeMark;
 
-        p.movementSpeed = 250;
+        p.movementSpeed = 300;
         p.baseDamageScale = 1;
 
         p.plungeAura = scene.add.image(p.x, p.y, 'plungedAura');
