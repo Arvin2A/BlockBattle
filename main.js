@@ -20,6 +20,8 @@ import { Commands, executeStateCommand} from './commands.js';
 // and the sound effects were taken from various games as listed in the preload function.
 //WASD controls the first player , arrow keys control the second player.
 //E is the player1 attack, SHIFT is the player2 attack.
+
+//Mobile controls are added to the game now
 //You can double tap each player's corresponding side buttons (A + D), or (LEFT ARROW + RIGHT ARROW KEY) to do a special attack.
 //NEW UPDATE - LIGHT ATTACKS: Press a movement key, then quickly press the attack key to do a light attack. This can be helpful for comboing
 
