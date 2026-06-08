@@ -24,7 +24,10 @@ export function attackIsElligible(attacker, target, range = 100) {
     const una2 = isFacingDown && isTargetAbove; // SECOND CUSTOM RULE: Prevent attacking downwards if the target is above also to avoid pinning
     if (una) return false;
     if (una2) return false;
-    //if (dot > 0.7 || isFacingUp || isTargetAbove) target.flash();
+    if (dot > 0.7 || isFacingUp || isTargetAbove) target.flash();
+    if (isTargetAbove && (dot > 0.7 || isFacingUp)) {
+        attacker.atk.setAngle(45);
+    }
     return dot > 0.7 || isFacingUp || isTargetAbove; // Attack range and facing target
 }
 function hitFreeze(scene, ms = 50) {
