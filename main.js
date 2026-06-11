@@ -1410,6 +1410,10 @@ function runBotAI(scene, bot, target) {
     // ATTACK
     // ======================
 
+    if (dy > 50  && Math.abs(dy) < 100 && Math.abs(dx) < 26) {
+        bot.lastDir = { x: 0, y: 1 };
+    }
+
     const attackRange = 65;
     
     if (Math.abs(dx) < attackRange) {
@@ -1457,9 +1461,7 @@ function runBotAI(scene, bot, target) {
             type: Commands.NONE
         });
     }
-    if (dy > 50  && Math.abs(dy) < 100 && Math.abs(dx) < 26) {
-        bot.lastDir = { x: 0, y: 1 };
-    }
+    
     const specDirection = (bot.lastDir.x > 0 && bot.lastDir.x !== 0) ? "right" : "left";
     //CHARACTER-SPECIFIC SPECIAL ATTACK INTERACTIONS:
     if (bot.name === "AXEMAN") {
