@@ -1410,7 +1410,7 @@ function runBotAI(scene, bot, target) {
     // ATTACK
     // ======================
 
-    const attackRange = 110;
+    const attackRange = 100;
 
     if (Math.abs(dx) < attackRange) {
 
@@ -1519,7 +1519,7 @@ function runBotAI(scene, bot, target) {
     } else if (bot.name === "SCYTHEMAN") {
         const attackRange = 500;
 
-        if (Math.abs(dx) < attackRange && Math.abs(dx) > attackRange-100) {
+        if (Math.abs(dx) < attackRange && Math.abs(dx) > attackRange-200) {
 
             if (scene.time.now - bot.lastDirSpecial > 500) {
 
@@ -1555,7 +1555,7 @@ function runBotAI(scene, bot, target) {
             return;
         }
     } else if (bot.name === "SLATEMAN") {
-        const attackRange = 125;
+        const attackRange = 115;
 
         if (Math.abs(dx) < attackRange) {
 
@@ -1573,6 +1573,9 @@ function runBotAI(scene, bot, target) {
 
             return;
         }
+    }
+    if (!bot.hasHitSideSpecial && bot.isUsingSideSpecial && fiveframecount === 5) {
+        handleDirSpecialAttack(this, bot, target);
     }
     
 }
