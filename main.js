@@ -1414,11 +1414,11 @@ function runBotAI(scene, bot, target) {
     // ATTACK
     // ======================
 
-    if (dy > 50  && Math.abs(dy) < 100 && Math.abs(dx) < 26) {
+    if (dy > 50  && Math.abs(dy) < 100 && Math.abs(dx) < 36) {
         bot.lastDir = { x: 0, y: 1 };
     }
     if (
-        Math.abs(dx) < 25 &&
+        Math.abs(dx) < 35 &&
         dy < -250 &&
         scene.time.now > bot.escapeUntil
     ) {
