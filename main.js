@@ -1282,6 +1282,10 @@ function runBotAI(scene, bot, target) {
     // DISABLED STATES
     // ======================
 
+    if (!bot.escapeUntil) {
+        bot.escapeUntil = 0;
+    }
+
     if (bot.hitstun || bot.freeze || bot.isUsingSideSpecial) {
         executeStateCommand(scene, players, {
             playerID: bot.id,
@@ -1412,6 +1416,41 @@ function runBotAI(scene, bot, target) {
 
     if (dy > 50  && Math.abs(dy) < 100 && Math.abs(dx) < 26) {
         bot.lastDir = { x: 0, y: 1 };
+    }
+    if (
+        Math.abs(dx) < 25 &&
+        dy < -250 &&
+        scene.time.now > bot.escapeUntil
+    ) {
+        bot.escapeUntil = scene.time.now + 500;
+    
+        // move away from where the target is
+        bot.escapeDirection = dx >= 0 ? -1 : 1;
+    
+        // if almost perfectly centered, randomize
+        if (Math.abs(dx) < 5) {
+            bot.escapeDirection = Math.random() < 0.5 ? -1 : 1;
+        }
+    }
+    if (scene.time.now < bot.escapeUntil) {
+
+        if (bot.escapeDirection > 0) {
+            bot.lastDir = { x: 1, y: 0 };
+    
+            executeStateCommand(scene, players, {
+                playerID: bot.id,
+                type: Commands.RIGHT
+            });
+        } else if (bot.escapeDirection < 0) {
+            bot.lastDir = { x: -1, y: 0 };
+    
+            executeStateCommand(scene, players, {
+                playerID: bot.id,
+                type: Commands.LEFT
+            });
+        }
+    
+        return;
     }
 
     const attackRange = 65;
