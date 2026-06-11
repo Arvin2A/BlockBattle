@@ -1458,7 +1458,7 @@ function runBotAI(scene, bot, target) {
         });
 
     }
-    const specDirection = (bot.lastDir > 0 && bot.lastDir !== 0) ? "right" : "left";
+    const specDirection = (bot.lastDir.x > 0 && bot.lastDir.x !== 0) ? "right" : "left";
     //CHARACTER-SPECIFIC SPECIAL ATTACK INTERACTIONS:
     if (bot.name === "AXEMAN") {
         const attackRange = 110;
@@ -1555,7 +1555,7 @@ function runBotAI(scene, bot, target) {
             return;
         }
     } else if (bot.name === "SLATEMAN") {
-        const attackRange = 115;
+        const attackRange = 110;
 
         if (Math.abs(dx) < attackRange) {
 
