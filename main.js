@@ -1411,9 +1411,7 @@ function runBotAI(scene, bot, target) {
     // ======================
 
     const attackRange = 65;
-    if (dy > 25  && Math.abs(dy) < 100) {
-        bot.lastDir = { x: 0, y: 1 };
-    }
+    
     if (Math.abs(dx) < attackRange) {
 
         if (scene.time.now - bot.lastAttack > 100) {
@@ -1434,7 +1432,9 @@ function runBotAI(scene, bot, target) {
     // ======================
     // CHASE
     // ======================
-
+    if (dy > 50  && Math.abs(dy) < 100) {
+        bot.lastDir = { x: 0, y: 1 };
+    }
     if (dx > deadzone) {
 
         bot.lastDir = { x: 1, y: 0 };
