@@ -1555,7 +1555,7 @@ function runBotAI(scene, bot, target) {
             return;
         }
     } else if (bot.name === "SLATEMAN") {
-        const attackRange = 110;
+        const attackRange = 130;
 
         if (Math.abs(dx) < attackRange) {
 
