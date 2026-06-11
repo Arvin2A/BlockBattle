@@ -1025,49 +1025,88 @@ export function tryPlunge(scene, player, target, direction, currentTime) {
     if (player.hitstun || player.freeze) return;
     if (currentTime < player.nextSideSpecialTime) return;
 
-    if (currentTime - player.lastTap[direction] < dtapDelay || player.isBot) {
-
-        let currentLastDir = player.lastDir.x;
-
-        const dagger = scene.physics.add.sprite(player.x + (currentLastDir * 25) , player.y, 'slateplunge');
-        dagger.setOrigin(0.5, 0.5);
-        dagger.setFrame(0);
-        dagger.setFlipX(-player.lastDir.x < 0);
-        scene.objs.add(dagger);
-        let plungeCanceled = false;
-        let globcurrentFrame = 0;
-        const daggerTrack = () => {
-            dagger.x = player.x + (currentLastDir * 25);
-            dagger.y = player.y;
-        };
-        scene.events.on('update', daggerTrack);
-        dagger.play('slateplunge');
-        
-        dagger.on('animationcomplete-slateplunge', () => {
-            scene.events.off('update', daggerTrack);
-            dagger.destroy(); 
-            
-        });
-        
-        
-        dagger.on('animationupdate', (animation, frame) => {
-            const currentFrame = frame.index; 
-            globcurrentFrame = currentFrame;
-            if (plungeCanceled) return;
-            
-            if (currentFrame >= 6 && currentFrame <= 10) {
-                let plungeResult = markPlunge(scene, player, target, currentLastDir);
-                if (plungeResult) {
-                    plungeCanceled = true;
-                }
-                if (!plungeResult && currentFrame === 10) {
-                    scene.sound.play('miss');
-                }
-            }
-        });
-
-        player.nextSideSpecialTime = currentTime + pullCD;
+    if (
+        currentTime - player.lastTap[direction] >= dtapDelay &&
+        !player.isBot
+    ) {
+        player.lastTap[direction] = currentTime;
+        return;
     }
+
+    player.nextSideSpecialTime = currentTime + pullCD;
+
+    const currentLastDir = player.lastDir.x;
+
+    const dagger = scene.physics.add.sprite(
+        player.x + currentLastDir * 25,
+        player.y,
+        'slateplunge'
+    );
+
+    dagger.setOrigin(0.5, 0.5);
+    dagger.setFrame(0);
+    dagger.setFlipX(-currentLastDir < 0);
+
+    scene.objs.add(dagger);
+
+    let plungeCanceled = false;
+    let attackActive = false;
+    let missPlayed = false;
+
+    const hitTargets = new Set();
+
+    const daggerTrack = () => {
+        dagger.x = player.x + currentLastDir * 25;
+        dagger.y = player.y;
+    };
+
+    const plungeUpdate = () => {
+        if (!attackActive || plungeCanceled) return;
+
+        // Prevent multiple hits on same target
+        if (hitTargets.has(target.id)) return;
+
+        const plungeResult = markPlunge(
+            scene,
+            player,
+            target,
+            currentLastDir
+        );
+
+        if (plungeResult) {
+            plungeCanceled = true;
+            hitTargets.add(target.id);
+        }
+    };
+
+    scene.events.on('update', daggerTrack);
+    scene.events.on('update', plungeUpdate);
+
+    dagger.play('slateplunge');
+
+    dagger.on('animationupdate', (animation, frame) => {
+        const currentFrame = frame.index;
+
+        // Active frames
+        attackActive = currentFrame >= 6 && currentFrame <= 10;
+
+        // Miss sound once when active window ends
+        if (
+            currentFrame > 10 &&
+            !plungeCanceled &&
+            !missPlayed
+        ) {
+            missPlayed = true;
+            scene.sound.play('miss');
+        }
+    });
+
+    dagger.on('animationcomplete-slateplunge', () => {
+        scene.events.off('update', daggerTrack);
+        scene.events.off('update', plungeUpdate);
+
+        dagger.destroy();
+    });
 
     player.lastTap[direction] = currentTime;
 }
