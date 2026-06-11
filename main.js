@@ -1432,9 +1432,7 @@ function runBotAI(scene, bot, target) {
     // ======================
     // CHASE
     // ======================
-    if (dy > 50  && Math.abs(dy) < 100) {
-        bot.lastDir = { x: 0, y: 1 };
-    }
+    
     if (dx > deadzone) {
 
         bot.lastDir = { x: 1, y: 0 };
@@ -1458,6 +1456,9 @@ function runBotAI(scene, bot, target) {
             playerID: bot.id,
             type: Commands.NONE
         });
+    }
+    if (dy > 50  && Math.abs(dy) < 100 && Math.abs(dx) < 26) {
+        bot.lastDir = { x: 0, y: 1 };
     }
     const specDirection = (bot.lastDir.x > 0 && bot.lastDir.x !== 0) ? "right" : "left";
     //CHARACTER-SPECIFIC SPECIAL ATTACK INTERACTIONS:
