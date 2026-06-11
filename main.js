@@ -1422,7 +1422,7 @@ function runBotAI(scene, bot, target) {
         dy < -250 &&
         scene.time.now > bot.escapeUntil
     ) {
-        bot.escapeUntil = scene.time.now + 500;
+        bot.escapeUntil = scene.time.now + 1500;
     
         // move away from where the target is
         bot.escapeDirection = dx >= 0 ? -1 : 1;
