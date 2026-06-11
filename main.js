@@ -1452,11 +1452,30 @@ function runBotAI(scene, bot, target) {
         });
 
     } else {
-        executeStateCommand(scene, players, {
-            playerID: bot.id,
-            type: Commands.NONE
-        });
 
+        // Don't stand still if we're significantly above the target
+        if (Math.abs(dy) > 150) {
+    
+            if (dx >= 0) {
+                executeStateCommand(scene, players, {
+                    playerID: bot.id,
+                    type: Commands.RIGHT
+                });
+            } else {
+                executeStateCommand(scene, players, {
+                    playerID: bot.id,
+                    type: Commands.LEFT
+                });
+            }
+    
+        } else {
+    
+            executeStateCommand(scene, players, {
+                playerID: bot.id,
+                type: Commands.NONE
+            });
+    
+        }
     }
     const specDirection = (bot.lastDir.x > 0 && bot.lastDir.x !== 0) ? "right" : "left";
     //CHARACTER-SPECIFIC SPECIAL ATTACK INTERACTIONS:
