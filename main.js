@@ -1274,7 +1274,7 @@ function runBotAI(scene, bot, target) {
 
     const edgeBuffer = 100;
     const recoveryMargin = 50;
-    const deadzone = -15; //REALLY LOW
+    const deadzone = 0; //REALLY LOW
 
     const dx = target.x - bot.x;
     const dy = target.y - bot.y;
@@ -1411,7 +1411,9 @@ function runBotAI(scene, bot, target) {
     // ======================
 
     const attackRange = 65;
-
+    if (dy > 0 && Math.abs(dy) < 100) {
+        bot.lastDir = { x: 0, y: 1 };
+    }
     if (Math.abs(dx) < attackRange) {
 
         if (scene.time.now - bot.lastAttack > 100) {
