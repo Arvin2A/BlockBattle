@@ -6,7 +6,6 @@ export function attackIsElligible(attacker, target, range = 100) {
     const distance = Math.hypot(dx, dy);
     if (distance > range) return false; // Too far away
     target.flash();
-    console.log("IN RANGE");
 
     const dirToTargetX = dx / distance;
     const dirToTargetY = dy / distance;
@@ -18,15 +17,38 @@ export function attackIsElligible(attacker, target, range = 100) {
     const isFacingDown = attacker.lastDir.y > 0.9 && Math.abs(attacker.lastDir.x) < 0.2;
     //technically, decimal values are useless, because the values are only 0, 1, or -1
     //but this just adds a bit of leniency just in case we add mobile or controller support later where the input might not be perfectly digital
-    const isTargetAbove = dy < -25;
-    const isAttackerAbove = dy > 25;
+    const isTargetAbove = dy < (isFacingUp || isFacingDown ? -25 : -10);
+    let isAttackerAbove = dy > 25;
     const una = isAttackerAbove && isFacingUp; // CUSTOM RULE: Prevent attacking upwards and pulling the player under the attacker
     const una2 = isFacingDown && isTargetAbove; // SECOND CUSTOM RULE: Prevent attacking downwards if the target is above also to avoid pinning
     if (una) return false;
     if (una2) return false;
-    if (dot > 0.7 || isFacingUp || isTargetAbove) target.flash();
-    if (isTargetAbove && attacker.lastDir.y === 0 && (dot > 0.7 || isFacingUp)) {
-        attacker.atk.setAngle(-45);
+    if (dot > 0.7 || isFacingUp || isTargetAbove) {
+        const angleToTarget = Phaser.Math.RadToDeg(
+            Math.atan2(target.y - attacker.y, target.x - attacker.x)
+        );
+
+        const attackDirAngle = Phaser.Math.RadToDeg(
+            Math.atan2(attacker.lastDir.y, attacker.lastDir.x)
+        );
+
+        let finalAngle =
+            attackDirAngle +
+            Phaser.Math.Angle.ShortestBetween(
+                attackDirAngle,
+                angleToTarget
+            ) / 2;
+
+        if (attacker.lastDir.x < 0) {
+            finalAngle += 180;
+        }
+        if (attacker.lastDir.y !== 0) {
+            finalAngle += 180;
+        }
+        attacker.atk.setAngle(finalAngle);
+
+        target.flash();
+
     }
     return dot > 0.7 || isFacingUp || isTargetAbove; // Attack range and facing target
 }
@@ -59,10 +81,45 @@ function hitFreeze(scene, ms = 50) {
         scene.baseZoom = 1
     });
 }
+
+function clearQueuedStunTimers(scene, attacker, target) {
+    if (attacker.revokeAggressorStun) {
+        scene.time.removeEvent(attacker.revokeAggressorStun);
+        attacker.revokeAggressorStun = null;
+    }
+
+    if (target.revokeVictimStun) {
+        scene.time.removeEvent(target.revokeVictimStun);
+        target.revokeVictimStun = null;
+    }
+}
+
+function queueStunRelease(scene, attacker, target, attackerDelay = 400, victimDelay = 650) {
+    clearQueuedStunTimers(scene, attacker, target);
+
+    const stunToken = (target.stunToken || 0) + 1;
+    target.stunToken = stunToken;
+
+    attacker.revokeAggressorStun = scene.time.delayedCall(attackerDelay, () => {
+        attacker.canAttack = true;
+        attacker.freeze = false;
+        attacker.willDecelerate = true;
+        attacker.revokeAggressorStun = null;
+    });
+
+    target.revokeVictimStun = scene.time.delayedCall(victimDelay, () => {
+        if (target.stunToken !== stunToken) return;
+        target.hitstun = false;
+        target.freeze = false;
+        target.willDecelerate = true;
+        target.revokeVictimStun = null;
+    });
+}
+
 export function setAttackSprite(attacker, animKey) {
     attacker.atk.setVisible(true);
     attacker.atk.x = attacker.x + attacker.lastDir.x * 50;
-    attacker.atk.y = attacker.y + attacker.lastDir.y * 50;
+    attacker.atk.y = attacker.y + attacker.lastDir.y * 50 - 20;
 
     if (animKey == "scytheatktilt") {
         attacker.atk.setFlipX(attacker.lastDir.x < 0);
@@ -105,7 +162,6 @@ export function attack(scene, attacker, target, animKey) {
         const dirX = attacker.lastDir.x;
         const dirY = attacker.lastDir.y;
         scene.time.delayedCall(50, () => {
-            console.log(dirX, dirY);
             target.setVelocityX(100 * dirX);
             target.setVelocityY(100 * dirY);
         });
@@ -135,18 +191,7 @@ export function attack(scene, attacker, target, animKey) {
         attacker.atk.stop();
         attacker.atk.setVisible(false);
     });
-    if (attacker.revokeAggressorStun) scene.time.removeEvent(attacker.revokeAggressorStun);
-    if (target.revokeVictimStun) scene.time.removeEvent(target.revokeVictimStun);
-    attacker.revokeAggressorStun = scene.time.delayedCall(400, () => {
-        attacker.canAttack = true;
-        attacker.freeze = false;
-        attacker.willDecelerate = true;
-    });
-    target.revokeVictimStun = scene.time.delayedCall(650, () => {
-        target.hitstun = false;
-        target.freeze = false;
-        target.willDecelerate = true;
-    });
+    queueStunRelease(scene, attacker, target, 400, 650);
     return hit;
 }
 export function superSwing(scene, attacker, target, animKey) {
@@ -369,7 +414,6 @@ export function lungePush(scene, attacker, target, animKey) {
 export function thirdAttack(scene, attacker, target, animKey) {
     //The third attack launching the target away
     setAttackSprite(attacker, animKey);
-    console.log("Third Attack!");
     if (attackIsElligible(attacker, target)) {
         target.hitstun = true;
         target.willDecelerate = false;
@@ -427,7 +471,6 @@ export function thirdAttack(scene, attacker, target, animKey) {
 export function slamThirdAttack(scene, attacker, target, animKey) {
     //The third attack launching the target away
     setAttackSprite(attacker, animKey);
-    console.log("Third Attack!");
     if (attackIsElligible(attacker, target)) {
         target.hitstun = true;
         target.willDecelerate = false;
@@ -543,10 +586,13 @@ export function tiltAttack(scene, attacker, target, {
     scene.time.delayedCall(300, () => {
         attacker.canAttack = true;
     });
-    if (attacker.revokeAggressorStun) scene.time.removeEvent(attacker.revokeAggressorStun);
-    if (target.revokeVictimStun) scene.time.removeEvent(target.revokeVictimStun);
-    scene.time.delayedCall(kbTime, () => {
+    if (target.hitstunTimer) {
+        target.hitstunTimer.remove();
+    }
+
+    target.hitstunTimer = scene.time.delayedCall(kbTime + 250, () => {
         target.hitstun = false;
+        target.hitstunTimer = null;
     });
     scene.time.delayedCall(kbTime + 150, () => {
         target.willDecelerate = true;
@@ -619,7 +665,7 @@ export function tryLunge(scene, player, direction, currentTime, animKey = 'sword
 
     player.atk.setFrame(0);
     player.atk.play(animKey, true);
-    if (currentTime - player.lastTap[direction] < dtapDelay) {
+    if (currentTime - player.lastTap[direction] < dtapDelay || player.isBot) {
         player.atk.setVisible(true);
         player.atk.x = player.x + player.lastDir.x * 50;
         player.atk.y = player.y + player.lastDir.y * 50;
@@ -666,7 +712,7 @@ export function tryCleave(scene, player, direction, currentTime) {
     if (player.hitstun || player.freeze) return;
     if (currentTime < player.nextSideSpecialTime) return;
 
-    if (currentTime - player.lastTap[direction] < dtapDelay) {
+    if (currentTime - player.lastTap[direction] < dtapDelay || player.isBot) {
 
         player.isUsingSideSpecial = true;
         player.hasHitSideSpecial = false;
@@ -702,7 +748,7 @@ export function tryMow(scene, player, target, direction, currentTime) {
     if (player.hitstun || player.freeze) return;
     if (currentTime < player.nextSideSpecialTime) return;
 
-    if (currentTime - player.lastTap[direction] < dtapDelay) {
+    if (currentTime - player.lastTap[direction] < dtapDelay || player.isBot) {
         //summon a mowing scythe
         player.isUsingSideSpecial = true;
         player.hasHitSideSpecial = false;
@@ -716,7 +762,6 @@ export function tryMow(scene, player, target, direction, currentTime) {
         const fakescythe = scene.add.image(player.x, player.y, 'whitescythe');
         fakescythe.setScale(2);
 
-        console.log("GO");
 
         scene.physics.add.existing(fakescythe);
 
@@ -760,15 +805,24 @@ export function tryMow(scene, player, target, direction, currentTime) {
                 onComplete: () => slash.destroy()
             });
             canhit = false;
-            console.log("tuch")
             scene.time.delayedCall(40, () => {
                 canhit = true;
             });  
-            scene.time.delayedCall(1350, () => {
+            if (target.revokeMowStun) {
+                scene.time.removeEvent(target.revokeMowStun);
+            }
+
+            const mowStunToken = ++target.mowStunToken;
+            const mowStunDuration = 1750;
+
+            target.revokeMowStun = scene.time.delayedCall(mowStunDuration, () => {
+                if (target.mowStunToken !== mowStunToken) return;
                 player.hasHitSideSpecial = true;
                 target.freeze = false;
                 target.hitstun = false;
-            });   
+                target.willDecelerate = true;
+                target.revokeMowStun = null;
+            });
 
             scene.sound.play('slash');
             target.KBmultiplier += 0.055* player.baseDamageScale;
@@ -837,7 +891,7 @@ export function tryRepair(scene, player, target, direction, currentTime) {
     if (player.hitstun || player.freeze) return;
     if (currentTime < player.nextSideSpecialTime) return;
 
-    if (currentTime - player.lastTap[direction] < dtapDelay) {
+    if (currentTime - player.lastTap[direction] < dtapDelay || player.isBot) {
 
         player.isUsingSideSpecial = true;
         player.hasHitSideSpecial = false;
@@ -845,7 +899,7 @@ export function tryRepair(scene, player, target, direction, currentTime) {
         // face direction
         player.atk.setVisible(true);
         player.atk.x = player.x + player.lastDir.x * 50;
-        player.atk.y = player.y + player.lastDir.y * 50;
+        player.atk.y = player.y + player.lastDir.y * 50 - 20;
 
         player.atk.setFlipX(-player.lastDir.x < 0);
 
@@ -971,7 +1025,7 @@ export function tryPlunge(scene, player, target, direction, currentTime) {
     if (player.hitstun || player.freeze) return;
     if (currentTime < player.nextSideSpecialTime) return;
 
-    if (currentTime - player.lastTap[direction] < dtapDelay) {
+    if (currentTime - player.lastTap[direction] < dtapDelay || player.isBot) {
 
         let currentLastDir = player.lastDir.x;
 
@@ -1024,7 +1078,7 @@ export function tryPull(scene, player, target, direction, currentTime) {
     if (player.hitstun || player.freeze) return;
     if (currentTime < player.nextSideSpecialTime) return;
 
-    if (currentTime - player.lastTap[direction] < dtapDelay) {
+    if (currentTime - player.lastTap[direction] < dtapDelay || player.isBot) {
 
         player.isUsingSideSpecial = true;
         player.hasHitSideSpecial = false;
@@ -1169,6 +1223,7 @@ export function handleAttack(scene, attacker, victim) {
     }
 }
 export function handleDirSpecial(scene, attacker, direction, currentTime, victim) {
+    console.log("FIRED");
     if (attacker.name === "SWORDMAN") {
         tryLunge(scene, attacker, direction, currentTime);
     } else if (attacker.name === "AXEMAN") {
@@ -1206,7 +1261,7 @@ export function handleHorizantalTilt(scene, attacker, victim, direction) {
             animKey: 'swordatktilt',
             kb: 0.035,
             xMul: 0.9,
-            yMul: 0.2,
+            yMul: 0.3,
             range: 125,
             freeze: 80,
             sfx: 'swosh',
@@ -1218,7 +1273,7 @@ export function handleHorizantalTilt(scene, attacker, victim, direction) {
             animKey: 'axeatktilt',
             kb: 0.035,
             xMul: 0.9,
-            yMul: 0.2,
+            yMul: 0.3,
             range: 125,
             freeze: 80,
             sfx: 'swosh',
@@ -1231,7 +1286,7 @@ export function handleHorizantalTilt(scene, attacker, victim, direction) {
             animKey: 'scytheatktilt',
             kb: 0.035,
             xMul: 0.9,
-            yMul: 0.2,
+            yMul: 0.3,
             range: 125,
             freeze: 80,
             sfx: 'swosh',
@@ -1245,7 +1300,7 @@ export function handleHorizantalTilt(scene, attacker, victim, direction) {
             animKey: 'slateatktilt',
             kb: 0.035,
             xMul: 0.9,
-            yMul: 0.2,
+            yMul: 0.3,
             range: 125,
             freeze: 80,
             sfx: 'swosh',

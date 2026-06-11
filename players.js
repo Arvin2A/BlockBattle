@@ -9,6 +9,8 @@ export function initiatePlayers(scene, p1Select = 'axeman', p2Select = 'swordman
     players.player2 = scene.physics.add.sprite(xOff+800, yOff+440, p2Select);
     players.player.id = 1;
     players.player2.id = 2;
+    players.player.lastDir = { x: 1, y: 0 };
+    players.player2.lastDir = { x: -1, y: 0 };
     
     for (const key in players) {
         const p = players[key];
@@ -16,6 +18,9 @@ export function initiatePlayers(scene, p1Select = 'axeman', p2Select = 'swordman
         p.canAttack = true;
         p.revokeAggressorStun = null;
         p.revokeVictimStun = null;
+        p.revokeMowStun = null;
+        p.stunToken = 0;
+        p.mowStunToken = 0;
         p.hitstun = false;
         p.freeze = false;
         p.willDecelerate = true;
@@ -48,13 +53,14 @@ export function initiatePlayers(scene, p1Select = 'axeman', p2Select = 'swordman
             up: 0,
             down: 0
         };
+        p.atkXOffset = 45;
+        p.atkYOffset = 50;
         p.lastAttackTime = 0
         p.flashObject = scene.add.rectangle(p.x, p.y, 50, 50, 0xffffff);
         p.flashObject.setAlpha(0);
         p.flashObject.setDepth(9999);
         scene.objs.add(p.flashObject);
         p.flash = function() {
-            console.log("flash!");
             
             p.flashObject.setAlpha(0.5);
             console.log(p.flashObject);
@@ -75,10 +81,10 @@ export function initiatePlayers(scene, p1Select = 'axeman', p2Select = 'swordman
 
         p.plungeAura = scene.add.image(p.x, p.y, 'plungedAura');
         p.plungeAura.visible = false;
+        p.isBot = false;
         scene.objs.add(p.plungeAura);
     }
-    players.player.lastDir = { x: 1, y: 0 };
-    players.player2.lastDir = { x: -1, y: 0 };
+    
 
     players.player.winText = scene.add.text(400, 300, '', {
         fontFamily: 'VCROSD',
@@ -149,16 +155,22 @@ export function initiatePlayers(scene, p1Select = 'axeman', p2Select = 'swordman
         scene.objs.add(p.atk);
     }
 
-    players.player.header = scene.add.text(players.player.x, players.player.y - 50, "P1" ,{ fontFamily: 'GameFont', fontSize: '15px', fill: '#ff4343' });
-    players.player2.header = scene.add.text(players.player2.x, players.player2.y - 50, "P2" ,{ fontFamily: 'GameFont', fontSize: '15px', fill: '#0051ff' });
+    players.player.header = scene.add.text(players.player.x, players.player.y - 50, "P1" ,{ fontFamily: 'GameFont', fontSize: '18px', fill: '#ff4343' });
+    players.player2.header = scene.add.text(players.player2.x, players.player2.y - 50, scene.botMode ? 'CPU' : 'P2' ,{ fontFamily: 'GameFont', fontSize: '18px', fill: '#0051ff' });
     scene.objs.add(players.player.header);
     scene.objs.add(players.player2.header);
 
     players.player.atk.setVisible(false);
     players.player2.atk.setVisible(false);
 
+    if (scene.botMode) {
+        players.player2.lastJump = 0;
+        players.player2.lastAttack = 0;
+        players.player2.lastDirSpecial = 0;
+        players.player2.isBot = true;
+    }
+
     
-    console.log(players.player)
     return players;
 }
 
