@@ -1274,7 +1274,7 @@ function runBotAI(scene, bot, target) {
 
     const edgeBuffer = 100;
     const recoveryMargin = 50;
-    const deadzone = 0;
+    const deadzone = -15; //REALLY LOW
 
     const dx = target.x - bot.x;
     const dy = target.y - bot.y;
