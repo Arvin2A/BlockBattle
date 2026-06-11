@@ -30,12 +30,15 @@ import { Commands, executeStateCommand} from './commands.js';
 
 //UPDATE: ADDED 3 NEW CHARACTERS: FISHERMAN, SCYTHEMAN, AND HAMMERMAN
 //FUTURE UPDATES: ADD VFX AND POLISH
+
+export var botMode = false; //Instead of a P2, you can fight an AI instead. (CPU)
+
 function sleep(ms) {
     return new Promise(resolve => setTimeout(resolve, ms));
     //was meant to be used, but was succeeded later after the discovery of scene.time.delayedCall
 }
 async function loadFont() {
-    const font = new FontFace('GameFont', 'url(assets/fonts/GameFont.otf)');
+    const font = new FontFace('GameFont', 'url(assets/fonts/GameFont.ttf)');
     await font.load();
     document.fonts.add(font);
     const font2 = new FontFace('VCROSD', 'url(assets/fonts/VCROSD.ttf)')
@@ -50,33 +53,74 @@ var MenuScene = {
     key: 'MenuScene',
     preload: function () {
         this.load.image('menuBackground', 'assets/Homescreen.png');
+        this.load.image('uifade', 'assets/uifade.png');
     },
     create: function () {
         const bg = this.add.image(500, 300, 'menuBackground');
         bg.setDisplaySize(this.scale.width, this.scale.height);
         // Create menu UI elements here
+        const fade = this.add.image(500, 300, 'uifade');
+        fade.setDisplaySize(this.scale.width, this.scale.height);
         const startBox = this.add.rectangle(
+            850,
             500,
-            500,
-            400,
+            250,
             70,
-            0x228B22
+            0x111111
         );
-        startBox.setStrokeStyle(3, 0x154a17);
+        startBox.setStrokeStyle(4, 0x000000);
 
-        var startText = this.add.text(500, 500, 'Start Game', { fontFamily: 'GameFont', fontSize: '28px', fill: '#FFFFFF', stroke: '#000000', strokeThickness: 6 }).setOrigin(0.5).setInteractive({ useHandCursor: true });
+        var startText = this.add.text(850, 500, 'PLAY AS 2 PLAYERS', { fontFamily: 'VCROSD', fontSize: '24px', fill: '#FFFFFF', stroke: '#000000', strokeThickness: 6 }).setOrigin(0.5).setInteractive({ useHandCursor: true });
         
         startText.setInteractive();
         startText.on('pointerover', function () {
-            startText.setStyle({ fill: '#0b410b' });
+            startBox.setFillStyle(0xffffff);
+            startBox.setStrokeStyle(4, 0xbbbbbb);
         });
 
         startText.on('pointerout', function () {
-            startText.setStyle({ fill: '#FFFFFF' });
+            startBox.setFillStyle(0x111111);
+            startBox.setStrokeStyle(4, 0x000000);
         });
         startText.on('pointerdown', function () {
+            botMode = false;
             this.scene.start('CharacterSelectScene');
         }, this);
+        const botBox = this.add.rectangle(
+            875,
+            420,
+            200,
+            70,
+            0x111111
+        );
+        botBox.setStrokeStyle(4, 0x000000);
+
+        const botText = this.add.text(
+            875,
+            420,
+            'PLAY VS CPU',
+            {
+                fontFamily: 'VCROSD',
+                fontSize: '28px',
+                fill: '#FFFFFF',
+                stroke: '#000000',
+                strokeThickness: 6
+            }
+        ).setOrigin(0.5);
+        botText.setInteractive();
+        botText.on('pointerdown', function () {
+            botMode = true;
+            this.scene.start('CharacterSelectScene');
+        }, this);
+        botText.on('pointerover', function () {
+            botBox.setFillStyle(0xffffff);
+            botBox.setStrokeStyle(4, 0xbbbbbb);
+        });
+
+        botText.on('pointerout', function () {
+            botBox.setFillStyle(0x111111);
+            botBox.setStrokeStyle(4, 0x000000);
+        });
     }
 };
 var player1Character = '';
@@ -137,7 +181,9 @@ var CharacterSelectScene = {
         this.add.text(
             500,
             50,
-            'SELECT YOUR CHARACTER',
+            botMode
+        ? 'SELECT PLAYER AND CPU'
+        : 'SELECT YOUR CHARACTER',
             {
                 fontFamily: 'VCROSD',
                 fontSize: '35px',
@@ -161,7 +207,7 @@ var CharacterSelectScene = {
                 this.characters[i],
                 {
                     fontFamily: 'GameFont',
-                    fontSize: '24px',
+                    fontSize: '32px',
                     fill: '#ffffff',
                     stroke: '#000000',
                     strokeThickness: 5
@@ -181,7 +227,7 @@ var CharacterSelectScene = {
             '⚔ P1',
             {
                 fontFamily: 'GameFont',
-                fontSize: '20px',
+                fontSize: '28px',
                 fill: '#ff4444'
             }
         ).setOrigin(0.5);
@@ -192,10 +238,13 @@ var CharacterSelectScene = {
             '🪓 P2',
             {
                 fontFamily: 'GameFont',
-                fontSize: '20px',
+                fontSize: '28px',
                 fill: '#00aaff'
             }
         ).setOrigin(0.5);
+        if (botMode) {
+            this.p2Cursor.setText('CPU');
+        }
 
         //DESCRIPTIONS:
         const DESCBOX1 = this.add.rectangle(
@@ -214,7 +263,7 @@ var CharacterSelectScene = {
         );
         this.p1NameText = this.add.text(130, 200, '', {
             fontFamily: 'GameFont',
-            fontSize: '18px',
+            fontSize: '26px',
             fill: '#ffffff',
             align: 'center',
         }).setOrigin(0.5);
@@ -229,7 +278,7 @@ var CharacterSelectScene = {
 
         this.p2NameText = this.add.text(870, 200, '', {
             fontFamily: 'GameFont',
-            fontSize: '18px',
+            fontSize: '26px',
             fill: '#ffffff'
         }).setOrigin(0.5);
 
@@ -286,7 +335,7 @@ var CharacterSelectScene = {
             'PLAY',
             {
                 fontFamily: 'GameFont',
-                fontSize: '38px',
+                fontSize: '44px',
                 fill: '#ffffff'
             }
         ).setOrigin(0.5);
@@ -642,6 +691,7 @@ function create() {
         p1: 0,
         p2: 0
     };
+    this.botMode = botMode;
     this.input.addPointer(5);
     this.baseZoom = 1;
     this.hud = this.add.container(0, 0);
@@ -730,6 +780,7 @@ function create() {
     ground.setVisible(false);
     ground.refreshBody();
     this.objs.add(ground);
+    this.mainGround = ground;
 
     const ground2 = topPlatforms.create(xOff+ 725, yOff+470, 'groundhitbox');
     ground2.setDisplaySize(this.scale.width / 2, 0);
@@ -985,14 +1036,14 @@ function create() {
     this.hud.add(plr1Icon);
     this.hud.add(plr2Icon);
 
-    const plr1NameText = this.add.text(280, 47, players.player.name, { fontFamily: 'GameFont', fontSize: '10px', fill: '#FFFFFF' });
-    const plr2NameText = this.add.text(680, 47, players.player2.name, { fontFamily: 'GameFont', fontSize: '10px', fill: '#FFFFFF' });
+    const plr1NameText = this.add.text(280, 47, players.player.name, { fontFamily: 'GameFont', fontSize: '16px', fill: '#FFFFFF' });
+    const plr2NameText = this.add.text(680, 47, players.player2.name, { fontFamily: 'GameFont', fontSize: '16px', fill: '#FFFFFF' });
     plr1NameText.setStroke('#000000', 3);
     plr2NameText.setStroke('#000000', 3);
     this.hud.add(plr1NameText);
     this.hud.add(plr2NameText);
-    players.player.KBText = this.add.text(285, 65, 'KB: 1.00', { fontFamily: 'GameFont', fontSize: '14px', fill: '#FFFFFF' });
-    players.player2.KBText = this.add.text(685, 65, 'KB: 1.00', { fontFamily: 'GameFont', fontSize: '14px', fill: '#FFFFFF' });
+    players.player.KBText = this.add.text(285, 65, 'KB: 1.00', { fontFamily: 'GameFont', fontSize: '20px', fill: '#FFFFFF' });
+    players.player2.KBText = this.add.text(685, 65, 'KB: 1.00', { fontFamily: 'GameFont', fontSize: '20px', fill: '#FFFFFF' });
     players.player.KBText.setStroke('#000000', 3);
     players.player2.KBText.setStroke('#000000', 3);
     this.hud.add(players.player2.KBText);
@@ -1152,13 +1203,17 @@ function updateKB(scene) {
                 player.y,
                 50,
                 50,
-                0xffbf00
+                0xffbf00,
+                0.5
             );
             scene.objs.add(box);
             scene.tweens.add({
                 targets: box,
                 alpha: 0,
                 duration: 100,
+                onUpdate: () => {
+                    box.setPosition(player.x, player.y);
+                },
                 onComplete: () => {
                     box.destroy();
                 }
@@ -1202,15 +1257,325 @@ function updateKB(scene) {
                     Math.max(0.1, player.baseDamageScale);
             }
         }
-        player.plungeAura.x = player.x;
-        player.plungeAura.y = player.y;
+        player.plungeAura.setPosition(player.x, player.y);
         player.lastKBmultiplier = player.KBmultiplier;
-        if (scene.time.now > player.nextSideSpecialTime && scene.time.now - player.nextSideSpeciaTime < 100) {
+        if (scene.time.now > player.nextSideSpecialTime && scene.time.now - player.nextSideSpecialTime < 100) {
             spawnBox();
         }
     }
 }
 var fiveframecount = 0;
+function runBotAI(scene, bot, target) {
+    //let the ai make the ai 🔥
+    const ground = scene.mainGround;
+
+    const groundLeft = ground.x - ground.displayWidth / 2;
+    const groundRight = ground.x + ground.displayWidth / 2;
+
+    const edgeBuffer = 100;
+    const recoveryMargin = 50;
+    const deadzone = 20;
+
+    const dx = target.x - bot.x;
+    const dy = target.y - bot.y;
+    // ======================
+    // DISABLED STATES
+    // ======================
+
+    if (bot.hitstun || bot.freeze || bot.isUsingSideSpecial) {
+        executeStateCommand(scene, players, {
+            playerID: bot.id,
+            type: Commands.NONE
+        });
+        return;
+    }
+
+    // ======================
+    // RECOVERY
+    // ======================
+
+    const offLeft = bot.x < groundLeft - recoveryMargin;
+    const offRight = bot.x > groundRight + recoveryMargin;
+
+    if (offLeft || offRight || bot.y > ground.y + 50) {
+
+        // move toward stage
+
+
+        if (offLeft) {
+            bot.lastDir = { x: 1, y: 0 };
+            executeStateCommand(scene, players, {
+                playerID: bot.id,
+                type: Commands.RIGHT
+            });
+        }
+
+        if (offRight) {
+            bot.lastDir = { x: -1, y: 0 };
+            executeStateCommand(scene, players, {
+                playerID: bot.id,
+                type: Commands.LEFT
+            });
+        }
+
+        if (bot.body.blocked.down) {
+            console.log("GROUNDED");
+            executeStateCommand(scene, players, {
+                playerID: bot.id,
+                type: Commands.UP
+            });
+            bot.hasDoubleJumped = false;
+            return;
+        }
+
+        if (!bot.hasDoubleJumped) {
+            bot.lastDir = { x: 0, y: -1 };
+            executeStateCommand(scene, players, {
+                playerID: bot.id,
+                type: Commands.DOUBLE_UP
+            });
+            return;
+        }
+
+        return;
+    }
+
+    // ======================
+    // STAGE SAFETY
+    // ======================
+
+    if (bot.x <= groundLeft + edgeBuffer) {
+
+        bot.lastDir = { x: 1, y: 0 };
+        executeStateCommand(scene, players, {
+            playerID: bot.id,
+            type: Commands.RIGHT
+        });
+
+        return;
+    }
+
+    if (bot.x >= groundRight - edgeBuffer) {
+
+        bot.lastDir = { x: -1, y: 0 };
+        executeStateCommand(scene, players, {
+            playerID: bot.id,
+            type: Commands.LEFT
+        });
+
+        return;
+    }
+
+    // ======================
+    // JUMP TO TARGET
+    // ======================
+
+    if (
+        dy < -120 &&
+        scene.time.now - bot.lastJump > 500
+    ) {
+       if (dy < -120) {
+            // grounded -> normal jump
+            if (bot.body.blocked.down) {
+                bot.lastJump = scene.time.now;
+                bot.lastDir = { x: 0, y: -1 };
+                executeStateCommand(scene, players, {
+                    playerID: bot.id,
+                    type: Commands.UP
+                });
+
+                return;
+            }
+
+            // target is REALLY high above us
+            if (
+                dy < -50 &&
+                !bot.body.blocked.down &&
+                !bot.hasDoubleJumped
+            ) {
+                executeStateCommand(scene, players, {
+                    playerID: bot.id,
+                    type: Commands.DOUBLE_UP
+                });
+
+                return;
+            }
+        }
+    }
+    if (bot.body.blocked.down) {
+        bot.hasDoubleJumped = false;
+    }
+
+    // ======================
+    // ATTACK
+    // ======================
+
+    const attackRange = 110;
+
+    if (Math.abs(dx) < attackRange) {
+
+        if (scene.time.now - bot.lastAttack > 100) {
+
+            bot.lastAttack = scene.time.now;
+
+            handleAttack(scene, bot, target);
+        }
+
+        executeStateCommand(scene, players, {
+            playerID: bot.id,
+            type: Commands.NONE
+        });
+
+        return;
+    }
+
+    // ======================
+    // CHASE
+    // ======================
+
+    if (dx > deadzone) {
+
+        bot.lastDir = { x: 1, y: 0 };
+
+        executeStateCommand(scene, players, {
+            playerID: bot.id,
+            type: Commands.RIGHT
+        });
+
+    } else if (dx < -deadzone) {
+
+        bot.lastDir = { x: -1, y: 0 };
+
+        executeStateCommand(scene, players, {
+            playerID: bot.id,
+            type: Commands.LEFT
+        });
+
+    } else {
+        executeStateCommand(scene, players, {
+            playerID: bot.id,
+            type: Commands.NONE
+        });
+
+    }
+    const specDirection = (bot.lastDir > 0 && bot.lastDir !== 0) ? "right" : "left";
+    //CHARACTER-SPECIFIC SPECIAL ATTACK INTERACTIONS:
+    if (bot.name === "AXEMAN") {
+        const attackRange = 110;
+
+        if (Math.abs(dx) < attackRange) {
+
+            if (scene.time.now - bot.lastDirSpecial > 500) {
+
+                bot.lastDirSpecial = scene.time.now;
+
+                handleDirSpecial(scene, bot, specDirection, scene.time.now, target);
+            }
+
+            executeStateCommand(scene, players, {
+                playerID: bot.id,
+                type: Commands.NONE
+            });
+
+            return;
+        }
+    } else if (bot.name === "SWORDMAN") {
+        const attackRange = 350;
+        if (Math.abs(dx) < attackRange && Math.abs(dx) > attackRange-100) {
+
+            if (scene.time.now - bot.lastDirSpecial > 500) {
+
+                bot.lastDirSpecial = scene.time.now;
+
+                handleDirSpecial(scene, bot, specDirection, scene.time.now, target);
+            }
+
+            executeStateCommand(scene, players, {
+                playerID: bot.id,
+                type: Commands.NONE
+            });
+
+            return;
+        }
+    } else if (bot.name === "FISHERMAN") {
+        const attackRange = 400;
+
+        if (Math.abs(dx) < attackRange && Math.abs(dx) > attackRange-100) {
+
+            if (scene.time.now - bot.lastDirSpecial > 500) {
+
+                bot.lastDirSpecial = scene.time.now;
+
+                handleDirSpecial(scene, bot, specDirection, scene.time.now, target);
+            }
+
+            executeStateCommand(scene, players, {
+                playerID: bot.id,
+                type: Commands.NONE
+            });
+
+            return;
+        }
+    } else if (bot.name === "SCYTHEMAN") {
+        const attackRange = 500;
+
+        if (Math.abs(dx) < attackRange && Math.abs(dx) > attackRange-100) {
+
+            if (scene.time.now - bot.lastDirSpecial > 500) {
+
+                bot.lastDirSpecial = scene.time.now;
+
+                handleDirSpecial(scene, bot, specDirection, scene.time.now, target);
+            }
+
+            executeStateCommand(scene, players, {
+                playerID: bot.id,
+                type: Commands.NONE
+            });
+
+            return;
+        }
+    } else if (bot.name === "HAMMERMAN") {
+        const attackRange = 80;
+
+        if (Math.abs(dx) < attackRange) {
+
+            if (scene.time.now - bot.lastDirSpecial > 500) {
+
+                bot.lastDirSpecial = scene.time.now;
+
+                handleDirSpecial(scene, bot, specDirection, scene.time.now, target);
+            }
+
+            executeStateCommand(scene, players, {
+                playerID: bot.id,
+                type: Commands.NONE
+            });
+
+            return;
+        }
+    } else if (bot.name === "SLATEMAN") {
+        const attackRange = 125;
+
+        if (Math.abs(dx) < attackRange) {
+
+            if (scene.time.now - bot.lastDirSpecial > 500) {
+
+                bot.lastDirSpecial = scene.time.now;
+
+                handleDirSpecial(scene, bot, specDirection, scene.time.now, target);
+            }
+
+            executeStateCommand(scene, players, {
+                playerID: bot.id,
+                type: Commands.NONE
+            });
+
+            return;
+        }
+    }
+    
+}
 function update() {
 
     fiveframecount += 1;
@@ -1291,7 +1656,7 @@ function update() {
             handleAttack(this, p1, p2);
         }
     }
-    if ((attackKey2.isDown || mobileControls.p2.attack) && !p2.hitstun) {
+    if ((attackKey2.isDown || mobileControls.p2.attack) && !p2.hitstun && !botMode) {
         const now = this.time.now;
         if (inputMode.p2 !== "keyboard" && !mobileControls.p2.attack) {
             this.mobileButtons.p2.forEach(obj => {
@@ -1350,12 +1715,12 @@ function update() {
             player.setVelocityX(0);
         }
     }
-    p1.atk.x = p1.x + (p1.lastDir.x * 50);
-    p1.atk.y = p1.y + (p1.lastDir.y * 50);
+    p1.atk.x = p1.x + (p1.lastDir.x * p1.atkXOffset);
+    p1.atk.y = p1.y + (p1.lastDir.y * p1.atkYOffset) - 15;
 
-    p2.atk.x = p2.x + (p2.lastDir.x * 50);
-    p2.atk.y = p2.y + (p2.lastDir.y * 50);
-
+    p2.atk.x = p2.x + (p2.lastDir.x * p2.atkXOffset);
+    p2.atk.y = p2.y + (p2.lastDir.y * p2.atkYOffset) - 15;
+ 
     p1.doubleJumpEffect.x = p1.x;
     p1.doubleJumpEffect.y = p1.y + 40;
 
@@ -1516,7 +1881,7 @@ function update() {
     }
 
 
-    if (!p2.hitstun) {
+    if (!p2.hitstun && !botMode) {
 
         // Player 2 controls
         if (Phaser.Input.Keyboard.JustDown(cursors.left) || mobileControls.p2.leftPressed) {
@@ -1700,6 +2065,9 @@ function update() {
         }
     }
     updateKB(this);
+    if (botMode) {
+        runBotAI(this, p2, p1);
+    }
     if (fiveframecount >= 5) {
         fiveframecount = 0;
     }
