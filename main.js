@@ -1410,7 +1410,7 @@ function runBotAI(scene, bot, target) {
     // ATTACK
     // ======================
 
-    const attackRange = 100;
+    const attackRange = 65;
 
     if (Math.abs(dx) < attackRange) {
 
@@ -1452,30 +1452,10 @@ function runBotAI(scene, bot, target) {
         });
 
     } else {
-
-        // Don't stand still if we're significantly above the target
-        if (dy > 150) {
-    
-            if (dx >= 0) {
-                executeStateCommand(scene, players, {
-                    playerID: bot.id,
-                    type: Commands.RIGHT
-                });
-            } else {
-                executeStateCommand(scene, players, {
-                    playerID: bot.id,
-                    type: Commands.LEFT
-                });
-            }
-    
-        } else {
-    
-            executeStateCommand(scene, players, {
-                playerID: bot.id,
-                type: Commands.NONE
-            });
-    
-        }
+        executeStateCommand(scene, players, {
+            playerID: bot.id,
+            type: Commands.NONE
+        });
     }
     const specDirection = (bot.lastDir.x > 0 && bot.lastDir.x !== 0) ? "right" : "left";
     //CHARACTER-SPECIFIC SPECIAL ATTACK INTERACTIONS:
