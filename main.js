@@ -1411,7 +1411,7 @@ function runBotAI(scene, bot, target) {
     // ======================
 
     const attackRange = 65;
-    if (dy > 0 && Math.abs(dy) < 100) {
+    if (dy > 25  && Math.abs(dy) < 100) {
         bot.lastDir = { x: 0, y: 1 };
     }
     if (Math.abs(dx) < attackRange) {
