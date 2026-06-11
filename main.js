@@ -1274,7 +1274,7 @@ function runBotAI(scene, bot, target) {
 
     const edgeBuffer = 100;
     const recoveryMargin = 50;
-    const deadzone = 20;
+    const deadzone = 0;
 
     const dx = target.x - bot.x;
     const dy = target.y - bot.y;
@@ -1454,7 +1454,7 @@ function runBotAI(scene, bot, target) {
     } else {
 
         // Don't stand still if we're significantly above the target
-        if (Math.abs(dy) > 150) {
+        if (dy > 150) {
     
             if (dx >= 0) {
                 executeStateCommand(scene, players, {
