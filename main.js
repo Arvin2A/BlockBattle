@@ -1506,7 +1506,7 @@ function runBotAI(scene, bot, target) {
     const specDirection = (bot.lastDir.x > 0 && bot.lastDir.x !== 0) ? "right" : "left";
     //CHARACTER-SPECIFIC SPECIAL ATTACK INTERACTIONS:
     if (!bot.hasHitSideSpecial && bot.isUsingSideSpecial && fiveframecount === 5) {
-        handleDirSpecialAttack(this, bot, target);
+        handleDirSpecialAttack(scene, bot, target);
     }
     if (bot.name === "AXEMAN") {
         const attackRange = 80;
