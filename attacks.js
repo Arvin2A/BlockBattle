@@ -1,6 +1,6 @@
 const finalplungeMultiplier = 1.0;
-export function attackIsElligible(attacker, target, range = 100) {
-    if (!attacker.canAttack || attacker.hitstun) return false;
+export function attackIsElligible(attacker, target, range = 100, onlyOnCanAttack = true) {
+    if ((onlyOnCanAttack && !attacker.canAttack) || attacker.hitstun) return false;
     const dx = target.x - attacker.x;
     const dy = target.y - attacker.y;
     const distance = Math.hypot(dx, dy);
@@ -198,7 +198,7 @@ export function attack(scene, attacker, target, animKey) {
 }
 export function superSwing(scene, attacker, target, animKey) {
     setAttackSprite(attacker, animKey);
-    if (attackIsElligible(attacker, target, 150)) {
+    if (attackIsElligible(attacker, target, 150, false)) {
         target.hitstunUntil = 510 * target.KBmultiplier + scene.time.now;
         target.willDecelerate = false;
         target.freezeUntil = scene.time.now-1;
@@ -364,7 +364,7 @@ export function hardSwing(scene, attacker, target, animKey) {
 export function lungePush(scene, attacker, target, animKey) {
     //Push attacks happen if the player is at maximum velocity
     setAttackSprite(attacker, animKey);
-    if (attackIsElligible(attacker, target, 155)) {
+    if (attackIsElligible(attacker, target, 155, false)) {
         target.hitstunUntil = 300 * target.KBmultiplier + scene.time.now;
         target.willDecelerate = false;
         target.freezeUntil = scene.time.now-1;
@@ -969,7 +969,7 @@ export function tryRepair(scene, player, target, direction, currentTime) {
 export function markPlunge(scene, attacker, target, dir) {
     //Marks attack for plunge
     let hit = false;
-    if (attackIsElligible(attacker, target, 150)) {
+    if (attackIsElligible(attacker, target, 150, false)) {
         hit = true;
         target.hitstunUntil = 450 * target.KBmultiplier + scene.time.now;
         target.willDecelerate = false;
