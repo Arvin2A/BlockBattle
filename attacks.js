@@ -177,7 +177,7 @@ export function attack(scene, attacker, target, animKey) {
         attacker.setVelocityY(0);
         scene.sound.play('anyhit');
         target.KBmultiplier += 0.03 * attacker.baseDamageScale; // Increase KB multiplier for third hit
-        queueStunRelease(scene, attacker, target, 400, 650);
+        
     } else {
         attacker.combo = 0;
         scene.sound.play('miss');
@@ -193,7 +193,7 @@ export function attack(scene, attacker, target, animKey) {
         attacker.atk.stop();
         attacker.atk.setVisible(false);
     });
-    
+    queueStunRelease(scene, attacker, target, 400, 650);
     return hit;
 }
 export function superSwing(scene, attacker, target, animKey) {
