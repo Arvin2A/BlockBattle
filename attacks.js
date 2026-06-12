@@ -1163,7 +1163,7 @@ export function tryPull(scene, player, target, direction, currentTime) {
             player.hasHitSideSpecial = true;
 
             console.log("hit!")
-            target.hitstun = 550 + scene.time.now;
+            target.hitstunUntil = 550 + scene.time.now;
 
             // pull target toward player
             const dx = player.x - target.x;
