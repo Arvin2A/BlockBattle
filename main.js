@@ -1272,7 +1272,7 @@ function runBotAI(scene, bot, target) {
     const groundLeft = ground.x - ground.displayWidth / 2;
     const groundRight = ground.x + ground.displayWidth / 2;
 
-    const edgeBuffer = -10;
+    const edgeBuffer = 25;
     const recoveryMargin = 50;
     const deadzone = 0; //REALLY LOW
 
