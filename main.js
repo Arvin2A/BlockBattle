@@ -1564,7 +1564,7 @@ function runBotAI(scene, bot, target) {
     } else if (bot.name === "SCYTHEMAN") {
         const attackRange = 500;
 
-        if (Math.abs(dx) < attackRange && Math.abs(dx) > attackRange-200 && Math.abs(dy) < 200) {
+        if (Math.abs(dx) < attackRange && Math.abs(dy) < 125) {
 
             if (scene.time.now - bot.lastDirSpecial > 500) {
 
