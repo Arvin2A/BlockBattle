@@ -719,7 +719,7 @@ export function tryCleave(scene, player, direction, currentTime) {
         player.isUsingSideSpecial = true;
         player.hasHitSideSpecial = false;
 
-        const speed = 400;
+        const speed = 800;
         player.afterimage = true;
 
 
@@ -734,7 +734,7 @@ export function tryCleave(scene, player, direction, currentTime) {
         // Use third attack animation (hard to hit, so discarded)
         //thirdAttack(scene, player, players.player2, 'axeatkthird');
 
-        scene.time.delayedCall(200, () => {
+        scene.time.delayedCall(140, () => {
             player.isUsingSideSpecial = false;
             player.afterimage = false;
         });
