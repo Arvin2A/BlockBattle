@@ -735,7 +735,10 @@ export function tryCleave(scene, player, direction, currentTime) {
         //thirdAttack(scene, player, players.player2, 'axeatkthird');
 
         scene.time.delayedCall(140, () => {
-            player.isUsingSideSpecial = false;
+            scene.time.delayedCall(350, () => {
+                player.isUsingSideSpecial = false;
+            });
+            player.setVelocityX(player.body.velocity.x/5);
             player.afterimage = false;
         });
 
