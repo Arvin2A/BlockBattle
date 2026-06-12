@@ -1,7 +1,7 @@
 const finalplungeMultiplier = 1.0;
 //attack is hard to explain so haha no comments
 export function attackIsElligible(attacker, target, range = 100, onlyOnCanAttack = true) {
-    if ((onlyOnCanAttack && !attacker.canAttack) || attacker.hitstun) return false;
+    if (!attacker.canAttack || attacker.hitstun && onlyOnCanAttack) return false;
     const dx = target.x - attacker.x;
     const dy = target.y - attacker.y;
     const distance = Math.hypot(dx, dy);
