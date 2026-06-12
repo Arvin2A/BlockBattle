@@ -1062,10 +1062,10 @@ function create() {
 
     //3-2-1 COUNTDOWN
 
-    players.player.freeze = true;
-    players.player.hitstun = true;
-    players.player2.freeze = true;
-    players.player2.hitstun = true;
+    players.player.freezeUntil = 4200 + this.time.now;
+    players.player.hitstunUntil = 4200 + this.time.now;
+    players.player2.freezeUntil = 4200 + this.time.now;
+    players.player2.hitstunUntil = 4200 + this.time.now;
 
     
 
@@ -1106,10 +1106,10 @@ function create() {
                         duration: 500,
                         onComplete: () => counter4.destroy()
                     });
-                    players.player.freeze = false;
-                    players.player2.freeze = false;
-                    players.player.hitstun = false;
-                    players.player2.hitstun = false;
+                    players.player.freezeUntil = 0;
+                    players.player2.freezeUntil = 0;
+                    players.player.hitstunUntil = 0;
+                    players.player2.hitstunUntil = 0;
 
                 });   
             });   
@@ -1393,10 +1393,11 @@ function runBotAI(scene, bot, target) {
 
             // target is REALLY high above us
             if (
-                dy < -50 &&
+                dy < -25 &&
                 !bot.body.blocked.down &&
                 !bot.hasDoubleJumped
             ) {
+                console.log("HIGH UP!")
                 executeStateCommand(scene, players, {
                     playerID: bot.id,
                     type: Commands.DOUBLE_UP
@@ -1418,8 +1419,8 @@ function runBotAI(scene, bot, target) {
         bot.lastDir = { x: 0, y: 1 };
     }
     if (
-        Math.abs(dx) < 35 &&
-        dy < -250 &&
+        Math.abs(dx) < 25 &&
+        dy > 150 &&
         scene.time.now > bot.escapeUntil
     ) {
         bot.escapeUntil = scene.time.now + 1500;
@@ -1435,6 +1436,7 @@ function runBotAI(scene, bot, target) {
     if (scene.time.now < bot.escapeUntil) {
 
         if (bot.escapeDirection > 0) {
+            console.log("ESCAPING");
             bot.lastDir = { x: 1, y: 0 };
     
             executeStateCommand(scene, players, {
@@ -1455,7 +1457,7 @@ function runBotAI(scene, bot, target) {
 
     const attackRange = 65;
     
-    if (Math.abs(dx) < attackRange) {
+    if (Math.abs(dx) < attackRange && Math.abs(dy) < attackRange+50) {
 
         if (scene.time.now - bot.lastAttack > 100) {
 
@@ -1506,7 +1508,7 @@ function runBotAI(scene, bot, target) {
     if (bot.name === "AXEMAN") {
         const attackRange = 80;
 
-        if (Math.abs(dx) < attackRange) {
+        if (Math.abs(dx) < attackRange && Math.abs(dy) < 50) {
 
             if (scene.time.now - bot.lastDirSpecial > 500) {
 
@@ -1562,7 +1564,7 @@ function runBotAI(scene, bot, target) {
     } else if (bot.name === "SCYTHEMAN") {
         const attackRange = 500;
 
-        if (Math.abs(dx) < attackRange && Math.abs(dx) > attackRange-200) {
+        if (Math.abs(dx) < attackRange && Math.abs(dx) > attackRange-200 && Math.abs(dy) < 200) {
 
             if (scene.time.now - bot.lastDirSpecial > 500) {
 
@@ -1583,7 +1585,7 @@ function runBotAI(scene, bot, target) {
 
         if (Math.abs(dx) < attackRange) {
 
-            if (scene.time.now - bot.lastDirSpecial > 500) {
+            if (scene.time.now - bot.lastDirSpecial > 500 && Math.abs(dy) < 100) {
 
                 bot.lastDirSpecial = scene.time.now;
 
@@ -1602,7 +1604,7 @@ function runBotAI(scene, bot, target) {
 
         if (Math.abs(dx) < attackRange) {
 
-            if (scene.time.now - bot.lastDirSpecial > 500) {
+            if (scene.time.now - bot.lastDirSpecial > 500 && Math.abs(dy) < 50) {
 
                 bot.lastDirSpecial = scene.time.now;
 
@@ -1679,6 +1681,7 @@ function update() {
         return;
     }
     
+    
     if ((attackKey1.isDown || mobileControls.p1.attack) && !p1.hitstun) {
         const now = this.time.now;
         if (inputMode.p1 !== "keyboard" && !mobileControls.p1.attack) {
@@ -1733,6 +1736,14 @@ function update() {
             player.airTime += this.game.loop.delta;
         }
         player.flashObject.setPosition(player.x, player.y);
+
+        player.hitstun =
+            this.time.now < player.hitstunUntil;
+
+        player.freeze =
+            this.time.now < player.freezeUntil;
+        //player.canAttack =
+            //this.time.now < player.canAttackUntil;
     };
     const cal1 = ((p1.KBmultiplier * 100) - 100);
     const cal2 = ((p2.KBmultiplier * 100) - 100);

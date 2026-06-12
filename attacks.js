@@ -96,6 +96,7 @@ function clearQueuedStunTimers(scene, attacker, target) {
 
 function queueStunRelease(scene, attacker, target, attackerDelay = 400, victimDelay = 650) {
     clearQueuedStunTimers(scene, attacker, target);
+    console.log("apply stun");
 
     const stunToken = (target.stunToken || 0) + 1;
     target.stunToken = stunToken;
@@ -153,9 +154,9 @@ export function attack(scene, attacker, target, animKey) {
     if (attackIsElligible(attacker, target)) {
         hit = true;
 
-        target.hitstun = true;
-        target.freeze = true;
-        attacker.freeze = true;
+        target.hitstunUntil = 650 + scene.time.now;;
+        target.freezeUntil = 650 + scene.time.now;;
+        attacker.freezeUntil = 400 + scene.time.now;;
         attacker.willDecelerate = false;
         attacker.comboTimer = 600;
 
@@ -176,6 +177,7 @@ export function attack(scene, attacker, target, animKey) {
         attacker.setVelocityY(0);
         scene.sound.play('anyhit');
         target.KBmultiplier += 0.03 * attacker.baseDamageScale; // Increase KB multiplier for third hit
+        queueStunRelease(scene, attacker, target, 400, 650);
     } else {
         attacker.combo = 0;
         scene.sound.play('miss');
@@ -191,16 +193,16 @@ export function attack(scene, attacker, target, animKey) {
         attacker.atk.stop();
         attacker.atk.setVisible(false);
     });
-    queueStunRelease(scene, attacker, target, 400, 650);
+    
     return hit;
 }
 export function superSwing(scene, attacker, target, animKey) {
     setAttackSprite(attacker, animKey);
     if (attackIsElligible(attacker, target, 150)) {
-        target.hitstun = true;
+        target.hitstunUntil = 510 * target.KBmultiplier + scene.time.now;
         target.willDecelerate = false;
-        target.freeze = false;
-        attacker.freeze = false;
+        target.freezeUntil = scene.time.now-1;
+        attacker.freezeUntil = scene.time.now-1;
         attacker.willDecelerate = true;
         attacker.comboTimer = 600;
         target.KBmultiplier += 0.32* attacker.baseDamageScale;
@@ -250,10 +252,10 @@ export function pushAttack(scene, attacker, target, animKey) {
     if (attackIsElligible(attacker, target, 125)) {
         hit = true;
         
-        target.hitstun = true;
+        target.hitstunUntil = 450 + scene.time.now;;
         target.willDecelerate = false;
-        target.freeze = false;
-        attacker.freeze = false;
+        target.freezeUntil = scene.time.now-1;
+        attacker.freezeUntil =  scene.time.now-1;
         attacker.willDecelerate = true;
         attacker.comboTimer = 600;
         target.KBmultiplier += 0.05* attacker.baseDamageScale;
@@ -307,10 +309,10 @@ export function hardSwing(scene, attacker, target, animKey) {
     //Push attacks happen if the player is at maximum velocity
     setAttackSprite(attacker, animKey);
     if (attackIsElligible(attacker, target, 100)) {
-        target.hitstun = true;
+        target.hitstunUntil = 400 * target.KBmultiplier + scene.time.now;
         target.willDecelerate = false;
-        target.freeze = false;
-        attacker.freeze = false;
+        target.freezeUntil = scene.time.now-1;
+        attacker.freezeUntil = scene.time.now-1;
         attacker.willDecelerate = true;
         attacker.comboTimer = 600;
         target.KBmultiplier += 0.13* attacker.baseDamageScale;
@@ -363,10 +365,10 @@ export function lungePush(scene, attacker, target, animKey) {
     //Push attacks happen if the player is at maximum velocity
     setAttackSprite(attacker, animKey);
     if (attackIsElligible(attacker, target, 155)) {
-        target.hitstun = true;
+        target.hitstunUntil = 300 * target.KBmultiplier + scene.time.now;
         target.willDecelerate = false;
-        target.freeze = false;
-        attacker.freeze = false;
+        target.freezeUntil = scene.time.now-1;
+        attacker.freezeUntil = scene.time.now-1;
         //fix for lunge
         attacker.hasHitSideSpecial = true;
         attacker.willDecelerate = true;
@@ -415,10 +417,10 @@ export function thirdAttack(scene, attacker, target, animKey) {
     //The third attack launching the target away
     setAttackSprite(attacker, animKey);
     if (attackIsElligible(attacker, target)) {
-        target.hitstun = true;
+        target.hitstunUntil = 500 * target.KBmultiplier + scene.time.now;
         target.willDecelerate = false;
-        target.freeze = false;
-        attacker.freeze = false;
+        target.freezeUntil = scene.time.now-1;
+        attacker.freezeUntil = scene.time.now-1;
         attacker.willDecelerate = true;
         attacker.comboTimer = 600;
         target.KBmultiplier += 0.07* attacker.baseDamageScale;
@@ -472,10 +474,10 @@ export function slamThirdAttack(scene, attacker, target, animKey) {
     //The third attack launching the target away
     setAttackSprite(attacker, animKey);
     if (attackIsElligible(attacker, target)) {
-        target.hitstun = true;
+        target.hitstunUntil = 500 * target.KBmultiplier + scene.time.now;
         target.willDecelerate = false;
-        target.freeze = false;
-        attacker.freeze = false;
+        target.freezeUntil = scene.time.now-1;
+        attacker.freezeUntil = scene.time.now-1;
         attacker.willDecelerate = true;
         attacker.comboTimer = 600;
         target.KBmultiplier += 0.07* attacker.baseDamageScale;
@@ -544,10 +546,10 @@ export function tiltAttack(scene, attacker, target, {
         onUse(scene);
     }
     if (attackIsElligible(attacker, target, range)) {
-        target.hitstun = true;
+        target.hitstunUntil = kbTime + 250 + scene.time.now;
         target.willDecelerate = false;
-        target.freeze = false;
-        attacker.freeze = false;
+        target.freezeUntil = scene.time.now-1;
+        attacker.freeze = scene.time.now-1;
         attacker.willDecelerate = true;
         attacker.comboTimer = 600;
         target.KBmultiplier += kb* attacker.baseDamageScale;
@@ -794,8 +796,8 @@ export function tryMow(scene, player, target, direction, currentTime) {
         scene.physics.add.overlap(fakescythe, target, () => {
             if (player.hasHitSideSpecial) return;
             if (!canhit) return;
-            target.freeze = true;
-            target.hitstun = true;
+            target.freezeUntil = 1000 + scene.time.now;
+            target.hitstunUntil = 1000 + scene.time.now;
             const slash = scene.add.image(target.x, target.y, 'slasheffect');
             slash.setScale(1.5);
             scene.tweens.add({
@@ -818,8 +820,6 @@ export function tryMow(scene, player, target, direction, currentTime) {
             target.revokeMowStun = scene.time.delayedCall(mowStunDuration, () => {
                 if (target.mowStunToken !== mowStunToken) return;
                 player.hasHitSideSpecial = true;
-                target.freeze = false;
-                target.hitstun = false;
                 target.willDecelerate = true;
                 target.revokeMowStun = null;
             });
@@ -971,10 +971,10 @@ export function markPlunge(scene, attacker, target, dir) {
     let hit = false;
     if (attackIsElligible(attacker, target, 150)) {
         hit = true;
-        target.hitstun = true;
+        target.hitstunUntil = 450 * target.KBmultiplier + scene.time.now;
         target.willDecelerate = false;
-        target.freeze = false;
-        attacker.freeze = false;
+        target.freezeUntil = scene.time.now-1;
+        attacker.freezeUntil = scene.time.now-1;
         attacker.willDecelerate = true;
         attacker.comboTimer = 600;
         target.KBmultiplier += 0.075* attacker.baseDamageScale;
@@ -1163,7 +1163,7 @@ export function tryPull(scene, player, target, direction, currentTime) {
             player.hasHitSideSpecial = true;
 
             console.log("hit!")
-            target.hitstun = true;
+            target.hitstun = 550 + scene.time.now;
 
             // pull target toward player
             const dx = player.x - target.x;
@@ -1187,7 +1187,7 @@ export function tryPull(scene, player, target, direction, currentTime) {
             hook.destroy();
 
             player.isUsingSideSpecial = false;
-            scene.time.delayedCall(350, () => {
+            scene.time.delayedCall(550, () => {
                 target.hitstun = false;
             });
 
@@ -1262,7 +1262,6 @@ export function handleAttack(scene, attacker, victim) {
     }
 }
 export function handleDirSpecial(scene, attacker, direction, currentTime, victim) {
-    console.log("FIRED");
     if (attacker.name === "SWORDMAN") {
         tryLunge(scene, attacker, direction, currentTime);
     } else if (attacker.name === "AXEMAN") {
