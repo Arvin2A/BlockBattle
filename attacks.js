@@ -204,6 +204,7 @@ export function superSwing(scene, attacker, target, animKey) {
         target.willDecelerate = false;
         target.freezeUntil = scene.time.now-1;
         attacker.freezeUntil = scene.time.now-1;
+        attacker.hasHitSideSpecial = true;
         attacker.willDecelerate = true;
         attacker.comboTimer = 600;
         target.KBmultiplier += 0.32* attacker.baseDamageScale;
