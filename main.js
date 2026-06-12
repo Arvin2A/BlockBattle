@@ -151,8 +151,8 @@ var CharacterSelectScene = {
         this.characterData = [
             { name: 'SWORDMAN', desc: 'Beware of the slashing sword. \n\nDIR SPECIAL: LUNGE \n\n Mediocre knockback on hit, however it has insane clutch potential.', color: '#0080ff' },
             { name: 'AXEMAN', desc: 'Beware of the chopping axe. \n\nDIR SPECIAL: POWER SWING \n\n The most knockback you can ever do in this entire game, send your foes across the galaxy!', color: '#ff4444' },
-            { name: 'FISHERMAN', desc: 'Using a fishing rod as a whip?? \n\nDIR SPECIAL: GRAPPLE \n\n Throw your hook far for the chance to reel your opponent in.', color: '#00318d' },
-            { name: 'SCYTHEMAN', desc: 'Its third neutral hit goes slightly higher. \n\nDIR SPECIAL: MOW \n\n Throw a scythe t like a boomerang that deals crazy damage.', color: '#686868' },
+            { name: 'FISHERMAN', desc: 'Using a fishing rod as a whip?? \n\n(BUGGED) DIR SPECIAL: GRAPPLE \n\n Throw your hook far for the chance to reel your opponent in.', color: '#00318d' },
+            { name: 'SCYTHEMAN', desc: 'Its third neutral hit goes slightly higher. \n\nDIR SPECIAL: MOW \n\n Throw a bigger scythe like a boomerang that stuns the opponent.', color: '#686868' },
             { name: 'HAMMERMAN', desc: 'EVERY hit is a knockback attack. \n\nDIR SPECIAL: SIPHONING REPAIR \n\n Let out a flurry of 3 strikes that siphon KB from your foe!.', color: '#3da115' },
             { name: 'SLATEMAN', desc: 'Start with extra resistance to attacks. The more damage you take the faster you get, but deal less damage. \n\nDIR SPECIAL: PLUNGE \n\n Apply PLUNGED to your opponent, which makes the foe take 100% more knockback for the next hits within 2.5 seconds!', color: '#ffffff', fontSize: 17}
 
