@@ -16,13 +16,16 @@ export function initiatePlayers(scene, p1Select = 'axeman', p2Select = 'swordman
         const p = players[key];
         p.setDepth(5);
         p.canAttack = true;
+        p.cantAttackUntil = 0;
         p.revokeAggressorStun = null;
         p.revokeVictimStun = null;
         p.revokeMowStun = null;
         p.stunToken = 0;
         p.mowStunToken = 0;
         p.hitstun = false;
+        p.hitstunUntil = 0;
         p.freeze = false;
+        p.freezeUntil = 0;
         p.willDecelerate = true;
         p.nextAttackTime = 0;
         p.nextTiltTime = 0;
@@ -63,7 +66,6 @@ export function initiatePlayers(scene, p1Select = 'axeman', p2Select = 'swordman
         p.flash = function() {
             
             p.flashObject.setAlpha(0.5);
-            console.log(p.flashObject);
 
             scene.tweens.add({
                 targets: p.flashObject,
