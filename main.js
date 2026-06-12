@@ -1272,7 +1272,7 @@ function runBotAI(scene, bot, target) {
     const groundLeft = ground.x - ground.displayWidth / 2;
     const groundRight = ground.x + ground.displayWidth / 2;
 
-    const edgeBuffer = 100;
+    const edgeBuffer = -10;
     const recoveryMargin = 50;
     const deadzone = 0; //REALLY LOW
 
@@ -1436,7 +1436,6 @@ function runBotAI(scene, bot, target) {
     if (scene.time.now < bot.escapeUntil) {
 
         if (bot.escapeDirection > 0) {
-            console.log("ESCAPING");
             bot.lastDir = { x: 1, y: 0 };
     
             executeStateCommand(scene, players, {
