@@ -1,7 +1,10 @@
 import {handleAttack, handleDirSpecial, handleDirSpecialAttack, handleHorizantalTilt, handleDownTilt, handleUpTilt} from './attacks.js';
 import { initiatePlayers, updateCombo } from './players.js';
 import { Commands, executeStateCommand} from './commands.js';
-//UPDATE: HUGE REFACTOR OF CODE!! THIS IS FOR CLEANLINESS AND FOR THE FURTHER DEVELOPMENT OF THIS WEB APP
+import { MenuScene } from './scenes/MenuScene.js';
+import { player1Character, player2Character, CharacterSelectScene } from './scenes/CharacterSelectScreen.js';
+import { preload } from './scenes/GameScene/preload.js';
+import { runBotAI } from './scenes/GameScene/botAI.js';
 //3 NEW SCRIPTS: main.js (current), players.js, attacks.js
 
 
@@ -32,7 +35,9 @@ import { Commands, executeStateCommand} from './commands.js';
 //FUTURE UPDATES: ADD VFX AND POLISH
 
 export var botMode = false; //Instead of a P2, you can fight an AI instead. (CPU)
-
+export function changeBotMode(newBotMode) {
+    botMode = newBotMode;
+}
 function sleep(ms) {
     return new Promise(resolve => setTimeout(resolve, ms));
     //was meant to be used, but was succeeded later after the discovery of scene.time.delayedCall
@@ -47,428 +52,6 @@ async function loadFont() {
     //load the gamefont that is very kool
 }
 
-var MenuScene = {
-    //load the menu scene which is just a cool background image we made
-    //its also has the start button, initiating the game when clicked
-    key: 'MenuScene',
-    preload: function () {
-        this.load.image('menuBackground', 'assets/Homescreen.png');
-        this.load.image('uifade', 'assets/uifade.png');
-    },
-    create: function () {
-        const bg = this.add.image(500, 300, 'menuBackground');
-        bg.setDisplaySize(this.scale.width, this.scale.height);
-        // Create menu UI elements here
-        const fade = this.add.image(500, 300, 'uifade');
-        fade.setDisplaySize(this.scale.width, this.scale.height);
-        const startBox = this.add.rectangle(
-            850,
-            500,
-            250,
-            70,
-            0x111111
-        );
-        startBox.setStrokeStyle(4, 0x000000);
-
-        var startText = this.add.text(850, 500, 'PLAY AS 2 PLAYERS', { fontFamily: 'VCROSD', fontSize: '24px', fill: '#FFFFFF', stroke: '#000000', strokeThickness: 6 }).setOrigin(0.5).setInteractive({ useHandCursor: true });
-        
-        startText.setInteractive();
-        startText.on('pointerover', function () {
-            startBox.setFillStyle(0xffffff);
-            startBox.setStrokeStyle(4, 0xbbbbbb);
-        });
-
-        startText.on('pointerout', function () {
-            startBox.setFillStyle(0x111111);
-            startBox.setStrokeStyle(4, 0x000000);
-        });
-        startText.on('pointerdown', function () {
-            botMode = false;
-            this.scene.start('CharacterSelectScene');
-        }, this);
-        const botBox = this.add.rectangle(
-            875,
-            420,
-            200,
-            70,
-            0x111111
-        );
-        botBox.setStrokeStyle(4, 0x000000);
-
-        const botText = this.add.text(
-            875,
-            420,
-            'PLAY VS CPU',
-            {
-                fontFamily: 'VCROSD',
-                fontSize: '28px',
-                fill: '#FFFFFF',
-                stroke: '#000000',
-                strokeThickness: 6
-            }
-        ).setOrigin(0.5);
-        botText.setInteractive();
-        botText.on('pointerdown', function () {
-            botMode = true;
-            this.scene.start('CharacterSelectScene');
-        }, this);
-        botText.on('pointerover', function () {
-            botBox.setFillStyle(0xffffff);
-            botBox.setStrokeStyle(4, 0xbbbbbb);
-        });
-
-        botText.on('pointerout', function () {
-            botBox.setFillStyle(0x111111);
-            botBox.setStrokeStyle(4, 0x000000);
-        });
-    }
-};
-var player1Character = '';
-var player2Character = '';
-var CharacterSelectScene = {
-
-    key: 'CharacterSelectScene',
-
-    preload: function () {
-        this.load.audio('hover', 'audio/hover.wav');
-        this.load.image('arenapreview', 'assets/arenapreview.png');
-    },
-    create: function () {
-
-        // -----------------------------
-        // DATA
-        // -----------------------------
-
-        this.characters = [
-            'swordman',
-            'axeman',
-            'fisherman',
-            'scytheman',
-            'hammerman',
-            'slateman'
-        ];
-
-        this.characterData = [
-            { name: 'SWORDMAN', desc: 'Beware of the slashing sword. \n\nDIR SPECIAL: LUNGE \n\n Mediocre knockback on hit, however it has insane clutch potential.', color: '#0080ff' },
-            { name: 'AXEMAN', desc: 'Beware of the chopping axe. \n\nDIR SPECIAL: POWER SWING \n\n The most knockback you can ever do in this entire game, send your foes across the galaxy!', color: '#ff4444' },
-            { name: 'FISHERMAN', desc: 'Using a fishing rod as a whip?? \n\n(BUGGED) DIR SPECIAL: GRAPPLE \n\n Throw your hook far for the chance to reel your opponent in.', color: '#00318d' },
-            { name: 'SCYTHEMAN', desc: 'Its third neutral hit goes slightly higher. \n\nDIR SPECIAL: MOW \n\n Throw a bigger scythe like a boomerang that stuns the opponent.', color: '#686868' },
-            { name: 'HAMMERMAN', desc: 'EVERY hit is a knockback attack. \n\nDIR SPECIAL: SIPHONING REPAIR \n\n Let out a flurry of 3 strikes that siphon KB from your foe!.', color: '#3da115' },
-            { name: 'SLATEMAN', desc: 'Start with extra resistance to attacks. The more damage you take the faster you get, but deal less damage. \n\nDIR SPECIAL: PLUNGE \n\n Apply PLUNGED to your opponent, which makes the foe take 100% more knockback for the next hits within 2.5 seconds!', color: '#ffffff', fontSize: 17}
-
-        ];
-
-        this.p1Index = 1;
-        this.p2Index = 0;
-
-        // background
-        this.cameras.main.setBackgroundColor('#1b1b1b');
-
-        this.add.image(500, 300, 'arenapreview');
-        const overlay = this.add.rectangle(
-            500,
-            300,
-            1000,
-            600,
-            0x1b1b1b,
-            0.90
-        );
-
-        // -----------------------------
-        // TITLE
-        // -----------------------------
-
-        this.add.text(
-            500,
-            50,
-            botMode
-        ? 'SELECT PLAYER AND CPU'
-        : 'SELECT YOUR CHARACTER',
-            {
-                fontFamily: 'VCROSD',
-                fontSize: '35px',
-                fill: '#f691ff',
-                stroke: '#000000',
-                strokeThickness: 6
-            }
-        ).setOrigin(0.5);
-
-        // -----------------------------
-        // CHARACTER LIST
-        // -----------------------------
-
-        this.characterTexts = [];
-
-        for (let i = 0; i < this.characters.length; i++) {
-
-            const txt = this.add.text(
-                500,
-                180 + i * 50,
-                this.characters[i],
-                {
-                    fontFamily: 'GameFont',
-                    fontSize: '32px',
-                    fill: '#ffffff',
-                    stroke: '#000000',
-                    strokeThickness: 5
-                }
-            ).setOrigin(0.5);
-
-            this.characterTexts.push(txt);
-        }
-
-        // -----------------------------
-        // PLAYER CURSORS
-        // -----------------------------
-
-        this.p1Cursor = this.add.text(
-            325,
-            180,
-            '⚔ P1',
-            {
-                fontFamily: 'GameFont',
-                fontSize: '28px',
-                fill: '#ff4444'
-            }
-        ).setOrigin(0.5);
-
-        this.p2Cursor = this.add.text(
-            675,
-            270,
-            '🪓 P2',
-            {
-                fontFamily: 'GameFont',
-                fontSize: '28px',
-                fill: '#00aaff'
-            }
-        ).setOrigin(0.5);
-        if (botMode) {
-            this.p2Cursor.setText('CPU');
-        }
-
-        //DESCRIPTIONS:
-        const DESCBOX1 = this.add.rectangle(
-            130,
-            350,
-            225,
-            400,
-            0x171717
-        );
-        const DESCBOX2 = this.add.rectangle(
-            870,
-            350,
-            225,
-            400,
-            0x171717
-        );
-        this.p1NameText = this.add.text(130, 200, '', {
-            fontFamily: 'GameFont',
-            fontSize: '26px',
-            fill: '#ffffff',
-            align: 'center',
-        }).setOrigin(0.5);
-
-        this.p1DescText = this.add.text(130, 350, '', {
-            fontFamily: 'VCROSD',
-            fontSize: '20px',
-            fill: '#ffffff',
-            align: 'center',
-            wordWrap: { width: 200 }
-        }).setOrigin(0.5);
-
-        this.p2NameText = this.add.text(870, 200, '', {
-            fontFamily: 'GameFont',
-            fontSize: '26px',
-            fill: '#ffffff'
-        }).setOrigin(0.5);
-
-        this.p2DescText = this.add.text(870, 350, '', {
-            fontFamily: 'VCROSD',
-            fontSize: '20px',
-            fill: '#ffffff',
-            align: 'center',
-            wordWrap: { width: 200 }
-        }).setOrigin(0.5);
-        
-        this.updateCharacterDescriptions = function() {
-            const p1 = this.characterData[this.p1Index];
-            const p2 = this.characterData[this.p2Index];
-
-            this.p1NameText.setText(p1.name);
-            this.p1NameText.setColor(p1.color);
-
-            this.p1DescText.setText(p1.desc);
-            if (p1.fontSize) {
-                this.p1DescText.setFontSize(p1.fontSize);
-            } else {
-                this.p1DescText.setFontSize(20);
-            }
-
-            this.p2NameText.setText(p2.name);
-            this.p2NameText.setColor(p2.color);
-
-            this.p2DescText.setText(p2.desc);
-            if (p2.fontSize) {
-                this.p2DescText.setFontSize(p2.fontSize);
-            } else {
-                this.p2DescText.setFontSize(20);
-            }
-        };
-
-        // -----------------------------
-        // PLAY BUTTON
-        // -----------------------------
-
-        const playBox = this.add.rectangle(
-            500,
-            520,
-            220,
-            70,
-            0x228B22
-        );
-
-        playBox.setStrokeStyle(4, 0xffffff);
-
-        const playText = this.add.text(
-            500,
-            520,
-            'PLAY',
-            {
-                fontFamily: 'GameFont',
-                fontSize: '44px',
-                fill: '#ffffff'
-            }
-        ).setOrigin(0.5);
-
-        playBox.setInteractive({ useHandCursor: true });
-
-        playBox.on('pointerover', () => {
-            playBox.setFillStyle(0x2ecc71);
-        });
-
-        playBox.on('pointerout', () => {
-            playBox.setFillStyle(0x228B22);
-        });
-
-        playBox.on('pointerdown', () => {
-            this.cameras.main.fadeOut(200, 0, 0, 0);
-            this.time.delayedCall(200, () => {
-                this.scene.start('GameScene');
-            });
-            player1Character = this.characters[this.p1Index];
-            player2Character = this.characters[this.p2Index];
-
-        });
-
-        // -----------------------------
-        // INPUT
-        // -----------------------------
-
-        this.keys = this.input.keyboard.addKeys({
-
-            w: Phaser.Input.Keyboard.KeyCodes.W,
-            s: Phaser.Input.Keyboard.KeyCodes.S,
-
-            up: Phaser.Input.Keyboard.KeyCodes.UP,
-            down: Phaser.Input.Keyboard.KeyCodes.DOWN
-
-        });
-
-        this.updateCharacterDescriptions();
-
-
-        this.input.on('pointerdown', (pointer) => {
-            // Ignore clicks on the PLAY button area
-            if (
-                pointer.x >= 390 &&
-                pointer.x <= 610 &&
-                pointer.y >= 485 &&
-                pointer.y <= 555
-            ) {
-                return;
-            }
-
-            // Character list starts at y=180 and each row is 50px apart
-            const index = Math.round((pointer.y - 180) / 50);
-
-            if (index < 0 || index >= this.characters.length) {
-                return;
-            }
-
-            this.sound.play('hover');
-
-            if (pointer.x < 500) {
-                // P1 selection
-                this.p1Index = index;
-            } else {
-                // P2 selection
-                this.p2Index = index;
-            }
-
-            this.updateCharacterDescriptions();
-        });
-    },
-
-    update: function () {
-
-        // -----------------------------
-        // P1 CONTROLS
-        // -----------------------------
-
-        if (Phaser.Input.Keyboard.JustDown(this.keys.w)) {
-            this.sound.play('hover');
-            this.p1Index--;
-
-            if (this.p1Index < 0) {
-                this.p1Index = this.characters.length - 1;
-            }
-            this.updateCharacterDescriptions();
-        }
-
-        if (Phaser.Input.Keyboard.JustDown(this.keys.s)) {
-            this.sound.play('hover');
-
-            this.p1Index++;
-
-            if (this.p1Index >= this.characters.length) {
-                this.p1Index = 0;
-            }
-            this.updateCharacterDescriptions();
-        }
-
-        // -----------------------------
-        // P2 CONTROLS
-        // -----------------------------
-
-        if (Phaser.Input.Keyboard.JustDown(this.keys.up)) {
-            this.sound.play('hover');
-            this.p2Index--;
-
-            if (this.p2Index < 0) {
-                this.p2Index = this.characters.length - 1;
-            }
-            this.updateCharacterDescriptions();
-        }
-
-        if (Phaser.Input.Keyboard.JustDown(this.keys.down)) {
-            this.sound.play('hover');
-            this.p2Index++;
-
-            if (this.p2Index >= this.characters.length) {
-                this.p2Index = 0;
-            }
-            this.updateCharacterDescriptions();
-        }
-
-        // -----------------------------
-        // UPDATE CURSOR POSITIONS
-        // -----------------------------
-
-        this.p1Cursor.y = 180 + this.p1Index * 50;
-
-        this.p2Cursor.y = 180 + this.p2Index * 50;
-    }
-};
 var GameScene = {
     //gamescene in the form of a scene object format
     key: 'GameScene',
@@ -500,135 +83,7 @@ var game;
 loadFont().then(() => {
     game = new Phaser.Game(config);
 });
-function preload() {
-    //pre load all the assets, including images, spritesheets, and audio
-    //AUDIO CREDITS: 
-    //sword lunge and slash is from the classic ROBLOX's linked sword sound effect
-    //hit1.ogg is from minecraft's hit sound effect
-    //Dodge3.wav is a dash sound effect from ULTRAKILL published by New Blood Interactive, used for the swordman's lunge move
-    //snd_damage_c.wav is from Undertale by Toby Fox, used for the axe's third hit for that extra 
-    //credits to jeffrey for making the app's icon (width_512.ico)
-    this.load.image('background', 'assets/background_one.png');
-    this.load.image('ground', 'assets/ground.png');
-    this.load.image('betterground', 'assets/betterground.png');
-    this.load.image('platform1', 'assets/platform1.png');
-    this.load.image('platform', 'assets/platform.png');
-    //chars
-    this.load.image('axeman', 'assets/character1.png');
-    this.load.image('swordman', 'assets/character2.png');
-    this.load.image('fisherman', 'assets/character3.png');
-    this.load.image('scytheman', 'assets/character4.png');
-    this.load.image('hammerman', 'assets/character5.png');
-    //chars - SLATEMAN + PHASES
-    this.load.image('slateman', 'assets/slateman1.png');
-    this.load.image('slatemanphase1', 'assets/slateman2.png');
-    this.load.image('slatemanphase2', 'assets/slateman3.png');
-    this.load.image('slatemanphase3', 'assets/slateman4.png');
-    
-    //other
-    this.load.image('groundhitbox', 'assets/groundhitbox.png');
-    this.load.image('thickgroundhitbox', 'assets/groundhitbox2.png');
-    this.load.image('redstat', 'assets/KBstatBG1.png');
-    this.load.image('bluestat', 'assets/KBstatBG2.png');
-    this.load.image('p1guide', 'assets/p1guide.png');
-    this.load.image('p2guide', 'assets/p2guide.png');
 
-    this.load.image('winbar', 'assets/WINbar.png');
-    this.load.image('doublejump', 'assets/DoubleJump.png');
-    this.load.image('restartBtn', 'assets/restartBtn.png');
-    this.load.image('restartBtnPressed', 'assets/pressedRestart.png');
-    this.load.image('hook', 'assets/hook.png');
-    this.load.image('whitescythe', 'assets/whitescythe.png');
-    this.load.image('slasheffect', 'assets/slasheffect.png');
-    this.load.image('plungedAura', 'assets/plungedAura.png');
-
-    for (let i = 1; i < 5; i++) {
-        this.load.image('countdown'+i, 'assets/countdown'+i+'.png')
-    }
-
-    //attacks
-    this.load.spritesheet('axeatk', 'assets/axeatk1.png', {
-        frameWidth: 50,
-        frameHeight: 50
-    });
-    this.load.spritesheet('swordatk', 'assets/swordatk1.png', {
-        frameWidth: 50,
-        frameHeight: 50
-    });
-    this.load.spritesheet('swordatkthird', 'assets/swordatk2.png', {
-        frameWidth: 50,
-        frameHeight: 50
-    });
-    this.load.spritesheet('swordatktilt', 'assets/swordatk3.png', {
-        frameWidth: 75,
-        frameHeight: 75
-    });
-    this.load.spritesheet('axeatktilt', 'assets/axetilt.png', {
-        frameWidth: 75,
-        frameHeight: 75
-    });
-    this.load.spritesheet('axeatkthird', 'assets/axeatk2.png', {
-        frameWidth: 50,
-        frameHeight: 50
-    });
-    this.load.spritesheet('rodatk', 'assets/rodatk1.png', {
-        frameWidth: 50,
-        frameHeight: 50
-    });
-    this.load.spritesheet('scytheatk', 'assets/scytheatk1.png', {
-        frameWidth: 50,
-        frameHeight: 50
-    });
-    this.load.spritesheet('scytheatktilt', 'assets/scythelightatk.png', {
-        frameWidth: 75,
-        frameHeight: 75
-    });
-    this.load.spritesheet('hammeratk', 'assets/hammeratk1.png', {
-        frameWidth: 50,
-        frameHeight: 50
-    });
-    this.load.spritesheet('slateatk', 'assets/slateatk.png', {
-        frameWidth: 50,
-        frameHeight: 50
-    });
-    this.load.spritesheet('slateatkthird', 'assets/slateatkthird.png', {
-        frameWidth: 50,
-        frameHeight: 50
-    });
-    this.load.spritesheet('slateatktilt', 'assets/slateatktilt.png', {
-        frameWidth: 75,
-        frameHeight: 75
-    });
-    this.load.spritesheet('slateplunge', 'assets/slateplunge.png', {
-        frameWidth: 100,
-        frameHeight: 50
-    });
-
-    //misc
-    this.load.spritesheet('upbambooGrow', 'assets/upBamboo.png', {
-        frameWidth: 50,
-        frameHeight: 50
-    });
-
-    //AUDIO
-    this.load.audio('swordthirdhitsfx', 'audio/swordlunge.wav');
-    this.load.audio('axethirdhitsfx', 'audio/snd_damage_c.wav');
-    this.load.audio('rodthirdhitsfx', 'audio/whipcrack.wav')
-    this.load.audio('scythethirdhitsfx', 'audio/scythethird.wav');
-    this.load.audio('slash', 'audio/slash.ogg');
-    this.load.audio('twirl', 'audio/Twirling.ogg')
-    this.load.audio('anyhit', 'audio/hit1.ogg');
-    this.load.audio('miss', 'audio/swordslash.wav');
-    this.load.audio('lunge', 'audio/Dodge3.wav');
-    this.load.audio('whoosh', 'audio/hookwhoosh.wav');
-    this.load.audio('countdown', 'audio/countdown.wav');
-    this.load.audio('hammerhit', 'audio/punch.wav');
-    this.load.audio('repair', 'audio/Hitwrench.ogg');
-    this.load.audio('bamboo', 'audio/snd_spearrise.wav');
-    this.load.audio('swosh', 'audio/swosh.wav');
-    this.load.audio('plunge', 'audio/plunge.ogg');  
-    this.load.audio('slatepunch', 'audio/slatepunch.wav');
-}
 //important game variables, including player objects, controls, and the platforms group
 var platforms;
 var topPlatforms;
@@ -674,7 +129,6 @@ var mobileControls = {
     }
 };
 
-var gameEnded = false;
 const xOff = 500;
 const yOff = 300;
 
@@ -683,9 +137,13 @@ var winBar;
 var restartBtn;
 var restartBtnPressed;
 function create() {
-    gameEnded = false;
-    gameEnded = false;
-    winCooldown = false;
+    this.gameEnded = false;
+    this.winCooldown = false;
+    this.gameState = {
+        players: null,
+        platforms: null,
+        topPlatforms: null
+    };
 
     lastWinState = {
         p1: 0,
@@ -701,8 +159,8 @@ function create() {
         p1: [],
         p2: []
     }
-    platforms = this.physics.add.staticGroup();
-    topPlatforms = this.physics.add.staticGroup();
+    this.gameState.platforms = this.physics.add.staticGroup();
+    this.gameState.topPlatforms = this.physics.add.staticGroup();
     //Making the background, platforms, and the KB stat display
     const bg = this.add.image(1000, 600, 'background');
     bg.setDisplaySize(this.scale.width*2, this.scale.height*2);
@@ -775,21 +233,21 @@ function create() {
     groundVisual.setDepth(1);
 
     // Invisible collision ground, the actual ground
-    const ground = platforms.create(xOff+ 500, yOff+575, 'thickgroundhitbox');
+    const ground = this.gameState.platforms.create(xOff+ 500, yOff+575, 'thickgroundhitbox');
     ground.setDisplaySize(this.scale.width, 0);
     ground.setVisible(false);
     ground.refreshBody();
     this.objs.add(ground);
     this.mainGround = ground;
 
-    const ground2 = topPlatforms.create(xOff+ 725, yOff+470, 'groundhitbox');
+    const ground2 = this.gameState.topPlatforms.create(xOff+ 725, yOff+470, 'groundhitbox');
     ground2.setDisplaySize(this.scale.width / 2, 0);
     ground2.setVisible(true);
     ground2.refreshBody();
     this.objs.add(ground2);
     ground2.body.checkCollision.down = false
 
-    const ground3 = topPlatforms.create(xOff+ 275, yOff+337, 'groundhitbox');
+    const ground3 = this.gameState.topPlatforms.create(xOff+ 275, yOff+337, 'groundhitbox');
     ground3.setDisplaySize(this.scale.width / 2, 0);
     ground3.setVisible(true);
     ground3.refreshBody();
@@ -826,8 +284,8 @@ function create() {
     });
     this.anims.create({
         key: 'swordatktilt',
-        frames: this.anims.generateFrameNumbers('swordatktilt', { start: 0, end: 3 }),
-        frameRate: 32,
+        frames: this.anims.generateFrameNumbers('swordatktilt', { start: 0, end: 4 }),
+        frameRate: 28,
         repeat: 0
     });
     this.anims.create({
@@ -999,13 +457,14 @@ function create() {
                 obj: btn[3],
                 key: btn[4]
             });
+            if (botMode) butn.visible = false;
             this.mobileButtons.p2.push(butn);
         });
 
     }
 
     //---PLAYER---\\
-    players = initiatePlayers(this, player1Character, player2Character);
+    this.gameState.players = initiatePlayers(this, player1Character, player2Character);
 
     //a bit of cam intiation:
     this.physics.world.setBounds(0, 0, 2000, 1200);
@@ -1014,40 +473,40 @@ function create() {
     this.objcam.ignore(this.objs);
 
 
-    for (const key in players) {
-        const player = players[key];
-        this.physics.add.collider(player, platforms);
-        this.physics.add.collider(player, topPlatforms);
+    for (const key in this.gameState.players) {
+        const player = this.gameState.players[key];
+        this.physics.add.collider(player, this.gameState.platforms);
+        this.physics.add.collider(player, this.gameState.topPlatforms);
     }
 
-    const keys = Object.keys(players);
+    const keys = Object.keys(this.gameState.players);
 
     for (let i = 0; i < keys.length; i++) {
         for (let j = i + 1; j < keys.length; j++) {
-            const playerA = players[keys[i]];
-            const playerB = players[keys[j]];
+            const playerA = this.gameState.players[keys[i]];
+            const playerB = this.gameState.players[keys[j]];
             this.physics.add.collider(playerA, playerB);
         }
     }
 
     //load icons for the KB stat display
-    const plr1Icon = this.add.image(250, 65, players.player.icon);
-    const plr2Icon = this.add.image(650, 65, players.player2.icon);
+    const plr1Icon = this.add.image(250, 65, this.gameState.players.player.icon);
+    const plr2Icon = this.add.image(650, 65, this.gameState.players.player2.icon);
     this.hud.add(plr1Icon);
     this.hud.add(plr2Icon);
 
-    const plr1NameText = this.add.text(280, 47, players.player.name, { fontFamily: 'GameFont', fontSize: '16px', fill: '#FFFFFF' });
-    const plr2NameText = this.add.text(680, 47, players.player2.name, { fontFamily: 'GameFont', fontSize: '16px', fill: '#FFFFFF' });
+    const plr1NameText = this.add.text(280, 47, this.gameState.players.player.name, { fontFamily: 'GameFont', fontSize: '16px', fill: '#FFFFFF' });
+    const plr2NameText = this.add.text(680, 47, this.gameState.players.player2.name, { fontFamily: 'GameFont', fontSize: '16px', fill: '#FFFFFF' });
     plr1NameText.setStroke('#000000', 3);
     plr2NameText.setStroke('#000000', 3);
     this.hud.add(plr1NameText);
     this.hud.add(plr2NameText);
-    players.player.KBText = this.add.text(285, 65, 'KB: 1.00', { fontFamily: 'GameFont', fontSize: '20px', fill: '#FFFFFF' });
-    players.player2.KBText = this.add.text(685, 65, 'KB: 1.00', { fontFamily: 'GameFont', fontSize: '20px', fill: '#FFFFFF' });
-    players.player.KBText.setStroke('#000000', 3);
-    players.player2.KBText.setStroke('#000000', 3);
-    this.hud.add(players.player2.KBText);
-    this.hud.add(players.player.KBText);
+    this.gameState.players.player.KBText = this.add.text(285, 65, 'KB: 1.00', { fontFamily: 'GameFont', fontSize: '20px', fill: '#FFFFFF' });
+    this.gameState.players.player2.KBText = this.add.text(685, 65, 'KB: 1.00', { fontFamily: 'GameFont', fontSize: '20px', fill: '#FFFFFF' });
+    this.gameState.players.player.KBText.setStroke('#000000', 3);
+    this.gameState.players.player2.KBText.setStroke('#000000', 3);
+    this.hud.add(this.gameState.players.player2.KBText);
+    this.hud.add(this.gameState.players.player.KBText);
     
 
     //---CONTROLS---\\
@@ -1062,10 +521,10 @@ function create() {
 
     //3-2-1 COUNTDOWN
 
-    players.player.freezeUntil = 4200 + this.time.now;
-    players.player.hitstunUntil = 4200 + this.time.now;
-    players.player2.freezeUntil = 4200 + this.time.now;
-    players.player2.hitstunUntil = 4200 + this.time.now;
+    this.gameState.players.player.freezeUntil = 4200 + this.time.now;
+    this.gameState.players.player.hitstunUntil = 4200 + this.time.now;
+    this.gameState.players.player2.freezeUntil = 4200 + this.time.now;
+    this.gameState.players.player2.hitstunUntil = 4200 + this.time.now;
 
     
 
@@ -1106,10 +565,10 @@ function create() {
                         duration: 500,
                         onComplete: () => counter4.destroy()
                     });
-                    players.player.freezeUntil = 0;
-                    players.player2.freezeUntil = 0;
-                    players.player.hitstunUntil = 0;
-                    players.player2.hitstunUntil = 0;
+                    this.gameState.players.player.freezeUntil = 0;
+                    this.gameState.players.player2.freezeUntil = 0;
+                    this.gameState.players.player.hitstunUntil = 0;
+                    this.gameState.players.player2.hitstunUntil = 0;
 
                 });   
             });   
@@ -1119,13 +578,13 @@ function create() {
 
 }
 function updateWins(scene) {
-    if (players.player.winNumber !== lastWinState.p1 || players.player2.winNumber !== lastWinState.p2) {
+    if (scene.gameState.players.player.winNumber !== lastWinState.p1 || scene.gameState.players.player2.winNumber !== lastWinState.p2) {
         console.log("update!")
-        lastWinState.p1 = players.player.winNumber;
-        lastWinState.p2 = players.player2.winNumber;
+        lastWinState.p1 = scene.gameState.players.player.winNumber;
+        lastWinState.p2 = scene.gameState.players.player2.winNumber;
 
         winBar.setVisible(true);
-        if (players.player.winNumber >= 3 || players.player2.winNumber >= 3) {
+        if (scene.gameState.players.player.winNumber >= 3 || scene.gameState.players.player2.winNumber >= 3) {
             winBar.setVisible(false);
         }
         scene.tweens.add({
@@ -1135,8 +594,8 @@ function updateWins(scene) {
             ease: 'Cubic.easeOut'
         });
         scene.time.delayedCall(1000, () => {
-            players.player.winText.setVisible(false);
-            players.player2.winText.setVisible(false);
+            scene.gameState.players.player.winText.setVisible(false);
+            scene.gameState.players.player2.winText.setVisible(false);
             scene.tweens.add({
                 targets: winBar,
                 scaleY: 0, // from 0 → full height
@@ -1145,13 +604,13 @@ function updateWins(scene) {
             });
         });
 
-        players.player.winText.setText(players.player.winNumber);
-        players.player2.winText.setText(players.player2.winNumber);
-        players.player.winText.setVisible(true);
-        players.player2.winText.setVisible(true);
-        if (players.player.winNumber >= 3 || players.player2.winNumber >= 3) {
-            players.player.winText.setVisible(false);
-            players.player2.winText.setVisible(false);
+        scene.gameState.players.player.winText.setText(scene.gameState.players.player.winNumber);
+        scene.gameState.players.player2.winText.setText(scene.gameState.players.player2.winNumber);
+        scene.gameState.players.player.winText.setVisible(true);
+        scene.gameState.players.player2.winText.setVisible(true);
+        if (scene.gameState.players.player.winNumber >= 3 || scene.gameState.players.player2.winNumber >= 3) {
+            scene.gameState.players.player.winText.setVisible(false);
+            scene.gameState.players.player2.winText.setVisible(false);
         }
 
     }
@@ -1163,7 +622,6 @@ function teleportBackToArena(player) {
     player.setVelocityX(0);
 }
 const accelFactor = 20;
-var winCooldown = false;
 
 const baseZoom = 1;
 const minZoom = 0.6;
@@ -1195,8 +653,8 @@ function spawnAfterimage(scene, player) {
     });
 }
 function updateKB(scene) {
-    for (const key in players) {
-        const player = players[key];
+    for (const key in scene.gameState.players) {
+        const player = scene.gameState.players[key];
         const spawnBox = () => {
             const box = scene.add.rectangle(
                 player.x,
@@ -1264,372 +722,15 @@ function updateKB(scene) {
         }
     }
 }
-var fiveframecount = 0;
-function runBotAI(scene, bot, target) {
-    //let the ai make the ai 🔥
-    const ground = scene.mainGround;
+export var fiveframecount = 0;
 
-    const groundLeft = ground.x - ground.displayWidth / 2;
-    const groundRight = ground.x + ground.displayWidth / 2;
-
-    const edgeBuffer = 25;
-    const recoveryMargin = 50;
-    const deadzone = 0; //REALLY LOW
-
-    const dx = target.x - bot.x;
-    const dy = target.y - bot.y;
-    // ======================
-    // DISABLED STATES
-    // ======================
-
-    if (!bot.escapeUntil) {
-        bot.escapeUntil = 0;
-    }
-
-    if (bot.hitstun || bot.freeze || bot.isUsingSideSpecial) {
-        executeStateCommand(scene, players, {
-            playerID: bot.id,
-            type: Commands.NONE
-        });
-        return;
-    }
-
-    // ======================
-    // RECOVERY
-    // ======================
-
-    const offLeft = bot.x < groundLeft - recoveryMargin;
-    const offRight = bot.x > groundRight + recoveryMargin;
-
-    if (offLeft || offRight || bot.y > ground.y + 50) {
-
-        // move toward stage
-
-
-        if (offLeft) {
-            bot.lastDir = { x: 1, y: 0 };
-            executeStateCommand(scene, players, {
-                playerID: bot.id,
-                type: Commands.RIGHT
-            });
-        }
-
-        if (offRight) {
-            bot.lastDir = { x: -1, y: 0 };
-            executeStateCommand(scene, players, {
-                playerID: bot.id,
-                type: Commands.LEFT
-            });
-        }
-
-        if (bot.body.blocked.down) {
-            console.log("GROUNDED");
-            executeStateCommand(scene, players, {
-                playerID: bot.id,
-                type: Commands.UP
-            });
-            bot.hasDoubleJumped = false;
-            return;
-        }
-
-        if (!bot.hasDoubleJumped) {
-            bot.lastDir = { x: 0, y: -1 };
-            executeStateCommand(scene, players, {
-                playerID: bot.id,
-                type: Commands.DOUBLE_UP
-            });
-            return;
-        }
-
-        return;
-    }
-
-    // ======================
-    // STAGE SAFETY
-    // ======================
-
-    if (bot.x <= groundLeft + edgeBuffer) {
-
-        bot.lastDir = { x: 1, y: 0 };
-        executeStateCommand(scene, players, {
-            playerID: bot.id,
-            type: Commands.RIGHT
-        });
-
-        return;
-    }
-
-    if (bot.x >= groundRight - edgeBuffer) {
-
-        bot.lastDir = { x: -1, y: 0 };
-        executeStateCommand(scene, players, {
-            playerID: bot.id,
-            type: Commands.LEFT
-        });
-
-        return;
-    }
-
-    // ======================
-    // JUMP TO TARGET
-    // ======================
-
-    if (
-        dy < -120 &&
-        scene.time.now - bot.lastJump > 500
-    ) {
-       if (dy < -120) {
-            // grounded -> normal jump
-            if (bot.body.blocked.down) {
-                bot.lastJump = scene.time.now;
-                bot.lastDir = { x: 0, y: -1 };
-                executeStateCommand(scene, players, {
-                    playerID: bot.id,
-                    type: Commands.UP
-                });
-
-                return;
-            }
-
-            // target is REALLY high above us
-            if (
-                dy < -25 &&
-                !bot.body.blocked.down &&
-                !bot.hasDoubleJumped
-            ) {
-                console.log("HIGH UP!")
-                executeStateCommand(scene, players, {
-                    playerID: bot.id,
-                    type: Commands.DOUBLE_UP
-                });
-
-                return;
-            }
-        }
-    }
-    if (bot.body.blocked.down) {
-        bot.hasDoubleJumped = false;
-    }
-
-    // ======================
-    // ATTACK
-    // ======================
-
-    if (dy > 50  && Math.abs(dy) < 100 && Math.abs(dx) < 36) {
-        bot.lastDir = { x: 0, y: 1 };
-    }
-    if (
-        Math.abs(dx) < 25 &&
-        dy > 150 &&
-        scene.time.now > bot.escapeUntil
-    ) {
-        bot.escapeUntil = scene.time.now + 1500;
-    
-        // move away from where the target is
-        bot.escapeDirection = dx >= 0 ? -1 : 1;
-    
-        // if almost perfectly centered, randomize
-        if (Math.abs(dx) < 5) {
-            bot.escapeDirection = Math.random() < 0.5 ? -1 : 1;
-        }
-    }
-    if (scene.time.now < bot.escapeUntil) {
-
-        if (bot.escapeDirection > 0) {
-            bot.lastDir = { x: 1, y: 0 };
-    
-            executeStateCommand(scene, players, {
-                playerID: bot.id,
-                type: Commands.RIGHT
-            });
-        } else if (bot.escapeDirection < 0) {
-            bot.lastDir = { x: -1, y: 0 };
-    
-            executeStateCommand(scene, players, {
-                playerID: bot.id,
-                type: Commands.LEFT
-            });
-        }
-    
-        return;
-    }
-
-    const attackRange = 65;
-    
-    if (Math.abs(dx) < attackRange && Math.abs(dy) < attackRange+50) {
-
-        if (scene.time.now - bot.lastAttack > 100) {
-
-            bot.lastAttack = scene.time.now;
-
-            handleAttack(scene, bot, target);
-        }
-
-        executeStateCommand(scene, players, {
-            playerID: bot.id,
-            type: Commands.NONE
-        });
-
-        return;
-    }
-
-    // ======================
-    // CHASE
-    // ======================
-    
-    if (dx > deadzone) {
-
-        bot.lastDir = { x: 1, y: 0 };
-
-        executeStateCommand(scene, players, {
-            playerID: bot.id,
-            type: Commands.RIGHT
-        });
-
-    } else if (dx < -deadzone) {
-
-        bot.lastDir = { x: -1, y: 0 };
-
-        executeStateCommand(scene, players, {
-            playerID: bot.id,
-            type: Commands.LEFT
-        });
-
-    } else {
-        executeStateCommand(scene, players, {
-            playerID: bot.id,
-            type: Commands.NONE
-        });
-    }
-    
-    const specDirection = (bot.lastDir.x > 0 && bot.lastDir.x !== 0) ? "right" : "left";
-    //CHARACTER-SPECIFIC SPECIAL ATTACK INTERACTIONS:
-    if (!bot.hasHitSideSpecial && bot.isUsingSideSpecial && fiveframecount === 5) {
-        handleDirSpecialAttack(scene, bot, target);
-    }
-    if (bot.name === "AXEMAN") {
-        const attackRange = 80;
-
-        if (Math.abs(dx) < attackRange && Math.abs(dy) < 50) {
-
-            if (scene.time.now - bot.lastDirSpecial > 500) {
-
-                bot.lastDirSpecial = scene.time.now;
-
-                handleDirSpecial(scene, bot, specDirection, scene.time.now, target);
-            }
-
-            executeStateCommand(scene, players, {
-                playerID: bot.id,
-                type: Commands.NONE
-            });
-
-            return;
-        }
-    } else if (bot.name === "SWORDMAN") {
-        const attackRange = 350;
-        if (Math.abs(dx) < attackRange && Math.abs(dx) > attackRange-100) {
-
-            if (scene.time.now - bot.lastDirSpecial > 500) {
-
-                bot.lastDirSpecial = scene.time.now;
-
-                handleDirSpecial(scene, bot, specDirection, scene.time.now, target);
-            }
-
-            executeStateCommand(scene, players, {
-                playerID: bot.id,
-                type: Commands.NONE
-            });
-
-            return;
-        }
-    } else if (bot.name === "FISHERMAN") {
-        const attackRange = 400;
-
-        if (Math.abs(dx) < attackRange && Math.abs(dx) > attackRange-100) {
-
-            if (scene.time.now - bot.lastDirSpecial > 500) {
-
-                bot.lastDirSpecial = scene.time.now;
-
-                handleDirSpecial(scene, bot, specDirection, scene.time.now, target);
-            }
-
-            executeStateCommand(scene, players, {
-                playerID: bot.id,
-                type: Commands.NONE
-            });
-
-            return;
-        }
-    } else if (bot.name === "SCYTHEMAN") {
-        const attackRange = 500;
-
-        if (Math.abs(dx) < attackRange && Math.abs(dy) < 125) {
-
-            if (scene.time.now - bot.lastDirSpecial > 500) {
-
-                bot.lastDirSpecial = scene.time.now;
-
-                handleDirSpecial(scene, bot, specDirection, scene.time.now, target);
-            }
-
-            executeStateCommand(scene, players, {
-                playerID: bot.id,
-                type: Commands.NONE
-            });
-
-            return;
-        }
-    } else if (bot.name === "HAMMERMAN") {
-        const attackRange = 80;
-
-        if (Math.abs(dx) < attackRange) {
-
-            if (scene.time.now - bot.lastDirSpecial > 500 && Math.abs(dy) < 100) {
-
-                bot.lastDirSpecial = scene.time.now;
-
-                handleDirSpecial(scene, bot, specDirection, scene.time.now, target);
-            }
-
-            executeStateCommand(scene, players, {
-                playerID: bot.id,
-                type: Commands.NONE
-            });
-
-            return;
-        }
-    } else if (bot.name === "SLATEMAN") {
-        const attackRange = 130;
-
-        if (Math.abs(dx) < attackRange) {
-
-            if (scene.time.now - bot.lastDirSpecial > 500 && Math.abs(dy) < 50) {
-
-                bot.lastDirSpecial = scene.time.now;
-
-                handleDirSpecial(scene, bot, specDirection, scene.time.now, target);
-            }
-
-            executeStateCommand(scene, players, {
-                playerID: bot.id,
-                type: Commands.NONE
-            });
-
-            return;
-        }
-    }
-    
-}
 function update() {
 
     fiveframecount += 1;
     
 
-    const p1 = players.player;
-    const p2 = players.player2;
+    const p1 = this.gameState.players.player;
+    const p2 = this.gameState.players.player2;
 
     var midX = (p1.x + p2.x) / 2;
     var midY = (p1.y + p2.y) / 2;
@@ -1643,7 +744,7 @@ function update() {
         this.baseZoom = 1.4;
     }
 
-    // distance between players
+    // distance between this.gameState.players
     var distX = Math.abs(p1.x - p2.x);
     var distY = Math.abs(p1.y - p2.y);
 
@@ -1674,7 +775,7 @@ function update() {
         zoom - this.cameras.main.zoom
     ) * 0.05;
 
-    if (gameEnded) {
+    if (this.gameEnded) {
         p1.setVelocity(0, 0);
         p2.setVelocity(0, 0);
         return;
@@ -1726,8 +827,8 @@ function update() {
     p1.outOfBounds = p1.y > 1600 || p1.x < -400 || p1.x > 2400 || p1.y < -400;
     p2.outOfBounds = p2.y > 1600 || p2.x < -400 || p2.x > 2400 || p2.y < -400;
 
-    for (const key in players) {
-        const player = players[key];
+    for (const key in this.gameState.players) {
+        const player = this.gameState.players[key];
 
         if (player.body.touching.down) {
             player.airTime = 0;
@@ -1853,23 +954,23 @@ function update() {
         }
         if (wasd.left.isDown || mobileControls.p1.left) {
             //transplant successful!
-            executeStateCommand(this, players, {
+            executeStateCommand(this, this.gameState.players, {
                 playerID: p1.id,
                 type: Commands.LEFT
             });
         } else if (wasd.right.isDown || mobileControls.p1.right) {
-            executeStateCommand(this, players, {
+            executeStateCommand(this, this.gameState.players, {
                 playerID: p1.id,
                 type: Commands.RIGHT
             });
         } else {
-            executeStateCommand(this, players, {
+            executeStateCommand(this, this.gameState.players, {
                 playerID: p1.id,
                 type: Commands.NONE
             });
         }
         if ((wasd.up.isDown || mobileControls.p1.up) && p1.body.touching.down) {
-            executeStateCommand(this, players, {
+            executeStateCommand(this, this.gameState.players, {
                 playerID: p1.id,
                 type: Commands.UP
             });
@@ -1891,7 +992,7 @@ function update() {
                 inputMode.p1 = "keyboard";
             }
             if (!p1.body.touching.down && !p1.hasDoubleJumped) {
-                executeStateCommand(this, players, {
+                executeStateCommand(this, this.gameState.players, {
                     playerID: p1.id,
                     type: Commands.DOUBLE_UP
                 });
@@ -1921,14 +1022,14 @@ function update() {
                 : wasd.up.isUp;
 
         if (jumpReleased && p1.body.velocity.y < 0 && !p1.hasDoubleJumped) {
-            executeStateCommand(this, players, {
+            executeStateCommand(this, this.gameState.players, {
                 playerID: p1.id,
                 type: Commands.UP_CANCEL
             });
         }
 
         if ((wasd.down.isDown || mobileControls.p1.down) && p1.airTime > 600) {
-            executeStateCommand(this, players, {
+            executeStateCommand(this, this.gameState.players, {
                 playerID: p1.id,
                 type: Commands.DOWNSLAM
             });
@@ -1973,7 +1074,7 @@ function update() {
 
         if (cursors.left.isDown || mobileControls.p2.left) {
             if (!p2.isUsingSideSpecial) {
-                executeStateCommand(this, players, {
+                executeStateCommand(this, this.gameState.players, {
                     playerID: p2.id,
                     type: Commands.LEFT
                 });
@@ -1981,21 +1082,21 @@ function update() {
         }
         else if (cursors.right.isDown || mobileControls.p2.right) {
             if (!p2.isUsingSideSpecial) {
-                executeStateCommand(this, players, {
+                executeStateCommand(this, this.gameState.players, {
                     playerID: p2.id,
                     type: Commands.RIGHT
                 });
             }
         }
         else {
-            executeStateCommand(this, players, {
+            executeStateCommand(this, this.gameState.players, {
                 playerID: p2.id,
                 type: Commands.NONE
             });
         }
 
         if ((cursors.up.isDown || mobileControls.p2.up) && p2.body.touching.down) {
-            executeStateCommand(this, players, {
+            executeStateCommand(this, this.gameState.players, {
                 playerID: p2.id,
                 type: Commands.UP
             });
@@ -2013,7 +1114,7 @@ function update() {
             (Phaser.Input.Keyboard.JustDown(cursors.up) || mobileControls.p2.upPressed)
         ) {
             if (!p2.body.touching.down && !p2.hasDoubleJumped) {
-                executeStateCommand(this, players, {
+                executeStateCommand(this, this.gameState.players, {
                     playerID: p2.id,
                     type: Commands.DOUBLE_UP
                 });
@@ -2049,13 +1150,13 @@ function update() {
                 : cursors.up.isUp;
 
         if (jumpReleased2 && p2.body.velocity.y < 0 && !p2.hasDoubleJumped) {
-            executeStateCommand(this, players, {
+            executeStateCommand(this, this.gameState.players, {
                 playerID: p2.id,
                 type: Commands.UP_CANCEL
             });
         }
         if ((cursors.down.isDown || mobileControls.p2.down) && p2.airTime > 600) {
-            executeStateCommand(this, players, {
+            executeStateCommand(this, this.gameState.players, {
                 playerID: p2.id,
                 type: Commands.DOWNSLAM
             });
@@ -2082,10 +1183,10 @@ function update() {
 
     //WIN CONDITION -- DETECT IF PLAYER IS LAUNCHED FAR OFF SCREEN
 
-    if (!gameEnded && !winCooldown) {
+    if (!this.gameEnded && !this.winCooldown) {
 
         if (p1.outOfBounds) {
-            winCooldown = true;
+            this.winCooldown = true;
             p2.winNumber = p2.winNumber + 1;
             p1.KBmultiplier = 1.00;
             console.log(p2.winNumber)
@@ -2093,27 +1194,27 @@ function update() {
             teleportBackToArena(p1);
             
             this.time.delayedCall(1500, () => {
-                winCooldown = false;
+                this.winCooldown = false;
             });
         } else if (p2.outOfBounds) {
-            winCooldown = true;
+            this.winCooldown = true;
             p1.winNumber = p1.winNumber + 1;
             p2.KBmultiplier = 1.00;
             updateWins(this);
             teleportBackToArena(p2);
             
             this.time.delayedCall(1500, () => {
-                winCooldown = false;
+                this.winCooldown = false;
             });
         }
 
         if (p1.winNumber >= winNumber || p2.winNumber >= winNumber) {
             if (p1.outOfBounds) {
-                gameEnded = true;
+                this.gameEnded = true;
                 const winner = this.add.text(500, 150, p2.name + ' WINS!', { fontFamily: 'GameFont', fontSize: '32px', fill: '#00008B' }).setOrigin(0.5).setStroke('#000000', 5);
                 this.hud.add(winner);
             } else if (p2.outOfBounds) {
-                gameEnded = true;
+                this.gameEnded = true;
                 const winner = this.add.text(500, 150, p1.name + ' WINS!', { fontFamily: 'GameFont', fontSize: '32px', fill: '#8B0000' }).setOrigin(0.5).setStroke('#000000', 5);
                 this.hud.add(winner);
             }
