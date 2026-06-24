@@ -283,6 +283,8 @@ export function preload() {
 
     this.load.audio('swosh', 'audio/swosh.wav');
 
+    this.load.audio('finisher', 'audio/finisher.wav');
+
     // =====================================================
     // AUDIO - SWORDMAN
     // =====================================================
