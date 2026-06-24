@@ -139,6 +139,7 @@ var restartBtnPressed;
 function create() {
     this.gameEnded = false;
     this.winCooldown = false;
+    this.finisherActive = false;
     this.gameState = {
         players: null,
         platforms: null,
@@ -246,6 +247,8 @@ function create() {
     ground2.refreshBody();
     this.objs.add(ground2);
     ground2.body.checkCollision.down = false
+    ground2.body.checkCollision.left = false
+    ground2.body.checkCollision.right = false
 
     const ground3 = this.gameState.topPlatforms.create(xOff+ 275, yOff+337, 'groundhitbox');
     ground3.setDisplaySize(this.scale.width / 2, 0);
@@ -253,6 +256,8 @@ function create() {
     ground3.refreshBody();
     this.objs.add(ground2);
     ground3.body.checkCollision.down = false
+    ground3.body.checkCollision.left = false
+    ground3.body.checkCollision.right = false
 
 
     //platform.refreshBody();
@@ -521,11 +526,14 @@ function create() {
 
     //3-2-1 COUNTDOWN
 
-    this.gameState.players.player.freezeUntil = 4200 + this.time.now;
-    this.gameState.players.player.hitstunUntil = 4200 + this.time.now;
-    this.gameState.players.player2.freezeUntil = 4200 + this.time.now;
-    this.gameState.players.player2.hitstunUntil = 4200 + this.time.now;
+    
 
+    this.time.delayedCall(50, () => {
+        this.gameState.players.player.freezeUntil = 4200 + this.time.now;
+        this.gameState.players.player.hitstunUntil = 4200 + this.time.now;
+        this.gameState.players.player2.freezeUntil = 4200 + this.time.now;
+        this.gameState.players.player2.hitstunUntil = 4200 + this.time.now;
+    });
     
 
     this.time.delayedCall(1000, () => {
