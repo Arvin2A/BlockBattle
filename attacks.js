@@ -51,6 +51,7 @@ export function attackIsElligible(attacker, target, range = 100, onlyOnCanAttack
         target.flash();
 
     }
+    print(dx);
     return dot > 0.7 || isFacingUp || isTargetAbove; // Attack range and facing target
 }
 function hitFreeze(scene, ms = 50) {
@@ -303,7 +304,7 @@ export function pushAttack(scene, attacker, target, animKey) {
     //Push attacks happen if the player is at maximum velocity
     setAttackSprite(attacker, animKey);
     let hit = false;
-    if (attackIsElligible(attacker, target, 125) || !scene.finisherActive) {
+    if (attackIsElligible(attacker, target, 125) && !scene.finisherActive) {
         hit = true;
         
         target.hitstunUntil = 450 + scene.time.now;;
@@ -360,7 +361,7 @@ export function pushAttack(scene, attacker, target, animKey) {
 export function hardSwing(scene, attacker, target, animKey) {
     //Push attacks happen if the player is at maximum velocity
     setAttackSprite(attacker, animKey);
-    if (attackIsElligible(attacker, target, 100) || !scene.finisherActive) {
+    if (attackIsElligible(attacker, target, 100) && !scene.finisherActive) {
         target.hitstunUntil = 400 * target.KBmultiplier + scene.time.now;
         target.willDecelerate = false;
         target.freezeUntil = scene.time.now-1;
@@ -414,7 +415,7 @@ export function hardSwing(scene, attacker, target, animKey) {
 export function lungePush(scene, attacker, target, animKey) {
     //Push attacks happen if the player is at maximum velocity
     setAttackSprite(attacker, animKey);
-    if (attackIsElligible(attacker, target, 155, false) || !scene.finisherActive) {
+    if (attackIsElligible(attacker, target, 155, false) && !scene.finisherActive) {
         target.hitstunUntil = 300 * target.KBmultiplier + scene.time.now;
         target.willDecelerate = false;
         target.freezeUntil = scene.time.now-1;
@@ -464,7 +465,7 @@ export function lungePush(scene, attacker, target, animKey) {
 export function thirdAttack(scene, attacker, target, animKey) {
     //The third attack launching the target away
     setAttackSprite(attacker, animKey);
-    if (attackIsElligible(attacker, target) || !scene.finisherActive) {
+    if (attackIsElligible(attacker, target) && !scene.finisherActive) {
         target.hitstunUntil = 500 * target.KBmultiplier + scene.time.now;
         target.willDecelerate = false;
         target.freezeUntil = scene.time.now-1;
@@ -519,7 +520,7 @@ export function thirdAttack(scene, attacker, target, animKey) {
 export function slamThirdAttack(scene, attacker, target, animKey) {
     //The third attack launching the target away
     setAttackSprite(attacker, animKey);
-    if (attackIsElligible(attacker, target) || !scene.finisherActive) {
+    if (attackIsElligible(attacker, target) && !scene.finisherActive) {
         target.hitstunUntil = 500 * target.KBmultiplier + scene.time.now;
         target.willDecelerate = false;
         target.freezeUntil = scene.time.now-1;
@@ -589,7 +590,7 @@ export function tiltAttack(scene, attacker, target, {
     if (onUse) {
         onUse(scene);
     }
-    if (attackIsElligible(attacker, target, range) || !scene.finisherActive) {
+    if (attackIsElligible(attacker, target, range) && !scene.finisherActive) {
         target.hitstunUntil = kbTime + 250 + scene.time.now;
         target.willDecelerate = false;
         target.freezeUntil = scene.time.now-1;
