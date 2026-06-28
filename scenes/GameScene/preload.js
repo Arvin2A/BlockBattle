@@ -71,7 +71,7 @@ export function preload() {
         'axeatkthird',
         'assets/sprites/axeman/axeatk2.png',
         {
-            frameWidth: 50,
+            frameWidth: 75,
             frameHeight: 50
         }
     );

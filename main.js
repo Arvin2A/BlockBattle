@@ -295,8 +295,8 @@ function create() {
     });
     this.anims.create({
         key: 'axeatkthird',
-        frames: this.anims.generateFrameNumbers('axeatkthird', { start: 0, end: 3 }),
-        frameRate: 32,
+        frames: this.anims.generateFrameNumbers('axeatkthird', { start: 0, end: 6 }),
+        frameRate: 52,
         repeat: 0
     });
     this.anims.create({
