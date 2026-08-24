@@ -7,6 +7,7 @@ export const Commands = {
     DOWNSLAM: 5,
     UP_CANCEL: 6,
 };
+const deccelFactor = 0.9;
 const accelFactor = 20;
 function getPlayer(players, id) {
     return id === 1 ? players.player : players.player2;
@@ -20,7 +21,11 @@ function decelerate(player) {
     let vx = player.body.velocity.x;
 
     if (Math.abs(vx) > 10) {
-        player.setVelocityX(vx * 0.9);
+        if (player.body.blocked.down) {
+            player.setVelocityX(vx * 0.9);
+        } else {
+            player.setVelocityX(vx * 0.95);
+        } 
     } else {
         player.setVelocityX(0);
     }

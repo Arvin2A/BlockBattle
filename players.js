@@ -79,6 +79,7 @@ export function initiatePlayers(scene, p1Select = 'axeman', p2Select = 'swordman
         p.plungeMark;
 
         p.movementSpeed = 300;
+        p.movementSpeedScale = 1;
         p.baseDamageScale = 1;
 
         p.plungeAura = scene.add.image(p.x, p.y, 'plungedAura');
