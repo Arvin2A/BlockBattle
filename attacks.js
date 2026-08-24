@@ -51,25 +51,23 @@ export function attackIsElligible(attacker, target, range = 100, onlyOnCanAttack
         target.flash();
 
     }
-    print(dx);
+    console.log();
     return dot > 0.7 || isFacingUp || isTargetAbove; // Attack range and facing target
 }
-function hitFreeze(scene, ms = 50) {
+function hitFreeze(scene, ms = 50, flash = false) {
     scene.physics.world.pause();
-    if (ms >= 200) {
-        scene.baseZoom = 1.4;
-    }  
-    if (ms >= 100) {
-        const flash = scene.add.rectangle(
-            500,
-            300,
-            1000,
-            600,
-            0xff0000,
-            0.25
-        );
-        scene.hud.add(flash);
 
+    scene.anims.pauseAll();   // IMPORTANT
+    scene.tweens.pauseAll();
+
+    scene.baseZoom = 2;
+
+
+    
+
+    if (flash) {
+        const flash = scene.add.rectangle(500, 300, 1000, 600, 0xff0000, 0.25);
+        scene.hud.add(flash);
         flash.setDepth(9999);
         scene.tweens.add({
             targets: flash,
@@ -78,9 +76,12 @@ function hitFreeze(scene, ms = 50) {
             onComplete: () => flash.destroy()
         });
     }
+
     scene.time.delayedCall(ms, () => {
         scene.physics.world.resume();
-        scene.baseZoom = 1
+        scene.anims.resumeAll();
+        scene.tweens.resumeAll();
+        scene.baseZoom = 1;
     });
 }
 
@@ -140,6 +141,7 @@ export function setAttackSprite(attacker, animKey) {
         attacker.atk.setAngle(0);
     }
     //animation
+    console.log("played");
 
     attacker.atk.setFrame(0);
     attacker.atk.play(animKey, true);
@@ -183,19 +185,6 @@ export function applyKnockback(scene, target, vx, vy, finishable = false) {
 
     const kb = Math.hypot(vx, vy);
 
-    if (kb >= FINISHER_THRESHOLD && finishable) {
-        target.hitstunUntil = 2000 + scene.time.now;
-        const ended = finisherFreeze(scene);
-        if (ended) {
-            target.willDecelerate = false;
-            
-            target.setVelocity(vx, vy);
-            scene.time.delayedCall(5000, () => {
-                target.willDecelerate = true;
-            });
-        }
-        return kb
-    }
     target.setVelocity(vx, vy);
 
     return kb;
@@ -253,8 +242,10 @@ export function attack(scene, attacker, target, animKey) {
     return hit;
 }
 export function superSwing(scene, attacker, target, animKey) {
-    setAttackSprite(attacker, animKey);
+
     if (attackIsElligible(attacker, target, 150, false) || !scene.finisherActive) {
+        setAttackSprite(attacker, animKey);
+
         target.hitstunUntil = 510 * target.KBmultiplier + scene.time.now;
         target.willDecelerate = false;
         target.freezeUntil = scene.time.now-1;
@@ -282,7 +273,7 @@ export function superSwing(scene, attacker, target, animKey) {
         attacker.comboTimer = 0; 
     }
     attacker.canAttack = false;
-    scene.time.delayedCall(250, () => {
+    scene.time.delayedCall(400, () => {
         attacker.atk.stop();
         attacker.atk.setVisible(false);
     });
@@ -465,6 +456,7 @@ export function lungePush(scene, attacker, target, animKey) {
 export function thirdAttack(scene, attacker, target, animKey) {
     //The third attack launching the target away
     setAttackSprite(attacker, animKey);
+    attacker._hitDone = false;
     if (attackIsElligible(attacker, target) && !scene.finisherActive) {
         target.hitstunUntil = 500 * target.KBmultiplier + scene.time.now;
         target.willDecelerate = false;
@@ -490,12 +482,20 @@ export function thirdAttack(scene, attacker, target, animKey) {
         //very stronk knockback
         //launch to the side if the target is pinned against the ground, otherwise launch in the direction of the attack
         const plungeMultiplier = target.plunged ? finalplungeMultiplier : 0;
-        if (target.body.touching.down && dirY > 0.7) {
-            const randDir = Math.random() < 0.5 ? -1 : 1;
-            applyKnockback(scene, target, (400 * target.KBmultiplier) * randDir, -200 * target.KBmultiplier);
-        } else {
-            applyKnockback(scene, target, (500 * target.KBmultiplier * (attacker.baseDamageScale + plungeMultiplier)) * dirX, (500 * target.KBmultiplier) * dirY, true);
-        }
+        attacker.atk.on('animationupdate', (anim, frame) => {
+            if (frame.index ===  anim.frames.length - 1  && !attacker._hitDone) {
+                attacker._hitDone = true;
+
+                hitFreeze(scene, 100, false);
+                 if (target.body.touching.down && dirY > 0.7) {
+                    const randDir = Math.random() < 0.5 ? -1 : 1;
+                    applyKnockback(scene, target, (400 * target.KBmultiplier) * randDir, -200 * target.KBmultiplier);
+                } else {
+                    applyKnockback(scene, target, (500 * target.KBmultiplier * (attacker.baseDamageScale + plungeMultiplier)) * dirX, (500 * target.KBmultiplier) * dirY, true);
+                }
+            }
+        });
+       
         attacker.combo = 0;
         attacker.comboTimer = 0;
     }
@@ -1127,6 +1127,8 @@ export function tryPlunge(scene, player, target, direction, currentTime) {
     scene.events.on('update', plungeUpdate);
 
     dagger.play('slateplunge');
+    player.afterimage = true;
+    
 
     dagger.on('animationupdate', (animation, frame) => {
         const currentFrame = frame.index;
@@ -1148,6 +1150,7 @@ export function tryPlunge(scene, player, target, direction, currentTime) {
     dagger.on('animationcomplete-slateplunge', () => {
         scene.events.off('update', daggerTrack);
         scene.events.off('update', plungeUpdate);
+        player.afterimage = false;
 
         dagger.destroy();
     });

@@ -296,7 +296,7 @@ function create() {
     this.anims.create({
         key: 'axeatkthird',
         frames: this.anims.generateFrameNumbers('axeatkthird', { start: 0, end: 6 }),
-        frameRate: 52,
+        frameRate: 42,
         repeat: 0
     });
     this.anims.create({
@@ -344,7 +344,7 @@ function create() {
     this.anims.create({
         key: 'slateplunge',
         frames: this.anims.generateFrameNumbers('slateplunge', { start: 0, end: 10 }),
-        frameRate: 24,
+        frameRate: 12,
         repeat: 0
     });
 
