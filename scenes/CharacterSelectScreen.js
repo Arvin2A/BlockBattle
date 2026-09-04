@@ -82,7 +82,7 @@ export const CharacterSelectScene = {
             0,
             60,
             60
-        ).setStrokeStyle(4, 0x00aaff);
+        ).setStrokeStyle(4, botMode ? 0x686868 : 0x00aaff);
 
         // -----------------------------
         // CHARACTER LIST
@@ -128,9 +128,6 @@ export const CharacterSelectScene = {
         }
 
 
-        if (botMode) {
-            this.p2Cursor.setText('CPU');
-        }
 
         //DESCRIPTIONS:
         const DESCBOX1 = this.add.rectangle(
@@ -199,7 +196,7 @@ export const CharacterSelectScene = {
             if (p1Icon === p2Icon) {
                 this.p2SelectBox.setStrokeStyle(4, 0xc300ff);
             } else {
-                this.p2SelectBox.setStrokeStyle(4, 0x00aaff);
+                this.p2SelectBox.setStrokeStyle(4, botMode ? 0x686868 : 0x00aaff);
             }
 
 
@@ -291,7 +288,7 @@ export const CharacterSelectScene = {
         this.mobileWheels = isTouchDevice
             ? {
                 p1: createCharacterWheel(300, 1, 0xf54242),
-                p2: createCharacterWheel(700, 2, 0x00aaff)
+                p2: createCharacterWheel(700, 2, botMode ? 0x686868 : 0x00aaff)
             }
             : null;
 

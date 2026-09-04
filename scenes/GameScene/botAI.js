@@ -1,4 +1,9 @@
 import { fiveframecount } from "../../main.js";
+import { Commands } from "../../commands.js";
+import { executeStateCommand } from "../../commands.js";
+import { handleAttack } from "../../attacks.js";
+import { handleDirSpecial } from "../../attacks.js";
+import { handleDirSpecialAttack } from "../../attacks.js";
 export function runBotAI(scene, bot, target) {
     //let the ai make the ai 🔥
     const ground = scene.gameState.map.ground;
