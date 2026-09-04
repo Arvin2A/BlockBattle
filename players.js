@@ -1,12 +1,12 @@
-const xOff = 500;
-const yOff = 300;
 export function initiatePlayers(scene, p1Select = 'axeman', p2Select = 'swordman') {
     const players = {
         player: null,
         player2: null
     };
-    players.player = scene.physics.add.sprite(xOff+50, yOff+545, p1Select);
-    players.player2 = scene.physics.add.sprite(xOff+800, yOff+440, p2Select);
+    const p1Spawn = scene.gameState.map.getSpawn(1);
+    const p2Spawn = scene.gameState.map.getSpawn(2);
+    players.player = scene.physics.add.sprite(p1Spawn.x, p1Spawn.y, p1Select);
+    players.player2 = scene.physics.add.sprite(p2Spawn.x, p2Spawn.y, p2Select);
     players.player.id = 1;
     players.player2.id = 2;
     players.player.lastDir = { x: 1, y: 0 };

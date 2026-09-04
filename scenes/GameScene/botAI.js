@@ -1,7 +1,7 @@
 import { fiveframecount } from "../../main.js";
 export function runBotAI(scene, bot, target) {
     //let the ai make the ai 🔥
-    const ground = scene.mainGround;
+    const ground = scene.gameState.map.ground;
 
     const groundLeft = ground.x - ground.displayWidth / 2;
     const groundRight = ground.x + ground.displayWidth / 2;

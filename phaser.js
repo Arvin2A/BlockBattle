@@ -5722,7 +5722,7 @@ var AnimationManager = new Class({
      *
      * @param {string} key - The key of the Animation to retrieve.
      *
-     * @return {Phaser.Animations.Animation} The Animation.
+     * @return {(Phaser.Animations.Animation|undefined)} The Animation or `undefined`.
      */
     get: function (key)
     {
@@ -9947,7 +9947,7 @@ var BaseCamera = new Class({
      * @method Phaser.Cameras.Scene2D.BaseCamera#ignore
      * @since 3.0.0
      *
-     * @param {(Phaser.GameObjects.GameObject|Phaser.GameObjects.GameObject[]|Phaser.GameObjects.Group|Phaser.GameObjects.Layer|Phaser.GameObjects.Layer[])} entries - The Game Object, or array of Game Objects, to be ignored by this Camera.
+     * @param {(Phaser.GameObjects.GameObject|Phaser.GameObjects.GameObject[]|Phaser.GameObjects.Group)} entries - The Game Object, or array of Game Objects, to be ignored by this Camera.
      *
      * @return {this} This Camera instance.
      */
@@ -16466,7 +16466,7 @@ var CONST = {
      * @type {string}
      * @since 3.0.0
      */
-    VERSION: '4.0.0',
+    VERSION: '4.2.1',
 
     /**
      * Phaser Release Version as displayed in the console.log header URL.
@@ -16476,7 +16476,7 @@ var CONST = {
      * @type {string}
      * @since 3.87.0
      */
-    LOG_VERSION: 'v400',
+    LOG_VERSION: 'v4021',
 
     BlendModes: __webpack_require__(10312),
 
@@ -16973,6 +16973,11 @@ var Config = new Class({
         this.mipmapFilter = GetValue(renderConfig, 'mipmapFilter', '', config);
 
         /**
+         * @const {boolean} Phaser.Core.Config#mipmapRegeneration -  - Whether to regenerate mipmaps for framebuffers. If this is false, framebuffers will not use mipmaps. If this is true, framebuffers will use the `mipmapFilter` setting, and regenerate mipmaps if redrawn. This affects filters and DynamicTextures. Mipmap generation is expensive (10 microseconds or more per texture), so be careful with this setting.
+         */
+        this.mipmapRegeneration = GetValue(renderConfig, 'mipmapRegeneration', false, config);
+
+        /**
          * @const {boolean} Phaser.Core.Config#desynchronized - When set to `true` it will create a desynchronized context for both 2D and WebGL. See https://developers.google.com/web/updates/2019/05/desynchronized for details.
          */
         this.desynchronized = GetValue(renderConfig, 'desynchronized', false, config);
@@ -17020,6 +17025,21 @@ var Config = new Class({
          * @const {boolean} Phaser.Core.Config#transparent - Whether the game canvas will have a transparent background.
          */
         this.transparent = GetValue(renderConfig, 'transparent', false, config);
+
+        /**
+         * @const {'keep'|'dither'|number} Phaser.Core.Config#alphaStrategy - The default alpha strategy to use when rendering transparent objects with compatible shaders. Strategies other than `keep` will discard fragments instead of turning them transparent, which creates a very grainy look.
+         */
+        this.alphaStrategy = GetValue(renderConfig, 'alphaStrategy', 'keep', config);
+
+        /**
+         * @const {boolean} Phaser.Core.Config#stencil - Whether to enable stencil testing. Disabling this will prevent creation of stencil buffers, which can save framebuffer memory. Disabling stencil prevents the use of stencil-based rendering.
+         */
+        this.stencil = GetValue(renderConfig, 'stencil', true, config);
+
+        /**
+         * @const {'keep'|'dither'|number} Phaser.Core.Config#stencilAlphaStrategy - The default alpha strategy to use when rendering stencils. Keeping transparent pixels still creates opaque stencil, which is usually not what you want.
+         */
+        this.stencilAlphaStrategy = GetValue(renderConfig, 'stencilAlphaStrategy', 'dither', config);
 
         /**
          * @const {boolean} Phaser.Core.Config#clearBeforeRender - Whether the game canvas will be cleared between each rendering frame. You can disable this if you have a full-screen background image or game object.
@@ -18459,9 +18479,14 @@ var TimeStep = new Class({
          *
          * Use it purely to _restrict_ updates in low-intensity situations only.
          *
+         * You can change the FPS limit at any time by calling
+         * `TimeStep.setFPSLimit(limit)`.
+         * This will update the `fpsLimit`, `hasFpsLimit` and `_limitRate` properties.
+         *
          * @name Phaser.Core.TimeStep#fpsLimit
          * @type {number}
          * @default 0
+         * @readonly
          * @since 3.60.0
          */
         this.fpsLimit = GetValue(config, 'limit', 0);
@@ -18476,6 +18501,7 @@ var TimeStep = new Class({
          * @name Phaser.Core.TimeStep#hasFpsLimit
          * @type {boolean}
          * @default false
+         * @readonly
          * @since 3.60.0
          */
         this.hasFpsLimit = (this.fpsLimit > 0);
@@ -18486,6 +18512,7 @@ var TimeStep = new Class({
          * @name Phaser.Core.TimeStep#_limitRate
          * @type {number}
          * @private
+         * @readonly
          * @since 3.60.0
          */
         this._limitRate = (this.hasFpsLimit) ? (1000 / this.fpsLimit) : 0;
@@ -19171,6 +19198,39 @@ var TimeStep = new Class({
     getDurationMS: function ()
     {
         return Math.round(this.lastTime - this.startTime);
+    },
+
+    /**
+     * Sets the FPS limit (`fpsLimit` property) and related properties.
+     *
+     * Use this method to set the FPS limit at runtime, rather than setting the
+     * `fpsLimit` property directly, to ensure the related properties are
+     * updated correctly. If the TimeStep is running, it will be stopped and
+     * restarted with the new FPS limit.
+     *
+     * If you just want a constant limit, use the Game Config `fps: { limit: 30 }` value instead.
+     *
+     * @method Phaser.Core.TimeStep#setFPSLimit
+     * @since 4.2.0
+     *
+     * @param {number} limit - The FPS limit to set. Set to 0 to remove the FPS limit.
+     *
+     * @return {this} The TimeStep object.
+     */
+    setFPSLimit: function (limit)
+    {
+        this.fpsLimit = limit;
+        this.hasFpsLimit = (this.fpsLimit > 0);
+        this._limitRate = (this.hasFpsLimit) ? (1000 / this.fpsLimit) : 0;
+
+        if (this.running)
+        {
+            var step = (this.hasFpsLimit) ? this.stepLimitFPS.bind(this) : this.step.bind(this);
+            this.raf.stop();
+            this.raf.start(step, this.forceSetTimeOut, this._limitRate);
+        }
+
+        return this;
     },
 
     /**
@@ -33774,6 +33834,7 @@ module.exports = ColorMatrix;
 var Class = __webpack_require__(83419);
 var Controller = __webpack_require__(13045);
 var ColorMatrix = __webpack_require__(89422);
+var Texture = __webpack_require__(79237);
 
 /**
  * @classdesc
@@ -33886,7 +33947,7 @@ var CombineColorMatrix = new Class({
      */
     setTexture: function (texture)
     {
-        var phaserTexture = texture instanceof Phaser.Textures.Texture ? texture : this.camera.scene.sys.textures.getFrame(texture);
+        var phaserTexture = texture instanceof Texture ? texture : this.camera.scene.sys.textures.getFrame(texture);
 
         if (phaserTexture)
         {
@@ -34082,13 +34143,12 @@ var Controller = new Class({
     },
 
     /**
-     * Returns the padding required for this filter.
-     * Most filters don't need extra padding,
-     * but some may sample beyond the texture boundaries, such as a blur or glow effect.
+     * Returns the raw padding required for this filter.
+     * This is typically not what you want to call; use `getPaddingCeil` instead.
+     * Values from this method are not rounded, which can cause quality loss.
      *
-     * The bounds are encoded as a Rectangle.
-     * To enlarge the bounds, the top and left values should be negative,
-     * and the bottom and right values should be positive.
+     * Override this method when creating a Filter that requires extra room,
+     * e.g. a blur or glow effect.
      *
      * @method Phaser.Filters.Controller#getPadding
      * @since 4.0.0
@@ -34097,6 +34157,42 @@ var Controller = new Class({
     getPadding: function ()
     {
         return this.paddingOverride || this.currentPadding;
+    },
+
+    /**
+     * Returns the rounded padding required for this filter.
+     *
+     * Most filters don't need extra padding,
+     * but some may sample beyond the texture boundaries, such as a blur or glow effect.
+     *
+     * The bounds are encoded as a Rectangle.
+     * To enlarge the bounds, the top and left values should be negative,
+     * and the bottom and right values should be positive.
+     *
+     * This method calls `getPadding()` to get the raw padding values,
+     * and uses `Math.ceil()` to set the values of `paddingOverride`
+     * and `currentPadding`.
+     *
+     * @method Phaser.Filters.Controller#getPaddingCeil
+     * @since 4.1.0
+     * @returns {Phaser.Geom.Rectangle} The rounded padding required by this filter.
+     */
+    getPaddingCeil: function ()
+    {
+        var padding = this.getPadding();
+        var paddingCeil = new Rectangle(
+            Math.ceil(padding.x),
+            Math.ceil(padding.y),
+            Math.ceil(padding.width),
+            Math.ceil(padding.height)
+        );
+        this.currentPadding.setTo(
+            paddingCeil.x,
+            paddingCeil.y,
+            paddingCeil.width,
+            paddingCeil.height
+        );
+        return paddingCeil;
     },
 
     /**
@@ -34754,6 +34850,7 @@ var Class = __webpack_require__(83419);
 var Controller = __webpack_require__(13045);
 var Matrix4 = __webpack_require__(37867);
 var TransformMatrix = __webpack_require__(61340);
+var Texture = __webpack_require__(79237);
 
 /**
  * @classdesc
@@ -34915,7 +35012,7 @@ var ImageLight = new Class({
      */
     setEnvironmentMap: function (texture)
     {
-        var phaserTexture = texture instanceof Phaser.Textures.Texture ? texture : this.camera.scene.sys.textures.getFrame(texture);
+        var phaserTexture = texture instanceof Texture ? texture : this.camera.scene.sys.textures.getFrame(texture);
 
         if (phaserTexture)
         {
@@ -34936,7 +35033,7 @@ var ImageLight = new Class({
      */
     setNormalMap: function (texture)
     {
-        var phaserTexture = texture instanceof Phaser.Textures.Texture ? texture : this.camera.scene.sys.textures.getFrame(texture);
+        var phaserTexture = texture instanceof Texture ? texture : this.camera.scene.sys.textures.getFrame(texture);
 
         if (phaserTexture)
         {
@@ -43680,10 +43777,26 @@ var Blitter = new Class({
      *
      * @method Phaser.GameObjects.Blitter#clear
      * @since 3.0.0
+     *
+     * @param {boolean} [destroyBobs=false] - Should the Bobs be destroyed as well? If `false` they will just be removed from the Blitter.
      */
-    clear: function ()
+    clear: function (destroyBobs)
     {
-        this.children.removeAll();
+        if (destroyBobs)
+        {
+            var children = this.children.list;
+            var i = children.length;
+
+            while (i--)
+            {
+                children[i].destroy();
+            }
+        }
+        else
+        {
+            this.children.removeAll();
+        }
+
         this.dirty = true;
     },
 
@@ -43696,6 +43809,8 @@ var Blitter = new Class({
      */
     preDestroy: function ()
     {
+        this.clear(true);
+
         this.children.destroy();
 
         this.renderList = [];
@@ -47387,8 +47502,10 @@ if (true)
                 this.filtersFocusContext = true;
             }
 
-            // Add filters as a render step.
-            this.addRenderStep(this.renderWebGLFilters, 0);
+            // Add filters as a render step,
+            // immediately prior to the main renderWebGL step.
+            var renderWebGLIndex = this._renderSteps.indexOf(this.renderWebGL);
+            this.addRenderStep(this.renderWebGLFilters, renderWebGLIndex);
 
             return this;
         },
@@ -49878,20 +49995,21 @@ var Size = {
     },
 
     /**
-     * Sets the size of this Game Object to be that of the given Frame.
+     * Sets the size of this Game Object to be that of the given Frame or the current Frame.
      *
      * This will not change the size that the Game Object is rendered in-game.
      * For that you need to either set the scale of the Game Object (`setScale`) or call the
      * `setDisplaySize` method, which is the same thing as changing the scale but allows you
      * to do so by giving pixel values.
      *
-     * If you have enabled this Game Object for input, changing the size will _not_ change the
-     * size of the hit area. To do this you should adjust the `input.hitArea` object directly.
+     * If you have enabled this Game Object for input with a custom hit area, changing the size of the Game Object will _not_ change the
+     * size of the hit area. If you wish to do this, you should adjust the `input.hitArea` object directly.
+     * If you have enabled this Game Object for input without a custom hit area, the hit area will be automatically resized to match the size of the selected Frame.
      *
      * @method Phaser.GameObjects.Components.Size#setSizeToFrame
      * @since 3.0.0
      *
-     * @param {Phaser.Textures.Frame|boolean} [frame] - The frame to base the size of this Game Object on.
+     * @param {Phaser.Textures.Frame} [frame] - The frame to base the size of this Game Object on. The default is the current frame of the Game Object.
      *
      * @return {this} This Game Object instance.
      */
@@ -49967,6 +50085,234 @@ var Size = {
 };
 
 module.exports = Size;
+
+
+/***/ },
+
+/***/ 43520
+(module) {
+
+/**
+ * @author       Benjamin D. Richards <benjamindrichards@gmail.com>
+ * @copyright    2013-2026 Phaser Studio Inc.
+ * @license      {@link https://opensource.org/licenses/MIT|MIT License}
+ */
+
+/**
+ * Provides methods used for modifying the stencil buffer.
+ * This component is mixed in to Game Objects that can modify the stencil buffer,
+ * such as Stencil and StencilReference.
+ *
+ * StencilModifier objects are assumed to draw to the stencil buffer.
+ * The `isStencilModifier` property is checked to determine whether
+ * extra compositing steps are necessary within other StencilModifier objects.
+ *
+ * @namespace Phaser.GameObjects.Components.StencilModifier
+ * @since 4.2.0
+ */
+
+var StencilModifier = {
+    /**
+     * The mode to use when rendering the stencil.
+     *
+     * - 'addLayer' - Add a stencil layer.
+     * - 'subtractLayer' - Subtract a stencil layer.
+     * - 'clear' - Clear the stencil buffer.
+     * - 'clearRegion' - Clear a region of the stencil buffer.
+     *
+     * @name Phaser.GameObjects.Components.StencilModifier#stencilLayerMode
+     * @since 4.2.0
+     * @type {Phaser.Types.GameObjects.Stencil.StencilLayerMode}
+     * @default 'addLayer'
+     */
+    stencilLayerMode: 'addLayer',
+
+    /**
+     * Whether to invert the stencil, using an extra draw call.
+     *
+     * @name Phaser.GameObjects.Components.StencilModifier#stencilInvert
+     * @since 4.2.0
+     * @type {boolean}
+     * @default false
+     */
+    stencilInvert: false,
+
+    /**
+     * The alpha strategy to use when rendering the stencil.
+     * This is usually set to `dither`, or the default game config setting.
+     *
+     * @name Phaser.GameObjects.Components.StencilModifier#stencilAlphaStrategy
+     * @since 4.2.0
+     * @type {Phaser.Types.Renderer.WebGL.AlphaStrategy}
+     * @default 'dither'
+     */
+    stencilAlphaStrategy: 'dither',
+
+    /**
+     * Whether to composite the contents of the stencil to a framebuffer.
+     * This is necessary when the stencil contains stencils.
+     * It requires extra draw calls to composite.
+     * You should set this to `false` or `true` if you know the answer,
+     * or `auto` to have Phaser automatically determine the best option.
+     *
+     * This will set `filtersForceComposite` to `true` during rendering.
+     *
+     * @name Phaser.GameObjects.Components.StencilModifier#stencilCompositeCheck
+     * @since 4.2.0
+     * @type {boolean|'auto'}
+     * @default 'auto'
+     */
+    stencilCompositeCheck: 'auto',
+
+    /**
+     * The value to clear the stencil buffer to,
+     * if the `stencilLayerMode` is `clear` or `clearRegion`.
+     * Should be between 0 and 255, as the buffer is 8 bits.
+     *
+     * @name Phaser.GameObjects.Components.StencilModifier#stencilClearValue
+     * @since 4.2.0
+     * @type {number}
+     * @default 0
+     */
+    stencilClearValue: 0,
+
+    /**
+     * Whether to wrap the value in the stencil buffer when it overflows or underflows
+     * when using the `addLayer` or `subtractLayer` mode.
+     * This is useful when defining stencils with subtraction,
+     * and you don't want to underflow from 0 to 255.
+     *
+     * @name Phaser.GameObjects.Components.StencilModifier#stencilValueWrap
+     * @since 4.2.0
+     * @type {boolean}
+     * @default true
+     */
+    stencilValueWrap: true,
+
+    /**
+     * Whether this Game Object is a stencil modifier.
+     * Do not edit this property. It is used internally.
+     *
+     * Any object with `isStencilModifier` set to `true` is a positive result
+     * for `hasStencilChildren`, and can affect stencil compositing.
+     *
+     * @name Phaser.GameObjects.Components.StencilModifier#isStencilModifier
+     * @since 4.2.0
+     * @type {boolean}
+     * @readonly
+     * @default true
+     */
+    isStencilModifier: {
+        get: function() {
+            return true;
+        },
+        set: function(value) {
+            // Do nothing
+        }
+    },
+
+    /**
+     * Sets the alpha strategy to use when rendering the stencil.
+     *
+     * @method Phaser.GameObjects.Components.StencilModifier#setStencilAlphaStrategy
+     * @since 4.2.0
+     * @param {Phaser.Types.Renderer.WebGL.AlphaStrategy} stencilAlphaStrategy - The alpha strategy to use when rendering the stencil.
+     * @returns {this} This Game Object instance.
+     */
+    setStencilAlphaStrategy: function (stencilAlphaStrategy)
+    {
+        this.stencilAlphaStrategy = stencilAlphaStrategy;
+        return this;
+    },
+
+    /**
+     * Sets the value to clear the stencil to,
+     * if the `stencilLayerMode` is `clear` or `clearRegion`.
+     * Should be between 0 and 255, as the buffer is 8 bits.
+     *
+     * @method Phaser.GameObjects.Components.StencilModifier#setStencilClearValue
+     * @since 4.2.0
+     * @param {number} stencilClearValue - The value to clear the stencil buffer to.
+     * @returns {this} This Game Object instance.
+     */
+    setStencilClearValue: function (stencilClearValue)
+    {
+        this.stencilClearValue = stencilClearValue;
+        return this;
+    },
+
+    /**
+     * Sets whether to composite the contents of the stencil to a framebuffer.
+     * While `auto` is default, it must run extra checks,
+     * so you should set it to `true` or `false` if you know the answer.
+     *
+     * - `true` - Composite the contents of the stencil to a framebuffer.
+     * - `false` - Do not composite the contents of the stencil to a framebuffer.
+     * - `'auto'` - Automatically determine whether to composite the contents of the stencil to a framebuffer.
+     *
+     * @method Phaser.GameObjects.Components.StencilModifier#setStencilCompositeCheck
+     * @since 4.2.0
+     * @param {boolean|'auto'} stencilCompositeCheck - The check mode to use.
+     * @returns {this} This Game Object instance.
+     */
+    setStencilCompositeCheck: function (stencilCompositeCheck)
+    {
+        this.stencilCompositeCheck = stencilCompositeCheck;
+        return this;
+    },
+
+    /**
+     * Sets whether to invert the stencil, using an extra draw call.
+     *
+     * @method Phaser.GameObjects.Components.StencilModifier#setStencilInvert
+     * @since 4.2.0
+     * @param {boolean} stencilInvert - Whether to invert the stencil.
+     * @returns {this} This Game Object instance.
+     */
+    setStencilInvert: function (stencilInvert)
+    {
+        this.stencilInvert = stencilInvert;
+        return this;
+    },
+
+    /**
+     * Sets the mode to use when rendering the stencil.
+     *
+     * - 'addLayer' - Add a stencil layer.
+     * - 'subtractLayer' - Subtract a stencil layer.
+     * - 'clear' - Clear the whole stencil buffer.
+     * - 'clearRegion' - Clear a specific region of the stencil buffer.
+     *   You can also use this to fill a region with a specific value.
+     *
+     * @method Phaser.GameObjects.Components.StencilModifier#setStencilLayerMode
+     * @since 4.2.0
+     * @param {Phaser.Types.GameObjects.Stencil.StencilLayerMode} stencilLayerMode - The mode which the Stencil should run in.
+     * @returns {this} This Game Object instance.
+     */
+    setStencilLayerMode: function (stencilLayerMode)
+    {
+        this.stencilLayerMode = stencilLayerMode;
+        return this;
+    },
+
+    /**
+     * Sets whether to wrap the value in the stencil buffer when it overflows or underflows.
+     * This is useful when defining stencils with subtraction,
+     * and you don't want to underflow from 0 to 255.
+     *
+     * @method Phaser.GameObjects.Components.StencilModifier#setStencilValueWrap
+     * @since 4.2.0
+     * @param {boolean} stencilValueWrap - Whether to wrap the value in the stencil buffer when it overflows or underflows.
+     * @returns {this} This Game Object instance.
+     */
+    setStencilValueWrap: function (stencilValueWrap)
+    {
+        this.stencilValueWrap = stencilValueWrap;
+        return this;
+    }
+};
+
+module.exports = StencilModifier;
 
 
 /***/ },
@@ -50422,6 +50768,58 @@ var Tint = {
     tintBottomRight: 0xffffff,
 
     /**
+     * The secondary tint value being applied to the top-left vertex of the Game Object.
+     * Used in two-color tint modes.
+     * This value is interpolated from the corner to the center of the Game Object.
+     * The value should be set as a hex number, i.e. 0xff0000 for red, or 0xff00ff for purple.
+     *
+     * @name Phaser.GameObjects.Components.Tint#tint2TopLeft
+     * @type {number}
+     * @default 0x000000
+     * @since 4.2.0
+     */
+    tint2TopLeft: 0x000000,
+
+    /**
+     * The secondary tint value being applied to the top-right vertex of the Game Object.
+     * Used in two-color tint modes.
+     * This value is interpolated from the corner to the center of the Game Object.
+     * The value should be set as a hex number, i.e. 0xff0000 for red, or 0xff00ff for purple.
+     *
+     * @name Phaser.GameObjects.Components.Tint#tint2TopRight
+     * @type {number}
+     * @default 0x000000
+     * @since 4.2.0
+     */
+    tint2TopRight: 0x000000,
+
+    /**
+     * The secondary tint value being applied to the bottom-left vertex of the Game Object.
+     * Used in two-color tint modes.
+     * This value is interpolated from the corner to the center of the Game Object.
+     * The value should be set as a hex number, i.e. 0xff0000 for red, or 0xff00ff for purple.
+     *
+     * @name Phaser.GameObjects.Components.Tint#tint2BottomLeft
+     * @type {number}
+     * @default 0x000000
+     * @since 4.2.0
+     */
+    tint2BottomLeft: 0x000000,
+
+    /**
+     * The secondary tint value being applied to the bottom-right vertex of the Game Object.
+     * Used in two-color tint modes.
+     * This value is interpolated from the corner to the center of the Game Object.
+     * The value should be set as a hex number, i.e. 0xff0000 for red, or 0xff00ff for purple.
+     *
+     * @name Phaser.GameObjects.Components.Tint#tint2BottomRight
+     * @type {number}
+     * @default 0x000000
+     * @since 4.2.0
+    */
+    tint2BottomRight: 0x000000,
+
+    /**
      * The tint mode to use when applying the tint to the texture.
      *
      * Available modes are:
@@ -50431,6 +50829,7 @@ var Tint = {
      * - Phaser.TintModes.SCREEN
      * - Phaser.TintModes.OVERLAY
      * - Phaser.TintModes.HARD_LIGHT
+     * - Phaser.TintModes.MULTIPLY_TWO
      *
      * Note that in Phaser 3, tint mode and color were set at the same time.
      * In Phaser 4 they are separate settings.
@@ -50457,6 +50856,7 @@ var Tint = {
     clearTint: function ()
     {
         this.setTint(0xffffff);
+        this.setTint2(0x000000);
         this.setTintMode(TintModes.MULTIPLY);
 
         return this;
@@ -50508,6 +50908,40 @@ var Tint = {
         this.tintTopRight = topRight;
         this.tintBottomLeft = bottomLeft;
         this.tintBottomRight = bottomRight;
+
+        return this;
+    },
+
+    /**
+     * Sets the secondary tint color on this Game Object.
+     * This is used in two-color tint modes.
+     * See {@link Phaser.GameObjects.Components.Tint#setTint} for more information.
+     *
+     * @method Phaser.GameObjects.Components.Tint#setTint2
+     * @webglOnly
+     * @since 4.2.0
+     *
+     * @param {number} [topLeft=0xffffff] - The secondary tint being applied to the top-left of the Game Object. If no other values are given this value is applied evenly, tinting the whole Game Object.
+     * @param {number} [topRight] - The secondary tint being applied to the top-right of the Game Object.
+     * @param {number} [bottomLeft] - The secondary tint being applied to the bottom-left of the Game Object.
+     * @param {number} [bottomRight] - The secondary tint being applied to the bottom-right of the Game Object.
+     *
+     * @return {this} This Game Object instance.
+     */
+    setTint2: function (topLeft, topRight, bottomLeft, bottomRight)
+    {
+        if (topLeft === undefined) { topLeft = 0x000000; }
+        if (topRight === undefined)
+        {
+            topRight = topLeft;
+            bottomLeft = topLeft;
+            bottomRight = topLeft;
+        }
+
+        this.tint2TopLeft = topLeft;
+        this.tint2TopRight = topRight;
+        this.tint2BottomLeft = bottomLeft;
+        this.tint2BottomRight = bottomRight;
 
         return this;
     },
@@ -50575,9 +51009,9 @@ var Tint = {
      * Does this Game Object have a tint applied?
      *
      * Returns `true` if any of the four corner tint values differ from 0xffffff,
-     * or if the `tintMode` property is set to anything other than `MULTIPLY`.
-     * Returns `false` when all four tint values are 0xffffff and the tint mode
-     * is `MULTIPLY`, which is the default untinted state.
+     * or if the `tintMode` property is set to anything other than `MULTIPLY`,
+     * or if any of the four secondary corner tint values differ from 0x000000.
+     * Returns `false` in the default untinted state.
      *
      * @name Phaser.GameObjects.Components.Tint#isTinted
      * @type {boolean}
@@ -50590,13 +51024,18 @@ var Tint = {
         get: function ()
         {
             var white = 0xffffff;
+            var black = 0x000000;
 
             return (
                 this.tintMode !== TintModes.MULTIPLY ||
                 this.tintTopLeft !== white ||
                 this.tintTopRight !== white ||
                 this.tintBottomLeft !== white ||
-                this.tintBottomRight !== white
+                this.tintBottomRight !== white ||
+                this.tint2TopLeft !== black ||
+                this.tint2TopRight !== black ||
+                this.tint2BottomLeft !== black ||
+                this.tint2BottomRight !== black
             );
         }
 
@@ -52586,6 +53025,7 @@ module.exports = {
     RenderSteps: __webpack_require__(86038),
     ScrollFactor: __webpack_require__(80227),
     Size: __webpack_require__(16736),
+    StencilModifier: __webpack_require__(43520),
     Texture: __webpack_require__(37726),
     TextureCrop: __webpack_require__(79812),
     Tint: __webpack_require__(27472),
@@ -52619,6 +53059,7 @@ var Rectangle = __webpack_require__(87841);
 var Render = __webpack_require__(29959);
 var Union = __webpack_require__(36899);
 var Vector2 = __webpack_require__(26099);
+var Layer = __webpack_require__(93595);
 
 var tempTransformMatrix = new Components.TransformMatrix();
 
@@ -53131,6 +53572,8 @@ var Container = new Class({
      *
      * Each Game Object must be unique within the Container.
      *
+     * If you try to add a Layer, it will throw an error.
+     *
      * @method Phaser.GameObjects.Container#add
      * @since 3.4.0
      *
@@ -53143,6 +53586,21 @@ var Container = new Class({
      */
     add: function (child)
     {
+        if (Array.isArray(child))
+        {
+            child.forEach(function (value)
+            {
+                if (value && value instanceof Layer)
+                {
+                    throw new Error('Tried to add a Layer to a Container: this is not allowed');
+                }
+            });
+        }
+        else if (child && child instanceof Layer)
+        {
+            throw new Error('Tried to add a Layer to a Container: this is not allowed');
+        }
+
         ArrayUtils.Add(this.list, child, this.maxSize, this.addHandler, this);
 
         return this;
@@ -54435,18 +54893,31 @@ var ContainerWebGLRenderer = function (renderer, container, drawingContext, pare
         }
 
         //  Set parent values
-        child.setScrollFactor(childScrollFactorX * scrollFactorX, childScrollFactorY * scrollFactorY);
 
-        child.setAlpha(childAlphaTopLeft * alpha, childAlphaTopRight * alpha, childAlphaBottomLeft * alpha, childAlphaBottomRight * alpha);
+        if (child.setScrollFactor)
+        {
+            child.setScrollFactor(childScrollFactorX * scrollFactorX, childScrollFactorY * scrollFactorY);
+        }
+
+        if (child.setAlpha)
+        {
+            child.setAlpha(childAlphaTopLeft * alpha, childAlphaTopRight * alpha, childAlphaBottomLeft * alpha, childAlphaBottomRight * alpha);
+        }
 
         //  Render
         child.renderWebGLStep(renderer, child, currentContext, transformMatrix, undefined, children, i);
 
         //  Restore original values
 
-        child.setAlpha(childAlphaTopLeft, childAlphaTopRight, childAlphaBottomLeft, childAlphaBottomRight);
+        if (child.setAlpha)
+        {
+            child.setAlpha(childAlphaTopLeft, childAlphaTopRight, childAlphaBottomLeft, childAlphaBottomRight);
+        }
 
-        child.setScrollFactor(childScrollFactorX, childScrollFactorY);
+        if (child.setScrollFactor)
+        {
+            child.setScrollFactor(childScrollFactorX, childScrollFactorY);
+        }
     }
 
     // Release any remaining context.
@@ -54457,6 +54928,229 @@ var ContainerWebGLRenderer = function (renderer, container, drawingContext, pare
 };
 
 module.exports = ContainerWebGLRenderer;
+
+
+/***/ },
+
+/***/ 55327
+(module, __unused_webpack_exports, __webpack_require__) {
+
+/**
+ * @author       Benjamin D. Richards <benjamindrichards@gmail.com>
+ * @copyright    2013-2026 Phaser Studio Inc.
+ * @license      {@link https://opensource.org/licenses/MIT|MIT License}
+ */
+
+var Class = __webpack_require__(83419);
+var Container = __webpack_require__(31559);
+
+/**
+ * @classdesc
+ * The Custom Context is a game object that allows you to modify the drawing context before it is used.
+ *
+ * The Custom Context is an extended Container Game Object.
+ * Before game objects are rendered,
+ * it clones the current DrawingContext and passes it to a callback.
+ * You can configure this callback to set options on the DrawingContext.
+ *
+ * See the {@link Phaser.Renderer.WebGL.DrawingContext} documentation for more details
+ * on DrawingContext settings.
+ * This is an advanced rendering system and should be used carefully.
+ * You should mostly only use the setter methods on the DrawingContext object.
+ * Methods that don't begin with `set` are typically for internal use.
+ *
+ * If you modify the DrawingContext to create a new framebuffer,
+ * it will not render to the canvas.
+ * It is your responsibility to use the texture from the DrawingContext.
+ * It is very inefficient to create a new framebuffer every frame,
+ * though, so you should use a `DynamicTexture` with a retained framebuffer instead.
+ *
+ * @class CustomContext
+ * @extends Phaser.GameObjects.Container
+ * @memberof Phaser.GameObjects
+ * @constructor
+ * @since 4.2.0
+ *
+ * @param {Phaser.Scene} scene - The Scene to which this Game Object belongs.
+ * @param {number} x - The horizontal position of this Game Object in the world.
+ * @param {number} y - The vertical position of this Game Object in the world.
+ * @param {Phaser.GameObjects.GameObject[]} [children] - An optional array of Game Objects to add to the Custom Context.
+ * @param {Phaser.Types.GameObjects.CustomContext.CustomContextCallback} [customContextCallback] - A function to be called before the custom DrawingContext is activated. If undefined, no callback will be called.
+ */
+var CustomContext = new Class({
+    Extends: Container,
+
+    initialize: function CustomContext(scene, x, y, children, customContextCallback) {
+        Container.call(this, scene, x, y, children);
+
+        /**
+         * A function to be called before the custom DrawingContext is activated.
+         * Set this function to modify the drawing context before it is used,
+         * or set it to `null` to leave it as is.
+         * If defined, the callback runs during the `customContextRenderStep` method.
+         *
+         * The callback is called with one parameter:
+         * a copy of the current drawing context.
+         *
+         * @example
+         * // Copy the source context and disable the stencil test.
+         * this.customContextCallback = (drawingContext) => {
+         *     drawingContext.state.stencil.enabled = false;
+         * };
+         *
+         * @name Phaser.GameObjects.CustomContext#customContextCallback
+         * @type {Phaser.Types.GameObjects.CustomContext.CustomContextCallback | null}
+         * @since 4.2.0
+         */
+        this.customContextCallback = customContextCallback || null;
+
+        this.addRenderStep(this.customContextRenderStep, 0);
+    },
+
+    /**
+     * The custom render step for the Custom Context.
+     * This runs before rendering the game object,
+     * allowing you to modify the drawing context before it is used.
+     *
+     * @method Phaser.GameObjects.CustomContext#customContextRenderStep
+     * @since 4.2.0
+     * @param {Phaser.Renderer.WebGL.WebGLRenderer} renderer - A reference to the current active WebGL renderer.
+     * @param {Phaser.GameObjects.GameObject} gameObject - The Game Object being rendered in this call.
+     * @param {Phaser.Renderer.WebGL.DrawingContext} drawingContext - The current drawing context.
+     * @param {Phaser.GameObjects.Components.TransformMatrix} [parentMatrix] - This transform matrix is defined if the game object is nested
+     * @param {number} [renderStep] - The index of this function in the Game Object's list of render processes. Used to support multiple rendering functions.
+     * @param {Phaser.GameObjects.GameObject[]} [displayList] - The display list which is currently being rendered.
+     * @param {number} [displayListIndex] - The index of the Game Object within the display list.
+     */
+    customContextRenderStep: function (renderer, gameObject, drawingContext, parentMatrix, renderStep, displayList, displayListIndex)
+    {
+        if (renderStep === undefined) { renderStep = 0; }
+
+        if (!gameObject.customContextCallback)
+        {
+            gameObject.renderWebGLStep(
+                renderer,
+                gameObject,
+                drawingContext,
+                parentMatrix,
+                renderStep + 1,
+                displayList,
+                displayListIndex
+            );
+            return;
+        }
+
+        var currentContext = drawingContext.getClone();
+        gameObject.customContextCallback(currentContext);
+        currentContext.use();
+
+        gameObject.renderWebGLStep(
+            renderer,
+            gameObject,
+            currentContext,
+            parentMatrix,
+            renderStep + 1,
+            displayList,
+            displayListIndex
+        );
+
+        currentContext.release();
+    }
+});
+
+module.exports = CustomContext;
+
+
+/***/ },
+
+/***/ 90255
+(__unused_webpack_module, __unused_webpack_exports, __webpack_require__) {
+
+/**
+ * @author       Benjamin D. Richards <benjamindrichards@gmail.com>
+ * @copyright    2013-2026 Phaser Studio Inc.
+ * @license      {@link https://opensource.org/licenses/MIT|MIT License}
+ */
+
+var BuildGameObject = __webpack_require__(25305);
+var GameObjectCreator = __webpack_require__(44603);
+var GetAdvancedValue = __webpack_require__(23568);
+var CustomContext = __webpack_require__(55327);
+
+/**
+ * Creates a new CustomContext Game Object and returns it.
+ *
+ * Note: This method will only be available if the CustomContext Game Object and WebGL support have been built into Phaser.
+ *
+ * @method Phaser.GameObjects.GameObjectCreator#customContext
+ * @since 4.2.0
+ *
+ * @param {Phaser.Types.GameObjects.CustomContext.CustomContextConfig} config - The configuration object this Game Object will use to create itself.
+ * @param {boolean} [addToScene] - Add this Game Object to the Scene after creating it? If set this argument overrides the `add` property in the config object.
+ *
+ * @return {Phaser.GameObjects.CustomContext} The Game Object that was created.
+ */
+GameObjectCreator.register('customContext', function (config, addToScene)
+{
+    if (config === undefined) { config = {}; }
+
+    var x = GetAdvancedValue(config, 'x', 0);
+    var y = GetAdvancedValue(config, 'y', 0);
+    var children = GetAdvancedValue(config, 'children', null);
+    var customContextCallback = GetAdvancedValue(config, 'customContextCallback', undefined);
+
+    var customContext = new CustomContext(this.scene, x, y, children, customContextCallback);
+
+    if (addToScene !== undefined)
+    {
+        config.add = addToScene;
+    }
+
+    BuildGameObject(this.scene, customContext, config);
+
+    return customContext;
+});
+
+//  When registering a factory function 'this' refers to the GameObjectCreator context.
+
+
+/***/ },
+
+/***/ 4745
+(__unused_webpack_module, __unused_webpack_exports, __webpack_require__) {
+
+/**
+ * @author       Benjamin D. Richards <benjamindrichards@gmail.com>
+ * @copyright    2013-2026 Phaser Studio Inc.
+ * @license      {@link https://opensource.org/licenses/MIT|MIT License}
+ */
+
+var CustomContext = __webpack_require__(55327);
+var GameObjectFactory = __webpack_require__(39429);
+
+/**
+ * Creates a new CustomContext Game Object and adds it to the Scene.
+ *
+ * Note: This method will only be available if the CustomContext Game Object and WebGL support have been built into Phaser.
+ *
+ * @method Phaser.GameObjects.GameObjectFactory#customContext
+ * @webglOnly
+ * @since 4.2.0
+ *
+ * @param {number} [x=0] - The horizontal position of this Game Object in the world.
+ * @param {number} [y=0] - The vertical position of this Game Object in the world.
+ * @param {Phaser.GameObjects.GameObject[]} [children] - An optional array of Game Objects to add to the Custom Context.
+ * @param {Phaser.Types.GameObjects.CustomContext.CustomContextCallback} [customContextCallback] - A function to be called before the custom DrawingContext is activated. If undefined, no callback will be called.
+ *
+ * @return {Phaser.GameObjects.CustomContext} The Game Object that was created.
+ */
+if (true)
+{
+    GameObjectFactory.register('customcontext', function (x, y, children, customContextCallback)
+    {
+        return this.displayList.add(new CustomContext(this.scene, x, y, children, customContextCallback));
+    });
+}
 
 
 /***/ },
@@ -61855,7 +62549,9 @@ var GameObjects = {
 if (true)
 {
     GameObjects.CaptureFrame = __webpack_require__(43451);
+    GameObjects.CustomContext = __webpack_require__(55327);
     GameObjects.Gradient = __webpack_require__(34637);
+    GameObjects.Mesh2D = __webpack_require__(76435);
     GameObjects.Noise = __webpack_require__(35387);
     GameObjects.NoiseCell2D = __webpack_require__(51513);
     GameObjects.NoiseCell3D = __webpack_require__(15686);
@@ -61866,9 +62562,13 @@ if (true)
     GameObjects.NineSlice = __webpack_require__(28103);
     GameObjects.PointLight = __webpack_require__(80321);
     GameObjects.SpriteGPULayer = __webpack_require__(76573);
+    GameObjects.Stencil = __webpack_require__(84423);
+    GameObjects.StencilReference = __webpack_require__(63911);
 
     GameObjects.Factories.CaptureFrame = __webpack_require__(20421);
+    GameObjects.Factories.CustomContext = __webpack_require__(4745);
     GameObjects.Factories.Gradient = __webpack_require__(69315);
+    GameObjects.Factories.Mesh2D = __webpack_require__(2317);
     GameObjects.Factories.Noise = __webpack_require__(34757);
     GameObjects.Factories.NoiseCell2D = __webpack_require__(26590);
     GameObjects.Factories.NoiseCell3D = __webpack_require__(89918);
@@ -61879,9 +62579,13 @@ if (true)
     GameObjects.Factories.NineSlice = __webpack_require__(47521);
     GameObjects.Factories.PointLight = __webpack_require__(71255);
     GameObjects.Factories.SpriteGPULayer = __webpack_require__(96019);
+    GameObjects.Factories.Stencil = __webpack_require__(67841);
+    GameObjects.Factories.StencilReference = __webpack_require__(37889);
 
     GameObjects.Creators.CaptureFrame = __webpack_require__(23675);
+    GameObjects.Creators.CustomContext = __webpack_require__(90255);
     GameObjects.Creators.Gradient = __webpack_require__(26353);
+    GameObjects.Creators.Mesh2D = __webpack_require__(2227);
     GameObjects.Creators.Noise = __webpack_require__(39931);
     GameObjects.Creators.NoiseCell2D = __webpack_require__(98292);
     GameObjects.Creators.NoiseCell3D = __webpack_require__(97044);
@@ -61892,6 +62596,8 @@ if (true)
     GameObjects.Creators.NineSlice = __webpack_require__(28279);
     GameObjects.Creators.PointLight = __webpack_require__(39829);
     GameObjects.Creators.SpriteGPULayer = __webpack_require__(16193);
+    GameObjects.Creators.Stencil = __webpack_require__(32247);
+    GameObjects.Creators.StencilReference = __webpack_require__(44023);
 
     GameObjects.Light = __webpack_require__(41432);
     GameObjects.LightsManager = __webpack_require__(61356);
@@ -61915,9 +62621,8 @@ module.exports = GameObjects;
 var BlendModes = __webpack_require__(10312);
 var Class = __webpack_require__(83419);
 var Components = __webpack_require__(31401);
-var ComponentsToJSON = __webpack_require__(53774);
-var DataManager = __webpack_require__(45893);
 var EventEmitter = __webpack_require__(50792);
+var GameObject = __webpack_require__(95643);
 var GameObjectEvents = __webpack_require__(51708);
 var List = __webpack_require__(73162);
 var Render = __webpack_require__(33963);
@@ -61964,8 +62669,14 @@ var StableSort = __webpack_require__(19186);
  * However, you can set the Alpha, Blend Mode, Depth, Mask and Visible state of a Layer. These settings
  * will impact all children being rendered by the Layer.
  *
+ * Layers should always be the topmost elements of any scene hierarchy.
+ * They can be children of layers, but not of anything else.
+ *
+ * Until Phaser version 4.1.0, Layer was not a true GameObject.
+ * It is now a true GameObject.
+ *
  * @class Layer
- * @extends Phaser.Structs.List.<Phaser.GameObjects.GameObject>
+ * @extends Phaser.GameObjects.GameObject
  * @memberof Phaser.GameObjects
  * @constructor
  * @since 3.50.0
@@ -61973,9 +62684,7 @@ var StableSort = __webpack_require__(19186);
  * @extends Phaser.GameObjects.Components.AlphaSingle
  * @extends Phaser.GameObjects.Components.BlendMode
  * @extends Phaser.GameObjects.Components.Depth
- * @extends Phaser.GameObjects.Components.Filters
  * @extends Phaser.GameObjects.Components.Mask
- * @extends Phaser.GameObjects.Components.RenderSteps
  * @extends Phaser.GameObjects.Components.Visible
  *
  * @param {Phaser.Scene} scene - The Scene to which this Game Object belongs. A Game Object can only belong to one Scene at a time.
@@ -61986,14 +62695,13 @@ var Layer = new Class({
     Extends: List,
 
     Mixins: [
+        EventEmitter,
+        GameObject,
         Components.AlphaSingle,
         Components.BlendMode,
         Components.Depth,
-        Components.Filters,
         Components.Mask,
-        Components.RenderSteps, // This does not extend GameObject so it must mixin RenderSteps here.
         Components.Visible,
-        EventEmitter,
         Render
     ],
 
@@ -62003,6 +62711,7 @@ var Layer = new Class({
     {
         List.call(this, scene);
         EventEmitter.call(this);
+        GameObject.call(this, scene, 'Layer');
 
         /**
          * A reference to the Scene to which this Game Object belongs.
@@ -62017,166 +62726,6 @@ var Layer = new Class({
          * @since 3.50.0
          */
         this.scene = scene;
-
-        /**
-         * Holds a reference to the Display List that contains this Game Object.
-         *
-         * This is set automatically when this Game Object is added to a Scene or Layer.
-         *
-         * You should treat this property as being read-only.
-         *
-         * @name Phaser.GameObjects.Layer#displayList
-         * @type {(Phaser.GameObjects.DisplayList|Phaser.GameObjects.Layer)}
-         * @default null
-         * @since 3.50.0
-         */
-        this.displayList = null;
-
-        /**
-         * A textual representation of this Game Object, i.e. `sprite`.
-         * Used internally by Phaser but is available for your own custom classes to populate.
-         *
-         * @name Phaser.GameObjects.Layer#type
-         * @type {string}
-         * @since 3.50.0
-         */
-        this.type = 'Layer';
-
-        /**
-         * The current state of this Game Object.
-         *
-         * Phaser itself will never modify this value, although plugins may do so.
-         *
-         * Use this property to track the state of a Game Object during its lifetime. For example, it could change from
-         * a state of 'moving', to 'attacking', to 'dead'. The state value should be an integer (ideally mapped to a constant
-         * in your game code), or a string. These are recommended to keep it light and simple, with fast comparisons.
-         * If you need to store complex data about your Game Object, look at using the Data Component instead.
-         *
-         * @name Phaser.GameObjects.Layer#state
-         * @type {(number|string)}
-         * @since 3.50.0
-         */
-        this.state = 0;
-
-        /**
-         * A Layer cannot be placed inside a Container.
-         *
-         * This property is kept purely so a Layer has the same
-         * shape as a Game Object.
-         *
-         * @name Phaser.GameObjects.Layer#parentContainer
-         * @type {Phaser.GameObjects.Container}
-         * @since 3.51.0
-         */
-        this.parentContainer = null;
-
-        /**
-         * The name of this Game Object.
-         * Empty by default and never populated by Phaser, this is left for developers to use.
-         *
-         * @name Phaser.GameObjects.Layer#name
-         * @type {string}
-         * @default ''
-         * @since 3.50.0
-         */
-        this.name = '';
-
-        /**
-         * The active state of this Game Object.
-         * A Game Object with an active state of `true` is processed by the Scenes UpdateList, if added to it.
-         * An active object is one which is having its logic and internal systems updated.
-         *
-         * @name Phaser.GameObjects.Layer#active
-         * @type {boolean}
-         * @default true
-         * @since 3.50.0
-         */
-        this.active = true;
-
-        /**
-         * The Tab Index of the Game Object.
-         * Reserved for future use by plugins and the Input Manager.
-         *
-         * @name Phaser.GameObjects.Layer#tabIndex
-         * @type {number}
-         * @default -1
-         * @since 3.51.0
-         */
-        this.tabIndex = -1;
-
-        /**
-         * A Data Manager.
-         * It allows you to store, query and get key/value paired information specific to this Game Object.
-         * `null` by default. Automatically created if you use `getData` or `setData` or `setDataEnabled`.
-         *
-         * @name Phaser.GameObjects.Layer#data
-         * @type {Phaser.Data.DataManager}
-         * @default null
-         * @since 3.50.0
-         */
-        this.data = null;
-
-        /**
-         * The flags that are compared against `RENDER_MASK` to determine if this Game Object will render or not.
-         * The bits are 0001 | 0010 | 0100 | 1000 set by the components Visible, Alpha, Transform and Texture respectively.
-         * If those components are not used by your custom class then you can use this bitmask as you wish.
-         *
-         * @name Phaser.GameObjects.Layer#renderFlags
-         * @type {number}
-         * @default 15
-         * @since 3.50.0
-         */
-        this.renderFlags = 15;
-
-        /**
-         * A bitmask that controls if this Game Object is drawn by a Camera or not.
-         * Not usually set directly, instead call `Camera.ignore`, however you can
-         * set this property directly using the Camera.id property:
-         *
-         * @example
-         * this.cameraFilter |= camera.id
-         *
-         * @name Phaser.GameObjects.Layer#cameraFilter
-         * @type {number}
-         * @default 0
-         * @since 3.50.0
-         */
-        this.cameraFilter = 0;
-
-        /**
-         * This property is kept purely so a Layer has the same
-         * shape as a Game Object. You cannot input enable a Layer.
-         *
-         * @name Phaser.GameObjects.Layer#input
-         * @type {?Phaser.Types.Input.InteractiveObject}
-         * @default null
-         * @since 3.51.0
-         */
-        this.input = null;
-
-        /**
-         * This property is kept purely so a Layer has the same
-         * shape as a Game Object. You cannot give a Layer a physics body.
-         *
-         * @name Phaser.GameObjects.Layer#body
-         * @type {?(Phaser.Physics.Arcade.Body|Phaser.Physics.Arcade.StaticBody|MatterJS.BodyType)}
-         * @default null
-         * @since 3.51.0
-         */
-        this.body = null;
-
-        /**
-         * This Game Object will ignore all calls made to its destroy method if this flag is set to `true`.
-         * This includes calls that may come from a Group, Container or the Scene itself.
-         * While it allows you to persist a Game Object across Scenes, please understand you are entirely
-         * responsible for managing references to and from this Game Object.
-         *
-         * @name Phaser.GameObjects.Layer#ignoreDestroy
-         * @type {boolean}
-         * @default false
-         * @since 3.50.0
-         */
-        this.ignoreDestroy = false;
 
         /**
          * A reference to the Scene Systems.
@@ -62219,251 +62768,8 @@ var Layer = new Class({
             this.add(children);
         }
 
-        // Initialize RenderSteps mixin.
-        if (this.addRenderStep)
-        {
-            this.addRenderStep(this.renderWebGL);
-        }
-
         //  Tell the Scene to re-sort the children
         scene.sys.queueDepthSort();
-    },
-
-    /**
-     * Sets the `active` property of this Game Object and returns this Game Object for further chaining.
-     * A Game Object with its `active` property set to `true` will be updated by the Scenes UpdateList.
-     *
-     * @method Phaser.GameObjects.Layer#setActive
-     * @since 3.50.0
-     *
-     * @param {boolean} value - True if this Game Object should be set as active, false if not.
-     *
-     * @return {this} This GameObject.
-     */
-    setActive: function (value)
-    {
-        this.active = value;
-
-        return this;
-    },
-
-    /**
-     * Sets the `name` property of this Game Object and returns this Game Object for further chaining.
-     * The `name` property is not populated by Phaser and is presented for your own use.
-     *
-     * @method Phaser.GameObjects.Layer#setName
-     * @since 3.50.0
-     *
-     * @param {string} value - The name to be given to this Game Object.
-     *
-     * @return {this} This GameObject.
-     */
-    setName: function (value)
-    {
-        this.name = value;
-
-        return this;
-    },
-
-    /**
-     * Sets the current state of this Game Object.
-     *
-     * Phaser itself will never modify the State of a Game Object, although plugins may do so.
-     *
-     * For example, a Game Object could change from a state of 'moving', to 'attacking', to 'dead'.
-     * The state value should typically be an integer (ideally mapped to a constant
-     * in your game code), but could also be a string. It is recommended to keep it light and simple.
-     * If you need to store complex data about your Game Object, look at using the Data Component instead.
-     *
-     * @method Phaser.GameObjects.Layer#setState
-     * @since 3.50.0
-     *
-     * @param {(number|string)} value - The state of the Game Object.
-     *
-     * @return {this} This GameObject.
-     */
-    setState: function (value)
-    {
-        this.state = value;
-
-        return this;
-    },
-
-    /**
-     * Adds a Data Manager component to this Game Object.
-     *
-     * @method Phaser.GameObjects.Layer#setDataEnabled
-     * @since 3.50.0
-     * @see Phaser.Data.DataManager
-     *
-     * @return {this} This GameObject.
-     */
-    setDataEnabled: function ()
-    {
-        if (!this.data)
-        {
-            this.data = new DataManager(this);
-        }
-
-        return this;
-    },
-
-    /**
-     * Allows you to store a key value pair within this Game Objects Data Manager.
-     *
-     * If the Game Object has not been enabled for data (via `setDataEnabled`) then it will be enabled
-     * before setting the value.
-     *
-     * If the key doesn't already exist in the Data Manager then it is created.
-     *
-     * ```javascript
-     * sprite.setData('name', 'Red Gem Stone');
-     * ```
-     *
-     * You can also pass in an object of key value pairs as the first argument:
-     *
-     * ```javascript
-     * sprite.setData({ name: 'Red Gem Stone', level: 2, owner: 'Link', gold: 50 });
-     * ```
-     *
-     * To get a value back again you can call `getData`:
-     *
-     * ```javascript
-     * sprite.getData('gold');
-     * ```
-     *
-     * Or you can access the value directly via the `values` property, where it works like any other variable:
-     *
-     * ```javascript
-     * sprite.data.values.gold += 50;
-     * ```
-     *
-     * When the value is first set, a `setdata` event is emitted from this Game Object.
-     *
-     * If the key already exists, a `changedata` event is emitted instead, along an event named after the key.
-     * For example, if you updated an existing key called `PlayerLives` then it would emit the event `changedata-PlayerLives`.
-     * These events will be emitted regardless if you use this method to set the value, or the direct `values` setter.
-     *
-     * Please note that the data keys are case-sensitive and must be valid JavaScript Object property strings.
-     * This means the keys `gold` and `Gold` are treated as two unique values within the Data Manager.
-     *
-     * @method Phaser.GameObjects.Layer#setData
-     * @since 3.50.0
-     *
-     * @param {(string|object)} key - The key to set the value for. Or an object of key value pairs. If an object the `data` argument is ignored.
-     * @param {*} [data] - The value to set for the given key. If an object is provided as the key this argument is ignored.
-     *
-     * @return {this} This GameObject.
-     */
-    setData: function (key, value)
-    {
-        if (!this.data)
-        {
-            this.data = new DataManager(this);
-        }
-
-        this.data.set(key, value);
-
-        return this;
-    },
-
-    /**
-     * Increase a value for the given key within this Game Objects Data Manager. If the key doesn't already exist in the Data Manager then it is increased from 0.
-     *
-     * If the Game Object has not been enabled for data (via `setDataEnabled`) then it will be enabled
-     * before setting the value.
-     *
-     * If the key doesn't already exist in the Data Manager then it is created.
-     *
-     * When the value is first set, a `setdata` event is emitted from this Game Object.
-     *
-     * @method Phaser.GameObjects.Layer#incData
-     * @since 3.50.0
-     *
-     * @param {(string|object)} key - The key to increase the value for.
-     * @param {*} [data] - The value to increase for the given key.
-     *
-     * @return {this} This GameObject.
-     */
-    incData: function (key, value)
-    {
-        if (!this.data)
-        {
-            this.data = new DataManager(this);
-        }
-
-        this.data.inc(key, value);
-
-        return this;
-    },
-
-    /**
-     * Toggle a boolean value for the given key within this Game Objects Data Manager. If the key doesn't already exist in the Data Manager then it is toggled from false.
-     *
-     * If the Game Object has not been enabled for data (via `setDataEnabled`) then it will be enabled
-     * before setting the value.
-     *
-     * If the key doesn't already exist in the Data Manager then it is created.
-     *
-     * When the value is first set, a `setdata` event is emitted from this Game Object.
-     *
-     * @method Phaser.GameObjects.Layer#toggleData
-     * @since 3.50.0
-     *
-     * @param {(string|object)} key - The key to toggle the value for.
-     *
-     * @return {this} This GameObject.
-     */
-    toggleData: function (key)
-    {
-        if (!this.data)
-        {
-            this.data = new DataManager(this);
-        }
-
-        this.data.toggle(key);
-
-        return this;
-    },
-
-    /**
-     * Retrieves the value for the given key in this Game Objects Data Manager, or undefined if it doesn't exist.
-     *
-     * You can also access values via the `values` object. For example, if you had a key called `gold` you can do either:
-     *
-     * ```javascript
-     * sprite.getData('gold');
-     * ```
-     *
-     * Or access the value directly:
-     *
-     * ```javascript
-     * sprite.data.values.gold;
-     * ```
-     *
-     * You can also pass in an array of keys, in which case an array of values will be returned:
-     *
-     * ```javascript
-     * sprite.getData([ 'gold', 'armor', 'health' ]);
-     * ```
-     *
-     * This approach is useful for destructuring arrays in ES6.
-     *
-     * @method Phaser.GameObjects.Layer#getData
-     * @since 3.50.0
-     *
-     * @param {(string|string[])} key - The key of the value to retrieve, or an array of keys.
-     *
-     * @return {*} The value belonging to the given key, or an array of values, the order of which will match the input array.
-     */
-    getData: function (key)
-    {
-        if (!this.data)
-        {
-            this.data = new DataManager(this);
-        }
-
-        return this.data.get(key);
     },
 
     /**
@@ -62515,61 +62821,6 @@ var Layer = new Class({
     },
 
     /**
-     * This callback is invoked when this Game Object is added to a Scene.
-     *
-     * Can be overridden by custom Game Objects, but be aware of some Game Objects that
-     * will use this, such as Sprites, to add themselves into the Update List.
-     *
-     * You can also listen for the `ADDED_TO_SCENE` event from this Game Object.
-     *
-     * @method Phaser.GameObjects.Layer#addedToScene
-     * @since 3.50.0
-     */
-    addedToScene: function ()
-    {
-    },
-
-    /**
-     * This callback is invoked when this Game Object is removed from a Scene.
-     *
-     * Can be overridden by custom Game Objects, but be aware of some Game Objects that
-     * will use this, such as Sprites, to remove themselves from the Update List.
-     *
-     * You can also listen for the `REMOVED_FROM_SCENE` event from this Game Object.
-     *
-     * @method Phaser.GameObjects.Layer#removedFromScene
-     * @since 3.50.0
-     */
-    removedFromScene: function ()
-    {
-    },
-
-    /**
-     * To be overridden by custom GameObjects. Allows base objects to be used in a Pool.
-     *
-     * @method Phaser.GameObjects.Layer#update
-     * @since 3.50.0
-     *
-     * @param {...*} [args] - args
-     */
-    update: function ()
-    {
-    },
-
-    /**
-     * Returns a JSON representation of the Game Object.
-     *
-     * @method Phaser.GameObjects.Layer#toJSON
-     * @since 3.50.0
-     *
-     * @return {Phaser.Types.GameObjects.JSONGameObject} A JSON representation of the Game Object.
-     */
-    toJSON: function ()
-    {
-        return ComponentsToJSON(this);
-    },
-
-    /**
      * Compares the renderMask with the renderFlags to see if this Game Object will render or not.
      * Also checks the Game Object against the given Cameras exclusion list.
      *
@@ -62583,48 +62834,6 @@ var Layer = new Class({
     willRender: function (camera)
     {
         return !(this.renderFlags !== 15 || this.list.length === 0 || (this.cameraFilter !== 0 && (this.cameraFilter & camera.id)));
-    },
-
-    /**
-     * Returns an array containing the display list index of either this Game Object, or if it has one,
-     * its parent Container. It then iterates up through all of the parent containers until it hits the
-     * root of the display list (which is index 0 in the returned array).
-     *
-     * Used internally by the InputPlugin but also useful if you wish to find out the display depth of
-     * this Game Object and all of its ancestors.
-     *
-     * @method Phaser.GameObjects.Layer#getIndexList
-     * @since 3.51.0
-     *
-     * @return {number[]} An array of display list position indexes.
-     */
-    getIndexList: function ()
-    {
-        // eslint-disable-next-line consistent-this
-        var child = this;
-        var parent = this.parentContainer;
-
-        var indexes = [];
-
-        while (parent)
-        {
-            indexes.unshift(parent.getIndex(child));
-
-            child = parent;
-
-            if (!parent.parentContainer)
-            {
-                break;
-            }
-            else
-            {
-                parent = parent.parentContainer;
-            }
-        }
-
-        indexes.unshift(this.displayList.getIndex(child));
-
-        return indexes;
     },
 
     /**
@@ -62738,197 +62947,6 @@ var Layer = new Class({
     {
         return this.list;
     },
-
-    /**
-     * Adds this Layer to the given Display List.
-     *
-     * If no Display List is specified, it will default to the Display List owned by the Scene to which
-     * this Layer belongs.
-     *
-     * A Layer can only exist on one Display List at any given time, but may move freely between them.
-     *
-     * If this Layer is already on another Display List when this method is called, it will first
-     * be removed from it, before being added to the new list.
-     *
-     * You can query which list it is on by looking at the `Phaser.GameObjects.Layer#displayList` property.
-     *
-     * If a Layer isn't on any display list, it will not be rendered. If you just wish to temporarily
-     * disable it from rendering, consider using the `setVisible` method, instead.
-     *
-     * @method Phaser.GameObjects.Layer#addToDisplayList
-     * @fires Phaser.Scenes.Events#ADDED_TO_SCENE
-     * @fires Phaser.GameObjects.Events#ADDED_TO_SCENE
-     * @since 3.60.0
-     *
-     * @param {(Phaser.GameObjects.DisplayList|Phaser.GameObjects.Layer)} [displayList] - The Display List to add to. Defaults to the Scene Display List.
-     *
-     * @return {this} This Layer instance.
-     */
-    addToDisplayList: function (displayList)
-    {
-        if (displayList === undefined) { displayList = this.scene.sys.displayList; }
-
-        if (this.displayList && this.displayList !== displayList)
-        {
-            this.removeFromDisplayList();
-        }
-
-        //  Don't repeat if it's already on this list
-        if (!displayList.exists(this))
-        {
-            this.displayList = displayList;
-
-            displayList.add(this, true);
-
-            displayList.queueDepthSort();
-
-            this.emit(GameObjectEvents.ADDED_TO_SCENE, this, this.scene);
-
-            displayList.events.emit(SceneEvents.ADDED_TO_SCENE, this, this.scene);
-        }
-
-        return this;
-    },
-
-    /**
-     * Removes this Layer from the Display List it is currently on.
-     *
-     * A Layer can only exist on one Display List at any given time, but may be freely removed
-     * and added back at a later stage.
-     *
-     * You can query which list it is on by looking at the `Phaser.GameObjects.GameObject#displayList` property.
-     *
-     * If a Layer isn't on any Display List, it will not be rendered. If you just wish to temporarily
-     * disable it from rendering, consider using the `setVisible` method, instead.
-     *
-     * @method Phaser.GameObjects.Layer#removeFromDisplayList
-     * @fires Phaser.Scenes.Events#REMOVED_FROM_SCENE
-     * @fires Phaser.GameObjects.Events#REMOVED_FROM_SCENE
-     * @since 3.60.0
-     *
-     * @return {this} This Layer instance.
-     */
-    removeFromDisplayList: function ()
-    {
-        var displayList = this.displayList || this.scene.sys.displayList;
-
-        if (displayList.exists(this))
-        {
-            displayList.remove(this, true);
-
-            displayList.queueDepthSort();
-
-            this.displayList = null;
-
-            this.emit(GameObjectEvents.REMOVED_FROM_SCENE, this, this.scene);
-
-            displayList.events.emit(SceneEvents.REMOVED_FROM_SCENE, this, this.scene);
-        }
-
-        return this;
-    },
-
-    /**
-     * Returns a reference to the underlying display list _array_ that contains this Game Object,
-     * which will be either the Scene's Display List or the internal list belonging
-     * to its parent Container, if it has one.
-     * 
-     * If this Game Object is not on a display list or in a container, it will return `null`.
-     * 
-     * You should be very careful with this method, and understand that it returns a direct reference to the
-     * internal array used by the Display List. Mutating this array directly can cause all kinds of subtle
-     * and difficult to debug issues in your game.
-     *
-     * @method Phaser.GameObjects.Layer#getDisplayList
-     * @since 3.88.0
-     *
-     * @return {?Phaser.GameObjects.GameObject[]} The internal Display List array of Game Objects, or `null`.
-     */
-    getDisplayList: function ()
-    {
-        var list = null;
-
-        if (this.parentContainer)
-        {
-            list = this.parentContainer.list;
-        }
-        else if (this.displayList)
-        {
-            list = this.displayList.list;
-        }
-
-        return list;
-    },
-
-    /**
-     * Destroys this Layer removing it from the Display List and Update List and
-     * severing all ties to parent resources.
-     *
-     * Also destroys all children of this Layer. If you do not wish for the
-     * children to be destroyed, you should move them from this Layer first.
-     *
-     * Use this to remove this Layer from your game if you don't ever plan to use it again.
-     * As long as no reference to it exists within your own code it should become free for
-     * garbage collection by the browser.
-     *
-     * If you just want to temporarily disable an object then look at using the
-     * Game Object Pool instead of destroying it, as destroyed objects cannot be resurrected.
-     *
-     * @method Phaser.GameObjects.Layer#destroy
-     * @fires Phaser.GameObjects.Events#DESTROY
-     * @since 3.50.0
-     *
-     * @param {boolean} [fromScene=false] - `True` if this Game Object is being destroyed by the Scene, `false` if not.
-     */
-    destroy: function (fromScene)
-    {
-        //  This Game Object has already been destroyed
-        if (!this.scene || this.ignoreDestroy)
-        {
-            return;
-        }
-
-        this.emit(GameObjectEvents.DESTROY, this);
-
-        var list = this.list;
-
-        while (list.length)
-        {
-            list[0].destroy(fromScene);
-        }
-
-        this.removeAllListeners();
-
-        if (this.displayList)
-        {
-            this.displayList.remove(this, true, false);
-
-            this.displayList.queueDepthSort();
-        }
-
-        if (this.data)
-        {
-            this.data.destroy();
-
-            this.data = undefined;
-        }
-
-        if (this.filterCamera)
-        {
-            this.filterCamera.destroy();
-
-            this.filterCamera = undefined;
-        }
-
-        this.active = false;
-        this.visible = false;
-
-        this.list = undefined;
-        this.scene = undefined;
-        this.displayList = undefined;
-        this.systems = undefined;
-        this.events = undefined;
-    }
 
     /**
      * Return an array listing the events for which the emitter has registered listeners.
@@ -63050,6 +63068,499 @@ var Layer = new Class({
      *
      * @return {this} This Layer instance.
      */
+
+    // --------------
+    // Append type declarations from List, which won't otherwise be picked up by the type build system.
+    // --------------
+
+    /**
+     * The parent of this list.
+     *
+     * @name Phaser.GameObjects.Layer#parent
+     * @type {*}
+     * @since 3.0.0
+     */
+
+    /**
+     * The objects that belong to this collection.
+     *
+     * @name Phaser.GameObjects.Layer#list
+     * @type {Array.<Phaser.GameObjects.GameObject>}
+     * @default []
+     * @since 3.0.0
+     */
+
+    /**
+     * The index of the current element.
+     *
+     * This is used internally when iterating through the list with the {@link #first}, {@link #last}, {@link #next}, and {@link #previous} properties.
+     *
+     * @name Phaser.GameObjects.Layer#position
+     * @type {number}
+     * @default 0
+     * @since 3.0.0
+     */
+
+    /**
+     * A callback that is invoked every time a child is added to this list.
+     *
+     * @name Phaser.GameObjects.Layer#addCallback
+     * @type {function}
+     * @since 3.4.0
+     */
+
+    /**
+     * A callback that is invoked every time a child is removed from this list.
+     *
+     * @name Phaser.GameObjects.Layer#removeCallback
+     * @type {function}
+     * @since 3.4.0
+     */
+
+    /**
+     * The property key to sort by.
+     *
+     * @name Phaser.GameObjects.Layer#_sortKey
+     * @type {string}
+     * @since 3.4.0
+     */
+
+    /**
+     * Adds the given item to the end of the list. Each item must be unique.
+     *
+     * @method Phaser.GameObjects.Layer#add
+     * @since 3.0.0
+     *
+     * @param {Phaser.GameObjects.GameObject|Array.<Phaser.GameObjects.GameObject>} child - The item, or array of items, to add to the list.
+     * @param {boolean} [skipCallback=false] - Skip calling the List.addCallback if this child is added successfully.
+     *
+     * @return {*} The list's underlying array.
+     */
+
+    /**
+     * Adds an item to list, starting at a specified index. Each item must be unique within the list.
+     *
+     * @method Phaser.GameObjects.Layer#addAt
+     * @since 3.0.0
+     *
+     * @param {Phaser.GameObjects.GameObject|Array.<Phaser.GameObjects.GameObject>} child - The item, or array of items, to add to the list.
+     * @param {number} [index=0] - The index in the list at which the element(s) will be inserted.
+     * @param {boolean} [skipCallback=false] - Skip calling the List.addCallback if this child is added successfully.
+     *
+     * @return {Array.<Phaser.GameObjects.GameObject>} The List's underlying array.
+     */
+
+    /**
+     * Retrieves the item at a given position inside the List.
+     *
+     * @method Phaser.GameObjects.Layer#getAt
+     * @since 3.0.0
+     *
+     * @param {number} index - The index of the item.
+     *
+     * @return {Phaser.GameObjects.GameObject|undefined} The retrieved item, or `undefined` if it's outside the List's bounds.
+     */
+
+    /**
+     * Locates an item within the List and returns its index.
+     *
+     * @method Phaser.GameObjects.Layer#getIndex
+     * @since 3.0.0
+     *
+     * @param {Phaser.GameObjects.GameObject} child - The item to locate.
+     *
+     * @return {number} The index of the item within the List, or -1 if it's not in the List.
+     */
+
+    /**
+     * Sort the contents of this List so the items are in order based on the given property.
+     * For example, `sort('alpha')` would sort the List contents based on the value of their `alpha` property.
+     *
+     * @method Phaser.GameObjects.Layer#sort
+     * @since 3.0.0
+     *
+     * @param {string} property - The property to lexically sort by.
+     * @param {function} [handler] - Provide your own custom handler function. Will receive 2 children which it should compare and return a number (negative if the first should come before the second, positive if after, zero if equal).
+     *
+     * @return {Phaser.GameObjects.Layer} This List object.
+     */
+
+    /**
+     * Searches for the first instance of a child with its `name`
+     * property matching the given argument. Should more than one child have
+     * the same name only the first is returned.
+     *
+     * @method Phaser.GameObjects.Layer#getByName
+     * @since 3.0.0
+     *
+     * @param {string} name - The name to search for.
+     *
+     * @return {?Phaser.GameObjects.GameObject} The first child with a matching name, or null if none were found.
+     */
+
+    /**
+     * Returns a random child from the list.
+     *
+     * @method Phaser.GameObjects.Layer#getRandom
+     * @since 3.0.0
+     *
+     * @param {number} [startIndex=0] - Offset from the front of the list (lowest child).
+     * @param {number} [length=(to top)] - Restriction on the number of values you want to randomly select from.
+     *
+     * @return {?Phaser.GameObjects.GameObject} A random child of this List.
+     */
+
+    /**
+     * Returns the first element in a given part of the List which matches a specific criterion.
+     *
+     * @method Phaser.GameObjects.Layer#getFirst
+     * @since 3.0.0
+     *
+     * @param {string} property - The name of the property to test or a falsey value to have no criterion.
+     * @param {Phaser.GameObjects.GameObject|undefined} value - The value to test the `property` against, or `undefined` to allow any value and only check for existence.
+     * @param {number} [startIndex=0] - The position in the List to start the search at.
+     * @param {number} [endIndex] - The position in the List to optionally stop the search at. It won't be checked.
+     *
+     * @return {?Phaser.GameObjects.GameObject} The first item which matches the given criterion, or `null` if no such item exists.
+     */
+
+    /**
+     * Returns all children in this List.
+     *
+     * You can optionally specify a matching criteria using the `property` and `value` arguments.
+     *
+     * For example: `getAll('parent')` would return only children that have a property called `parent`.
+     *
+     * You can also specify a value to compare the property to:
+     *
+     * `getAll('visible', true)` would return only children that have their visible property set to `true`.
+     *
+     * Optionally you can specify a start and end index. For example if this List had 100 children,
+     * and you set `startIndex` to 0 and `endIndex` to 50, it would return matches from only
+     * the first 50 children in the List.
+     *
+     * @method Phaser.GameObjects.Layer#getAll
+     * @since 3.0.0
+     *
+     * @param {string} [property] - An optional property to test against the value argument.
+     * @param {any} [value] - If property is set then Child.property must strictly equal this value to be included in the results.
+     * @param {number} [startIndex] - The first child index to start the search from.
+     * @param {number} [endIndex] - The last child index to search up until.
+     *
+     * @return {Array.<Phaser.GameObjects.GameObject>} All items of the List which match the given criterion, if any.
+     */
+
+    /**
+     * Returns the total number of items in the List which have a property matching the given value.
+     *
+     * @method Phaser.GameObjects.Layer#count
+     * @since 3.0.0
+     *
+     * @param {string} property - The property to test on each item.
+     * @param {Phaser.GameObjects.GameObject} value - The value to test the property against.
+     *
+     * @return {number} The total number of matching elements.
+     */
+
+    /**
+     * Swaps the positions of two items in the list.
+     *
+     * @method Phaser.GameObjects.Layer#swap
+     * @since 3.0.0
+     *
+     * @param {Phaser.GameObjects.GameObject} child1 - The first item to swap.
+     * @param {Phaser.GameObjects.GameObject} child2 - The second item to swap.
+     */
+
+    /**
+     * Moves an item in the List to a new position.
+     *
+     * @method Phaser.GameObjects.Layer#moveTo
+     * @since 3.0.0
+     *
+     * @param {Phaser.GameObjects.GameObject} child - The item to move.
+     * @param {number} index - The new position to move the item to.
+     *
+     * @return {Phaser.GameObjects.GameObject} The item that was moved.
+     */
+
+    /**
+     * Moves an item above another one in the List.
+     * If the given item is already above the other, it isn't moved.
+     * Above means toward the end of the List.
+     *
+     * @method Phaser.GameObjects.Layer#moveAbove
+     * @since 3.55.0
+     *
+     * @param {Phaser.GameObjects.GameObject} child1 - The element to move above base element.
+     * @param {Phaser.GameObjects.GameObject} child2 - The base element.
+     */
+
+    /**
+     * Moves an item below another one in the List.
+     * If the given item is already below the other, it isn't moved.
+     * Below means toward the start of the List.
+     *
+     * @method Phaser.GameObjects.Layer#moveBelow
+     * @since 3.55.0
+     *
+     * @param {Phaser.GameObjects.GameObject} child1 - The element to move below base element.
+     * @param {Phaser.GameObjects.GameObject} child2 - The base element.
+     */
+
+    /**
+     * Removes one or many items from the List.
+     *
+     * @method Phaser.GameObjects.Layer#remove
+     * @since 3.0.0
+     *
+     * @param {Phaser.GameObjects.GameObject|Array.<Phaser.GameObjects.GameObject>} child - The item, or array of items, to remove.
+     * @param {boolean} [skipCallback=false] - Skip calling the List.removeCallback.
+     *
+     * @return {Phaser.GameObjects.GameObject|Array.<Phaser.GameObjects.GameObject>} The item, or array of items, which were successfully removed from the List.
+     */
+
+    /**
+     * Removes the item at the given position in the List.
+     *
+     * @method Phaser.GameObjects.Layer#removeAt
+     * @since 3.0.0
+     *
+     * @param {number} index - The position to remove the item from.
+     * @param {boolean} [skipCallback=false] - Skip calling the List.removeCallback.
+     *
+     * @return {Phaser.GameObjects.GameObject} The item that was removed.
+     */
+
+    /**
+     * Removes the items within the given range in the List.
+     *
+     * @method Phaser.GameObjects.Layer#removeBetween
+     * @since 3.0.0
+     *
+     * @param {number} [startIndex=0] - The index to start removing from.
+     * @param {number} [endIndex] - The position to stop removing at. The item at this position won't be removed.
+     * @param {boolean} [skipCallback=false] - Skip calling the List.removeCallback.
+     *
+     * @return {Array.<Phaser.GameObjects.GameObject>} An array of the items which were removed.
+     */
+
+    /**
+     * Removes all the items.
+     *
+     * @method Phaser.GameObjects.Layer#removeAll
+     * @since 3.0.0
+     *
+     * @param {boolean} [skipCallback=false] - Skip calling the List.removeCallback.
+     *
+     * @return {this} This List object.
+     */
+
+    /**
+     * Brings the given child to the top of this List.
+     *
+     * @method Phaser.GameObjects.Layer#bringToTop
+     * @since 3.0.0
+     *
+     * @param {Phaser.GameObjects.GameObject} child - The item to bring to the top of the List.
+     *
+     * @return {Phaser.GameObjects.GameObject} The item which was moved.
+     */
+
+    /**
+     * Sends the given child to the bottom of this List.
+     *
+     * @method Phaser.GameObjects.Layer#sendToBack
+     * @since 3.0.0
+     *
+     * @param {Phaser.GameObjects.GameObject} child - The item to send to the back of the list.
+     *
+     * @return {Phaser.GameObjects.GameObject} The item which was moved.
+     */
+
+    /**
+     * Moves the given child up one place in this List unless it's already at the top.
+     *
+     * @method Phaser.GameObjects.Layer#moveUp
+     * @since 3.0.0
+     *
+     * @param {Phaser.GameObjects.GameObject} child - The item to move up.
+     *
+     * @return {Phaser.GameObjects.GameObject} The item which was moved.
+     */
+
+    /**
+     * Moves the given child down one place in this List unless it's already at the bottom.
+     *
+     * @method Phaser.GameObjects.Layer#moveDown
+     * @since 3.0.0
+     *
+     * @param {Phaser.GameObjects.GameObject} child - The item to move down.
+     *
+     * @return {Phaser.GameObjects.GameObject} The item which was moved.
+     */
+
+    /**
+     * Reverses the order of all children in this List.
+     *
+     * @method Phaser.GameObjects.Layer#reverse
+     * @since 3.0.0
+     *
+     * @return {Phaser.GameObjects.Layer} This List object.
+     */
+
+    /**
+     * Shuffles the items in the list.
+     *
+     * @method Phaser.GameObjects.Layer#shuffle
+     * @since 3.0.0
+     *
+     * @return {Phaser.GameObjects.Layer} This List object.
+     */
+
+    /**
+     * Replaces a child of this List with the given newChild. The newChild cannot be a member of this List.
+     *
+     * @method Phaser.GameObjects.Layer#replace
+     * @since 3.0.0
+     *
+     * @param {Phaser.GameObjects.GameObject} oldChild - The child in this List that will be replaced.
+     * @param {Phaser.GameObjects.GameObject} newChild - The child to be inserted into this List.
+     *
+     * @return {Phaser.GameObjects.GameObject} Returns the oldChild that was replaced within this List.
+     */
+
+    /**
+     * Checks if an item exists within the List.
+     *
+     * @method Phaser.GameObjects.Layer#exists
+     * @since 3.0.0
+     *
+     * @param {Phaser.GameObjects.GameObject} child - The item to check for the existence of.
+     *
+     * @return {boolean} `true` if the item is found in the list, otherwise `false`.
+     */
+
+    /**
+     * Sets the property `key` to the given value on all members of this List.
+     *
+     * @method Phaser.GameObjects.Layer#setAll
+     * @since 3.0.0
+     *
+     * @param {string} property - The name of the property to set.
+     * @param {any} value - The value to set the property to.
+     * @param {number} [startIndex] - The first child index to start the search from.
+     * @param {number} [endIndex] - The last child index to search up until.
+     */
+
+    /**
+     * Passes all children to the given callback.
+     *
+     * @method Phaser.GameObjects.Layer#each
+     * @since 3.0.0
+     *
+     * @param {EachListCallback.<Phaser.GameObjects.GameObject>} callback - The function to call.
+     * @param {any} [context] - Value to use as `this` when executing callback.
+     * @param {...any} [args] - Additional arguments that will be passed to the callback, after the child.
+     */
+
+    /**
+     * Clears the List and recreates its internal array.
+     *
+     * @method Phaser.GameObjects.Layer#shutdown
+     * @since 3.0.0
+     */
+
+    /**
+     * The number of items inside the List.
+     *
+     * @name Phaser.GameObjects.Layer#length
+     * @type {number}
+     * @readonly
+     * @since 3.0.0
+     */
+
+    /**
+     * The first item in the List or `null` for an empty List.
+     *
+     * @name Phaser.GameObjects.Layer#first
+     * @type {?Phaser.GameObjects.GameObject}
+     * @readonly
+     * @since 3.0.0
+     */
+
+    /**
+     * The last item in the List, or `null` for an empty List.
+     *
+     * @name Phaser.GameObjects.Layer#last
+     * @type {?Phaser.GameObjects.GameObject}
+     * @readonly
+     * @since 3.0.0
+     */
+
+    /**
+     * The next item in the List, or `null` if the entire List has been traversed.
+     *
+     * This property can be read successively after reading {@link #first} or manually setting the {@link #position} to iterate the List.
+     *
+     * @name Phaser.GameObjects.Layer#next
+     * @type {?Phaser.GameObjects.GameObject}
+     * @readonly
+     * @since 3.0.0
+     */
+
+    /**
+     * The previous item in the List, or `null` if the entire List has been traversed.
+     *
+     * This property can be read successively after reading {@link #last} or manually setting the {@link #position} to iterate the List backwards.
+     *
+     * @name Phaser.GameObjects.Layer#previous
+     * @type {?Phaser.GameObjects.GameObject}
+     * @readonly
+     * @since 3.0.0
+     */
+
+    /**
+     * Destroys this Layer removing it from the Display List and Update List and
+     * severing all ties to parent resources.
+     *
+     * Also destroys all children of this Layer. If you do not wish for the
+     * children to be destroyed, you should move them from this Layer first.
+     *
+     * Use this to remove this Layer from your game if you don't ever plan to use it again.
+     * As long as no reference to it exists within your own code it should become free for
+     * garbage collection by the browser.
+     *
+     * If you just want to temporarily disable an object then look at using the
+     * Game Object Pool instead of destroying it, as destroyed objects cannot be resurrected.
+     *
+     * @method Phaser.GameObjects.Layer#destroy
+     * @fires Phaser.GameObjects.Events#DESTROY
+     * @since 3.50.0
+     *
+     * @param {boolean} [fromScene=false] - `True` if this Game Object is being destroyed by the Scene, `false` if not.
+     */
+    destroy: function (fromScene)
+    {
+        //  This Game Object has already been destroyed
+        if (!this.scene || this.ignoreDestroy)
+        {
+            return;
+        }
+
+        GameObject.prototype.destroy.call(this, fromScene);
+
+        var list = this.list;
+
+        while (list.length)
+        {
+            list[0].destroy(fromScene);
+        }
+
+        this.list = undefined;
+        this.systems = undefined;
+        this.events = undefined;
+    }
 
 });
 
@@ -63488,6 +63999,46 @@ var Light = new Class({
         this.z = z === undefined ? radius * 0.1 : z;
 
         /**
+         * Whether this Light is restricted to a cone.
+         *
+         * @name Phaser.GameObjects.Light#coneEnabled
+         * @type {boolean}
+         * @default false
+         * @since 4.2.0
+         */
+        this.coneEnabled = false;
+
+        /**
+         * The cone direction, in radians, in world space.
+         *
+         * @name Phaser.GameObjects.Light#coneRotation
+         * @type {number}
+         * @default 0
+         * @since 4.2.0
+         */
+        this.coneRotation = 0;
+
+        /**
+         * The inner cone angle, in radians. Fragments inside this angle receive full light.
+         *
+         * @name Phaser.GameObjects.Light#coneInnerAngle
+         * @type {number}
+         * @default 0
+         * @since 4.2.0
+         */
+        this.coneInnerAngle = 0;
+
+        /**
+         * The outer cone angle, in radians. Fragments outside this angle receive no light.
+         *
+         * @name Phaser.GameObjects.Light#coneOuterAngle
+         * @type {number}
+         * @default 0
+         * @since 4.2.0
+         */
+        this.coneOuterAngle = 0;
+
+        /**
          * The flags that are compared against `RENDER_MASK` to determine if this Light will render or not.
          * The relevant bit is 0001, set by the Visible component. The remaining bits are unused by Light
          * but are reserved for custom use if required.
@@ -63733,6 +64284,103 @@ var Light = new Class({
     setZNormal: function (z)
     {
         this.z = z * this.radius;
+
+        return this;
+    },
+
+    /**
+     * Restrict this Light to a cone, suitable for flashlights, lanterns and other focal lights.
+     *
+     * The `rotation` is in radians, where 0 points to the right in world space. The `innerAngle`
+     * is the fully-lit cone width. The `outerAngle` is the wider falloff cone width; if omitted,
+     * the cone has a hard edge. Both angles are full cone widths, not half-angles.
+     *
+     * @method Phaser.GameObjects.Light#setCone
+     * @since 4.2.0
+     *
+     * @param {number} rotation - The direction of the cone, in radians.
+     * @param {number} innerAngle - The fully-lit cone width, in radians.
+     * @param {number} [outerAngle=innerAngle] - The outer falloff cone width, in radians.
+     *
+     * @return {this} This Light object.
+     */
+    setCone: function (rotation, innerAngle, outerAngle)
+    {
+        if (outerAngle === undefined) { outerAngle = innerAngle; }
+
+        innerAngle = Math.max(0, Math.min(Math.PI * 2, innerAngle));
+        outerAngle = Math.max(0, Math.min(Math.PI * 2, outerAngle));
+
+        if (outerAngle < innerAngle)
+        {
+            outerAngle = innerAngle;
+        }
+
+        this.coneEnabled = true;
+        this.coneRotation = rotation;
+        this.coneInnerAngle = innerAngle;
+        this.coneOuterAngle = outerAngle;
+
+        return this;
+    },
+
+    /**
+     * Set the direction of this Light cone, in radians.
+     *
+     * @method Phaser.GameObjects.Light#setConeRotation
+     * @since 4.2.0
+     *
+     * @param {number} rotation - The direction of the cone, in radians.
+     *
+     * @return {this} This Light object.
+     */
+    setConeRotation: function (rotation)
+    {
+        this.coneRotation = rotation;
+
+        return this;
+    },
+
+    /**
+     * Set the inner and outer cone angles, in radians.
+     *
+     * @method Phaser.GameObjects.Light#setConeAngles
+     * @since 4.2.0
+     *
+     * @param {number} innerAngle - The fully-lit cone width, in radians.
+     * @param {number} [outerAngle=innerAngle] - The outer falloff cone width, in radians.
+     *
+     * @return {this} This Light object.
+     */
+    setConeAngles: function (innerAngle, outerAngle)
+    {
+        if (outerAngle === undefined) { outerAngle = innerAngle; }
+
+        innerAngle = Math.max(0, Math.min(Math.PI * 2, innerAngle));
+        outerAngle = Math.max(0, Math.min(Math.PI * 2, outerAngle));
+
+        if (outerAngle < innerAngle)
+        {
+            outerAngle = innerAngle;
+        }
+
+        this.coneInnerAngle = innerAngle;
+        this.coneOuterAngle = outerAngle;
+
+        return this;
+    },
+
+    /**
+     * Disable cone limiting and make this Light omnidirectional again.
+     *
+     * @method Phaser.GameObjects.Light#disableCone
+     * @since 4.2.0
+     *
+     * @return {this} This Light object.
+     */
+    disableCone: function ()
+    {
+        this.coneEnabled = false;
 
         return this;
     }
@@ -64093,6 +64741,36 @@ var LightsManager = new Class({
     },
 
     /**
+     * Creates a new cone-limited {@link Phaser.GameObjects.Light} object, adds it to this Lights Manager,
+     * and returns it.
+     *
+     * The cone angles are full cone widths in radians. Fragments inside `innerAngle` receive full light,
+     * and fragments between `innerAngle` and `outerAngle` are softly attenuated.
+     *
+     * @method Phaser.GameObjects.LightsManager#addConeLight
+     * @since 4.2.0
+     *
+     * @param {number} [x=0] - The horizontal position of the Light.
+     * @param {number} [y=0] - The vertical position of the Light.
+     * @param {number} [radius=128] - The radius of the Light.
+     * @param {number} [rgb=0xffffff] - The integer RGB color of the light.
+     * @param {number} [intensity=1] - The intensity of the Light.
+     * @param {number} [rotation=0] - The direction of the cone, in radians.
+     * @param {number} [innerAngle=Math.PI / 4] - The fully-lit cone width, in radians.
+     * @param {number} [outerAngle=innerAngle] - The outer falloff cone width, in radians.
+     * @param {number} [z] - The z position of the light. If omitted, it will be set to `radius * 0.1`.
+     *
+     * @return {Phaser.GameObjects.Light} The Light that was added.
+     */
+    addConeLight: function (x, y, radius, rgb, intensity, rotation, innerAngle, outerAngle, z)
+    {
+        if (rotation === undefined) { rotation = 0; }
+        if (innerAngle === undefined) { innerAngle = Math.PI / 4; }
+
+        return this.addLight(x, y, radius, rgb, intensity, z).setCone(rotation, innerAngle, outerAngle);
+    },
+
+    /**
      * Removes a {@link Phaser.GameObjects.Light} from this Lights Manager. The Light will no longer
      * influence the rendering of any Game Objects. The Light object itself is not destroyed; it is
      * simply removed from the manager's active list.
@@ -64264,6 +64942,909 @@ var LightsPlugin = new Class({
 PluginCache.register('LightsPlugin', LightsPlugin, 'lights');
 
 module.exports = LightsPlugin;
+
+
+/***/ },
+
+/***/ 76435
+(module, __unused_webpack_exports, __webpack_require__) {
+
+/**
+ * @author       Benjamin D. Richards <benjamindrichards@gmail.com>
+ * @copyright    2013-2026 Phaser Studio Inc.
+ * @license      {@link https://opensource.org/licenses/MIT|MIT License}
+ */
+
+var TintModes = __webpack_require__(84322);
+var DefaultMesh2DNodes = __webpack_require__(2389);
+var Class = __webpack_require__(83419);
+var Components = __webpack_require__(31401);
+var GameObject = __webpack_require__(95643);
+var Mesh2DRender = __webpack_require__(63635);
+
+/**
+ * @classdesc
+ * A Mesh2D Game Object.
+ *
+ * A Mesh2D Game Object is used for the display of 2D meshes.
+ * It is a WebGL only Game Object.
+ * It contains a number of textured triangles.
+ * Each triangle is defined by a set of three vertices,
+ * with a position and texture coordinate; and a reference to a texture.
+ *
+ * Because the triangles define their own texture coordinates,
+ * Mesh2D does not directly use frame data from the texture.
+ * You should set up your own texture coordinates,
+ * either by hand or using a texture atlas.
+ *
+ * The Mesh2D game object can batch together with quads from game objects
+ * like Image, Sprite, and Text.
+ * It supports several rendering strategies, and it's important to use the correct one.
+ *
+ * By default, it does not combine triangles into quads.
+ * Each triangle is rendered as a single quad.
+ * This is inefficient, so consider switching to one of the other strategies.
+ *
+ * Use the `buildOrderedIndices` method to precompute an optimized index list,
+ * which arranges triangles into quad-forming pairs,
+ * synthesizing degenerate triangles where a triangle has no edge-sharing partner.
+ * You choose the optimization strategy (`0` fast, `1` medium, `2` high), paying the cost once when the topology is stable.
+ * Use `useOrderedIndices` (and `setUseOrderedIndices`) to toggle between the ordered and unordered lists without rebuilding.
+ * This strategy is best for static topology,  where the triangles do not change.
+ * (The vertices can change, but the triangles do not.)
+ *
+ * Use the `renderAsTriangles` method to render the mesh as individual triangles.
+ * This is suitable for dynamic topology that cannot be optimized into quads ahead of time.
+ * However, it uses a separate render node designed for textured triangles,
+ * so it doesn't batch with quads.
+ * This strategy is best for dynamic topology, where the arrangement of
+ * triangles itself changes frequently.
+ *
+ * Prefer the ordered index list strategy where possible.
+ * It needs to do less work at render time.
+ *
+ * If you can guarantee that the index list is already ordered,
+ * you can set `useOrderedIndices` to `true` and generate `indicesOrdered` yourself.
+ *
+ * Mesh2D supports lighting. You should be careful not to distort
+ * the mesh too far, or normal maps will look weird.
+ * In particular, rotating texture coordinates will rotate the apparent light
+ * direction.
+ *
+ * This is intended to be used as a base for dealing with 2D meshes.
+ *
+ * @class Mesh2D
+ * @extends Phaser.GameObjects.GameObject
+ * @memberof Phaser.GameObjects
+ * @webglonly
+ * @constructor
+ * @since 4.2.0
+ *
+ * @extends Phaser.GameObjects.Components.AlphaSingle
+ * @extends Phaser.GameObjects.Components.BlendMode
+ * @extends Phaser.GameObjects.Components.ComputedSize
+ * @extends Phaser.GameObjects.Components.Depth
+ * @extends Phaser.GameObjects.Components.Flip
+ * @extends Phaser.GameObjects.Components.GetBounds
+ * @extends Phaser.GameObjects.Components.Lighting
+ * @extends Phaser.GameObjects.Components.Origin
+ * @extends Phaser.GameObjects.Components.RenderNodes
+ * @extends Phaser.GameObjects.Components.ScrollFactor
+ * @extends Phaser.GameObjects.Components.TextureCrop
+ * @extends Phaser.GameObjects.Components.Transform
+ * @extends Phaser.GameObjects.Components.Visible
+ *
+ * @param {Phaser.Scene} scene - The Scene to which this Game Object belongs. A Game Object can only belong to one Scene at a time.
+ * @param {number} x - The horizontal position of this Game Object in the world.
+ * @param {number} y - The vertical position of this Game Object in the world.
+ * @param {(string|Phaser.Textures.Texture)} texture - The key, or instance of the Texture this Game Object will use to render with, as stored in the Texture Manager.
+ * @param {number[]} vertices - The vertices of the mesh. Each vertex is a sequence within the array: x, y, u, v. The array has a step of 4.
+ * @param {number[]} indices - The indices of the mesh. Each index is a sequence: a, b, c, page. The abc values index to vertices in the vertices array. The page value is the index of the texture source in the texture atlas to use for this triangle. Typically 0. The array has a step of 4.
+ * @param {boolean} [flipV=false] - Whether to flip the texture coordinates vertically. This affects texture coordinates, not the vertices. Set this property if your geometry provides texture coordinates that are opposite to GL texture expectations (which are bottom-up).
+ */
+var Mesh2D = new Class({
+    Extends: GameObject,
+
+    Mixins: [
+        Components.AlphaSingle,
+        Components.BlendMode,
+        Components.ComputedSize,
+        Components.Depth,
+        Components.Flip,
+        Components.GetBounds,
+        Components.Lighting,
+        Components.Origin,
+        Components.RenderNodes,
+        Components.ScrollFactor,
+        Components.TextureCrop,
+        Components.Transform,
+        Components.Visible,
+        Mesh2DRender
+    ],
+
+    initialize: function Mesh2D(scene, x, y, texture, vertices, indices, flipV) {
+        GameObject.call(this, scene, 'Mesh2D');
+
+        this.setTexture(texture);
+        this.setPosition(x, y);
+        this.initRenderNodes(this._defaultRenderNodesMap);
+
+        /**
+         * The vertices of the mesh.
+         * Each vertex is a sequence within the array:
+         * x, y, u, v.
+         * The array has a step of 4.
+         *
+         * - x (offset 0): The x position of the vertex.
+         * - y (offset 1): The y position of the vertex.
+         * - u (offset 2): The u texture coordinate of the vertex.
+         * - v (offset 3): The v texture coordinate of the vertex.
+         *
+         * @name Phaser.GameObjects.Mesh2D#vertices
+         * @type {number[]}
+         * @since 4.2.0
+         */
+        this.vertices = vertices;
+
+        /**
+         * The indices of the mesh.
+         * Each index is a sequence: a, b, c, page.
+         * These index to vertices in the vertices array.
+         * The array has a step of 4.
+         *
+         * - a (offset 0): The index of the first vertex.
+         * - b (offset 1): The index of the second vertex.
+         * - c (offset 2): The index of the third vertex.
+         * - page (offset 3): The page of the triangle: which texture source
+         *   in the texture atlas is used for this triangle. Typically 0.
+         *
+         * @name Phaser.GameObjects.Mesh2D#indices
+         * @type {number[]}
+         * @since 4.2.0
+         */
+        this.indices = indices;
+
+        /**
+         * An optimized copy of the `indices` list, built by
+         * `buildOrderedIndices`. It uses the same internal pattern as
+         * `indices` (a sequence of `a, b, c, page` with a step of 4), but it
+         * may be longer, because it can contain synthesized degenerate
+         * triangles which pad single triangles out to complete quads.
+         *
+         * Triangles in this list are arranged in pairs. Each pair is intended
+         * to be consumed as a single quad: the first triangle is `p, q, r` and
+         * the second is `q, r, s`, where `q, r` is the shared edge, and `p, s`
+         * are the corners unique to each triangle. When a triangle has no
+         * partner, `s` repeats `r` to form a degenerate second triangle.
+         *
+         * This is `null` until `buildOrderedIndices` is called. Use
+         * `useOrderedIndices` to control whether it is used.
+         *
+         * @name Phaser.GameObjects.Mesh2D#indicesOrdered
+         * @type {?number[]}
+         * @since 4.2.0
+         * @default null
+         */
+        this.indicesOrdered = null;
+
+        /**
+         * Whether to use `indicesOrdered` instead of `indices` when rendering.
+         *
+         * This has no effect unless `indicesOrdered` has been populated by
+         * `buildOrderedIndices`. It is safe to toggle at any time, allowing you
+         * to switch between the ordered and unordered lists without rebuilding.
+         *
+         * @name Phaser.GameObjects.Mesh2D#useOrderedIndices
+         * @type {boolean}
+         * @since 4.2.0
+         * @default false
+         */
+        this.useOrderedIndices = false;
+
+        /**
+         * Whether to render this mesh as individual triangles, rather than
+         * combining triangles into quads.
+         *
+         * When `true`, the renderer routes the mesh to a batch handler
+         * optimized for individual triangles (`gl.TRIANGLES`). This is suitable
+         * for dynamic topology which cannot be optimized into quads ahead of
+         * time. When `false`, the mesh is rendered as quads, which batches with
+         * regular sprites.
+         *
+         * @name Phaser.GameObjects.Mesh2D#renderAsTriangles
+         * @type {boolean}
+         * @since 4.2.0
+         * @default false
+         */
+        this.renderAsTriangles = false;
+
+        /**
+         * Whether to flip the texture coordinates vertically.
+         *
+         * This affects texture coordinates, not the vertices.
+         * Set this property if your geometry provides texture coordinates
+         * that are opposite to GL texture expectations (which are bottom-up).
+         *
+         * @name Phaser.GameObjects.Mesh2D#flipV
+         * @type {boolean}
+         * @since 4.2.0
+         * @default false
+         */
+        this.flipV = !!flipV;
+
+        this.tintMode = TintModes.MULTIPLY;
+        this.tint = 0xffffff;
+        this.tint2 = 0x000000;
+    },
+
+    /**
+     * The default render nodes for this Game Object.
+     *
+     * @name Phaser.GameObjects.Mesh2D#_defaultRenderNodesMap
+     * @type {Map<string, string>}
+     * @private
+     * @webglOnly
+     * @readonly
+     * @since 4.2.0
+     */
+    _defaultRenderNodesMap: {
+        get: function ()
+        {
+            return DefaultMesh2DNodes;
+        }
+    },
+
+    clearTint: function ()
+    {
+        this.tintMode = TintModes.MULTIPLY;
+        this.tint = 0xffffff;
+        this.tint2 = 0x000000;
+        return this;
+    },
+
+    setTint: function (color)
+    {
+        this.tint = color;
+        return this;
+    },
+
+    setTint2: function (color)
+    {
+        this.tint2 = color;
+        return this;
+    },
+
+    setTintMode: function (mode)
+    {
+        this.tintMode = mode;
+        return this;
+    },
+
+    isTinted: function ()
+    {
+        return this.tint !== 0xffffff || this.tint2 !== 0x000000 || this.tintMode !== TintModes.MULTIPLY;
+    },
+
+    /**
+     * Sets the vertical texture flip state of this Game Object.
+     *
+     * @param {boolean} [value=false] - Whether to flip the texture coordinates vertically.
+     * @returns {this} This Game Object instance.
+     */
+    setFlipV: function (value)
+    {
+        this.flipV = !!value;
+        return this;
+    },
+
+    /**
+     * Sets whether to use `indicesOrdered` instead of `indices` when rendering.
+     *
+     * This has no side effects other than setting the property. It does not
+     * rebuild `indicesOrdered`, so you may toggle freely between the ordered
+     * and unordered lists. Call `buildOrderedIndices` to populate the ordered
+     * list.
+     *
+     * @method Phaser.GameObjects.Mesh2D#setUseOrderedIndices
+     * @since 4.2.0
+     * @param {boolean} [value=false] - Whether to use the ordered index list.
+     * @returns {this} This Game Object instance.
+     */
+    setUseOrderedIndices: function (value)
+    {
+        this.useOrderedIndices = !!value;
+        return this;
+    },
+
+    /**
+     * Sets whether to render this mesh as individual triangles.
+     *
+     * @method Phaser.GameObjects.Mesh2D#setRenderAsTriangles
+     * @since 4.2.0
+     * @param {boolean} [value=false] - Whether to render the mesh as individual triangles.
+     * @returns {this} This Game Object instance.
+     */
+    setRenderAsTriangles: function (value)
+    {
+        this.renderAsTriangles = !!value;
+        return this;
+    },
+
+    /**
+     * Builds `indicesOrdered`, an optimized copy of `indices` in which
+     * triangles are arranged into quad-forming pairs. Each pair consists of
+     * two triangles `p, q, r` and `q, r, s`: where two triangles share an edge,
+     * `q, r` is that shared edge and `p, s` are their unique corners; where a
+     * triangle has no partner, the second triangle of the pair is degenerate
+     * (`s` repeats `r`), padding the single triangle out to a full quad.
+     *
+     * Because this processes the entire `indices` list, you should only call
+     * it when the topology is stable. The cost depends on the chosen strategy.
+     *
+     * @method Phaser.GameObjects.Mesh2D#buildOrderedIndices
+     * @since 4.2.0
+     * @param {number} [strategy=0] - The level of optimization to use.
+     *
+     * - `0`: Fast. Each triangle forms its own quad with a synthesized
+     *   degenerate triangle. No edge sharing is detected. This is quick to
+     *   build but the least memory efficient at render time.
+     * - `1`: Medium. Each triangle checks only the next triangle for a shared
+     *   edge, forming a quad if one is found, otherwise padding with a
+     *   degenerate triangle.
+     * - `2`: High. Every triangle is checked against every other triangle for a
+     *   shared edge, using an edge lookup to keep this tractable. This is the
+     *   slowest to build but the most memory efficient at render time.
+     * @param {boolean} [useOrderedIndices] - If defined, also sets the `useOrderedIndices` property.
+     * @returns {this} This Game Object instance.
+     */
+    buildOrderedIndices: function (strategy, useOrderedIndices)
+    {
+        if (strategy === undefined) { strategy = 0; }
+
+        if (useOrderedIndices !== undefined)
+        {
+            this.useOrderedIndices = !!useOrderedIndices;
+        }
+
+        var indices = this.indices;
+        var triCount = (indices.length / 4) | 0;
+
+        // The multiplier used to canonicalize an edge into a single numeric
+        // key. It must exceed the largest vertex index, so we use the vertex
+        // count.
+        var vCount = (this.vertices.length / 4) | 0;
+
+        // The output list, built up below.
+        var ordered = [];
+
+        if (strategy === 1)
+        {
+            this._buildOrderedIndicesNext(indices, triCount, vCount, ordered);
+        }
+        else if (strategy === 2)
+        {
+            this._buildOrderedIndicesAll(indices, triCount, vCount, ordered);
+        }
+        else
+        {
+            this._buildOrderedIndicesFast(indices, triCount, ordered);
+        }
+
+        this.indicesOrdered = ordered;
+
+        return this;
+    },
+
+    /**
+     * Strategy 0: each triangle becomes its own quad, padded by a degenerate
+     * triangle. No edge detection is performed.
+     *
+     * @method Phaser.GameObjects.Mesh2D#_buildOrderedIndicesFast
+     * @since 4.2.0
+     * @private
+     * @param {number[]} indices - The source index list.
+     * @param {number} triCount - The number of triangles in the source list.
+     * @param {number[]} ordered - The output list to populate.
+     */
+    _buildOrderedIndicesFast: function (indices, triCount, ordered)
+    {
+        for (var i = 0; i < triCount; i++)
+        {
+            var i4 = i * 4;
+            this._pushDegenerateQuad(
+                ordered,
+                indices[i4],
+                indices[i4 + 1],
+                indices[i4 + 2],
+                indices[i4 + 3]
+            );
+        }
+    },
+
+    /**
+     * Strategy 1: each unconsumed triangle checks only the immediately
+     * following triangle for a shared edge. Matching triangles form a quad;
+     * otherwise the triangle is padded with a degenerate triangle.
+     *
+     * @method Phaser.GameObjects.Mesh2D#_buildOrderedIndicesNext
+     * @since 4.2.0
+     * @private
+     * @param {number[]} indices - The source index list.
+     * @param {number} triCount - The number of triangles in the source list.
+     * @param {number} vCount - The vertex count, used to canonicalize edges.
+     * @param {number[]} ordered - The output list to populate.
+     */
+    _buildOrderedIndicesNext: function (indices, triCount, vCount, ordered)
+    {
+        for (var i = 0; i < triCount; i++)
+        {
+            var i4 = i * 4;
+            var a = indices[i4];
+            var b = indices[i4 + 1];
+            var c = indices[i4 + 2];
+            var page = indices[i4 + 3];
+
+            var paired = false;
+            var j = i + 1;
+
+            if (j < triCount)
+            {
+                var j4 = j * 4;
+
+                if (page === indices[j4 + 3])
+                {
+                    var quad = this._sharedEdgeQuad(
+                        a, b, c,
+                        indices[j4], indices[j4 + 1], indices[j4 + 2],
+                        vCount
+                    );
+
+                    if (quad)
+                    {
+                        this._pushQuad(ordered, quad[0], quad[1], quad[2], quad[3], page);
+
+                        // Skip the consumed partner.
+                        i = j;
+                        paired = true;
+                    }
+                }
+            }
+
+            if (!paired)
+            {
+                this._pushDegenerateQuad(ordered, a, b, c, page);
+            }
+        }
+    },
+
+    /**
+     * Strategy 2: every triangle is matched against every other triangle using
+     * an edge lookup. Each unconsumed triangle greedily pairs with the first
+     * unconsumed triangle that shares an edge and texture page.
+     *
+     * @method Phaser.GameObjects.Mesh2D#_buildOrderedIndicesAll
+     * @since 4.2.0
+     * @private
+     * @param {number[]} indices - The source index list.
+     * @param {number} triCount - The number of triangles in the source list.
+     * @param {number} vCount - The vertex count, used to canonicalize edges.
+     * @param {number[]} ordered - The output list to populate.
+     */
+    _buildOrderedIndicesAll: function (indices, triCount, vCount, ordered)
+    {
+        // Map from a canonical edge key to the list of triangles which contain
+        // that edge. Each entry records the partner triangle, the texture page,
+        // and the vertex opposite the shared edge.
+        var edgeMap = {};
+
+        var i, i4, a, b, c, page;
+
+        for (i = 0; i < triCount; i++)
+        {
+            i4 = i * 4;
+            a = indices[i4];
+            b = indices[i4 + 1];
+            c = indices[i4 + 2];
+            page = indices[i4 + 3];
+
+            this._addEdge(edgeMap, a, b, c, i, page, vCount);
+            this._addEdge(edgeMap, b, c, a, i, page, vCount);
+            this._addEdge(edgeMap, c, a, b, i, page, vCount);
+        }
+
+        var consumed = [];
+
+        for (i = 0; i < triCount; i++)
+        {
+            if (consumed[i]) { continue; }
+
+            i4 = i * 4;
+            a = indices[i4];
+            b = indices[i4 + 1];
+            c = indices[i4 + 2];
+            page = indices[i4 + 3];
+
+            consumed[i] = true;
+
+            // Each edge of this triangle, with the vertex opposite it.
+            var found = (
+                this._matchEdge(edgeMap, consumed, ordered, i, a, b, c, page, vCount) ||
+                this._matchEdge(edgeMap, consumed, ordered, i, b, c, a, page, vCount) ||
+                this._matchEdge(edgeMap, consumed, ordered, i, c, a, b, page, vCount)
+            );
+
+            if (!found)
+            {
+                this._pushDegenerateQuad(ordered, a, b, c, page);
+            }
+        }
+    },
+
+    /**
+     * Adds a triangle edge to the edge lookup used by strategy 2.
+     *
+     * @method Phaser.GameObjects.Mesh2D#_addEdge
+     * @since 4.2.0
+     * @private
+     * @param {object} edgeMap - The edge lookup to add to.
+     * @param {number} u - The first vertex of the edge.
+     * @param {number} v - The second vertex of the edge.
+     * @param {number} opp - The vertex opposite the edge.
+     * @param {number} tri - The index of the triangle that owns the edge.
+     * @param {number} page - The texture page of the triangle.
+     * @param {number} vCount - The vertex count, used to canonicalize the edge.
+     */
+    _addEdge: function (edgeMap, u, v, opp, tri, page, vCount)
+    {
+        var key = (u < v) ? (u * vCount + v) : (v * vCount + u);
+        var list = edgeMap[key];
+        if (!list)
+        {
+            list = edgeMap[key] = [];
+        }
+        list.push({ tri: tri, opp: opp, page: page });
+    },
+
+    /**
+     * Attempts to pair triangle `tri` with another unconsumed triangle sharing
+     * the edge `q, r`. On success it appends a quad to the output list, marks
+     * the partner consumed, and returns `true`.
+     *
+     * @method Phaser.GameObjects.Mesh2D#_matchEdge
+     * @since 4.2.0
+     * @private
+     * @param {object} edgeMap - The edge lookup to search.
+     * @param {boolean[]} consumed - The per-triangle consumed flags.
+     * @param {number[]} ordered - The output list to append a quad to.
+     * @param {number} tri - The index of the triangle seeking a partner.
+     * @param {number} p - The vertex of `tri` opposite the shared edge.
+     * @param {number} q - The first vertex of the shared edge.
+     * @param {number} r - The second vertex of the shared edge.
+     * @param {number} page - The texture page of `tri`.
+     * @param {number} vCount - The vertex count, used to canonicalize the edge.
+     * @returns {boolean} Whether a partner was found.
+     */
+    _matchEdge: function (edgeMap, consumed, ordered, tri, p, q, r, page, vCount)
+    {
+        var key = (q < r) ? (q * vCount + r) : (r * vCount + q);
+        var list = edgeMap[key];
+        if (!list) { return false; }
+
+        for (var i = 0; i < list.length; i++)
+        {
+            var entry = list[i];
+            if (entry.tri !== tri && !consumed[entry.tri] && entry.page === page)
+            {
+                consumed[entry.tri] = true;
+                this._pushQuad(ordered, p, q, r, entry.opp, page);
+                return true;
+            }
+        }
+
+        return false;
+    },
+
+    /**
+     * Determines the quad formed by two triangles which share an edge, using
+     * canonical edge keys. Returns `[p, q, r, s]` where `q, r` is the shared
+     * edge, `p` is the corner unique to the first triangle, and `s` is the
+     * corner unique to the second. Returns `null` if the triangles do not share
+     * exactly one edge.
+     *
+     * @method Phaser.GameObjects.Mesh2D#_sharedEdgeQuad
+     * @since 4.2.0
+     * @private
+     * @param {number} a - The first vertex of the first triangle.
+     * @param {number} b - The second vertex of the first triangle.
+     * @param {number} c - The third vertex of the first triangle.
+     * @param {number} d - The first vertex of the second triangle.
+     * @param {number} e - The second vertex of the second triangle.
+     * @param {number} f - The third vertex of the second triangle.
+     * @param {number} vCount - The vertex count, used to canonicalize edges.
+     * @returns {?number[]} The quad as `[p, q, r, s]`, or `null` if there is no shared edge.
+     */
+    _sharedEdgeQuad: function (a, b, c, d, e, f, vCount)
+    {
+        // Canonical edge keys, with the vertex opposite each edge.
+        var e1 = [
+            [ this._edgeKey(a, b, vCount), c, a, b ],
+            [ this._edgeKey(b, c, vCount), a, b, c ],
+            [ this._edgeKey(c, a, vCount), b, c, a ]
+        ];
+        var e2 = [
+            [ this._edgeKey(d, e, vCount), f ],
+            [ this._edgeKey(e, f, vCount), d ],
+            [ this._edgeKey(f, d, vCount), e ]
+        ];
+
+        for (var i = 0; i < 3; i++)
+        {
+            for (var j = 0; j < 3; j++)
+            {
+                if (e1[i][0] === e2[j][0])
+                {
+                    // p = first triangle's opposite corner,
+                    // q, r = shared edge, s = second triangle's opposite corner.
+                    return [ e1[i][1], e1[i][2], e1[i][3], e2[j][1] ];
+                }
+            }
+        }
+
+        return null;
+    },
+
+    /**
+     * Returns the canonical key for the edge between two vertices.
+     *
+     * @method Phaser.GameObjects.Mesh2D#_edgeKey
+     * @since 4.2.0
+     * @private
+     * @param {number} u - The first vertex of the edge.
+     * @param {number} v - The second vertex of the edge.
+     * @param {number} vCount - The vertex count, used as the key multiplier.
+     * @returns {number} The canonical edge key.
+     */
+    _edgeKey: function (u, v, vCount)
+    {
+        return (u < v) ? (u * vCount + v) : (v * vCount + u);
+    },
+
+    /**
+     * Appends a quad to the ordered index list as a pair of triangles
+     * `p, q, r` and `q, r, s`.
+     *
+     * @method Phaser.GameObjects.Mesh2D#_pushQuad
+     * @since 4.2.0
+     * @private
+     * @param {number[]} ordered - The output list to append to.
+     * @param {number} p - The corner unique to the first triangle.
+     * @param {number} q - The first vertex of the shared edge.
+     * @param {number} r - The second vertex of the shared edge.
+     * @param {number} s - The corner unique to the second triangle.
+     * @param {number} page - The texture page shared by both triangles.
+     */
+    _pushQuad: function (ordered, p, q, r, s, page)
+    {
+        ordered.push(
+            p, q, r, page,
+            q, r, s, page
+        );
+    },
+
+    /**
+     * Appends a single triangle to the ordered index list, padded out to a quad
+     * with a degenerate second triangle.
+     *
+     * @method Phaser.GameObjects.Mesh2D#_pushDegenerateQuad
+     * @since 4.2.0
+     * @private
+     * @param {number[]} ordered - The output list to append to.
+     * @param {number} a - The first vertex of the triangle.
+     * @param {number} b - The second vertex of the triangle.
+     * @param {number} c - The third vertex of the triangle.
+     * @param {number} page - The texture page of the triangle.
+     */
+    _pushDegenerateQuad: function (ordered, a, b, c, page)
+    {
+        ordered.push(
+            a, b, c, page,
+            b, c, c, page
+        );
+    }
+});
+
+module.exports = Mesh2D;
+
+
+/***/ },
+
+/***/ 2227
+(__unused_webpack_module, __unused_webpack_exports, __webpack_require__) {
+
+/**
+ * @author       Benjamin D. Richards <benjamindrichards@gmail.com>
+ * @copyright    2013-2026 Phaser Studio Inc.
+ * @license      {@link https://opensource.org/licenses/MIT|MIT License}
+ */
+
+var BuildGameObject = __webpack_require__(25305);
+var GameObjectCreator = __webpack_require__(44603);
+var GetAdvancedValue = __webpack_require__(23568);
+var Mesh2D = __webpack_require__(76435);
+
+/**
+ * Creates a new Mesh2D Game Object and returns it.
+ *
+ * Note: This method will only be available if the Mesh2D Game Object has been built into Phaser.
+ *
+ * @method Phaser.GameObjects.GameObjectCreator#mesh2d
+ * @since 4.2.0
+ *
+ * @param {Phaser.Types.GameObjects.GameObjectConfig} config - The configuration object this Game Object will use to create itself.
+ * @param {boolean} [addToScene] - Add this Game Object to the Scene after creating it? If set this argument overrides the `add` property in the config object.
+ *
+ * @return {Phaser.GameObjects.Mesh2D} The Game Object that was created.
+ */
+GameObjectCreator.register('mesh2d', function (config, addToScene)
+{
+    if (config === undefined) { config = {}; }
+
+    var key = GetAdvancedValue(config, 'key', null);
+    var vertices = GetAdvancedValue(config, 'vertices', []);
+    var indices = GetAdvancedValue(config, 'indices', []);
+    var flipV = GetAdvancedValue(config, 'flipV', false);
+
+    var mesh2d = new Mesh2D(this.scene, 0, 0, key, vertices, indices, flipV);
+
+    if (addToScene !== undefined)
+    {
+        config.add = addToScene;
+    }
+
+    BuildGameObject(this.scene, mesh2d, config);
+
+    return mesh2d;
+});
+
+//  When registering a factory function 'this' refers to the GameObjectCreator context.
+
+
+/***/ },
+
+/***/ 2317
+(__unused_webpack_module, __unused_webpack_exports, __webpack_require__) {
+
+/**
+ * @author       Benjamin D. Richards <benjamindrichards@gmail.com>
+ * @copyright    2013-2026 Phaser Studio Inc.
+ * @license      {@link https://opensource.org/licenses/MIT|MIT License}
+ */
+
+var Mesh2D = __webpack_require__(76435);
+var GameObjectFactory = __webpack_require__(39429);
+
+/**
+ * Creates a new Mesh2D Game Object and adds it to the Scene.
+ *
+ * Note: This method will only be available if the Mesh2D Game Object has been built into Phaser.
+ *
+ * @method Phaser.GameObjects.GameObjectFactory#mesh2d
+ * @since 4.2.0
+ *
+ * @param {number} x - The horizontal position of this Game Object in the world.
+ * @param {number} y - The vertical position of this Game Object in the world.
+ * @param {(string|Phaser.Textures.Texture)} texture - The key, or instance of the Texture this Game Object will use to render with, as stored in the Texture Manager.
+ * @param {number[]} vertices - The vertices of the mesh.
+ * @param {number[]} indices - The indices of the mesh.
+ * @param {boolean} [flipV=false] - Whether to flip the texture vertically.
+ *
+ * @return {Phaser.GameObjects.Mesh2D} The Game Object that was created.
+ */
+GameObjectFactory.register('mesh2d', function (x, y, texture, vertices, indices, flipV)
+{
+    return this.displayList.add(new Mesh2D(this.scene, x, y, texture, vertices, indices, flipV));
+});
+
+//  When registering a factory function 'this' refers to the GameObjectFactory context.
+//
+//  There are several properties available to use:
+//
+//  this.scene - a reference to the Scene that owns the GameObjectFactory
+//  this.displayList - a reference to the Display List the Scene owns
+//  this.updateList - a reference to the Update List the Scene owns
+
+
+/***/ },
+
+/***/ 63635
+(module, __unused_webpack_exports, __webpack_require__) {
+
+/**
+ * @author       Benjamin D. Richards <benjamindrichards@gmail.com>
+ * @copyright    2013-2026 Phaser Studio Inc.
+ * @license      {@link https://opensource.org/licenses/MIT|MIT License}
+ */
+
+var NOOP = __webpack_require__(29747);
+var renderWebGL = __webpack_require__(43909);
+var renderCanvas = NOOP;
+
+module.exports = {
+
+    renderWebGL: renderWebGL,
+    renderCanvas: renderCanvas
+
+};
+
+
+/***/ },
+
+/***/ 43909
+(module) {
+
+/**
+ * @author       Benjamin D. Richards <benjamindrichards@gmail.com>
+ * @copyright    2013-2026 Phaser Studio Inc.
+ * @license      {@link https://opensource.org/licenses/MIT|MIT License}
+ */
+
+/**
+ * Renders this Game Object with the WebGL Renderer to the given Camera.
+ * The object will not render if any of its renderFlags are set or it is being actively filtered out by the Camera.
+ * This method should not be called directly. It is a utility function of the Render module.
+ *
+ * @method Phaser.GameObjects.Image#renderWebGL
+ * @since 4.2.0
+ * @private
+ *
+ * @param {Phaser.Renderer.WebGL.WebGLRenderer} renderer - A reference to the current active WebGL renderer.
+ * @param {Phaser.GameObjects.Mesh2D} src - The Game Object being rendered in this call.
+ * @param {Phaser.Renderer.WebGL.DrawingContext} drawingContext - The current drawing context.
+ * @param {Phaser.GameObjects.Components.TransformMatrix} parentMatrix - This transform matrix is defined if the game object is nested
+ */
+var Mesh2DWebGLRenderer = function (renderer, src, drawingContext, parentMatrix)
+{
+    drawingContext.camera.addToRenderList(src);
+
+    var customRenderNodes = src.customRenderNodes;
+    var defaultRenderNodes = src.defaultRenderNodes;
+
+    var transformerNode = customRenderNodes.Transformer || defaultRenderNodes.Transformer;
+    var submitterNode = customRenderNodes.Submitter || defaultRenderNodes.Submitter;
+
+    if (src.renderAsTriangles)
+    {
+        // Render each triangle individually, rather than combining triangles
+        // into quads. Suitable for dynamic topology which cannot be optimized.
+        var triangleNode = customRenderNodes.BatchHandlerTriangles || defaultRenderNodes.BatchHandlerTriangles;
+
+        // Resolve render options (lighting, smooth pixel art, etc.) using the
+        // submitter, then hand the raw vertex and index arrays to the triangle
+        // batch handler.
+        submitterNode.setRenderOptions(src);
+
+        triangleNode.batchTriangles(
+            drawingContext,
+            src,
+            parentMatrix,
+            transformerNode,
+            src.vertices,
+            src.indices,
+            submitterNode._renderOptions
+        );
+
+        return;
+    }
+
+    submitterNode.run(
+        drawingContext,
+        src,
+        parentMatrix,
+        transformerNode
+    );
+};
+
+module.exports = Mesh2DWebGLRenderer;
 
 
 /***/ },
@@ -77970,6 +79551,18 @@ var RenderTextureRenderModes = __webpack_require__(58855);
  * to be drawn with no aliasing around the edges. This is a technical limitation of WebGL1. To get around it,
  * create your shape as a texture in an art package, then draw that to this texture.
  *
+ * If you activate mipmap support in your game, it will not automatically
+ * be applied to DynamicTextures.
+ * This is because regenerating the mipmap for a texture
+ * costs over 10 microseconds, a big performance loss for a single frame.
+ * If you want to render your DynamicTextures with mipmaps,
+ * you must also activate the render config option `mipmapRegeneration`.
+ *
+ * In the event that the WebGL context is lost, this DynamicTexture will
+ * lose its contents. Once context is restored (signalled by the `restorewebgl`
+ * event), you can choose to redraw the contents of the DynamicTexture.
+ * You are responsible for the redrawing logic.
+ *
  * @class RenderTexture
  * @extends Phaser.GameObjects.Image
  * @memberof Phaser.GameObjects
@@ -78108,7 +79701,7 @@ var RenderTexture = new Class({
      * In Canvas it will resize the underlying canvas element.
      *
      * Both approaches will erase everything currently drawn to the Render Texture.
-     * 
+     *
      * Calling this will then invoke the `setSize` method, setting the internal size of this Game Object
      * to the values given to this method.
      *
@@ -78163,6 +79756,11 @@ var RenderTexture = new Class({
      * stop rendering. Ensure you remove the texture from the Texture Manager and any Game Objects
      * using it first, before destroying this Render Texture.
      *
+     * Note that the texture is assigned a random key on creation.
+     * This key will be replaced with the new key.
+     * If the texture was previously removed from the texture manager,
+     * it will be added back so it can be reused.
+     *
      * @method Phaser.GameObjects.RenderTexture#saveTexture
      * @since 3.12.0
      *
@@ -78173,12 +79771,22 @@ var RenderTexture = new Class({
     saveTexture: function (key)
     {
         var texture = this.texture;
-
-        texture.key = key;
-
-        if (texture.manager.addDynamicTexture(texture))
+        var oldKey = texture.key;
+        var textureManager = texture.manager;
+        if (textureManager.exists(oldKey) && textureManager.get(oldKey) === texture)
         {
+            textureManager.renameTexture(oldKey, key);
+
             this._saved = true;
+        }
+        else
+        {
+            texture.key = key;
+
+            if (texture.manager.addDynamicTexture(texture))
+            {
+                this._saved = true;
+            }
         }
 
         return texture;
@@ -79068,6 +80676,8 @@ var Rope = new Class({
          * - Phaser.TintModes.OVERLAY
          * - Phaser.TintModes.HARD_LIGHT
          *
+         * Rope does not currently support secondary tint colors or modes.
+         *
          * @name Phaser.GameObjects.Rope#tintMode
          * @type {Phaser.TintModes}
          * @default Phaser.TintModes.MULTIPLY
@@ -79356,6 +80966,8 @@ var Rope = new Class({
      * - Phaser.TintModes.HARD_LIGHT
      *
      * See the `setColors` method for details of how to color each of the vertices.
+     *
+     * Rope does not currently support secondary tint colors or modes.
      *
      * @method Phaser.GameObjects.Rope#setTintMode
      * @webglOnly
@@ -85333,9 +86945,6 @@ var Line = new Class({
 
         Shape.call(this, scene, 'Line', new GeomLine(x1, y1, x2, y2));
 
-        var width = Math.max(1, this.geom.right - this.geom.left);
-        var height = Math.max(1, this.geom.bottom - this.geom.top);
-
         /**
          * The width (or thickness) of the line.
          * See the setLineWidth method for extra details on changing this on WebGL.
@@ -85367,7 +86976,7 @@ var Line = new Class({
         this._endWidth = 1;
 
         this.setPosition(x, y);
-        this.setSize(width, height);
+        this.updateSize();
 
         if (strokeColor !== undefined)
         {
@@ -85422,9 +87031,29 @@ var Line = new Class({
     {
         this.geom.setTo(x1, y1, x2, y2);
 
+        this.updateSize();
+
+        return this;
+    },
+
+    /**
+     * Updates the width and height of the Line based on its geometry.
+     *
+     * @method Phaser.GameObjects.Line#updateSize
+     * @private
+     * @since 4.2.0
+     *
+     * @return {this} This Line instance.
+     */
+    updateSize: function ()
+    {
+        var width = Math.max(1, this.geom.right - this.geom.left);
+        var height = Math.max(1, this.geom.bottom - this.geom.top);
+
+        this.setSize(width, height);
+
         return this;
     }
-
 });
 
 module.exports = Line;
@@ -86371,47 +88000,13 @@ var FillStyleCanvas = __webpack_require__(65960);
 var LineStyleCanvas = __webpack_require__(75177);
 var SetTransform = __webpack_require__(20926);
 
-var DrawRoundedRect = function (ctx, x, y, width, height, radius)
-{
-    // Limit radius to half of the smaller dimension
-    var maxRadius = Math.min(width / 2, height / 2);
-    var r = Math.min(radius, maxRadius);
-    
-    if (r === 0)
-    {
-        // Fall back to normal rectangle if radius is 0
-        ctx.rect(x, y, width, height);
-        return;
-    }
-    
-    // Start at top-left, after the corner
-    ctx.moveTo(x + r, y);
-    
-    // Top edge and top-right corner
-    ctx.lineTo(x + width - r, y);
-    ctx.arcTo(x + width, y, x + width, y + r, r);
-    
-    // Right edge and bottom-right corner
-    ctx.lineTo(x + width, y + height - r);
-    ctx.arcTo(x + width, y + height, x + width - r, y + height, r);
-    
-    // Bottom edge and bottom-left corner
-    ctx.lineTo(x + r, y + height);
-    ctx.arcTo(x, y + height, x, y + height - r, r);
-    
-    // Left edge and top-left corner
-    ctx.lineTo(x, y + r);
-    ctx.arcTo(x, y, x + r, y, r);
-    
-    ctx.closePath();
-};
-
 /**
  * Constructs a rounded rectangle path on the given Canvas 2D context using `arcTo` for each corner.
  * The corner radius is automatically clamped to half the smaller of the width or height to prevent
  * rendering artifacts. If the clamped radius is zero, a standard rectangle is drawn via `ctx.rect` instead.
  * This function only defines the path; the caller is responsible for calling `ctx.fill` or `ctx.stroke`.
  *
+ * @ignore
  * @param {CanvasRenderingContext2D} ctx - The Canvas 2D rendering context on which to draw the path.
  * @param {number} x - The x coordinate of the top-left corner of the rectangle, in pixels.
  * @param {number} y - The y coordinate of the top-left corner of the rectangle, in pixels.
@@ -86657,11 +88252,7 @@ var RectangleWebGLRenderer = function (renderer, src, drawingContext, parentMatr
     var defaultRenderNodes = src.defaultRenderNodes;
     var submitter = customRenderNodes.Submitter || defaultRenderNodes.Submitter;
 
-    if (src.isRounded && src.isFilled)
-    {
-        FillPathWebGL(pipeline, result.calc, src, alpha, dx, dy);
-    }
-    else if (src.isFilled)
+    if (src.isFilled)
     {
         if (src.isRounded)
         {
@@ -88465,6 +90056,7 @@ module.exports = EasingNaming;
  */
 
 var Class = __webpack_require__(83419);
+var MapStruct = __webpack_require__(90330);
 var Components = __webpack_require__(31401);
 var GameObject = __webpack_require__(95643);
 var SubmitterSpriteGPULayer = __webpack_require__(53384);
@@ -88571,7 +90163,6 @@ var getTint = Utils.getTintAppendFloatAlpha;
  * @extends Phaser.GameObjects.Components.Depth
  * @extends Phaser.GameObjects.Components.ElapseTimer
  * @extends Phaser.GameObjects.Components.Lighting
- * @extends Phaser.GameObjects.Components.Mask
  * @extends Phaser.GameObjects.Components.RenderNodes
  * @extends Phaser.GameObjects.Components.TextureCrop
  * @extends Phaser.GameObjects.Components.Visible
@@ -88591,7 +90182,6 @@ var SpriteGPULayer = new Class({
         Components.Depth,
         Components.ElapseTimer,
         Components.Lighting,
-        Components.Mask,
         Components.RenderNodes,
         Components.TextureCrop,
         Components.Visible,
@@ -88740,7 +90330,7 @@ var SpriteGPULayer = new Class({
         this.EASE_CODES = EasingNaming;
 
         this.setTexture(texture);
-        this.initRenderNodes(new Phaser.Structs.Map());
+        this.initRenderNodes(new MapStruct());
 
         /**
          * A texture containing the frame data for the SpriteGPULayer.
@@ -90532,6 +92122,885 @@ module.exports = {
     renderCanvas: renderCanvas
 
 };
+
+
+/***/ },
+
+/***/ 84423
+(module, __unused_webpack_exports, __webpack_require__) {
+
+/**
+ * @author       Benjamin D. Richards <benjamindrichards@gmail.com>
+ * @copyright    2013-2026 Phaser Studio Inc.
+ * @license      {@link https://opensource.org/licenses/MIT|MIT License}
+ */
+
+var Class = __webpack_require__(83419);
+var StencilModifier = __webpack_require__(43520);
+var Container = __webpack_require__(31559);
+var Layer = __webpack_require__(93595);
+
+/**
+ * @classdesc
+ * A Stencil Game Object.
+ *
+ * A Stencil is a special type of Game Object used to place stencils over the canvas.
+ * You can use it to efficiently control where subsequent objects are rendered.
+ * It is WebGL-only.
+ * Study the documentation carefully to understand how it works.
+ *
+ * A Stencil is an extended Container Game Object.
+ * It contains a list of child Game Objects to render to the stencil buffer.
+ * Think of these as opaque sheets of card held up over the canvas,
+ * preventing anything from being drawn through them.
+ *
+ * The stencil buffer is provided by WebGL.
+ * It is available if the game render config set `stencil` to `true`.
+ * It is an 8-bit attachment to framebuffers, like an extra alpha channel.
+ * But if the stencil channel is not 0 at a pixel, WebGL will skip rendering that pixel.
+ * There are no degrees of transparency, only on or off.
+ *
+ * When you draw objects with alpha to a Stencil,
+ * a special `alphaStrategy` is used. Compatible shaders switch from rendering
+ * alpha, to discarding fragments based on their alpha value.
+ * By default, this uses dithering to preserve alpha gradients.
+ * You can change `stencilAlphaStrategy` to a threshold value to instead
+ * discard without dithering.
+ * If `stencilAlphaStrategy` is `'keep'`,
+ * or the child's shader does not support alpha strategies,
+ * transparent pixels will be drawn as opaque to the stencil buffer!
+ * This is rarely what you want.
+ * Fragment shaders must `discard` fragments for them to be transparent to the stencil buffer.
+ *
+ * By default, most Phaser shaders support alpha strategies.
+ * Notable exceptions include:
+ *
+ * - PointLight (additive lighting)
+ * - Shader game objects, and extended classes like Noise
+ *
+ * To apply an alpha strategy without a compatible shader,
+ * force stencil composition by setting `stencilCompositeCheck` to `true`.
+ * This will composite the stencil contents to a framebuffer,
+ * which is rendered using a compatible shader.
+ *
+ * Stencils are drawn as order-independent layers.
+ * You can add or remove layers in sequence using `addLayer` and `removeLayer`.
+ * Each layer adds or subtracts 1 from the stencil buffer.
+ * Only when the stencil is 0 at a pixel will anything be drawn there.
+ * (This 0-test is a rule set by the renderer's base DrawingContext.)
+ * Note that overlapping geometry within the same Stencil is additive,
+ * and can adjust the layer by more than 1 in aggregate.
+ * The results can be surprising, so try to avoid overlaps.
+ *
+ * You can invert the stencil by setting `stencilInvert` to `true`.
+ * This will use an extra draw call to invert the stencil:
+ * it adds a layer everywhere that the children would not draw.
+ * It is more efficient to render a shape that covers the whole area you wish to stencil,
+ * but if that's not possible, you can use this.
+ * Inversion makes it possible to render to parts of the screen not touched
+ * by child geometry.
+ * It works by filling the camera, then drawing the child stencil in reverse.
+ *
+ * You can remove the stencil by using {@link Phaser.GameObjects.StencilReference}.
+ * This object copies a target Stencil, and re-renders it
+ * with different stencil options, elsewhere in the display list.
+ * This is an efficient way to re-use stencil geometry.
+ *
+ * You can also clear the stencil by setting `stencilLayerMode` to `clear`.
+ * It replaces all stencil buffer values with the `stencilClearValue`.
+ * This should normally set them back to 0 so everything renders again.
+ * This destroys all layer information.
+ * It does not use the child list.
+ * Be careful not to mess up your scene this way.
+ *
+ * Set `stencilLayerMode` to `clearRegion` to fill a region
+ * of the stencil buffer defined by the children, with the `stencilClearValue`.
+ * This can be used as a selective eraser, or to set a region to a specific value.
+ *
+ * You cannot invert the stencil if the `stencilLayerMode` is `clear` or `clearRegion`.
+ *
+ * Sequential stencil layers combine and persist,
+ * because they are drawn to the stencil buffer and stay there until the next frame.
+ * Do not add too many layers, though. There are only 8 bits in the stencil buffer,
+ * so it only safely supports 255 layers.
+ * If you go over this limit, the buffer wraps back to 0.
+ * You can still add and remove layers in this case,
+ * and they will continue to be accurately tracked,
+ * but layer 256 (and subsequent multiples of 256) will be effectively 0 and allow drawing.
+ * The same applies if you remove layers below 0: it wraps back to 255
+ * and prevents drawing.
+ *
+ * Deactivate `stencilValueWrap` to prevent the stencil buffer from wrapping.
+ * This is useful when defining stencils with subtraction,
+ * and you don't want to underflow from 0 to 255.
+ * For example, you can use one stencil in `clearRegion` to define a value,
+ * then use another stencil in `subtractLayer` to erase parts of that region.
+ * But be careful when using stencils for different purposes:
+ * if you mix stencil data, you will get unexpected results.
+ *
+ * Nested stencils are a separate concern.
+ * If you add a Stencil as the child of another Stencil,
+ * the parent Stencil will composite its contents to a framebuffer,
+ * including child stencils.
+ * This effectively traps the child stencil in the framebuffer,
+ * and only the final composite from the framebuffer needs to be considered.
+ * It is used as the source for the stencil, subject to alpha strategy.
+ * This requires extra draw calls to composite,
+ * and framebuffers have poor anti-aliasing quality,
+ * so you should avoid nesting stencils unless you know what you are doing.
+ *
+ * To determine whether the stencil needs to composite to a framebuffer,
+ * it runs a check before rendering (`'auto'` mode).
+ * If you know the answer already,
+ * or if you have a custom game object that Phaser doesn't understand,
+ * you can set `stencilCompositeCheck` to `true` or `false`
+ * to skip the auto check.
+ * If you set it to `false`, it will never composite,
+ * and any child stencils may render in unexpected ways.
+ * (Generally, they will appear backwards from what you expect:
+ * child stencils will not affect the parent stencil, but things drawn later.)
+ *
+ * Best practice: use few stencils and don't nest them.
+ *
+ * Stencil is best used for efficient, sharp-edged, reused masks.
+ * You can draw a stencil once, and it will affect everything that is drawn later.
+ * Its rendering cost is minimal: it is just the draw cost of its children.
+ * This can be as low as 1 call.
+ * If there are nested stencils, it will take more calls for the framebuffer.
+ *
+ * If you need better quality alpha handling, consider using a Mask filter instead.
+ * Filters have a higher rendering cost, and apply to just 1 object at a time,
+ * but they have the best quality.
+ * (And you can apply them to Containers, to cheat the object limitation.)
+ *
+ * @class Stencil
+ * @extends Phaser.GameObjects.Container
+ * @extends Phaser.GameObjects.Components.StencilModifier
+ * @memberof Phaser.GameObjects
+ * @constructor
+ * @since 4.2.0
+ *
+ * @param {Phaser.Scene} scene - The Scene to which this Game Object belongs.
+ * @param {number} x - The horizontal position of this Game Object in the world.
+ * @param {number} y - The vertical position of this Game Object in the world.
+ * @param {Phaser.GameObjects.GameObject[]} [children] - An optional array of Game Objects to add to the Stencil.
+ * @param {Phaser.Types.GameObjects.Stencil.StencilOptions} [options] - The options for the Stencil.
+ */
+var Stencil = new Class({
+    Extends: Container,
+
+    Mixins: [
+        StencilModifier
+    ],
+
+    initialize: function Stencil (scene, x, y, children, options) {
+        Container.call(this, scene, x, y, children);
+
+        if (options)
+        {
+            if (options.stencilAlphaStrategy !== undefined)
+            {
+                this.stencilAlphaStrategy = options.stencilAlphaStrategy;
+            }
+            else
+            {
+                this.stencilAlphaStrategy = scene.renderer.config.stencilAlphaStrategy;
+            }
+            if (options.stencilClearValue !== undefined)
+            {
+                this.stencilClearValue = options.stencilClearValue;
+            }
+            if (options.stencilCompositeCheck !== undefined)
+            {
+                this.stencilCompositeCheck = options.stencilCompositeCheck;
+            }
+            if (options.stencilInvert !== undefined)
+            {
+                this.stencilInvert = options.stencilInvert;
+            }
+            if (options.stencilLayerMode !== undefined)
+            {
+                this.stencilLayerMode = options.stencilLayerMode;
+            }
+            if (options.stencilValueWrap !== undefined)
+            {
+                this.stencilValueWrap = options.stencilValueWrap;
+            }
+        }
+        else
+        {
+            this.stencilAlphaStrategy = scene.renderer.config.stencilAlphaStrategy;
+        }
+
+        // Add the stencil render step as the first render step.
+        this.addRenderStep(this.stencilRenderStep, 0);
+    },
+
+    /**
+     * The stencil render step.
+     * This is an internal function, which is automatically assigned;
+     * you should not call it directly.
+     *
+     * This runs before other render steps,
+     * so it can set up the drawing context to render properly.
+     * It delegates to the appropriate render step function based on the `stencilLayerMode`.
+     *
+     * @method Phaser.GameObjects.Stencil#stencilRenderStep
+     * @webglOnly
+     * @since 4.2.0
+     * @param {Phaser.Renderer.WebGL.WebGLRenderer} renderer - A reference to the current active WebGL renderer.
+     * @param {Phaser.GameObjects.GameObject} gameObject - The Game Object being rendered in this call.
+     * @param {Phaser.Renderer.WebGL.DrawingContext} drawingContext - The current drawing context.
+     * @param {Phaser.GameObjects.Components.TransformMatrix} [parentMatrix] - This transform matrix is defined if the game object is nested
+     * @param {number} [renderStep=0] - The index of this function in the Game Object's list of render processes. Used to support multiple rendering functions.
+     * @param {Phaser.GameObjects.GameObject[]} [displayList] - The display list which is currently being rendered.
+     * @param {number} [displayListIndex] - The index of the Game Object within the display list.
+     */
+    stencilRenderStep: function (renderer, gameObject, drawingContext, parentMatrix, renderStep, displayList, displayListIndex)
+    {
+        switch (gameObject.stencilLayerMode)
+        {
+            case 'clear':
+            {
+                gameObject.stencilRenderStepClear(renderer, gameObject, drawingContext, parentMatrix, renderStep, displayList, displayListIndex);
+                break;
+            }
+            case 'clearRegion':
+            {
+                gameObject.stencilRenderStepClearRegion(renderer, gameObject, drawingContext, parentMatrix, renderStep, displayList, displayListIndex);
+                break;
+            }
+            case 'addLayer':
+            case 'subtractLayer':
+            default:
+            {
+                gameObject.stencilRenderStepLayers(renderer, gameObject, drawingContext, parentMatrix, renderStep, displayList, displayListIndex);
+                break;
+            }
+        }
+    },
+
+    /**
+     * The render step used when the `stencilLayerMode` is `addLayer` or `subtractLayer`.
+     * You should not call this directly.
+     *
+     * @method Phaser.GameObjects.Stencil#stencilRenderStepLayers
+     * @webglOnly
+     * @since 4.2.0
+     * @param {Phaser.Renderer.WebGL.WebGLRenderer} renderer - A reference to the current active WebGL renderer.
+     * @param {Phaser.GameObjects.GameObject} gameObject - The Game Object being rendered in this call.
+     * @param {Phaser.Renderer.WebGL.DrawingContext} drawingContext - The current drawing context.
+     * @param {Phaser.GameObjects.Components.TransformMatrix} [parentMatrix] - This transform matrix is defined if the game object is nested
+     * @param {number} [renderStep=0] - The index of this function in the Game Object's list of render processes. Used to support multiple rendering functions.
+     * @param {Phaser.GameObjects.GameObject[]} [displayList] - The display list which is currently being rendered.
+     * @param {number} [displayListIndex] - The index of the Game Object within the display list.
+     */
+    stencilRenderStepLayers: function (renderer, gameObject, drawingContext, parentMatrix, renderStep, displayList, displayListIndex)
+    {
+        var gl = renderer.gl;
+
+        // If the tree of child game objects has any stencil children,
+        // activate forced composite mode on `gameObject`.
+        var filtersForceComposite = gameObject.filtersForceComposite;
+        if (
+            gameObject.stencilCompositeCheck === true ||
+            (gameObject.stencilCompositeCheck === 'auto' && gameObject.hasStencilChildren(gameObject, drawingContext.camera))
+        )
+        {
+            gameObject.enableFilters().setFiltersForceComposite(true);
+        }
+
+        // Set up the drawing context to render to the stencil buffer.
+        var currentContext = drawingContext.getClone();
+        currentContext.setAlphaStrategy(gameObject.stencilAlphaStrategy);
+        currentContext.setColorWritemask(false, false, false, false);
+        var opIncr = gameObject.stencilValueWrap ? gl.INCR_WRAP : gl.INCR;
+        var opDecr = gameObject.stencilValueWrap ? gl.DECR_WRAP : gl.DECR;
+        var op = opIncr;
+        if (gameObject.stencilLayerMode === 'subtractLayer')
+        {
+            op = opDecr;
+        }
+        currentContext.setStencil(true, gl.ALWAYS, 0, 0xFF, op, op, op, 0, 0xFF);
+
+        currentContext.use();
+
+        // Invert the stencil area if needed.
+        if (gameObject.stencilInvert)
+        {
+            renderer.renderNodes.getNode('FillCamera').run(currentContext, 0xff000000, drawingContext.useCanvas);
+
+            currentContext = currentContext.getClone();
+            currentContext.use();
+
+            // Invert the stencil operation.
+            op = op === opIncr ? opDecr : opIncr;
+            currentContext.setStencil(true, gl.ALWAYS, 0, 0xFF, op, op, op, 0, 0xFF);
+        }
+
+        // Render the children.
+        gameObject.renderWebGLStep(
+            renderer,
+            gameObject,
+            currentContext,
+            parentMatrix,
+            renderStep + 1,
+            displayList,
+            displayListIndex
+        );
+
+        currentContext.release();
+
+        gameObject.setFiltersForceComposite(filtersForceComposite);
+    },
+
+    /**
+     * The render step used when the `stencilLayerMode` is `clear`.
+     * You should not call this directly.
+     *
+     * @method Phaser.GameObjects.Stencil#stencilRenderStepClear
+     * @webglOnly
+     * @since 4.2.0
+     * @param {Phaser.Renderer.WebGL.WebGLRenderer} renderer - A reference to the current active WebGL renderer.
+     * @param {Phaser.GameObjects.GameObject} gameObject - The Game Object being rendered in this call.
+     * @param {Phaser.Renderer.WebGL.DrawingContext} drawingContext - The current drawing context.
+     * @param {Phaser.GameObjects.Components.TransformMatrix} [parentMatrix] - This transform matrix is defined if the game object is nested
+     * @param {number} [renderStep=0] - The index of this function in the Game Object's list of render processes. Used to support multiple rendering functions.
+     * @param {Phaser.GameObjects.GameObject[]} [displayList] - The display list which is currently being rendered.
+     * @param {number} [displayListIndex] - The index of the Game Object within the display list.
+     */
+    stencilRenderStepClear: function (renderer, gameObject, drawingContext, parentMatrix, renderStep, displayList, displayListIndex)
+    {
+        var gl = renderer.gl;
+
+        var currentContext = drawingContext.getClone();
+        currentContext.state.stencil.clear = gameObject.stencilClearValue;
+        currentContext.state.stencil.writeMask = 0xFF;
+        currentContext.use();
+        currentContext.clear(gl.STENCIL_BUFFER_BIT);
+    },
+
+    /**
+     * The render step used when the `stencilLayerMode` is `clearRegion`.
+     * You should not call this directly.
+     *
+     * @method Phaser.GameObjects.Stencil#stencilRenderStepClearRegion
+     * @webglOnly
+     * @since 4.2.0
+     * @param {Phaser.Renderer.WebGL.WebGLRenderer} renderer - A reference to the current active WebGL renderer.
+     * @param {Phaser.GameObjects.GameObject} gameObject - The Game Object being rendered in this call.
+     * @param {Phaser.Renderer.WebGL.DrawingContext} drawingContext - The current drawing context.
+     * @param {Phaser.GameObjects.Components.TransformMatrix} [parentMatrix] - This transform matrix is defined if the game object is nested
+     * @param {number} [renderStep=0] - The index of this function in the Game Object's list of render processes. Used to support multiple rendering functions.
+     * @param {Phaser.GameObjects.GameObject[]} [displayList] - The display list which is currently being rendered.
+     * @param {number} [displayListIndex] - The index of the Game Object within the display list.
+     */
+    stencilRenderStepClearRegion: function (renderer, gameObject, drawingContext, parentMatrix, renderStep, displayList, displayListIndex)
+    {
+        var gl = renderer.gl;
+
+        // If the tree of child game objects has any stencil children,
+        // activate forced composite mode on `gameObject`.
+        var filtersForceComposite = gameObject.filtersForceComposite;
+        if (
+            gameObject.stencilCompositeCheck === true ||
+            (gameObject.stencilCompositeCheck === 'auto' && gameObject.hasStencilChildren(gameObject, drawingContext.camera))
+        )
+        {
+            gameObject.enableFilters().setFiltersForceComposite(true);
+        }
+
+        // Set up the drawing context to render to the stencil buffer.
+        var currentContext = drawingContext.getClone();
+        currentContext.setAlphaStrategy(gameObject.stencilAlphaStrategy);
+        currentContext.setColorWritemask(false, false, false, false);
+        var clearValue = gameObject.stencilClearValue;
+        var op = gl.REPLACE;
+        currentContext.setStencil(true, gl.ALWAYS, clearValue, 0xFF, op, op, op, clearValue, 0xFF);
+
+        currentContext.use();
+
+        // Render the children.
+        gameObject.renderWebGLStep(
+            renderer,
+            gameObject,
+            currentContext,
+            parentMatrix,
+            renderStep + 1,
+            displayList,
+            displayListIndex
+        );
+
+        currentContext.release();
+
+        gameObject.setFiltersForceComposite(filtersForceComposite);
+    },
+
+    /**
+     * Checks if the game object or any of its children has a stencil.
+     * This is used internally to determine if the stencil should composite its contents to a framebuffer.
+     *
+     * This is a depth-first, succeed-fast search.
+     *
+     * @method Phaser.GameObjects.Stencil#hasStencilChildren
+     * @since 4.2.0
+     * @param {Phaser.GameObjects.GameObject} gameObject - The Game Object to check.
+     * @param {Phaser.Cameras.Scene2D.Camera} camera - The camera to check.
+     * @returns {boolean} Whether the game object or any of its children has a stencil.
+     */
+    hasStencilChildren: function (gameObject, camera)
+    {
+        if (gameObject instanceof Container || gameObject instanceof Layer)
+        {
+            for (var i = 0; i < gameObject.list.length; i++)
+            {
+                var child = gameObject.list[i];
+                if (
+                    child &&
+                    child.willRender(camera) &&
+                    (
+                        child.isStencilModifier ||
+                        this.hasStencilChildren(child, camera)
+                    )
+                )
+                {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+});
+
+module.exports = Stencil;
+
+
+/***/ },
+
+/***/ 32247
+(__unused_webpack_module, __unused_webpack_exports, __webpack_require__) {
+
+/**
+ * @author       Benjamin D. Richards <benjamindrichards@gmail.com>
+ * @copyright    2013-2026 Phaser Studio Inc.
+ * @license      {@link https://opensource.org/licenses/MIT|MIT License}
+ */
+
+var BuildGameObject = __webpack_require__(25305);
+var Stencil = __webpack_require__(84423);
+var GameObjectCreator = __webpack_require__(44603);
+var GetAdvancedValue = __webpack_require__(23568);
+var GetFastValue = __webpack_require__(95540);
+
+/**
+ * Creates a new Stencil Game Object and returns it.
+ *
+ * Note: This method will only be available if the Stencil Game Object has been built into Phaser.
+ *
+ * @method Phaser.GameObjects.GameObjectCreator#stencil
+ * @since 4.2.0
+ *
+ * @param {Phaser.Types.GameObjects.Stencil.StencilConfig} config - The configuration object this Game Object will use to create itself.
+ * @param {boolean} [addToScene] - Add this Game Object to the Scene after creating it? If set this argument overrides the `add` property in the config object.
+ *
+ * @return {Phaser.GameObjects.Stencil} The Game Object that was created.
+ */
+GameObjectCreator.register('stencil', function (config, addToScene)
+{
+    if (config === undefined) { config = {}; }
+
+    var x = GetAdvancedValue(config, 'x', 0);
+    var y = GetAdvancedValue(config, 'y', 0);
+    var children = GetFastValue(config, 'children', null);
+    var options = GetAdvancedValue(config, 'options', {});
+
+    var stencil = new Stencil(this.scene, x, y, children, options);
+
+    if (addToScene !== undefined)
+    {
+        config.add = addToScene;
+    }
+
+    BuildGameObject(this.scene, stencil, config);
+
+    return stencil;
+});
+
+
+/***/ },
+
+/***/ 67841
+(__unused_webpack_module, __unused_webpack_exports, __webpack_require__) {
+
+/**
+ * @author       Benjamin D. Richards <benjamindrichards@gmail.com>
+ * @copyright    2013-2026 Phaser Studio Inc.
+ * @license      {@link https://opensource.org/licenses/MIT|MIT License}
+ */
+
+var Stencil = __webpack_require__(84423);
+var GameObjectFactory = __webpack_require__(39429);
+
+/**
+ * Creates a new Stencil Game Object and adds it to the Scene.
+ *
+ * A Stencil is a special type of Game Object used to place stencils over the canvas.
+ * You can use it to efficiently control where subsequent objects are rendered.
+ * It is WebGL-only.
+ * Study the documentation ({@link Phaser.GameObjects.Stencil}) carefully to understand how it works.
+ *
+ * A Stencil is an extended Container Game Object.
+ * It contains a list of child Game Objects to render to the stencil buffer.
+ * Think of these as opaque sheets of card held up over the canvas,
+ * preventing anything from being drawn through them.
+ *
+ * Note: This method will only be available if the Stencil Game Object has been built into Phaser.
+ *
+ * @method Phaser.GameObjects.GameObjectFactory#stencil
+ * @since 4.2.0
+ *
+ * @param {number} [x=0] - The horizontal position of this Game Object in the world.
+ * @param {number} [y=0] - The vertical position of this Game Object in the world.
+ * @param {Phaser.GameObjects.GameObject|Phaser.GameObjects.GameObject[]} [children] - An optional Game Object, or array of Game Objects, to add to this Stencil.
+ * @param {Phaser.Types.GameObjects.Stencil.StencilOptions} [options] - The options for the Stencil.
+ *
+ * @return {Phaser.GameObjects.Stencil} The Game Object that was created.
+ */
+GameObjectFactory.register('stencil', function (x, y, children, options)
+{
+    return this.displayList.add(new Stencil(this.scene, x, y, children, options));
+});
+
+
+/***/ },
+
+/***/ 63911
+(module, __unused_webpack_exports, __webpack_require__) {
+
+/**
+ * @author       Benjamin D. Richards <benjamindrichards@gmail.com>
+ * @copyright    2013-2026 Phaser Studio Inc.
+ * @license      {@link https://opensource.org/licenses/MIT|MIT License}
+ */
+
+var Class = __webpack_require__(83419);
+var BlendModes = __webpack_require__(10312);
+var Components = __webpack_require__(31401);
+var GameObject = __webpack_require__(95643);
+var Render = __webpack_require__(4775);
+
+/**
+ * @classdesc
+ * A StencilReference Game Object.
+ *
+ * A StencilReference is a special type of Game Object that uses a Stencil
+ * as a reference for its own rendering. This allows you to re-render a Stencil
+ * using different settings.
+ *
+ * For example, you can add a layer with a Stencil with some complex geometry,
+ * draw objects affected by the stencil layer,
+ * then use a StencilReference to subtract the same layer without recreating it.
+ *
+ * It is WebGL-only.
+ *
+ * A StencilReference temporarily changes the settings on the target Stencil,
+ * then restores them after rendering.
+ * Thus, it keeps the original Stencil's transforms.
+ * The stencil options can be changed by setting the properties on this object.
+ * Note that these properties will be set to default values,
+ * so if you have configured the targetStencil with its own properties,
+ * you should configure this with those properties as well,
+ * altered to your requirements.
+ *
+ * See the {@link Phaser.GameObjects.Stencil} documentation for more details.
+ *
+ * @class StencilReference
+ * @extends Phaser.GameObjects.GameObject
+ * @extends Phaser.GameObjects.Components.StencilModifier
+ * @extends Phaser.GameObjects.Components.Visible
+ * @memberof Phaser.GameObjects
+ * @constructor
+ * @since 4.2.0
+ *
+ * @param {Phaser.Scene} scene - The Scene to which this Game Object belongs.
+ * @param {Phaser.GameObjects.Stencil} targetStencil - The Stencil to use as a reference.
+ * @param {Phaser.Types.GameObjects.Stencil.StencilOptions} [options] - The options for the StencilReference.
+ */
+var StencilReference = new Class({
+    Extends: GameObject,
+
+    Mixins: [
+        Components.StencilModifier,
+        Components.Visible,
+        Render
+    ],
+
+    initialize: function StencilReference(scene, targetStencil, options) {
+        GameObject.call(this, scene, 'StencilReference');
+
+        /**
+         * The Stencil to use as a reference.
+         *
+         * @name Phaser.GameObjects.StencilReference#targetStencil
+         * @type {Phaser.GameObjects.Stencil}
+         * @since 4.2.0
+         */
+        this.targetStencil = targetStencil;
+
+        if (options)
+        {
+            if (options.stencilAlphaStrategy !== undefined)
+            {
+                this.stencilAlphaStrategy = options.stencilAlphaStrategy;
+            }
+            else
+            {
+                this.stencilAlphaStrategy = scene.renderer.config.stencilAlphaStrategy;
+            }
+            if (options.stencilClearValue !== undefined)
+            {
+                this.stencilClearValue = options.stencilClearValue;
+            }
+            if (options.stencilCompositeCheck !== undefined)
+            {
+                this.stencilCompositeCheck = options.stencilCompositeCheck;
+            }
+            if (options.stencilInvert !== undefined)
+            {
+                this.stencilInvert = options.stencilInvert;
+            }
+            if (options.stencilLayerMode !== undefined)
+            {
+                this.stencilLayerMode = options.stencilLayerMode;
+            }
+            if (options.stencilValueWrap !== undefined)
+            {
+                this.stencilValueWrap = options.stencilValueWrap;
+            }
+        }
+        else
+        {
+            this.stencilAlphaStrategy = scene.renderer.config.stencilAlphaStrategy;
+        }
+    },
+
+    /**
+     * The blend mode to use when rendering the stencil reference.
+     * This is read-only, and is only used for internal compliance.
+     * Stencil drawing uses its own combination rules.
+     *
+     * @name Phaser.GameObjects.StencilReference#blendMode
+     * @type {number}
+     * @since 4.2.0
+     * @readonly
+     * @default Phaser.BlendModes.SKIP_CHECK
+     */
+    blendMode: {
+        get: function() {
+            return BlendModes.SKIP_CHECK;
+        },
+        set: function(value) {
+            // Do nothing
+        }
+    },
+
+    /**
+     * Pre-destroy callback.
+     * @method Phaser.GameObjects.StencilReference#preDestroy
+     * @since 4.2.0
+     */
+    preDestroy: function()
+    {
+        this.targetStencil = null;
+    }
+});
+
+module.exports = StencilReference;
+
+
+/***/ },
+
+/***/ 44023
+(__unused_webpack_module, __unused_webpack_exports, __webpack_require__) {
+
+/**
+ * @author       Benjamin D. Richards <benjamindrichards@gmail.com>
+ * @copyright    2013-2026 Phaser Studio Inc.
+ * @license      {@link https://opensource.org/licenses/MIT|MIT License}
+ */
+
+var BuildGameObject = __webpack_require__(25305);
+var StencilReference = __webpack_require__(63911);
+var GameObjectCreator = __webpack_require__(44603);
+var GetAdvancedValue = __webpack_require__(23568);
+var GetFastValue = __webpack_require__(95540);
+
+/**
+ * Creates a new StencilReference Game Object and returns it.
+ *
+ * Note: This method will only be available if the StencilReference Game Object has been built into Phaser.
+ *
+ * @method Phaser.GameObjects.GameObjectCreator#stencilreference
+ * @since 4.2.0
+ *
+ * @param {Phaser.Types.GameObjects.StencilReference.StencilReferenceConfig} config - The configuration object this Game Object will use to create itself.
+ * @param {boolean} [addToScene] - Add this Game Object to the Scene after creating it? If set this argument overrides the `add` property in the config object.
+ *
+ * @return {Phaser.GameObjects.StencilReference} The Game Object that was created.
+ */
+GameObjectCreator.register('stencilreference', function (config, addToScene)
+{
+    if (config === undefined) { config = {}; }
+
+    var targetStencil = GetFastValue(config, 'targetStencil', null);
+    var options = GetAdvancedValue(config, 'options', {});
+
+    var stencilreference = new StencilReference(this.scene, targetStencil, options);
+
+    if (addToScene !== undefined)
+    {
+        config.add = addToScene;
+    }
+
+    BuildGameObject(this.scene, stencilreference, config);
+
+    return stencilreference;
+});
+
+
+/***/ },
+
+/***/ 37889
+(__unused_webpack_module, __unused_webpack_exports, __webpack_require__) {
+
+/**
+ * @author       Benjamin D. Richards <benjamindrichards@gmail.com>
+ * @copyright    2013-2026 Phaser Studio Inc.
+ * @license      {@link https://opensource.org/licenses/MIT|MIT License}
+ */
+
+var StencilReference = __webpack_require__(63911);
+var GameObjectFactory = __webpack_require__(39429);
+
+/**
+ * Creates a new StencilReference Game Object and adds it to the Scene.
+ *
+ * A StencilReference is a special type of Game Object that can be used to reference a Stencil.
+ * You can use a StencilReference to reference a Stencil, and then use the StencilReference to render the Stencil.
+ * This is useful for creating complex stencil effects.
+ *
+ * Note: This method will only be available if the StencilReference Game Object has been built into Phaser.
+ *
+ * @method Phaser.GameObjects.GameObjectFactory#stencilreference
+ * @since 4.2.0
+ *
+ * @param {Phaser.GameObjects.Stencil} targetStencil - The Stencil to use as a reference.
+ * @param {Phaser.Types.GameObjects.Stencil.StencilOptions} [options] - The options for the StencilReference.
+ *
+ * @return {Phaser.GameObjects.StencilReference} The Game Object that was created.
+ */
+GameObjectFactory.register('stencilreference', function (targetStencil, options)
+{
+    return this.displayList.add(new StencilReference(this.scene, targetStencil, options));
+});
+
+
+/***/ },
+
+/***/ 4775
+(module, __unused_webpack_exports, __webpack_require__) {
+
+/**
+ * @author       Benjamin D. Richards <benjamindrichards@gmail.com>
+ * @copyright    2013-2026 Phaser Studio Inc.
+ * @license      {@link https://opensource.org/licenses/MIT|MIT License}
+ */
+
+var NOOP = __webpack_require__(29747);
+var renderWebGL = __webpack_require__(12217);
+var renderCanvas = NOOP;
+
+module.exports = {
+
+    renderWebGL: renderWebGL,
+    renderCanvas: renderCanvas
+
+};
+
+
+/***/ },
+
+/***/ 12217
+(module) {
+
+/**
+ * @author       Benjamin D. Richards <benjamindrichards@gmail.com>
+ * @copyright    2013-2026 Phaser Studio Inc.
+ * @license      {@link https://opensource.org/licenses/MIT|MIT License}
+ */
+
+/**
+ * Renders this Game Object with the WebGL Renderer to the given Camera.
+ * The object will not render if any of its renderFlags are set or it is being actively filtered out by the Camera.
+ * This method should not be called directly. It is a utility function of the Render module.
+ *
+ * @method Phaser.GameObjects.StencilReference#renderWebGL
+ * @since 4.2.0
+ * @private
+ *
+ * @param {Phaser.Renderer.WebGL.WebGLRenderer} renderer - A reference to the current active WebGL renderer.
+ * @param {Phaser.GameObjects.StencilReference} src - The Game Object being rendered in this call.
+ * @param {Phaser.Renderer.WebGL.DrawingContext} drawingContext - The current drawing context.
+ * @param {Phaser.GameObjects.Components.TransformMatrix} parentMatrix - This transform matrix is defined if the game object is nested
+ * @param {number} renderStep - The index of this function in the Game Object's list of render processes. Used to support multiple rendering functions.
+ * @param {Phaser.GameObjects.GameObject[]} displayList - The display list which is currently being rendered.
+ * @param {number} displayListIndex - The index of the Game Object within the display list.
+ */
+var StencilReferenceWebGLRenderer = function (renderer, src, drawingContext, parentMatrix, renderStep, displayList, displayListIndex)
+{
+    var stencil = src.targetStencil;
+
+    if (!stencil || stencil.isDestroyed)
+    {
+        return;
+    }
+
+    // Cache the stencil options.
+    var stencilAlphaStrategy = stencil.stencilAlphaStrategy;
+    var stencilClearValue = stencil.stencilClearValue;
+    var stencilCompositeCheck = stencil.stencilCompositeCheck;
+    var stencilInvert = stencil.stencilInvert;
+    var stencilLayerMode = stencil.stencilLayerMode;
+    var stencilValueWrap = stencil.stencilValueWrap;
+
+    // Edit the stencil properties.
+    stencil.stencilAlphaStrategy = src.stencilAlphaStrategy;
+    stencil.stencilClearValue = src.stencilClearValue;
+    stencil.stencilCompositeCheck = src.stencilCompositeCheck;
+    stencil.stencilInvert = src.stencilInvert;
+    stencil.stencilLayerMode = src.stencilLayerMode;
+    stencil.stencilValueWrap = src.stencilValueWrap;
+
+    // Get the parent transform of the Stencil, not the StencilReference.
+    var parentTransform = null;
+    if (stencil.parentContainer)
+    {
+        parentTransform = stencil.parentContainer.getWorldTransformMatrix();
+    }
+
+    // Render the stencil.
+    stencil.renderWebGLStep(renderer, stencil, drawingContext, parentTransform, 0);
+
+    // Restore the stencil options.
+    stencil.stencilAlphaStrategy = stencilAlphaStrategy;
+    stencil.stencilClearValue = stencilClearValue;
+    stencil.stencilCompositeCheck = stencilCompositeCheck;
+    stencil.stencilInvert = stencilInvert;
+    stencil.stencilLayerMode = stencilLayerMode;
+    stencil.stencilValueWrap = stencilValueWrap;
+};
+
+module.exports = StencilReferenceWebGLRenderer;
 
 
 /***/ },
@@ -148888,8 +151357,11 @@ module.exports = IsValuePowerOfTwo;
 module.exports = {
 
     GetNext: __webpack_require__(98439),
+    GetPowerOfTwo: __webpack_require__(98439),
     IsSize: __webpack_require__(50030),
-    IsValue: __webpack_require__(81230)
+    IsSizePowerOfTwo: __webpack_require__(50030),
+    IsValue: __webpack_require__(81230),
+    IsValuePowerOfTwo: __webpack_require__(81230)
 
 };
 
@@ -182380,7 +184852,20 @@ module.exports = {
      * @const
      * @since 4.0.0
      */
-    HARD_LIGHT: 6
+    HARD_LIGHT: 6,
+
+    /**
+     * Double color multiply tint mode.
+     * The tint color is multiplied with the texture color,
+     * and the inverse of the texture color is multiplied by a second tint color.
+     * This allows control of light and dark regions separately.
+     *
+     * @name Phaser.TintModes.MULTIPLY_TWO
+     * @type {number}
+     * @const
+     * @since 4.2.0
+     */
+    MULTIPLY_TWO: 7
 };
 
 
@@ -184042,7 +186527,9 @@ module.exports = {
  * @license      {@link https://opensource.org/licenses/MIT|MIT License}
  */
 
+var IsSizePowerOfTwo = __webpack_require__(50030);
 var Class = __webpack_require__(83419);
+var WebGLStencilParametersFactory = __webpack_require__(71623);
 
 /**
  * Descriptor of the context within which a drawing operation is performed.
@@ -184054,6 +186541,9 @@ var Class = __webpack_require__(83419);
  * - Scissor box
  * - Blend mode
  * - Clear color
+ * - Color writemask
+ * - Alpha strategy
+ * - Stencil parameters
  *
  * This is analogous to a drafting table in a studio. The paper is the
  * framebuffer, while the rest of the data specifies masks, guides etc for
@@ -184117,10 +186607,12 @@ var DrawingContext = new Class({
                 // This will be automatically populated below.
             },
             colorClearValue: options.clearColor || [ 0, 0, 0, 0 ],
+            colorWritemask: options.colorWritemask || [ true, true, true, true ],
             scissor: {
                 box: [ 0, 0, 0, 0 ],
                 enable: true
             },
+            stencil: options.stencilParameters || WebGLStencilParametersFactory.create(renderer),
             viewport: [ 0, 0, 0, 0 ]
         };
 
@@ -184137,6 +186629,19 @@ var DrawingContext = new Class({
         this.blendMode = -1;
 
         this.setBlendMode(options.blendMode || 0);
+
+        /**
+         * The alpha strategy to use when rendering.
+         * Shaders can opt in to alpha strategies via this value.
+         * Typically, this is used to switch from floating-point alpha
+         * to a fragment discard strategy for use in stencil rendering.
+         *
+         * @name Phaser.Renderer.WebGL.DrawingContext#alphaStrategy
+         * @type {Phaser.Types.Renderer.WebGL.AlphaStrategy}
+         * @default 'keep'
+         * @since 4.2.0
+         */
+        this.alphaStrategy = options.alphaStrategy || renderer.config.alphaStrategy;
 
         /**
          * Which renderbuffers in the framebuffer to clear when the DrawingContext comes into use.
@@ -184189,6 +186694,17 @@ var DrawingContext = new Class({
          * @since 4.0.0
          */
         this.texture = null;
+
+        /**
+         * Whether to enable mipmaps on the framebuffer texture, if it exists.
+         * The game must still be set to use mipmaps for this to work.
+         *
+         * @name Phaser.Renderer.WebGL.DrawingContext#enableMipmap
+         * @type {boolean}
+         * @since 4.1.0
+         * @default false
+         */
+        this.enableMipmap = !!options.enableMipmap;
 
         /**
          * The pool to return to when this context is no longer needed.
@@ -184286,8 +186802,35 @@ var DrawingContext = new Class({
             if (!this.framebuffer)
             {
                 var renderer = this.renderer;
-                this.texture = renderer.createTextureFromSource(null, width, height, 0);
-                this.framebuffer = renderer.createFramebuffer(this.texture, true, false);
+                var gl = renderer.gl;
+                var pow = IsSizePowerOfTwo(width, height);
+                var magFilter = gl.NEAREST;
+                if (renderer.config.antialias)
+                {
+                    magFilter = gl.LINEAR;
+                }
+                var minFilter = magFilter;
+                if (pow && this.enableMipmap && renderer.config.mipmapRegeneration && renderer.mipmapFilter)
+                {
+                    minFilter = renderer.mipmapFilter;
+                }
+                var wrap = gl.CLAMP_TO_EDGE;
+                if (pow)
+                {
+                    wrap = gl.REPEAT;
+                }
+                this.texture = renderer.createTexture2D(
+                    0,
+                    minFilter,
+                    magFilter,
+                    wrap,
+                    wrap,
+                    gl.RGBA,
+                    null,
+                    width,
+                    height
+                );
+                this.framebuffer = renderer.createFramebuffer(this.texture, renderer.config.stencil, false);
             }
             else
             {
@@ -184322,6 +186865,7 @@ var DrawingContext = new Class({
         var state = source.state;
         var blend = state.blend;
         var scissor = state.scissor;
+        var stencil = state.stencil;
 
         this.autoClear = source.autoClear;
         this.useCanvas = source.useCanvas;
@@ -184329,6 +186873,7 @@ var DrawingContext = new Class({
         this.texture = source.texture;
         this.camera = source.camera;
         this.blendMode = source.blendMode;
+        this.alphaStrategy = source.alphaStrategy;
         this.width = source.width;
         this.height = source.height;
 
@@ -184344,9 +186889,25 @@ var DrawingContext = new Class({
                 func: blend.func
             },
             colorClearValue: state.colorClearValue.slice(),
+            colorWritemask: state.colorWritemask.slice(),
             scissor: {
                 box: scissor.box.slice(),
                 enable: scissor.enable
+            },
+            stencil: {
+                enabled: stencil.enabled,
+                func: {
+                    func: stencil.func.func,
+                    ref: stencil.func.ref,
+                    mask: stencil.func.mask
+                },
+                op: {
+                    fail: stencil.op.fail,
+                    zfail: stencil.op.zfail,
+                    zpass: stencil.op.zpass
+                },
+                clear: stencil.clear,
+                writeMask: stencil.writeMask
             },
             viewport: state.viewport.slice()
         };
@@ -184375,6 +186936,18 @@ var DrawingContext = new Class({
         }
 
         return context;
+    },
+
+    /**
+     * Set the alpha strategy for the DrawingContext.
+     *
+     * @method Phaser.Renderer.WebGL.DrawingContext#setAlphaStrategy
+     * @since 4.2.0
+     * @param {Phaser.Types.Renderer.WebGL.AlphaStrategy} alphaStrategy - The alpha strategy to use when rendering.
+     */
+    setAlphaStrategy: function (alphaStrategy)
+    {
+        this.alphaStrategy = alphaStrategy;
     },
 
     /**
@@ -184464,6 +187037,21 @@ var DrawingContext = new Class({
     },
 
     /**
+     * Set the color writemask for the DrawingContext.
+     *
+     * @method Phaser.Renderer.WebGL.DrawingContext#setColorWritemask
+     * @since 4.2.0
+     * @param {boolean} r - Whether to write the red channel.
+     * @param {boolean} g - Whether to write the green channel.
+     * @param {boolean} b - Whether to write the blue channel.
+     * @param {boolean} a - Whether to write the alpha channel.
+     */
+    setColorWritemask: function (r, g, b, a)
+    {
+        this.state.colorWritemask = [ r, g, b, a ];
+    },
+
+    /**
      * Set the scissor box for the DrawingContext.
      *
      * @method Phaser.Renderer.WebGL.DrawingContext#setScissorBox
@@ -184491,6 +187079,50 @@ var DrawingContext = new Class({
     setScissorEnable: function (enable)
     {
         this.state.scissor.enable = enable;
+    },
+
+    /**
+     * Set the stencil parameters for the DrawingContext.
+     *
+     * @method Phaser.Renderer.WebGL.DrawingContext#setStencil
+     * @since 4.2.0
+     * @param {GLboolean} [enabled=true] - Whether the stencil test is enabled.
+     * @param {GLenum} [func=GL_EQUAL] - The stencil comparison function used to compare the reference value against the current stencil buffer value.
+     * @param {GLint} [funcRef=0] - The reference value against which the stencil buffer value is compared during the stencil test.
+     * @param {GLuint} [funcMask=0xFF] - The bitwise mask applied to both the reference value and the stencil buffer value before they are compared.
+     * @param {GLenum} [opFail=GL_KEEP] - The operation to perform if the stencil test fails.
+     * @param {GLenum} [opZfail=GL_KEEP] - The operation to perform if the stencil test passes but the depth test fails.
+     * @param {GLenum} [opZpass=GL_KEEP] - The operation to perform if the stencil test passes and the depth test passes or is disabled.
+     * @param {GLint} [clear=0] - The value to clear the stencil buffer to.
+     * @param {GLuint} [writeMask=0x00] - The mask applied to the stencil buffer value when it is written. Set to 0 to prevent writing. Set to 0xFF to allow full writing.
+     */
+    setStencil: function (enabled, func, funcRef, funcMask, opFail, opZfail, opZpass, clear, writeMask)
+    {
+        if (enabled === undefined) { enabled = true; }
+        if (func === undefined) { func = this.renderer.gl.EQUAL; }
+        if (funcRef === undefined) { funcRef = 0; }
+        if (funcMask === undefined) { funcMask = 0xFF; }
+        if (opFail === undefined) { opFail = this.renderer.gl.KEEP; }
+        if (opZfail === undefined) { opZfail = this.renderer.gl.KEEP; }
+        if (opZpass === undefined) { opZpass = this.renderer.gl.KEEP; }
+        if (clear === undefined) { clear = 0; }
+        if (writeMask === undefined) { writeMask = 0x00; }
+
+        this.state.stencil = {
+            enabled: enabled,
+            func: {
+                func: func,
+                ref: funcRef,
+                mask: funcMask
+            },
+            op: {
+                fail: opFail,
+                zfail: opZfail,
+                zpass: opZpass
+            },
+            clear: clear,
+            writeMask: writeMask
+        };
     },
 
     /**
@@ -184598,7 +187230,7 @@ var DrawingContext = new Class({
      */
     beginDraw: function ()
     {
-        if (this.framebuffer)
+        if (this.texture)
         {
             // Ensure the framebuffer texture is not bound to a texture unit.
             this.renderer.glTextureUnits.unbindTexture(this.texture);
@@ -185761,9 +188393,9 @@ module.exports = {
      *
      * When `enable` is `true`, this function queries the Scene's Light Manager for all
      * active lights visible to the camera and uploads their positions, colors, intensities,
-     * and radii as uniform arrays to the shader. It also uploads the ambient light color,
-     * camera transform, and the normal map texture unit. Optionally enables self-shadowing
-     * by uploading the penumbra and diffuse threshold uniforms.
+     * radii, and cone settings as uniform arrays to the shader. It also uploads the ambient
+     * light color, camera transform, and the normal map texture unit. Optionally enables
+     * self-shadowing by uploading the penumbra and diffuse threshold uniforms.
      *
      * When `enable` is `false`, all previously set lighting uniforms are removed from the
      * program manager. If the Scene has no active Light Manager, the function returns early
@@ -185857,11 +188489,14 @@ module.exports = {
                     vec
                 );
 
+                var lightX = vec.x;
+                var lightY = height - vec.y;
+
                 programManager.setUniform(
                     lightName + 'position',
                     [
-                        vec.x,
-                        height - (vec.y),
+                        lightX,
+                        lightY,
                         light.z * camera.zoom
                     ]
                 );
@@ -185881,6 +188516,64 @@ module.exports = {
                     lightName + 'radius',
                     light.radius
                 );
+
+                if (light.coneEnabled)
+                {
+                    camMatrix.transformPoint(
+                        light.x + Math.cos(light.coneRotation),
+                        light.y + Math.sin(light.coneRotation),
+                        vec
+                    );
+
+                    var dirX = vec.x - lightX;
+                    var dirY = (height - vec.y) - lightY;
+                    var dirLength = Math.sqrt(dirX * dirX + dirY * dirY);
+
+                    if (dirLength === 0)
+                    {
+                        dirX = 1;
+                        dirY = 0;
+                    }
+                    else
+                    {
+                        dirX /= dirLength;
+                        dirY /= dirLength;
+                    }
+
+                    programManager.setUniform(
+                        lightName + 'direction',
+                        [
+                            dirX,
+                            dirY
+                        ]
+                    );
+                    programManager.setUniform(
+                        lightName + 'cone',
+                        [
+                            Math.cos(light.coneOuterAngle * 0.5),
+                            Math.cos(light.coneInnerAngle * 0.5),
+                            1
+                        ]
+                    );
+                }
+                else
+                {
+                    programManager.setUniform(
+                        lightName + 'direction',
+                        [
+                            1,
+                            0
+                        ]
+                    );
+                    programManager.setUniform(
+                        lightName + 'cone',
+                        [
+                            -1,
+                            1,
+                            0
+                        ]
+                    );
+                }
             }
 
             if (selfShadow)
@@ -185916,6 +188609,8 @@ module.exports = {
                 programManager.removeUniform(lightName + 'color');
                 programManager.removeUniform(lightName + 'intensity');
                 programManager.removeUniform(lightName + 'radius');
+                programManager.removeUniform(lightName + 'direction');
+                programManager.removeUniform(lightName + 'cone');
             }
         }
     }
@@ -185969,12 +188664,6 @@ if (false)
 { var SPECTOR; }
 
 /**
- * @callback WebGLContextCallback
- *
- * @param {Phaser.Renderer.WebGL.WebGLRenderer} renderer - The WebGL Renderer which owns the context.
- */
-
-/**
  * @classdesc
  * WebGLRenderer is a class that contains the needed functionality to keep the
  * WebGLRenderingContext state clean. The main idea of the WebGLRenderer is to keep track of
@@ -186023,7 +188712,7 @@ var WebGLRenderer = new Class({
             depth: true,
             antialias: gameConfig.antialiasGL,
             premultipliedAlpha: gameConfig.premultipliedAlpha,
-            stencil: true,
+            stencil: gameConfig.stencil,
             failIfMajorPerformanceCaveat: gameConfig.failIfMajorPerformanceCaveat,
             powerPreference: gameConfig.powerPreference,
             preserveDrawingBuffer: gameConfig.preserveDrawingBuffer,
@@ -186040,6 +188729,9 @@ var WebGLRenderer = new Class({
         this.config = {
             clearBeforeRender: gameConfig.clearBeforeRender,
             antialias: gameConfig.antialias,
+            alphaStrategy: gameConfig.alphaStrategy,
+            stencil: gameConfig.stencil,
+            stencilAlphaStrategy: gameConfig.stencilAlphaStrategy,
             backgroundColor: gameConfig.backgroundColor,
             contextCreation: contextCreationConfig,
             roundPixels: gameConfig.roundPixels,
@@ -186048,7 +188740,8 @@ var WebGLRenderer = new Class({
             maxTextureSize: gameConfig.maxTextureSize,
             batchSize: gameConfig.batchSize,
             maxLights: gameConfig.maxLights,
-            mipmapFilter: gameConfig.mipmapFilter
+            mipmapFilter: gameConfig.mipmapFilter,
+            mipmapRegeneration: gameConfig.mipmapRegeneration
         };
 
         /**
@@ -188948,28 +191641,30 @@ var WebGLStencilParametersFactory = {
     * @since 4.0.0
     *
     * @param {Phaser.Renderer.WebGL.WebGLRenderer} renderer - The WebGLRenderer to create the WebGLStencilParameters for.
-    * @param {GLboolean} [enabled=false] - Whether the stencil test is enabled.
-    * @param {GLenum} [func=GL_ALWAYS] - The stencil comparison function used to compare the reference value against the current stencil buffer value.
+    * @param {GLboolean} [enabled=true] - Whether the stencil test is enabled.
+    * @param {GLenum} [func=GL_EQUAL] - The stencil comparison function used to compare the reference value against the current stencil buffer value.
     * @param {GLint} [funcRef=0] - The reference value against which the stencil buffer value is compared during the stencil test.
     * @param {GLuint} [funcMask=0xFF] - The bitwise mask applied to both the reference value and the stencil buffer value before they are compared.
     * @param {GLenum} [opFail=GL_KEEP] - The operation to perform if the stencil test fails.
     * @param {GLenum} [opZfail=GL_KEEP] - The operation to perform if the stencil test passes but the depth test fails.
     * @param {GLenum} [opZpass=GL_KEEP] - The operation to perform if the stencil test passes and the depth test passes or is disabled.
     * @param {GLint} [clear=0] - The value to clear the stencil buffer to.
+    * @param {GLuint} [writeMask=0xFF] - The mask applied to the stencil buffer value when it is written. Set to 0 to prevent writing. Set to 0xFF to allow full writing.
     *
     * @return {Phaser.Types.Renderer.WebGL.WebGLStencilParameters} The created WebGLStencilParameters.
     */
-    create: function (renderer, enabled, func, funcRef, funcMask, opFail, opZfail, opZpass, clear)
+    create: function (renderer, enabled, func, funcRef, funcMask, opFail, opZfail, opZpass, clear, writeMask)
     {
         var gl = renderer.gl;
-        if (enabled === undefined) { enabled = false; }
-        if (func === undefined) { func = gl.ALWAYS; }
+        if (enabled === undefined) { enabled = true; }
+        if (func === undefined) { func = gl.EQUAL; }
         if (funcRef === undefined) { funcRef = 0; }
         if (funcMask === undefined) { funcMask = 0xFF; }
         if (opFail === undefined) { opFail = gl.KEEP; }
         if (opZfail === undefined) { opZfail = gl.KEEP; }
         if (opZpass === undefined) { opZpass = gl.KEEP; }
         if (clear === undefined) { clear = 0; }
+        if (writeMask === undefined) { writeMask = 0xFF; }
         var parameters = {
             enabled: enabled,
             func: {
@@ -188982,7 +191677,8 @@ var WebGLStencilParametersFactory = {
                 zfail: opZfail,
                 zpass: opZpass
             },
-            clear: clear
+            clear: clear,
+            writeMask: writeMask
         };
 
         return parameters;
@@ -189116,6 +191812,15 @@ var BatchHandler = new Class({
          * @since 4.0.0
          */
         this.maxTexturesPerBatch = 1;
+
+        /**
+         * The topology to use for the batch handler. This is the GL topology to use for the draw call.
+         *
+         * @name Phaser.Renderer.WebGL.RenderNodes.BatchHandler#topology
+         * @type {number}
+         * @since 4.2.0
+         */
+        this.topology = config.topology || gl.TRIANGLE_STRIP;
 
         // Listen for changes to the number of draw calls per batch.
         this.manager.on(
@@ -189281,6 +191986,7 @@ var BatchHandler = new Class({
         newConfig.name = config.name || defaultConfig.name;
         newConfig.verticesPerInstance = config.verticesPerInstance || defaultConfig.verticesPerInstance;
         newConfig.indicesPerInstance = config.indicesPerInstance || defaultConfig.indicesPerInstance;
+        newConfig.topology = config.topology || defaultConfig.topology;
 
         newConfig.shaderName = config.shaderName || defaultConfig.shaderName;
         newConfig.vertexSource = config.vertexSource || defaultConfig.vertexSource;
@@ -189756,6 +192462,7 @@ var DeepCopy = __webpack_require__(62644);
 var Utils = __webpack_require__(70554);
 var ShaderSourceFS = __webpack_require__(98840);
 var ShaderSourceVS = __webpack_require__(44667);
+var MakeApplyAlphaDiscard = __webpack_require__(94158);
 var MakeApplyLighting = __webpack_require__(81084);
 var MakeApplyTint = __webpack_require__(44349);
 var MakeDefineLights = __webpack_require__(6184);
@@ -189767,7 +192474,10 @@ var MakeGetTexture = __webpack_require__(33997);
 var MakeOutInverseRotation = __webpack_require__(79532);
 var MakeRotationDatum = __webpack_require__(65217);
 var MakeSmoothPixelArt = __webpack_require__(74505);
+var Utils = __webpack_require__(70554);
 var BatchHandler = __webpack_require__(13961);
+
+var getTint = Utils.getTintAppendFloatAlpha;
 
 /**
  * @classdesc
@@ -189797,10 +192507,11 @@ var BatchHandlerQuad = new Class({
          * These help define the shader.
          *
          * @name Phaser.Renderer.WebGL.RenderNodes.BatchHandlerQuad#renderOptions
-         * @type {object}
+         * @type {Phaser.Types.Renderer.WebGL.RenderNodes.BatchHandlerQuadRenderOptions}
          * @since 4.0.0
          */
         this.renderOptions = {
+            alphaStrategy: 'keep',
             multiTexturing: false,
             texRes: false,
             lighting: false,
@@ -189823,7 +192534,7 @@ var BatchHandlerQuad = new Class({
          * The render options currently being built.
          *
          * @name Phaser.Renderer.WebGL.RenderNodes.BatchHandlerQuad#nextRenderOptions
-         * @type {object}
+         * @type {Phaser.Types.Renderer.WebGL.RenderNodes.BatchHandlerQuadRenderOptions}
          * @since 4.0.0
          */
         this.nextRenderOptions = DeepCopy(this.renderOptions);
@@ -189875,7 +192586,8 @@ var BatchHandlerQuad = new Class({
             MakeRotationDatum(true),
             MakeOutInverseRotation(true),
             MakeGetNormalFromMap(true),
-            MakeApplyLighting(true)
+            MakeApplyLighting(true),
+            MakeApplyAlphaDiscard(true)
         ],
         vertexBufferLayout: {
             usage: 'DYNAMIC_DRAW',
@@ -189892,7 +192604,10 @@ var BatchHandlerQuad = new Class({
                     name: 'inTexDatum'
                 },
                 {
-                    name: 'inTintEffect'
+                    name: 'inTintEffect',
+                    size: 4,
+                    type: 'UNSIGNED_BYTE',
+                    normalized: true
                 },
                 {
                     name: 'inTint',
@@ -190136,13 +192851,19 @@ var BatchHandlerQuad = new Class({
      *
      * @method Phaser.Renderer.WebGL.RenderNodes.BatchHandlerQuad#updateRenderOptions
      * @since 4.0.0
-     * @param {object} renderOptions - The new render options.
+     * @param {Phaser.Types.Renderer.WebGL.RenderNodes.BatchHandlerQuadRenderOptions} renderOptions - The new render options.
      */
     updateRenderOptions: function (renderOptions)
     {
         var newRenderOptions = this.nextRenderOptions;
         var oldRenderOptions = this.renderOptions;
         var changed = false;
+
+        if (renderOptions.alphaStrategy !== oldRenderOptions.alphaStrategy)
+        {
+            newRenderOptions.alphaStrategy = renderOptions.alphaStrategy;
+            changed = true;
+        }
 
         var multiTexturing = !!renderOptions.multiTexturing && !renderOptions.lighting;
         if (multiTexturing !== oldRenderOptions.multiTexturing)
@@ -190203,6 +192924,24 @@ var BatchHandlerQuad = new Class({
         var oldRenderOptions = this.renderOptions;
         var newRenderOptions = this.nextRenderOptions;
         var i;
+
+        if (oldRenderOptions.alphaStrategy !== newRenderOptions.alphaStrategy)
+        {
+            var alphaStrategy = newRenderOptions.alphaStrategy;
+            oldRenderOptions.alphaStrategy = alphaStrategy;
+
+            var alphaDiscardAddition = programManager.getAdditionsByTag('ALPHA_DISCARD')[0];
+            if (alphaDiscardAddition)
+            {
+                var keep = alphaStrategy === 'keep';
+                var dither = alphaStrategy === 'dither';
+                var threshold = (typeof alphaStrategy === 'number') ? alphaStrategy : undefined;
+                programManager.replaceAddition(
+                    alphaDiscardAddition.name,
+                    MakeApplyAlphaDiscard(keep, dither, threshold)
+                );
+            }
+        }
 
         if (oldRenderOptions.multiTexturing !== newRenderOptions.multiTexturing)
         {
@@ -190353,7 +193092,8 @@ var BatchHandlerQuad = new Class({
                     program,
                     vao,
                     entry.count * indicesPerInstance,
-                    entry.start * bytesPerIndexPerInstance
+                    entry.start * bytesPerIndexPerInstance,
+                    this.topology
                 );
             }
         }
@@ -190399,6 +193139,10 @@ var BatchHandlerQuad = new Class({
      * @param {number} tintTR - The top-right tint color.
      * @param {number} tintBR - The bottom-right tint color.
      * @param {Phaser.Types.Renderer.WebGL.RenderNodes.BatchHandlerQuadRenderOptions} renderOptions - Optional render features.
+     * @param {number} [tint2TL] - The secondary tint color for the top-left corner.
+     * @param {number} [tint2BL] - The secondary tint color for the bottom-left corner.
+     * @param {number} [tint2TR] - The secondary tint color for the top-right corner.
+     * @param {number} [tint2BR] - The secondary tint color for the bottom-right corner.
      * @param {...*} [args] - Additional arguments for subclasses.
      */
     batch: function (
@@ -190412,7 +193156,8 @@ var BatchHandlerQuad = new Class({
         texWidth, texHeight,
         tintMode,
         tintTL, tintBL, tintTR, tintBR,
-        renderOptions
+        renderOptions,
+        tint2TL, tint2BL, tint2TR, tint2BR
     )
     {
         if (this.instanceCount === 0)
@@ -190421,6 +193166,7 @@ var BatchHandlerQuad = new Class({
         }
 
         // Check render options and run the batch if they differ.
+        renderOptions.alphaStrategy = currentContext.alphaStrategy;
         this.updateRenderOptions(renderOptions);
         if (this._renderOptionsChanged)
         {
@@ -190430,6 +193176,23 @@ var BatchHandlerQuad = new Class({
 
         // Process textures and get relevant data.
         var textureDatum = this.batchTextures(glTexture, renderOptions);
+
+        // Pack tint mode with secondary tint colors.
+        // Assign default secondary tint colors if not provided.
+        if (tint2TL === undefined)
+        {
+            tint2TL = tintMode << 24;
+            tint2BL = tint2TL;
+            tint2TR = tint2TL;
+            tint2BR = tint2TL;
+        }
+        else
+        {
+            tint2TL = getTint(tint2TL, tintMode / 255);
+            tint2BL = getTint(tint2BL, tintMode / 255);
+            tint2TR = getTint(tint2TR, tintMode / 255);
+            tint2BR = getTint(tint2BR, tintMode / 255);
+        }
 
         // Update the vertex buffer.
         var vertexOffset32 = this.instanceCount * this.floatsPerInstance;
@@ -190443,7 +193206,7 @@ var BatchHandlerQuad = new Class({
         vertexViewF32[vertexOffset32++] = texX;
         vertexViewF32[vertexOffset32++] = texY + texHeight;
         vertexViewF32[vertexOffset32++] = textureDatum;
-        vertexViewF32[vertexOffset32++] = tintMode;
+        vertexViewU32[vertexOffset32++] = tint2BL;
         vertexViewU32[vertexOffset32++] = tintBL;
 
         // Top-left
@@ -190452,7 +193215,7 @@ var BatchHandlerQuad = new Class({
         vertexViewF32[vertexOffset32++] = texX;
         vertexViewF32[vertexOffset32++] = texY;
         vertexViewF32[vertexOffset32++] = textureDatum;
-        vertexViewF32[vertexOffset32++] = tintMode;
+        vertexViewU32[vertexOffset32++] = tint2TL;
         vertexViewU32[vertexOffset32++] = tintTL;
 
         // Bottom-right
@@ -190461,7 +193224,7 @@ var BatchHandlerQuad = new Class({
         vertexViewF32[vertexOffset32++] = texX + texWidth;
         vertexViewF32[vertexOffset32++] = texY + texHeight;
         vertexViewF32[vertexOffset32++] = textureDatum;
-        vertexViewF32[vertexOffset32++] = tintMode;
+        vertexViewU32[vertexOffset32++] = tint2BR;
         vertexViewU32[vertexOffset32++] = tintBR;
 
         // Top-right
@@ -190470,7 +193233,158 @@ var BatchHandlerQuad = new Class({
         vertexViewF32[vertexOffset32++] = texX + texWidth;
         vertexViewF32[vertexOffset32++] = texY;
         vertexViewF32[vertexOffset32++] = textureDatum;
-        vertexViewF32[vertexOffset32++] = tintMode;
+        vertexViewU32[vertexOffset32++] = tint2TR;
+        vertexViewU32[vertexOffset32++] = tintTR;
+
+        // Increment the instance count.
+        this.instanceCount++;
+        this.currentBatchEntry.count++;
+
+        // Check whether the batch should be rendered immediately.
+        // This guarantees that none of the arrays are full above.
+        if (this.instanceCount === this.instancesPerBatch)
+        {
+            this.run(currentContext);
+
+            // Now the batch is empty.
+        }
+    },
+
+    /**
+     * Add a quad to the batch, using explicit UV coordinates.
+     * This is intended for compatibility with mesh rendering.
+     *
+     * For compatibility with TRIANGLE_STRIP rendering,
+     * the vertices are written into the buffer in the order:
+     *
+     * - Bottom-left
+     * - Top-left
+     * - Bottom-right
+     * - Top-right
+     *
+     * @method Phaser.Renderer.WebGL.RenderNodes.BatchHandlerQuad#batchWithUV
+     * @since 4.2.0
+     * @param {Phaser.Renderer.WebGL.DrawingContext} currentContext - The current drawing context.
+     * @param {Phaser.Renderer.WebGL.Wrappers.WebGLTextureWrapper} glTexture - The texture to render.
+     * @param {number} x0 - The x coordinate of the top-left corner.
+     * @param {number} y0 - The y coordinate of the top-left corner.
+     * @param {number} x1 - The x coordinate of the bottom-left corner.
+     * @param {number} y1 - The y coordinate of the bottom-left corner.
+     * @param {number} x2 - The x coordinate of the top-right corner.
+     * @param {number} y2 - The y coordinate of the top-right corner.
+     * @param {number} x3 - The x coordinate of the bottom-right corner.
+     * @param {number} y3 - The y coordinate of the bottom-right corner.
+     * @param {number} u0 - The u coordinate of the top-left corner.
+     * @param {number} v0 - The v coordinate of the top-left corner.
+     * @param {number} u1 - The u coordinate of the bottom-left corner.
+     * @param {number} v1 - The v coordinate of the bottom-left corner.
+     * @param {number} u2 - The u coordinate of the top-right corner.
+     * @param {number} v2 - The v coordinate of the top-right corner.
+     * @param {number} u3 - The u coordinate of the bottom-right corner.
+     * @param {number} v3 - The v coordinate of the bottom-right corner.
+     * @param {number} tintMode - The tint mode to use.
+     * @param {number} tintTL - The tint color for the top-left corner.
+     * @param {number} tintBL - The tint color for the bottom-left corner.
+     * @param {number} tintTR - The tint color for the top-right corner.
+     * @param {number} tintBR - The tint color for the bottom-right corner.
+     * @param {Phaser.Types.Renderer.WebGL.RenderNodes.BatchHandlerQuadRenderOptions} renderOptions - Optional render features.
+     * @param {number} [tint2TL] - The secondary tint color for the top-left corner.
+     * @param {number} [tint2BL] - The secondary tint color for the bottom-left corner.
+     * @param {number} [tint2TR] - The secondary tint color for the top-right corner.
+     * @param {number} [tint2BR] - The secondary tint color for the bottom-right corner.
+     * @param {...*} [args] - Additional arguments for subclasses.
+     */
+    batchWithUV: function(
+        currentContext,
+        glTexture,
+        x0, y0,
+        x1, y1,
+        x2, y2,
+        x3, y3,
+        u0, v0,
+        u1, v1,
+        u2, v2,
+        u3, v3,
+        tintMode,
+        tintTL, tintBL, tintTR, tintBR,
+        renderOptions,
+        tint2TL, tint2BL, tint2TR, tint2BR
+    )
+    {
+        if (this.instanceCount === 0)
+        {
+            this.manager.setCurrentBatchNode(this, currentContext);
+        }
+
+        // Check render options and run the batch if they differ.
+        renderOptions.alphaStrategy = currentContext.alphaStrategy;
+        this.updateRenderOptions(renderOptions);
+        if (this._renderOptionsChanged)
+        {
+            this.run(currentContext);
+            this.updateShaderConfig();
+        }
+
+        // Process textures and get relevant data.
+        var textureDatum = this.batchTextures(glTexture, renderOptions);
+
+        // Pack tint mode with secondary tint colors.
+        // Assign default secondary tint colors if not provided.
+        if (tint2TL === undefined)
+        {
+            tint2TL = tintMode << 24;
+            tint2BL = tint2TL;
+            tint2TR = tint2TL;
+            tint2BR = tint2TL;
+        }
+        else
+        {
+            tint2TL = getTint(tint2TL, tintMode / 255);
+            tint2BL = getTint(tint2BL, tintMode / 255);
+            tint2TR = getTint(tint2TR, tintMode / 255);
+            tint2BR = getTint(tint2BR, tintMode / 255);
+        }
+
+        // Update the vertex buffer.
+        var vertexOffset32 = this.instanceCount * this.floatsPerInstance;
+        var vertexBuffer = this.vertexBufferLayout.buffer;
+        var vertexViewF32 = vertexBuffer.viewF32;
+        var vertexViewU32 = vertexBuffer.viewU32;
+
+        // Bottom-left
+        vertexViewF32[vertexOffset32++] = x1;
+        vertexViewF32[vertexOffset32++] = y1;
+        vertexViewF32[vertexOffset32++] = u1;
+        vertexViewF32[vertexOffset32++] = v1;
+        vertexViewF32[vertexOffset32++] = textureDatum;
+        vertexViewU32[vertexOffset32++] = tint2BL;
+        vertexViewU32[vertexOffset32++] = tintBL;
+
+        // Top-left
+        vertexViewF32[vertexOffset32++] = x0;
+        vertexViewF32[vertexOffset32++] = y0;
+        vertexViewF32[vertexOffset32++] = u0;
+        vertexViewF32[vertexOffset32++] = v0;
+        vertexViewF32[vertexOffset32++] = textureDatum;
+        vertexViewU32[vertexOffset32++] = tint2TL;
+        vertexViewU32[vertexOffset32++] = tintTL;
+
+        // Bottom-right
+        vertexViewF32[vertexOffset32++] = x3;
+        vertexViewF32[vertexOffset32++] = y3;
+        vertexViewF32[vertexOffset32++] = u3;
+        vertexViewF32[vertexOffset32++] = v3;
+        vertexViewF32[vertexOffset32++] = textureDatum;
+        vertexViewU32[vertexOffset32++] = tint2BR;
+        vertexViewU32[vertexOffset32++] = tintBR;
+
+        // Top-right
+        vertexViewF32[vertexOffset32++] = x2;
+        vertexViewF32[vertexOffset32++] = y2;
+        vertexViewF32[vertexOffset32++] = u2;
+        vertexViewF32[vertexOffset32++] = v2;
+        vertexViewF32[vertexOffset32++] = textureDatum;
+        vertexViewU32[vertexOffset32++] = tint2TR;
         vertexViewU32[vertexOffset32++] = tintTR;
 
         // Increment the instance count.
@@ -190679,6 +193593,7 @@ module.exports = BatchHandlerQuadSingle;
 var Class = __webpack_require__(83419);
 var ShaderSourceFS = __webpack_require__(98840);
 var ShaderSourceVS = __webpack_require__(44667);
+var MakeApplyAlphaDiscard = __webpack_require__(94158);
 var MakeApplyTint = __webpack_require__(44349);
 var MakeDefineTexCount = __webpack_require__(11653);
 var MakeGetTexCoordOut = __webpack_require__(42792);
@@ -190740,7 +193655,8 @@ var BatchHandlerStrip = new Class({
             MakeSmoothPixelArt(true),
             MakeDefineTexCount(1),
             MakeGetTexture(),
-            MakeApplyTint()
+            MakeApplyTint(),
+            MakeApplyAlphaDiscard(true)
         ],
         vertexBufferLayout: {
             usage: 'DYNAMIC_DRAW',
@@ -190757,7 +193673,10 @@ var BatchHandlerStrip = new Class({
                     name: 'inTexDatum'
                 },
                 {
-                    name: 'inTintEffect'
+                    name: 'inTintEffect',
+                    size: 4,
+                    type: 'UNSIGNED_BYTE',
+                    normalized: true
                 },
                 {
                     name: 'inTint',
@@ -190866,6 +193785,7 @@ var BatchHandlerStrip = new Class({
         }
 
         // Check render options and run the batch if they differ.
+        renderOptions.alphaStrategy = drawingContext.alphaStrategy;
         this.updateRenderOptions(renderOptions);
         if (this._renderOptionsChanged)
         {
@@ -190914,6 +193834,8 @@ var BatchHandlerStrip = new Class({
         var e = calcMatrix.e;
         var f = calcMatrix.f;
 
+        var tintCombined = tintMode << 24;
+
         var meshVerticesLength = vertices.length;
 
         for (var i = 0; i < meshVerticesLength; i += 2)
@@ -190929,7 +193851,7 @@ var BatchHandlerStrip = new Class({
             vertexViewF32[vertexOffset32++] = uv[i];
             vertexViewF32[vertexOffset32++] = uv[i + 1];
             vertexViewF32[vertexOffset32++] = textureDatum;
-            vertexViewF32[vertexOffset32++] = tintMode;
+            vertexViewU32[vertexOffset32++] = tintCombined;
             vertexViewU32[vertexOffset32++] = getTint(
                 colors[i / 2],
                 alphas[i / 2] * alpha
@@ -190985,6 +193907,7 @@ module.exports = BatchHandlerStrip;
 var Class = __webpack_require__(83419);
 var ShaderSourceFS = __webpack_require__(98840);
 var ShaderSourceVS = __webpack_require__(44667);
+var MakeApplyAlphaDiscard = __webpack_require__(94158);
 var MakeApplyLighting = __webpack_require__(81084);
 var MakeApplyTint = __webpack_require__(44349);
 var MakeDefineLights = __webpack_require__(6184);
@@ -190999,7 +193922,10 @@ var MakeRotationDatum = __webpack_require__(65217);
 var MakeSmoothPixelArt = __webpack_require__(74505);
 var MakeTexCoordFrameClamp = __webpack_require__(44832);
 var MakeTexCoordFrameWrap = __webpack_require__(23295);
+var Utils = __webpack_require__(70554);
 var BatchHandlerQuad = __webpack_require__(15214);
+
+var getTint = Utils.getTintAppendFloatAlpha;
 
 /**
  * @classdesc
@@ -191053,7 +193979,8 @@ var BatchHandlerTileSprite = new Class({
             MakeRotationDatum(true),
             MakeOutInverseRotation(true),
             MakeGetNormalFromMap(true),
-            MakeApplyLighting(true)
+            MakeApplyLighting(true),
+            MakeApplyAlphaDiscard(true)
         ],
         vertexBufferLayout: {
             usage: 'DYNAMIC_DRAW',
@@ -191074,7 +194001,10 @@ var BatchHandlerTileSprite = new Class({
                     name: 'inTexDatum'
                 },
                 {
-                    name: 'inTintEffect'
+                    name: 'inTintEffect',
+                    size: 4,
+                    type: 'UNSIGNED_BYTE',
+                    normalized: true
                 },
                 {
                     name: 'inTint',
@@ -191208,6 +194138,10 @@ var BatchHandlerTileSprite = new Class({
      * @param {number} v2 - The v coordinate of the distorted top-right corner.
      * @param {number} u3 - The u coordinate of the distorted bottom-right corner.
      * @param {number} v3 - The v coordinate of the distorted bottom-right corner.
+     * @param {number} [tint2TL] - The secondary tint color for the top-left corner.
+     * @param {number} [tint2BL] - The secondary tint color for the bottom-left corner.
+     * @param {number} [tint2TR] - The secondary tint color for the top-right corner.
+     * @param {number} [tint2BR] - The secondary tint color for the bottom-right corner.
      */
     batch: function (
         drawingContext,
@@ -191221,7 +194155,8 @@ var BatchHandlerTileSprite = new Class({
         tintMode,
         tintTL, tintBL, tintTR, tintBR,
         renderOptions,
-        u0, v0, u1, v1, u2, v2, u3, v3
+        u0, v0, u1, v1, u2, v2, u3, v3,
+        tint2TL, tint2BL, tint2TR, tint2BR
     )
     {
         if (this.instanceCount === 0)
@@ -191230,6 +194165,7 @@ var BatchHandlerTileSprite = new Class({
         }
 
         // Check render options and run the batch if they differ.
+        renderOptions.alphaStrategy = drawingContext.alphaStrategy;
         this.updateRenderOptions(renderOptions);
         if (this._renderOptionsChanged)
         {
@@ -191239,6 +194175,23 @@ var BatchHandlerTileSprite = new Class({
 
         // Process textures and get relevant data.
         var textureDatum = this.batchTextures(glTexture, renderOptions);
+
+        // Pack tint mode with secondary tint colors.
+        // Assign default secondary tint colors if not provided.
+        if (tint2TL === undefined)
+        {
+            tint2TL = tintMode << 24;
+            tint2BL = tint2TL;
+            tint2TR = tint2TL;
+            tint2BR = tint2TL;
+        }
+        else
+        {
+            tint2TL = getTint(tint2TL, tintMode / 255);
+            tint2BL = getTint(tint2BL, tintMode / 255);
+            tint2TR = getTint(tint2TR, tintMode / 255);
+            tint2BR = getTint(tint2BR, tintMode / 255);
+        }
 
         // Update the vertex buffer.
         var vertexOffset32 = this.instanceCount * this.floatsPerInstance;
@@ -191256,7 +194209,7 @@ var BatchHandlerTileSprite = new Class({
         vertexViewF32[vertexOffset32++] = texWidth;
         vertexViewF32[vertexOffset32++] = texHeight;
         vertexViewF32[vertexOffset32++] = textureDatum;
-        vertexViewF32[vertexOffset32++] = tintMode;
+        vertexViewU32[vertexOffset32++] = tint2BL;
         vertexViewU32[vertexOffset32++] = tintBL;
 
         // Top-left
@@ -191269,7 +194222,7 @@ var BatchHandlerTileSprite = new Class({
         vertexViewF32[vertexOffset32++] = texWidth;
         vertexViewF32[vertexOffset32++] = texHeight;
         vertexViewF32[vertexOffset32++] = textureDatum;
-        vertexViewF32[vertexOffset32++] = tintMode;
+        vertexViewU32[vertexOffset32++] = tint2TL;
         vertexViewU32[vertexOffset32++] = tintTL;
 
         // Bottom-right
@@ -191282,7 +194235,7 @@ var BatchHandlerTileSprite = new Class({
         vertexViewF32[vertexOffset32++] = texWidth;
         vertexViewF32[vertexOffset32++] = texHeight;
         vertexViewF32[vertexOffset32++] = textureDatum;
-        vertexViewF32[vertexOffset32++] = tintMode;
+        vertexViewU32[vertexOffset32++] = tint2BR;
         vertexViewU32[vertexOffset32++] = tintBR;
 
         // Top-right
@@ -191295,7 +194248,7 @@ var BatchHandlerTileSprite = new Class({
         vertexViewF32[vertexOffset32++] = texWidth;
         vertexViewF32[vertexOffset32++] = texHeight;
         vertexViewF32[vertexOffset32++] = textureDatum;
-        vertexViewF32[vertexOffset32++] = tintMode;
+        vertexViewU32[vertexOffset32++] = tint2TR;
         vertexViewU32[vertexOffset32++] = tintTR;
 
         // Increment the instance count.
@@ -191318,6 +194271,251 @@ module.exports = BatchHandlerTileSprite;
 
 /***/ },
 
+/***/ 59444
+(module, __unused_webpack_exports, __webpack_require__) {
+
+/**
+ * @author       Benjamin D. Richards <benjamindrichards@gmail.com>
+ * @copyright    2013-2026 Phaser Studio Inc.
+ * @license      {@link https://opensource.org/licenses/MIT|MIT License}
+ */
+
+var Vector2 = __webpack_require__(26099);
+var Class = __webpack_require__(83419);
+var Utils = __webpack_require__(70554);
+var BatchHandlerQuad = __webpack_require__(15214);
+
+var getTint = Utils.getTintAppendFloatAlpha;
+
+/**
+ * @classdesc
+ * This RenderNode renders textured triangles individually, rather than
+ * combining them into quads. It is used by the `Mesh2D` Game Object when its
+ * `renderAsTriangles` property is enabled, which suits dynamic topology that
+ * cannot be optimized into quads ahead of time.
+ *
+ * It extends `BatchHandlerQuad` and reuses its shader, vertex layout, texture
+ * handling, and draw logic. The only differences are its configuration (three
+ * vertices and indices per instance, drawn as `gl.TRIANGLES`) and the
+ * `batchTriangles` method, which accepts vertex and index arrays directly,
+ * much like `BatchHandlerTriFlat`, but writes each vertex in the layout used by
+ * `BatchHandlerQuad`.
+ *
+ * @class BatchHandlerTri
+ * @memberof Phaser.Renderer.WebGL.RenderNodes
+ * @constructor
+ * @since 4.2.0
+ * @extends Phaser.Renderer.WebGL.RenderNodes.BatchHandlerQuad
+ * @param {Phaser.Renderer.WebGL.RenderNodes.RenderNodeManager} manager - The manager that owns this RenderNode.
+ * @param {Phaser.Types.Renderer.WebGL.RenderNodes.BatchHandlerConfig} [config] - The configuration object for this handler.
+ */
+var BatchHandlerTri = new Class({
+    Extends: BatchHandlerQuad,
+
+    initialize: function BatchHandlerTri (manager, config)
+    {
+        BatchHandlerQuad.call(this, manager, config);
+
+        /**
+         * Temporary point used to transform vertex positions into screen space.
+         *
+         * @name Phaser.Renderer.WebGL.RenderNodes.BatchHandlerTri#_tempPoint
+         * @type {Phaser.Math.Vector2}
+         * @private
+         * @since 4.2.0
+         */
+        this._tempPoint = new Vector2();
+    },
+
+    /**
+     * The default configuration object for this handler. It is the
+     * `BatchHandlerQuad` configuration with the instance shape and topology
+     * changed to draw individual triangles.
+     *
+     * @name Phaser.Renderer.WebGL.RenderNodes.BatchHandlerTri#defaultConfig
+     * @type {Phaser.Types.Renderer.WebGL.RenderNodes.BatchHandlerConfig}
+     * @since 4.2.0
+     */
+    defaultConfig: Object.assign({}, BatchHandlerQuad.prototype.defaultConfig, {
+        name: 'BatchHandlerTri',
+        verticesPerInstance: 3,
+        indicesPerInstance: 3,
+        topology: 0x0004 // gl.TRIANGLES
+    }),
+
+    /**
+     * Generate element indices for the instance vertices.
+     * This is called automatically when the node is initialized.
+     *
+     * Each instance is a single triangle of three vertices, drawn as
+     * `gl.TRIANGLES`. The vertices of each instance are written contiguously,
+     * so the indices are simply sequential.
+     *
+     * @method Phaser.Renderer.WebGL.RenderNodes.BatchHandlerTri#_generateElementIndices
+     * @since 4.2.0
+     * @private
+     * @param {number} instances - The number of instances to define.
+     * @return {ArrayBuffer} The index buffer data.
+     */
+    _generateElementIndices: function (instances)
+    {
+        var buffer = new ArrayBuffer(instances * 3 * 2);
+        var indices = new Uint16Array(buffer);
+        var len = indices.length;
+        for (var i = 0; i < len; i++)
+        {
+            indices[i] = i;
+        }
+        return buffer;
+    },
+
+    /**
+     * Adds a set of textured triangles to the batch. Each triangle is defined
+     * by a stride-4 entry in `indices` (`a, b, c, page`), where `a, b, c` index
+     * into `vertices` and `page` selects the texture source. Each vertex is a
+     * stride-4 entry in `vertices` (`x, y, u, v`).
+     *
+     * The vertex positions are transformed into screen space by the supplied
+     * transformer node, then written into the vertex buffer in the same layout
+     * used by `BatchHandlerQuad`. This handling mirrors `BatchHandlerTriFlat`,
+     * but produces fully textured and tinted vertices.
+     *
+     * This method is named `batchTriangles` rather than `batch` because its
+     * call signature differs from the standard quad batch handlers.
+     *
+     * @method Phaser.Renderer.WebGL.RenderNodes.BatchHandlerTri#batchTriangles
+     * @since 4.2.0
+     * @param {Phaser.Renderer.WebGL.DrawingContext} drawingContext - The current drawing context.
+     * @param {Phaser.GameObjects.Mesh2D} gameObject - The Mesh2D Game Object being rendered.
+     * @param {Phaser.GameObjects.Components.TransformMatrix | undefined} parentMatrix - The parent matrix of the Game Object, if it is nested.
+     * @param {Phaser.Renderer.WebGL.RenderNodes.TransformerVertex} transformerNode - The transformer node used to transform each vertex into screen space.
+     * @param {number[]} vertices - The vertex data, as a sequence of `x, y, u, v` with a step of 4.
+     * @param {number[]} indices - The index data, as a sequence of `a, b, c, page` with a step of 4.
+     * @param {Phaser.Types.Renderer.WebGL.RenderNodes.BatchHandlerQuadRenderOptions} renderOptions - The render options for the batch, as resolved by the submitter node.
+     */
+    batchTriangles: function (
+        drawingContext,
+        gameObject,
+        parentMatrix,
+        transformerNode,
+        vertices,
+        indices,
+        renderOptions
+    )
+    {
+        if (this.instanceCount === 0)
+        {
+            this.manager.setCurrentBatchNode(this, drawingContext);
+        }
+
+        // Check render options and run the batch if they differ.
+        // The options are constant across the whole mesh, so we check once.
+        renderOptions.alphaStrategy = drawingContext.alphaStrategy;
+        this.updateRenderOptions(renderOptions);
+        if (this._renderOptionsChanged)
+        {
+            this.run(drawingContext);
+            this.updateShaderConfig();
+        }
+
+        // Build the transform matrix once for the whole mesh, then project each
+        // vertex cheaply below.
+        transformerNode.setupMatrix(drawingContext, gameObject, parentMatrix);
+
+        var step = 4;
+        var tempPoint = this._tempPoint;
+
+        var flipV = gameObject.flipV;
+        var tintEffect = gameObject.tintMode;
+        var tint = getTint(gameObject.tint, gameObject.alpha);
+        var tint2 = tintEffect << 24;
+
+        var textureSources = gameObject.texture.source;
+
+        var floatsPerInstance = this.floatsPerInstance;
+        var instancesPerBatch = this.instancesPerBatch;
+
+        var vertexBuffer = this.vertexBufferLayout.buffer;
+        var vertexViewF32 = vertexBuffer.viewF32;
+        var vertexViewU32 = vertexBuffer.viewU32;
+
+        var triCount = (indices.length / 4) | 0;
+
+        for (var i = 0; i < triCount; i++)
+        {
+            var i4 = i * 4;
+            var ia = indices[i4];
+            var ib = indices[i4 + 1];
+            var ic = indices[i4 + 2];
+            var page = indices[i4 + 3];
+
+            var glTexture = textureSources[page].glTexture;
+
+            // Process the texture. This may start a new batch entry.
+            var textureDatum = this.batchTextures(glTexture, renderOptions);
+
+            var vertexOffset32 = this.instanceCount * floatsPerInstance;
+
+            // Vertex A
+            var ia4 = ia * step;
+            tempPoint.set(vertices[ia4], vertices[ia4 + 1]);
+            transformerNode.transformVertex(tempPoint);
+            var vA = vertices[ia4 + 3];
+            vertexViewF32[vertexOffset32++] = tempPoint.x;
+            vertexViewF32[vertexOffset32++] = tempPoint.y;
+            vertexViewF32[vertexOffset32++] = vertices[ia4 + 2];
+            vertexViewF32[vertexOffset32++] = flipV ? 1 - vA : vA;
+            vertexViewF32[vertexOffset32++] = textureDatum;
+            vertexViewU32[vertexOffset32++] = tint2;
+            vertexViewU32[vertexOffset32++] = tint;
+
+            // Vertex B
+            var ib4 = ib * step;
+            tempPoint.set(vertices[ib4], vertices[ib4 + 1]);
+            transformerNode.transformVertex(tempPoint);
+            var vB = vertices[ib4 + 3];
+            vertexViewF32[vertexOffset32++] = tempPoint.x;
+            vertexViewF32[vertexOffset32++] = tempPoint.y;
+            vertexViewF32[vertexOffset32++] = vertices[ib4 + 2];
+            vertexViewF32[vertexOffset32++] = flipV ? 1 - vB : vB;
+            vertexViewF32[vertexOffset32++] = textureDatum;
+            vertexViewU32[vertexOffset32++] = tint2;
+            vertexViewU32[vertexOffset32++] = tint;
+
+            // Vertex C
+            var ic4 = ic * step;
+            tempPoint.set(vertices[ic4], vertices[ic4 + 1]);
+            transformerNode.transformVertex(tempPoint);
+            var vC = vertices[ic4 + 3];
+            vertexViewF32[vertexOffset32++] = tempPoint.x;
+            vertexViewF32[vertexOffset32++] = tempPoint.y;
+            vertexViewF32[vertexOffset32++] = vertices[ic4 + 2];
+            vertexViewF32[vertexOffset32++] = flipV ? 1 - vC : vC;
+            vertexViewF32[vertexOffset32++] = textureDatum;
+            vertexViewU32[vertexOffset32++] = tint2;
+            vertexViewU32[vertexOffset32++] = tint;
+
+            // Increment the instance count.
+            this.instanceCount++;
+            this.currentBatchEntry.count++;
+
+            // Check whether the batch should be rendered immediately.
+            // This guarantees that none of the arrays are full above.
+            if (this.instanceCount === instancesPerBatch)
+            {
+                this.run(drawingContext);
+
+                // Now the batch is empty.
+            }
+        }
+    }
+});
+
+module.exports = BatchHandlerTri;
+
+
+/***/ },
+
 /***/ 62087
 (module, __unused_webpack_exports, __webpack_require__) {
 
@@ -191329,6 +194527,7 @@ module.exports = BatchHandlerTileSprite;
 
 var Vector2 = __webpack_require__(26099);
 var Class = __webpack_require__(83419);
+var MakeApplyAlphaDiscard = __webpack_require__(94158);
 var MakeApplyLighting = __webpack_require__(81084);
 var MakeDefineLights = __webpack_require__(6184);
 var MakeFlatNormal = __webpack_require__(13198);
@@ -191409,6 +194608,7 @@ var BatchHandlerTriFlat = new Class({
          * @since 4.0.0
          */
         this.renderOptions = {
+            alphaStrategy: 'keep',
             lighting: false
         };
 
@@ -191420,6 +194620,7 @@ var BatchHandlerTriFlat = new Class({
          * @since 4.0.0
          */
         this.nextRenderOptions = {
+            alphaStrategy: 'keep',
             lighting: false
         };
 
@@ -191438,13 +194639,15 @@ var BatchHandlerTriFlat = new Class({
         name: 'BatchHandlerTriFlat',
         verticesPerInstance: 3,
         indicesPerInstance: 3,
+        topology: 0x0004,  // gl.TRIANGLES
         shaderName: 'FLAT',
         vertexSource: ShaderSourceVS,
         fragmentSource: ShaderSourceFS,
         shaderAdditions: [
             MakeDefineLights(true),
             MakeFlatNormal(true),
-            MakeApplyLighting(true)
+            MakeApplyLighting(true),
+            MakeApplyAlphaDiscard(true)
         ],
         indexBufferDynamic: true,
         vertexBufferLayout: {
@@ -191518,7 +194721,7 @@ var BatchHandlerTriFlat = new Class({
 
     /**
      * Compare the incoming render options against the current batch's render
-     * options and record whether they have changed. If the lighting value
+     * options and record whether they have changed. If the alpha strategy or lighting value
      * differs from the one used to build the current batch, the change is
      * staged in `nextRenderOptions` and `_renderOptionsChanged` is set to
      * `true`, signalling that the batch must be flushed and the shader
@@ -191527,12 +194730,19 @@ var BatchHandlerTriFlat = new Class({
      * @method Phaser.Renderer.WebGL.RenderNodes.BatchHandlerTriFlat#updateRenderOptions
      * @since 4.0.0
      * @param {object|false} lighting - The lighting configuration for the next draw call, or `false` if lighting is disabled.
+     * @param {string} alphaStrategy - The alpha strategy for the next draw call.
      */
-    updateRenderOptions: function (lighting)
+    updateRenderOptions: function (lighting, alphaStrategy)
     {
         var newRenderOptions = this.nextRenderOptions;
         var oldRenderOptions = this.renderOptions;
         var changed = false;
+
+        if (alphaStrategy !== oldRenderOptions.alphaStrategy)
+        {
+            newRenderOptions.alphaStrategy = alphaStrategy;
+            changed = true;
+        }
 
         if (lighting !== oldRenderOptions.lighting)
         {
@@ -191547,8 +194757,8 @@ var BatchHandlerTriFlat = new Class({
      * Apply any pending render option changes to the shader program. This
      * method is called after the current batch has been flushed, when
      * `_renderOptionsChanged` is `true`. It synchronises `renderOptions` with
-     * `nextRenderOptions` and enables or disables the lighting shader
-     * additions accordingly. When lighting is enabled it also updates the
+     * `nextRenderOptions` and enables or disables the shader additions accordingly.
+     * When lighting is enabled it also updates the
      * `LIGHT_COUNT` preprocessor define to match the renderer's configured
      * maximum number of lights.
      *
@@ -191560,6 +194770,24 @@ var BatchHandlerTriFlat = new Class({
         var programManager = this.programManager;
         var renderOptions = this.renderOptions;
         var nextRenderOptions = this.nextRenderOptions;
+
+        if (renderOptions.alphaStrategy !== nextRenderOptions.alphaStrategy)
+        {
+            var alphaStrategy = nextRenderOptions.alphaStrategy;
+            renderOptions.alphaStrategy = alphaStrategy;
+
+            var alphaDiscardAddition = programManager.getAdditionsByTag('ALPHA_DISCARD')[0];
+            if (alphaDiscardAddition)
+            {
+                var keep = alphaStrategy === 'keep';
+                var dither = alphaStrategy === 'dither';
+                var threshold = (typeof alphaStrategy === 'number') ? alphaStrategy : undefined;
+                programManager.replaceAddition(
+                    alphaDiscardAddition.name,
+                    MakeApplyAlphaDiscard(keep, dither, threshold)
+                );
+            }
+        }
 
         if (renderOptions.lighting !== nextRenderOptions.lighting)
         {
@@ -191635,7 +194863,7 @@ var BatchHandlerTriFlat = new Class({
                 vao,
                 instanceCount * indicesPerInstance,
                 0,
-                renderer.gl.TRIANGLES
+                this.topology
             );
         }
 
@@ -191658,7 +194886,7 @@ var BatchHandlerTriFlat = new Class({
      * @param {number[]} indexes - The index data. Each triangle is defined by three indices into the vertices array, so the length of this should be a multiple of 3.
      * @param {number[]} vertices - The vertices data. Each vertex is defined by an x-coordinate and a y-coordinate.
      * @param {number[]} colors - The color data. Each vertex has a color as a Uint32 value.
-     * @param {boolean} [lighting=false] - Should this batch use lighting?
+     * @param {object|false} lighting - The lighting configuration for the next draw call, or `false` if lighting is disabled.
      */
     batch: function (currentContext, indexes, vertices, colors, lighting)
     {
@@ -191668,7 +194896,7 @@ var BatchHandlerTriFlat = new Class({
         }
 
         // Check render options and run the batch if they differ.
-        this.updateRenderOptions(lighting);
+        this.updateRenderOptions(lighting, currentContext.alphaStrategy);
         if (this._renderOptionsChanged)
         {
             this.run(currentContext);
@@ -191991,6 +195219,7 @@ var Camera = new Class({
 
             // Set up render options.
             var renderOptions = {
+                alphaStrategy: baseContext.alphaStrategy,
                 smoothPixelArt: manager.renderer.game.config.smoothPixelArt
             };
 
@@ -192005,7 +195234,7 @@ var Camera = new Class({
                 currentContext = renderNode.run(filter, currentContext);
 
                 // Record padding.
-                padding = filter.getPadding();
+                padding = filter.getPaddingCeil();
                 coverageInternal.setTo(
                     coverageInternal.x + padding.x,
                     coverageInternal.y + padding.y,
@@ -192028,7 +195257,7 @@ var Camera = new Class({
 
                     if (!filter.active) { continue; }
 
-                    padding = filter.getPadding();
+                    padding = filter.getPaddingCeil();
 
                     // Increase coverage.
                     coverageExternal.setTo(
@@ -192691,6 +195920,9 @@ var DynamicTextureHandler = new Class({
         // Finish rendering.
         currentContext.release();
 
+        // Regenerate any mipmap before using the texture.
+        glTexture.needsMipmapRegeneration = true;
+
         camera.emit(CameraEvents.POST_RENDER, camera);
 
         this.onRunEnd(drawingContext);
@@ -192807,7 +196039,7 @@ var FillCamera = new Class({
      * @method Phaser.Renderer.WebGL.RenderNodes.FillCamera#run
      * @since 4.0.0
      * @param {Phaser.Renderer.WebGL.DrawingContext} drawingContext - The context currently in use.
-     * @param {number} color - The color to fill the camera with.
+     * @param {number} color - The color to fill the camera with. Note, this must be a 32-bit ARGB integer.
      * @param {boolean} [isFramebufferCamera] - Is this camera rendering to a framebuffer? If so, the camera position will not be applied, on the assumption that the camera position will be used to position the framebuffer in the external context.
      */
     run: function (drawingContext, color, isFramebufferCamera)
@@ -193648,6 +196880,7 @@ var BatchHandlerQuad = __webpack_require__(15214);
 var BatchHandlerQuadSingle = __webpack_require__(72266);
 var BatchHandlerStrip = __webpack_require__(62791);
 var BatchHandlerTileSprite = __webpack_require__(21832);
+var BatchHandlerTri = __webpack_require__(59444);
 var BatchHandlerTriFlat = __webpack_require__(62087);
 
 var Camera = __webpack_require__(61842);
@@ -193688,6 +196921,7 @@ var FilterWipe = __webpack_require__(99184);
 var ListCompositor = __webpack_require__(27996);
 var RebindContext = __webpack_require__(56432);
 var StrokePath = __webpack_require__(17486);
+var SubmitterMeshToQuad = __webpack_require__(68517);
 var SubmitterQuad = __webpack_require__(31029);
 var SubmitterTile = __webpack_require__(94494);
 var SubmitterTilemapGPULayer = __webpack_require__(87469);
@@ -193698,6 +196932,7 @@ var TransformerImage = __webpack_require__(86081);
 var TransformerStamp = __webpack_require__(88383);
 var TransformerTile = __webpack_require__(34454);
 var TransformerTileSprite = __webpack_require__(46211);
+var TransformerVertex = __webpack_require__(64552);
 var YieldContext = __webpack_require__(95433);
 
 /**
@@ -193805,6 +197040,7 @@ var RenderNodeManager = new Class({
             BatchHandlerQuadSingle: BatchHandlerQuadSingle,
             BatchHandlerStrip: BatchHandlerStrip,
             BatchHandlerTileSprite: BatchHandlerTileSprite,
+            BatchHandlerTri: BatchHandlerTri,
             BatchHandlerTriFlat: BatchHandlerTriFlat,
 
             Camera: Camera,
@@ -193845,6 +197081,7 @@ var RenderNodeManager = new Class({
             ListCompositor: ListCompositor,
             RebindContext: RebindContext,
             StrokePath: StrokePath,
+            SubmitterMeshToQuad: SubmitterMeshToQuad,
             SubmitterQuad: SubmitterQuad,
             SubmitterTile: SubmitterTile,
             SubmitterTilemapGPULayer: SubmitterTilemapGPULayer,
@@ -193855,6 +197092,7 @@ var RenderNodeManager = new Class({
             TransformerStamp: TransformerStamp,
             TransformerTile: TransformerTile,
             TransformerTileSprite: TransformerTileSprite,
+            TransformerVertex: TransformerVertex,
             YieldContext: YieldContext
         };
 
@@ -194993,6 +198231,29 @@ module.exports = DefaultImageNodes;
 
 /***/ },
 
+/***/ 2389
+(module, __unused_webpack_exports, __webpack_require__) {
+
+/**
+ * @author       Benjamin D. Richards <benjamindrichards@gmail.com>
+ * @copyright    2013-2026 Phaser Studio Inc.
+ * @license      {@link https://opensource.org/licenses/MIT|MIT License}
+ */
+
+var Map = __webpack_require__(90330);
+
+var DefaultImageNodes = new Map([
+    [ 'Submitter', 'SubmitterMeshToQuad' ],
+    [ 'BatchHandler', 'BatchHandlerQuad' ],
+    [ 'BatchHandlerTriangles', 'BatchHandlerTri' ],
+    [ 'Transformer', 'TransformerVertex' ]
+]);
+
+module.exports = DefaultImageNodes;
+
+
+/***/ },
+
 /***/ 68668
 (module, __unused_webpack_exports, __webpack_require__) {
 
@@ -195458,7 +198719,7 @@ var BaseFilterShader = new Class({
         // Get a new DrawingContext to render to.
         if (!padding)
         {
-            padding = controller.getPadding();
+            padding = controller.getPaddingCeil();
         }
         if (!outputDrawingContext)
         {
@@ -196039,7 +199300,7 @@ var FilterBlur = new Class({
 
         if (!padding)
         {
-            padding = controller.getPadding();
+            padding = controller.getPaddingCeil();
         }
 
         var currentContext = inputDrawingContext;
@@ -197448,7 +200709,7 @@ var FilterParallelFilters = new Class({
 
         var bottomFilters = controller.bottom.getActive();
         var topFilters = controller.top.getActive();
-        var initialPadding = padding || controller.getPadding();
+        var initialPadding = padding || controller.getPaddingCeil();
 
         if (bottomFilters.length + topFilters.length > 0)
         {
@@ -198145,6 +201406,7 @@ var RenderNodes = {
     BatchHandlerQuadSingle: __webpack_require__(72266),
     BatchHandlerStrip: __webpack_require__(62791),
     BatchHandlerTileSprite: __webpack_require__(21832),
+    BatchHandlerTri: __webpack_require__(59444),
     BatchHandlerTriFlat: __webpack_require__(62087),
 
     Camera: __webpack_require__(61842),
@@ -198186,6 +201448,7 @@ var RenderNodes = {
     RebindContext: __webpack_require__(56432),
     RenderNode: __webpack_require__(6141),
     StrokePath: __webpack_require__(17486),
+    SubmitterMeshToQuad: __webpack_require__(68517),
     SubmitterQuad: __webpack_require__(31029),
     SubmitterSpriteGPULayer: __webpack_require__(53384),
     SubmitterTile: __webpack_require__(94494),
@@ -198197,10 +201460,291 @@ var RenderNodes = {
     TransformerStamp: __webpack_require__(88383),
     TransformerTile: __webpack_require__(34454),
     TransformerTileSprite: __webpack_require__(46211),
+    TransformerVertex: __webpack_require__(64552),
     YieldContext: __webpack_require__(95433)
 };
 
 module.exports = RenderNodes;
+
+
+/***/ },
+
+/***/ 68517
+(module, __unused_webpack_exports, __webpack_require__) {
+
+/**
+ * @author       Benjamin D. Richards <benjamindrichards@gmail.com>
+ * @copyright    2013-2026 Phaser Studio Inc.
+ * @license      {@link https://opensource.org/licenses/MIT|MIT License}
+ */
+
+var Vector2 = __webpack_require__(26099);
+var Class = __webpack_require__(83419);
+var Merge = __webpack_require__(46975);
+var Utils = __webpack_require__(70554);
+var SubmitterQuad = __webpack_require__(31029);
+
+var getTint = Utils.getTintAppendFloatAlpha;
+
+/**
+ * @classdesc
+ * The SubmitterMeshToQuad RenderNode submits data for rendering a Mesh GameObject.
+ * It uses a BatchHandler to render the mesh as part of a batch.
+ * It is designed to maximize batch compatibility with regular quads,
+ * by combining adjacent triangles into quads where possible.
+ *
+ * Performance-wise, this depends on the sequence of triangles in the mesh.
+ * Two sequential triangles sharing an edge will be combined into a quad,
+ * which renders as just 4 vertices instead of 6.
+ * But a triangle that can't combine will be rendered as a quad too,
+ * taking 4 vertices instead of 3.
+ * Try to arrange triangles so they can combine.
+ *
+ * This node receives the drawing context, game object, and parent matrix.
+ * It also receives the transformer node from the node that invoked it.
+ * This allows the behavior to be configured by setting the appropriate nodes
+ * on the GameObject for individual tweaks, or on the invoking Renderer node
+ * for global changes.
+ *
+ * @class SubmitterMeshToQuad
+ * @memberof Phaser.Renderer.WebGL.RenderNodes
+ * @constructor
+ * @since 4.2.0
+ * @extends Phaser.Renderer.WebGL.RenderNodes.SubmitterQuad
+ * @param {Phaser.Renderer.WebGL.RenderNodes.RenderNodeManager} manager - The manager that owns this RenderNode.
+ * @param {Phaser.Types.Renderer.WebGL.RenderNodes.SubmitterQuadConfig} [config] - The configuration object for this RenderNode.
+ */
+var SubmitterMeshToQuad = new Class({
+    Extends: SubmitterQuad,
+
+    initialize: function SubmitterMeshToQuad (manager, config)
+    {
+        config = Merge(config || {}, this.defaultConfig);
+
+        SubmitterQuad.call(this, manager, config);
+
+        /**
+         * Temporary point used to store the transformed vertex positions.
+         *
+         * @name Phaser.Renderer.WebGL.RenderNodes.SubmitterMeshToQuad#_tempPoint
+         * @type {Phaser.Math.Vector2}
+         * @since 4.2.0
+         * @private
+         */
+        this._tempPoint = new Vector2();
+    },
+
+    /**
+     * The default configuration for this RenderNode.
+     *
+     * @name Phaser.Renderer.WebGL.RenderNodes.SubmitterMeshToQuad#defaultConfig
+     * @type {Phaser.Types.Renderer.WebGL.RenderNodes.SubmitterQuadConfig}
+     */
+    defaultConfig: {
+        name: 'SubmitterMeshToQuad',
+        role: 'Submitter',
+        batchHandler: 'BatchHandler'
+    },
+
+    /**
+     * Processes the given GameObject and submits mesh vertex data to the appropriate
+     * batch handler for rendering.
+     *
+     * If the mesh has a prebuilt ordered index list (`Mesh2D#useOrderedIndices` is `true`), it is used directly.
+     *
+     * Otherwise, the method submits each triangle as a quad,
+     * synthesizing a degenerate triangle for the other half of the quad.
+     * This is inefficient and should be avoided,
+     * either by using the ordered index list, or by using the `BatchHandlerTri` render node.
+     *
+     * The method also sets the render options for the GameObject, including the normal
+     * map texture and rotation.
+     *
+     * @method Phaser.Renderer.WebGL.RenderNodes.SubmitterMeshToQuad#run
+     * @since 4.2.0
+     * @param {Phaser.Renderer.WebGL.DrawingContext} drawingContext - The current drawing context.
+     * @param {Phaser.GameObjects.GameObject} gameObject - The GameObject being rendered.
+     * @param {Phaser.GameObjects.Components.TransformMatrix} parentMatrix - The parent matrix of the GameObject, if it is a nested game object.
+     * @param {Phaser.Renderer.WebGL.RenderNodes.TransformerVertex} transformerNode - The transformer node used to transform the GameObject.
+     * @param {Phaser.Renderer.WebGL.Wrappers.WebGLTextureWrapper} [normalMap] - The normal map texture to use for lighting. If omitted, the normal map texture of the GameObject will be used, or the default normal map texture of the renderer.
+     * @param {number} [normalMapRotation] - The rotation of the normal map texture. If omitted, the rotation of the GameObject will be used.
+     */
+    run: function (
+        drawingContext,
+        gameObject,
+        parentMatrix,
+        transformerNode,
+        normalMap,
+        normalMapRotation
+    )
+    {
+        this.onRunBegin(drawingContext);
+
+        // Build the transform matrix once for the whole mesh, so that
+        // `_submitQuad` can transform each vertex cheaply.
+        transformerNode.setupMatrix(drawingContext, gameObject, parentMatrix);
+
+        var step = 4;
+
+        // If the game object has a prebuilt ordered index list, consume it
+        // directly. It is arranged into quad-forming pairs of triangles, so we
+        // can submit quads without searching for shared edges.
+        if (gameObject.useOrderedIndices && gameObject.indicesOrdered)
+        {
+            var ordered = gameObject.indicesOrdered;
+
+            // Each quad is a pair of triangles (8 values):
+            // p, q, r, page (first triangle) and q, r, s, page (second).
+            for (var o = 0; o < ordered.length; o += step * 2)
+            {
+                this._submitQuad(
+                    ordered[o],
+                    ordered[o + 1],
+                    ordered[o + 2],
+                    ordered[o + 6],
+                    ordered[o + 3],
+                    drawingContext, gameObject, parentMatrix, transformerNode, normalMap, normalMapRotation
+                );
+            }
+
+            this.onRunEnd(drawingContext);
+
+            return;
+        }
+
+        // If the mesh does not have a prebuilt ordered index list,
+        // submit each triangle as a quad,
+        // synthesizing a degenerate triangle for the other half of the quad.
+        var indices = gameObject.indices;
+        for (var i = 0; i < indices.length; i += step)
+        {
+            this._submitQuad(
+                indices[i],
+                indices[i + 1],
+                indices[i + 2],
+                indices[i + 2],
+                indices[i + 3],
+                drawingContext, gameObject, parentMatrix, transformerNode, normalMap, normalMapRotation
+            );
+        }
+        this.onRunEnd(drawingContext);
+    },
+
+    /**
+     * Submits a quad to the batch handler for rendering.
+     * This is used internally by the `run` method
+     * to submit a quad that is a combination of two triangles,
+     * or a single triangle using a degenerate triangle to pad quad alignment.
+     *
+     * @method Phaser.Renderer.WebGL.RenderNodes.SubmitterMeshToQuad#_submitQuad
+     * @since 4.2.0
+     * @param {number} a - The index of the first vertex of the quad. This is the corner unique to the first triangle.
+     * @param {number} b - The index of the second vertex of the quad. This is shared between triangles.
+     * @param {number} c - The index of the third vertex of the quad. This is shared between triangles.
+     * @param {number} d - The index of the fourth vertex of the quad. This is the corner unique to the second triangle.
+     * @param {number} texturePage - The index of the texture source to use for the quad.
+     * @param {Phaser.Renderer.WebGL.DrawingContext} drawingContext - The current drawing context.
+     * @param {Phaser.GameObjects.GameObject} gameObject - The GameObject being rendered.
+     * @param {Phaser.GameObjects.Components.TransformMatrix} parentMatrix - The parent matrix of the GameObject, if it is a nested game object.
+     * @param {Phaser.Renderer.WebGL.RenderNodes.TransformerVertex} transformerNode - The transformer node used to transform the GameObject.
+     * @param {Phaser.Renderer.WebGL.Wrappers.WebGLTextureWrapper} [normalMap] - The normal map texture to use for lighting. If omitted, the normal map texture of the GameObject will be used, or the default normal map texture of the renderer.
+     * @param {number} [normalMapRotation] - The rotation of the normal map texture. If omitted, the rotation of the GameObject will be used.
+     */
+    _submitQuad: function (
+        a, b, c, d,
+        texturePage,
+        drawingContext,
+        gameObject,
+        parentMatrix,
+        transformerNode,
+        normalMap,
+        normalMapRotation
+    )
+    {
+        var step = 4;
+
+        var xA = gameObject.vertices[a * step];
+        var yA = gameObject.vertices[a * step + 1];
+        var uA = gameObject.vertices[a * step + 2];
+        var vA = gameObject.vertices[a * step + 3];
+
+        var xB = gameObject.vertices[b * step];
+        var yB = gameObject.vertices[b * step + 1];
+        var uB = gameObject.vertices[b * step + 2];
+        var vB = gameObject.vertices[b * step + 3];
+
+        var xC = gameObject.vertices[c * step];
+        var yC = gameObject.vertices[c * step + 1];
+        var uC = gameObject.vertices[c * step + 2];
+        var vC = gameObject.vertices[c * step + 3];
+
+        var xD = gameObject.vertices[d * step];
+        var yD = gameObject.vertices[d * step + 1];
+        var uD = gameObject.vertices[d * step + 2];
+        var vD = gameObject.vertices[d * step + 3];
+
+        if (gameObject.flipV)
+        {
+            vA = 1 - vA;
+            vB = 1 - vB;
+            vC = 1 - vC;
+            vD = 1 - vD;
+        }
+
+        var tintEffect = gameObject.tintMode;
+        var tint = getTint(gameObject.tint, gameObject.alpha);
+        var tint2 = gameObject.tint2;
+        var tempPoint = this._tempPoint;
+
+        // The transform matrix is built once per mesh by `run`, via
+        // `transformerNode.setupMatrix`, so we only project each vertex here.
+        tempPoint.set(xA, yA);
+        transformerNode.transformVertex(tempPoint);
+        xA = tempPoint.x;
+        yA = tempPoint.y;
+        tempPoint.set(xB, yB);
+        transformerNode.transformVertex(tempPoint);
+        xB = tempPoint.x;
+        yB = tempPoint.y;
+        tempPoint.set(xC, yC);
+        transformerNode.transformVertex(tempPoint);
+        xC = tempPoint.x;
+        yC = tempPoint.y;
+        tempPoint.set(xD, yD);
+        transformerNode.transformVertex(tempPoint);
+        xD = tempPoint.x;
+        yD = tempPoint.y;
+
+        this.setRenderOptions(gameObject, normalMap, normalMapRotation);
+
+        (
+            gameObject.customRenderNodes[this.batchHandler] ||
+            gameObject.defaultRenderNodes[this.batchHandler]
+        ).batchWithUV(
+            drawingContext,
+            gameObject.texture.source[texturePage].glTexture,
+
+            // Combined quad in order TL, BL, TR, BR:
+            xA, yA, xB, yB, xC, yC, xD, yD,
+
+            // Texture coordinates in order TL, BL, TR, BR:
+            uA, vA, uB, vB, uC, vC, uD, vD,
+
+            tintEffect,
+
+            // Tint colors in order TL, BL, TR, BR:
+            tint, tint, tint, tint,
+
+            // Extra render options:
+            this._renderOptions,
+
+            // Secondary tint colors in order TL, BL, TR, BR:
+            tint2, tint2, tint2, tint2,
+        );
+    }
+});
+
+module.exports = SubmitterMeshToQuad;
 
 
 /***/ },
@@ -198261,6 +201805,7 @@ var SubmitterQuad = new Class({
 
         /**
          * Persistent object reused to pass render options to the batch handler.
+         * Alpha strategy will be set by the drawing context.
          *
          * @name Phaser.Renderer.WebGL.RenderNodes.SubmitterQuad#_renderOptions
          * @type {Phaser.Types.Renderer.WebGL.RenderNodes.BatchHandlerQuadRenderOptions}
@@ -198339,7 +201884,7 @@ var SubmitterQuad = new Class({
     {
         this.onRunBegin(drawingContext);
 
-        var tintEffect, tintTopLeft, tintBottomLeft, tintTopRight, tintBottomRight;
+        var tintEffect, tintTopLeft, tintBottomLeft, tintTopRight, tintBottomRight, tint2TopLeft, tint2BottomLeft, tint2TopRight, tint2BottomRight;
 
         if (texturerNode.run)
         {
@@ -198360,6 +201905,10 @@ var SubmitterQuad = new Class({
             tintBottomLeft = tinterNode.tintBottomLeft;
             tintTopRight = tinterNode.tintTopRight;
             tintBottomRight = tinterNode.tintBottomRight;
+            tint2TopLeft = tinterNode.tint2TopLeft;
+            tint2BottomLeft = tinterNode.tint2BottomLeft;
+            tint2TopRight = tinterNode.tint2TopRight;
+            tint2BottomRight = tinterNode.tint2BottomRight;
         }
         else
         {
@@ -198368,6 +201917,10 @@ var SubmitterQuad = new Class({
             tintBottomLeft = getTint(gameObject.tintBottomLeft, gameObject._alphaBL);
             tintTopRight = getTint(gameObject.tintTopRight, gameObject._alphaTR);
             tintBottomRight = getTint(gameObject.tintBottomRight, gameObject._alphaBR);
+            tint2TopLeft = gameObject.tint2TopLeft;
+            tint2BottomLeft = gameObject.tint2BottomLeft;
+            tint2TopRight = gameObject.tint2TopRight;
+            tint2BottomRight = gameObject.tint2BottomRight;
         }
 
         var quad = transformerNode.quad;
@@ -198404,7 +201957,10 @@ var SubmitterQuad = new Class({
             tintTopLeft, tintBottomLeft, tintTopRight, tintBottomRight,
 
             // Extra render options:
-            this._renderOptions
+            this._renderOptions,
+
+            // Secondary tint colors in order TL, BL, TR, BR:
+            tint2TopLeft, tint2BottomLeft, tint2TopRight, tint2BottomRight
         );
 
         this.onRunEnd(drawingContext);
@@ -198538,6 +202094,7 @@ var Vector2 = __webpack_require__(26099);
 var Class = __webpack_require__(83419);
 var Merge = __webpack_require__(46975);
 var ProgramManager = __webpack_require__(56436);
+var MakeApplyAlphaDiscard = __webpack_require__(94158);
 var MakeApplyLighting = __webpack_require__(81084);
 var MakeApplyTint = __webpack_require__(44349);
 var MakeDefineLights = __webpack_require__(6184);
@@ -198728,7 +202285,8 @@ var SubmitterSpriteGPULayer = new Class({
             MakeDefineLights(true),
             MakeOutInverseRotation(true),
             MakeGetNormalFromMap(true),
-            MakeApplyLighting(true)
+            MakeApplyLighting(true),
+            MakeApplyAlphaDiscard(true)
         ],
         instanceBufferLayout: {
             usage: 'STATIC_DRAW',
@@ -199006,10 +202564,25 @@ var SubmitterSpriteGPULayer = new Class({
      *
      * @method Phaser.Renderer.WebGL.RenderNodes.SubmitterSpriteGPULayer#updateRenderOptions
      * @since 4.0.0
+     * @param {Phaser.Renderer.WebGL.DrawingContext} drawingContext - The current drawing context.
      */
-    updateRenderOptions: function ()
+    updateRenderOptions: function (drawingContext)
     {
         var programManager = this.programManager;
+
+        // Set alpha strategy options.
+        var alphaStrategy = drawingContext.alphaStrategy;
+        var alphaStrategyAddition = programManager.getAdditionsByTag('ALPHA_DISCARD')[0];
+        if (alphaStrategyAddition)
+        {
+            var keep = alphaStrategy === 'keep';
+            var dither = alphaStrategy === 'dither';
+            var threshold = (typeof alphaStrategy === 'number') ? alphaStrategy : undefined;
+            programManager.replaceAddition(
+                alphaStrategyAddition.name,
+                MakeApplyAlphaDiscard(keep, dither, threshold)
+            );
+        }
 
         // Set lighting options.
         var lighting = this.gameObject.lighting;
@@ -199143,7 +202716,7 @@ var SubmitterSpriteGPULayer = new Class({
             textures[2] = normalMap;
         }
 
-        this.updateRenderOptions();
+        this.updateRenderOptions(drawingContext);
 
         var programManager = this.programManager;
         var programSuite = programManager.getCurrentProgramSuite();
@@ -199262,7 +202835,7 @@ var SubmitterTile = new Class({
     {
         this.onRunBegin(drawingContext);
 
-        var tintEffect, tintTopLeft, tintBottomLeft, tintTopRight, tintBottomRight;
+        var tintEffect, tintTopLeft, tintBottomLeft, tintTopRight, tintBottomRight, tint2TopLeft, tint2BottomLeft, tint2TopRight, tint2BottomRight;
 
         if (texturerNode.run)
         {
@@ -199283,6 +202856,10 @@ var SubmitterTile = new Class({
             tintBottomLeft = tinterNode.tintBottomLeft;
             tintTopRight = tinterNode.tintTopRight;
             tintBottomRight = tinterNode.tintBottomRight;
+            tint2TopLeft = tinterNode.tint2TopLeft;
+            tint2BottomLeft = tinterNode.tint2BottomLeft;
+            tint2TopRight = tinterNode.tint2TopRight;
+            tint2BottomRight = tinterNode.tint2BottomRight;
         }
         else
         {
@@ -199292,6 +202869,11 @@ var SubmitterTile = new Class({
             tintBottomLeft = tint;
             tintTopRight = tint;
             tintBottomRight = tint;
+            var tint2 = 0x000000;
+            tint2TopLeft = tint2;
+            tint2BottomLeft = tint2;
+            tint2TopRight = tint2;
+            tint2BottomRight = tint2;
         }
 
         var frame = texturerNode.frame;
@@ -199335,7 +202917,10 @@ var SubmitterTile = new Class({
             u0, v1,
             u0, v0,
             u1, v1,
-            u1, v0
+            u1, v0,
+
+            // Secondary tint colors in order TL, BL, TR, BR:
+            tint2TopLeft, tint2BottomLeft, tint2TopRight, tint2BottomRight
         );
 
         this.onRunEnd(drawingContext);
@@ -199438,7 +203023,7 @@ var SubmitterTileSprite = new Class({
     {
         this.onRunBegin(drawingContext);
 
-        var tintEffect, tintTopLeft, tintBottomLeft, tintTopRight, tintBottomRight;
+        var tintEffect, tintTopLeft, tintBottomLeft, tintTopRight, tintBottomRight, tint2TopLeft, tint2BottomLeft, tint2TopRight, tint2BottomRight;
 
         if (texturerNode.run)
         {
@@ -199459,6 +203044,10 @@ var SubmitterTileSprite = new Class({
             tintBottomLeft = tinterNode.tintBottomLeft;
             tintTopRight = tinterNode.tintTopRight;
             tintBottomRight = tinterNode.tintBottomRight;
+            tint2TopLeft = tinterNode.tint2TopLeft;
+            tint2BottomLeft = tinterNode.tint2BottomLeft;
+            tint2TopRight = tinterNode.tint2TopRight;
+            tint2BottomRight = tinterNode.tint2BottomRight;
         }
         else
         {
@@ -199467,6 +203056,10 @@ var SubmitterTileSprite = new Class({
             tintBottomLeft = getTint(gameObject.tintBottomLeft, gameObject._alphaBL);
             tintTopRight = getTint(gameObject.tintTopRight, gameObject._alphaTR);
             tintBottomRight = getTint(gameObject.tintBottomRight, gameObject._alphaBR);
+            tint2TopLeft = gameObject.tint2TopLeft;
+            tint2BottomLeft = gameObject.tint2BottomLeft;
+            tint2TopRight = gameObject.tint2TopRight;
+            tint2BottomRight = gameObject.tint2BottomRight;
         }
 
         var frame = texturerNode.frame;
@@ -199514,7 +203107,10 @@ var SubmitterTileSprite = new Class({
             uvQuad[0], uvQuad[1],
             uvQuad[2], uvQuad[3],
             uvQuad[6], uvQuad[7],
-            uvQuad[4], uvQuad[5]
+            uvQuad[4], uvQuad[5],
+
+            // Secondary tint colors in order TL, BL, TR, BR:
+            tint2TopLeft, tint2BottomLeft, tint2TopRight, tint2BottomRight
         );
 
         this.onRunEnd(drawingContext);
@@ -199541,6 +203137,7 @@ var Class = __webpack_require__(83419);
 var Merge = __webpack_require__(46975);
 var ProgramManager = __webpack_require__(56436);
 var MakeAnimLength = __webpack_require__(84639);
+var MakeApplyAlphaDiscard = __webpack_require__(94158);
 var MakeApplyLighting = __webpack_require__(81084);
 var MakeDefineLights = __webpack_require__(6184);
 var MakeSampleNormal = __webpack_require__(747);
@@ -199716,7 +203313,8 @@ var SubmitterTilemapGPULayer = new Class({
             MakeSmoothPixelArt(true),
             MakeSampleNormal(true),
             MakeDefineLights(true),
-            MakeApplyLighting(true)
+            MakeApplyLighting(true),
+            MakeApplyAlphaDiscard(true)
         ],
         vertexBufferLayout: {
             usage: 'DYNAMIC_DRAW',
@@ -199892,8 +203490,9 @@ var SubmitterTilemapGPULayer = new Class({
      * @method Phaser.Renderer.WebGL.RenderNodes.SubmitterTilemapGPULayer#updateRenderOptions
      * @since 4.0.0
      * @param {Phaser.Tilemaps.TilemapGPULayer} gameObject - The TilemapGPULayer being rendered.
+     * @param {Phaser.Renderer.WebGL.DrawingContext} drawingContext - The current drawing context.
      */
-    updateRenderOptions: function (gameObject)
+    updateRenderOptions: function (gameObject, drawingContext)
     {
         var programManager = this.programManager;
         var texture = gameObject.tileset.image;
@@ -199901,6 +203500,20 @@ var SubmitterTilemapGPULayer = new Class({
         // We do not track whether the shader program has changed.
         // This is because this is not a batch renderer,
         // and the program is set every time this is called.
+
+        // Set alpha strategy options.
+        var alphaStrategy = drawingContext.alphaStrategy;
+        var alphaStrategyAddition = programManager.getAdditionsByTag('ALPHA_DISCARD')[0];
+        if (alphaStrategyAddition)
+        {
+            var keep = alphaStrategy === 'keep';
+            var dither = alphaStrategy === 'dither';
+            var threshold = (typeof alphaStrategy === 'number') ? alphaStrategy : undefined;
+            programManager.replaceAddition(
+                alphaStrategyAddition.name,
+                MakeApplyAlphaDiscard(keep, dither, threshold)
+            );
+        }
 
         // Set animation options.
         var animAddition = programManager.getAdditionsByTag('MAXANIMS')[0];
@@ -200102,7 +203715,7 @@ var SubmitterTilemapGPULayer = new Class({
             textures[3] = normalMap;
         }
 
-        this.updateRenderOptions(tilemapLayer);
+        this.updateRenderOptions(tilemapLayer, drawingContext);
 
         var programManager = this.programManager;
         var programSuite = programManager.getCurrentProgramSuite();
@@ -201130,6 +204743,221 @@ module.exports = TransformerTileSprite;
 
 /***/ },
 
+/***/ 64552
+(module, __unused_webpack_exports, __webpack_require__) {
+
+/**
+ * @author       Benjamin D. Richards <benjamindrichards@gmail.com>
+ * @copyright    2013-2026 Phaser Studio Inc.
+ * @license      {@link https://opensource.org/licenses/MIT|MIT License}
+ */
+
+var TransformMatrix = __webpack_require__(61340);
+var Class = __webpack_require__(83419);
+var Merge = __webpack_require__(46975);
+var RenderNode = __webpack_require__(6141);
+
+/**
+ * @classdesc
+ * A RenderNode that computes and stores the screen-space position
+ * of a single vertex each time it is run.
+ *
+ * During its `run` call, this node applies the camera view matrix (adjusted
+ * for the game object's scroll factors), any parent container matrix, and the
+ * game object's own position, rotation, and scale into a single final transform
+ * matrix. It then projects the vertex position through that matrix
+ * and writes the result back to the vertex position,
+ * ready for consumption by the subsequent submitter node.
+ *
+ * @class TransformerVertex
+ * @memberof Phaser.Renderer.WebGL.RenderNodes
+ * @constructor
+ * @since 4.0.0
+ * @extends Phaser.Renderer.WebGL.RenderNodes.RenderNode
+ * @param {Phaser.Renderer.WebGL.RenderNodes.RenderNodeManager} manager - The manager that owns this RenderNode.
+ * @param {object} [config] - The configuration object for this RenderNode.
+ */
+var TransformerVertex = new Class({
+    Extends: RenderNode,
+
+    initialize: function TransformerVertex (manager, config)
+    {
+        config = Merge(config || {}, this.defaultConfig);
+
+        RenderNode.call(this, config.name, manager);
+
+        /**
+         * The matrix used internally to compute sprite transforms.
+         *
+         * @name Phaser.Renderer.WebGL.RenderNodes.TransformerVertex#_spriteMatrix
+         * @type {Phaser.GameObjects.Components.TransformMatrix}
+         * @since 4.0.0
+         * @private
+         */
+        this._spriteMatrix = new TransformMatrix();
+
+        /**
+         * The matrix used internally to compute the final transform.
+         *
+         * @name Phaser.Renderer.WebGL.RenderNodes.TransformerVertex#_calcMatrix
+         * @type {Phaser.GameObjects.Components.TransformMatrix}
+         * @since 4.0.0
+         * @private
+         */
+        this._calcMatrix = new TransformMatrix();
+
+        /**
+         * Whether vertices transformed with the current matrix should be
+         * rounded to the nearest integer. This is computed by `setupMatrix`
+         * and consumed by `transformVertex`.
+         *
+         * @name Phaser.Renderer.WebGL.RenderNodes.TransformerVertex#_roundVertices
+         * @type {boolean}
+         * @since 4.2.0
+         * @private
+         */
+        this._roundVertices = false;
+    },
+
+    defaultConfig: {
+        name: 'TransformerVertex',
+        role: 'Transformer'
+    },
+
+    /**
+     * Computes the final screen-space position of the given vertex
+     * for the given GameObject and stores it in the vertex.
+     *
+     * The method builds the complete transform by combining the camera view
+     * matrix (modified by the game object's scroll factors), an optional parent
+     * container matrix, and the game object's own position, rotation, and scale.
+     * If vertex rounding is required, the resulting values are snapped to the nearest integer.
+     *
+     * @method Phaser.Renderer.WebGL.RenderNodes.TransformerVertex#run
+     * @since 4.0.0
+     * @param {Phaser.Renderer.WebGL.DrawingContext} drawingContext - The current drawing context.
+     * @param {Phaser.GameObjects.GameObject} gameObject - The GameObject being rendered.
+     * @param {Phaser.GameObjects.Components.TransformMatrix} parentMatrix - This transform matrix is defined if the game object is nested.
+     * @param {Phaser.Math.Vector2} vertex - The vertex to transform.
+     */
+    run: function (drawingContext, gameObject, parentMatrix, vertex)
+    {
+        this.onRunBegin(drawingContext);
+
+        this.setupMatrix(drawingContext, gameObject, parentMatrix);
+        this.transformVertex(vertex);
+
+        this.onRunEnd(drawingContext);
+    },
+
+    /**
+     * Builds the final transform matrix for the given GameObject and caches it,
+     * along with whether transformed vertices should be rounded. This combines
+     * the camera view matrix (modified by the game object's scroll factors), an
+     * optional parent container matrix, and the game object's own position,
+     * rotation, and scale.
+     *
+     * Call this once before transforming a batch of vertices with
+     * `transformVertex`, since the matrix is constant for all vertices of a
+     * single GameObject. This avoids rebuilding the matrix for every vertex.
+     *
+     * @method Phaser.Renderer.WebGL.RenderNodes.TransformerVertex#setupMatrix
+     * @since 4.2.0
+     * @param {Phaser.Renderer.WebGL.DrawingContext} drawingContext - The current drawing context.
+     * @param {Phaser.GameObjects.GameObject} gameObject - The GameObject being rendered.
+     * @param {Phaser.GameObjects.Components.TransformMatrix} [parentMatrix] - This transform matrix is defined if the game object is nested.
+     * @return {Phaser.GameObjects.Components.TransformMatrix} The cached transform matrix.
+     */
+    setupMatrix: function (drawingContext, gameObject, parentMatrix)
+    {
+        var camera = drawingContext.camera;
+        var spriteMatrix = this._spriteMatrix;
+        var calcMatrix = this._calcMatrix.copyWithScrollFactorFrom(
+            camera.getViewMatrix(!drawingContext.useCanvas),
+            camera.scrollX, camera.scrollY,
+            gameObject.scrollFactorX, gameObject.scrollFactorY
+        );
+
+        if (parentMatrix)
+        {
+            calcMatrix.multiply(parentMatrix);
+        }
+
+        spriteMatrix.applyITRS(
+            gameObject.x, gameObject.y,
+            gameObject.rotation,
+            gameObject.scaleX, gameObject.scaleY
+        );
+
+        calcMatrix.multiply(spriteMatrix);
+
+        // Determine whether the matrix does not rotate, scale, or skew.
+        // Keyword: #OnlyTranslate
+        var cmm = calcMatrix.matrix;
+        var onlyTranslate = cmm[0] === 1 && cmm[1] === 0 && cmm[2] === 0 && cmm[3] === 1;
+
+        // Cache whether vertices should be rounded, as this is constant
+        // for the whole GameObject.
+        this._roundVertices = gameObject.willRoundVertices(camera, onlyTranslate);
+
+        return calcMatrix;
+    },
+
+    /**
+     * Projects a single vertex through the matrix built by the most recent
+     * `setupMatrix` call, writing the result back to the vertex. If vertex
+     * rounding is required, the values are snapped to the nearest integer.
+     *
+     * @method Phaser.Renderer.WebGL.RenderNodes.TransformerVertex#transformVertex
+     * @since 4.2.0
+     * @param {Phaser.Math.Vector2} vertex - The vertex to transform.
+     * @return {Phaser.Math.Vector2} The transformed vertex.
+     */
+    transformVertex: function (vertex)
+    {
+        this._calcMatrix.transformPoint(vertex.x, vertex.y, vertex);
+
+        if (this._roundVertices)
+        {
+            vertex.x = Math.round(vertex.x);
+            vertex.y = Math.round(vertex.y);
+        }
+
+        return vertex;
+    }
+});
+
+module.exports = TransformerVertex;
+
+
+/***/ },
+
+/***/ 56113
+(module) {
+
+module.exports = [
+    'vec4 applyAlphaDiscard(vec4 fragColor)',
+    '{',
+    '    #ifdef ALPHA_DISCARD_STRATEGY_THRESHOLD',
+    '    if (fragColor.a < ALPHA_DISCARD_STRATEGY_THRESHOLD)',
+    '    {',
+    '        discard;',
+    '    }',
+    '    #endif',
+    '    #ifdef ALPHA_DISCARD_STRATEGY_DITHER',
+    '    float noise = fract(52.9829189 * fract(0.06711056 * gl_FragCoord.x + 0.00583715 * gl_FragCoord.y));',
+    '    if (noise >= fragColor.a)',
+    '    {',
+    '        discard;',
+    '    }',
+    '    #endif',
+    '    return fragColor / fragColor.a;',
+    '}',
+].join('\n');
+
+
+/***/ },
+
 /***/ 84547
 (module) {
 
@@ -201150,34 +204978,38 @@ module.exports = [
 module.exports = [
     'vec4 applyTint(vec4 texture)',
     '{',
+    '    float tintMode = outTintEffect.a;',
     '    vec3 unpremultTexture = texture.rgb / texture.a;',
     '    float alpha = texture.a * outTint.a;',
     '    vec3 color = vec3(unpremultTexture);',
-    '    if (outTintEffect == 0.0) {',
+    '    if (tintMode == 0.0) {',
     '        color *= outTint.bgr;',
     '    }',
-    '    else if (outTintEffect == 1.0) {',
+    '    else if (tintMode == 1.0) {',
     '        color = outTint.bgr;',
     '    }',
-    '    else if (outTintEffect == 2.0) {',
+    '    else if (tintMode == 2.0) {',
     '        color += outTint.bgr;',
     '    }',
-    '    else if (outTintEffect == 4.0) {',
+    '    else if (tintMode == 4.0) {',
     '        color = 1.0 - (1.0 - unpremultTexture) * (1.0 - outTint.bgr);',
     '    }',
-    '    else if (outTintEffect == 5.0) {',
+    '    else if (tintMode == 5.0) {',
     '        color = vec3(',
     '            unpremultTexture.r < 0.5 ? 2.0 * outTint.b * unpremultTexture.r : 1.0 - 2.0 * (1.0 - outTint.b) * (1.0 - unpremultTexture.r),',
     '            unpremultTexture.g < 0.5 ? 2.0 * outTint.g * unpremultTexture.g : 1.0 - 2.0 * (1.0 - outTint.g) * (1.0 - unpremultTexture.g),',
     '            unpremultTexture.b < 0.5 ? 2.0 * outTint.r * unpremultTexture.b : 1.0 - 2.0 * (1.0 - outTint.r) * (1.0 - unpremultTexture.b)',
     '        );',
     '    }',
-    '    else if (outTintEffect == 6.0) {',
+    '    else if (tintMode == 6.0) {',
     '        color = vec3(',
     '            outTint.b < 0.5 ? 2.0 * outTint.b * unpremultTexture.r : 1.0 - 2.0 * (1.0 - outTint.b) * (1.0 - unpremultTexture.r),',
     '            outTint.g < 0.5 ? 2.0 * outTint.g * unpremultTexture.g : 1.0 - 2.0 * (1.0 - outTint.g) * (1.0 - unpremultTexture.g),',
     '            outTint.r < 0.5 ? 2.0 * outTint.r * unpremultTexture.b : 1.0 - 2.0 * (1.0 - outTint.r) * (1.0 - unpremultTexture.b)',
     '        );',
+    '    }',
+    '    else if (tintMode == 7.0) {',
+    '        color = (1.0 - color) * outTintEffect.bgr + outTint.bgr * color;',
     '    }',
     '    return vec4(color * alpha, alpha);',
     '}',
@@ -201269,6 +205101,8 @@ module.exports = [
     '    vec3 color;',
     '    float intensity;',
     '    float radius;',
+    '    vec2 direction;',
+    '    vec3 cone; // outer cosine, inner cosine, enabled flag',
     '};',
     'const int kMaxLights = LIGHT_COUNT;',
     'uniform vec4 uCamera; /* x, y, rotation, zoom */',
@@ -201299,6 +205133,16 @@ module.exports = [
     '            float diffuseFactor = max(dot(normal, lightNormal), 0.0);',
     '            float radius = (light.radius / res.x * uCamera.w) * uCamera.w;',
     '            float attenuation = clamp(1.0 - distToSurf * distToSurf / (radius * radius), 0.0, 1.0);',
+    '            if (light.cone.z > 0.5)',
+    '            {',
+    '                vec2 coneVector = gl_FragCoord.xy - light.position.xy;',
+    '                float coneLength = length(coneVector);',
+    '                vec2 lightToFrag = coneLength > 0.0 ? coneVector / coneLength : light.direction;',
+    '                float coneDot = dot(lightToFrag, light.direction);',
+    '                float coneRange = abs(light.cone.y - light.cone.x);',
+    '                float coneAttenuation = coneRange < 0.0001 ? step(light.cone.y, coneDot) : smoothstep(light.cone.x, light.cone.y, coneDot);',
+    '                attenuation *= coneAttenuation;',
+    '            }',
     '            #ifdef FEATURE_SELFSHADOW',
     '            float occluded = smoothstep(0.0, 1.0, (diffuseFactor - occlusionThreshold) / uPenumbra);',
     '            vec3 diffuse = light.color * diffuseFactor * occluded;',
@@ -202719,7 +206563,7 @@ module.exports = [
     'uniform vec2 uResolution;',
     'varying vec2 outTexCoord;',
     'varying float outTexDatum;',
-    'varying float outTintEffect;',
+    'varying vec4 outTintEffect;',
     'varying vec4 outTint;',
     '#pragma phaserTemplate(outVariables)',
     '#pragma phaserTemplate(fragmentHeader)',
@@ -202751,11 +206595,11 @@ module.exports = [
     'attribute vec2 inPosition;',
     'attribute vec2 inTexCoord;',
     'attribute float inTexDatum;',
-    'attribute float inTintEffect;',
+    'attribute vec4 inTintEffect;',
     'attribute vec4 inTint;',
     'varying vec2 outTexCoord;',
     'varying float outTexDatum;',
-    'varying float outTintEffect;',
+    'varying vec4 outTintEffect;',
     'varying vec4 outTint;',
     '#pragma phaserTemplate(outVariables)',
     '#pragma phaserTemplate(vertexHeader)',
@@ -202765,7 +206609,7 @@ module.exports = [
     '    outTexCoord = inTexCoord;',
     '    outTexDatum = inTexDatum;',
     '    outTint = inTint;',
-    '    outTintEffect = inTintEffect;',
+    '    outTintEffect = inTintEffect * vec4(1.0, 1.0, 1.0, 255.0); // Denormalize tint mode to an integer.',
     '    #pragma phaserTemplate(vertexProcess)',
     '}',
 ].join('\n');
@@ -203947,7 +207791,7 @@ module.exports = [
     '#pragma phaserTemplate(fragmentDefine)',
     'uniform vec2 uResolution;',
     'varying vec2 outTexCoord;',
-    'varying float outTintEffect;',
+    'varying vec4 outTintEffect;',
     'varying vec4 outTint;',
     '#pragma phaserTemplate(outVariables)',
     '#pragma phaserTemplate(fragmentHeader)',
@@ -204001,7 +207845,7 @@ module.exports = [
     'attribute vec4 inOriginAndTintModeAndCreationTime;',
     'attribute vec2 inScrollFactor;',
     'varying vec2 outTexCoord;',
-    'varying float outTintEffect;',
+    'varying vec4 outTintEffect;',
     'varying vec4 outTint;',
     '#pragma phaserTemplate(outVariables)',
     '#pragma phaserTemplate(vertexHeader)',
@@ -204517,7 +208361,7 @@ module.exports = [
     '    gl_Position = uProjectionMatrix * vec4(position.xy, 1.0, 1.0);',
     '    outTexCoord = vec2(u, 1.0 - v);',
     '    outTint = mix(vec4(1.0, 1.0, 1.0, tint.a), tint, tintBlend);',
-    '    outTintEffect = tintMode;',
+    '    outTintEffect = vec4(0.0, 0.0, 0.0, tintMode * 255.0); // Denormalize tint mode to an integer.',
     '    #pragma phaserTemplate(vertexProcess)',
     '}',
 ].join('\n');
@@ -204835,6 +208679,77 @@ var MakeAnimLength = function (maxAnims, disable)
 };
 
 module.exports = MakeAnimLength;
+
+
+/***/ },
+
+/***/ 94158
+(module, __unused_webpack_exports, __webpack_require__) {
+
+/**
+ * @author       Benjamin D. Richards <benjamindrichards@gmail.com>
+ * @copyright    2013-2026 Phaser Studio Inc.
+ * @license      {@link https://opensource.org/licenses/MIT|MIT License}
+ */
+
+var ApplyAlphaDiscard = __webpack_require__(56113);
+
+
+/**
+ * Return a ShaderAdditionConfig for applying an alpha discard strategy
+ * to the fragment color.
+ *
+ * The alpha discard strategy is used to discard fragments based on their alpha value.
+ * This is useful for stencil operations, where transparent fragments should not be considered for the stencil buffer.
+ * Retained fragments are increased to alpha 1.0.
+ *
+ * Disable this addition to just keep the fragment color as is.
+ *
+ * @function Phaser.Renderer.WebGL.ShaderAdditionMakers.MakeApplyAlphaDiscard
+ * @since 4.2.0
+ * @param {boolean} [disable=false] - Whether to disable the shader addition on creation.
+ * @param {boolean} [dither=false] - Whether to use a dithering strategy to discard fragments.
+ * @param {number} [threshold] - The threshold value to use when using a thresholding strategy to discard fragments. If defined, and dither is false, the threshold will be used to discard fragments.
+ * @returns {Phaser.Types.Renderer.WebGL.ShaderAdditionConfig} The shader addition configuration.
+ */
+var MakeApplyAlphaDiscard = function (disable, dither, threshold)
+{
+    var name = 'AlphaDiscard';
+    var additions = {
+        fragmentHeader: ApplyAlphaDiscard,
+        fragmentProcess: 'fragColor = applyAlphaDiscard(fragColor);'
+    }
+
+    if (dither)
+    {
+        name += 'Dither';
+        additions.fragmentDefine = '#define ALPHA_DISCARD_STRATEGY_DITHER';
+    }
+    else if (threshold)
+    {
+        name += 'Threshold_' + threshold;
+        var thresholdString = threshold.toString();
+        if (Math.round(threshold) === threshold)
+        {
+            // Integer, so add a decimal point to convert to a float.
+            thresholdString += '.';
+        }
+        additions.fragmentDefine = '#define ALPHA_DISCARD_STRATEGY_THRESHOLD ' + thresholdString;
+    }
+    else
+    {
+        disable = true;
+    }
+
+    return {
+        name: name,
+        additions: additions,
+        tags: ['ALPHA_DISCARD'],
+        disable: !!disable
+    }
+};
+
+module.exports = MakeApplyAlphaDiscard;
 
 
 /***/ },
@@ -205555,8 +209470,8 @@ module.exports = {
 (module, __unused_webpack_exports, __webpack_require__) {
 
 /**
- * @author       Richard Davey <rich@photonstorm.com>
- * @copyright    2013-2023 Photon Storm Ltd.
+ * @author       Richard Davey <rich@phaser.io>
+ * @copyright    2013-2026 Phaser Studio Inc.
  * @license      {@link https://opensource.org/licenses/MIT|MIT License}
  */
 
@@ -205566,6 +209481,7 @@ module.exports = {
 
 module.exports = {
 
+    ApplyAlphaDiscard: __webpack_require__(56113),
     ApplyLighting: __webpack_require__(84547),
     ApplyTint: __webpack_require__(11104),
     BoundedSampler: __webpack_require__(81556),
@@ -207034,6 +210950,10 @@ var WebGLGlobalWrapper = new Class({
         {
             this.updateStencilOp(state, force);
         }
+        if (stencil.writeMask !== undefined)
+        {
+            this.updateStencilWriteMask(state, force);
+        }
     },
 
     /**
@@ -207144,6 +211064,31 @@ var WebGLGlobalWrapper = new Class({
         {
             var gl = this.renderer.gl;
             gl.stencilOp(op.fail, op.zfail, op.zpass);
+        }
+    },
+
+    /**
+     * Updates the stencil write mask state.
+     *
+     * @method Phaser.Renderer.WebGL.Wrappers.WebGLGlobalWrapper#updateStencilWriteMask
+     * @since 4.2.0
+     * @param {Phaser.Types.Renderer.WebGL.WebGLGlobalParameters} state - The state to set.
+     * @param {boolean} [force=false] - If `true`, the state will be set regardless of the current state.
+     */
+    updateStencilWriteMask: function (state, force)
+    {
+        var writeMask = state.stencil.writeMask;
+
+        var different = writeMask !== this.state.stencil.writeMask;
+
+        if (different)
+        {
+            this.state.stencil.writeMask = writeMask;
+        }
+        if (different || force)
+        {
+            var gl = this.renderer.gl;
+            gl.stencilMask(writeMask);
         }
     },
 
@@ -208288,6 +212233,11 @@ var WebGLTextureUnitsWrapper = new Class({
         var glTexture = texture ? texture.webGLTexture : null;
         var gl = this.renderer.gl;
         gl.bindTexture(gl.TEXTURE_2D, glTexture);
+
+        if (texture && texture.needsMipmapRegeneration)
+        {
+            texture.generateMipmap();
+        }
     },
 
     /**
@@ -208578,6 +212528,21 @@ var WebGLTextureWrapper = new Class({
          */
         this.batchUnit = -1;
 
+        /**
+         * Whether the mipmaps should be regenerated.
+         * This is only relevant to dynamic textures and framebuffers with
+         * rapidly changing content.
+         * The process which changes the content should set this flag.
+         * When the texture is next bound, the WebGLTextureUnitsWrapper
+         * should trigger the `generateMipmap` method.
+         *
+         * @name Phaser.Renderer.WebGL.Wrappers.WebGLTextureWrapper#needsMipmapRegeneration
+         * @type {boolean}
+         * @since 4.1.0
+         * @default false
+         */
+        this.needsMipmapRegeneration = false;
+
         this.createResource();
     },
 
@@ -208627,6 +212592,13 @@ var WebGLTextureWrapper = new Class({
      * Wrap mode will be updated: REPEAT if the new size is power-of-two,
      * CLAMP_TO_EDGE if not.
      *
+     * Texture minification filter will be updated:
+     * - Uses mipmap settings from game config if:
+     *   - Size is power-of-two
+     *   - There is a mipmap setting
+     *   - This is not a render texture, OR mipmap regeneration is enabled
+     * - Uses regular texture filter otherwise.
+     *
      * @method Phaser.Renderer.WebGL.Wrappers.WebGLTextureWrapper#resize
      * @since 4.0.0
      * @param {number} width - The new width of the WebGLTexture.
@@ -208642,8 +212614,12 @@ var WebGLTextureWrapper = new Class({
         this.width = width;
         this.height = height;
 
-        var gl = this.renderer.gl;
-        if (IsSizePowerOfTwo(width, height))
+        var renderer = this.renderer;
+        var gl = renderer.gl;
+        var isPOT = IsSizePowerOfTwo(width, height);
+
+        // Repeat modes
+        if (isPOT)
         {
             this.wrapS = gl.REPEAT;
             this.wrapT = gl.REPEAT;
@@ -208652,6 +212628,20 @@ var WebGLTextureWrapper = new Class({
         {
             this.wrapS = gl.CLAMP_TO_EDGE;
             this.wrapT = gl.CLAMP_TO_EDGE;
+        }
+
+        // Mipmap modes
+        if (isPOT && renderer.mipmapFilter && (!this.isRenderTexture || renderer.config.mipmapRegeneration))
+        {
+            this.minFilter = renderer.mipmapFilter;
+        }
+        else if (renderer.config.antialias)
+        {
+            this.minFilter = gl.LINEAR;
+        }
+        else
+        {
+            this.minFilter = gl.NEAREST;
         }
 
         this._processTexture();
@@ -208731,19 +212721,16 @@ var WebGLTextureWrapper = new Class({
         var height = this.height;
         var format = this.format;
 
-        var generateMipmap = false;
-
         if (pixels === null || pixels === undefined)
         {
             gl.texImage2D(gl.TEXTURE_2D, mipLevel, format, width, height, 0, format, gl.UNSIGNED_BYTE, null);
 
-            generateMipmap = IsSizePowerOfTwo(width, height);
+            this.generateMipmap();
         }
         else if (pixels.compressed)
         {
             width = pixels.width;
             height = pixels.height;
-            generateMipmap = pixels.generateMipmap;
 
             for (var i = 0; i < pixels.mipmaps.length; i++)
             {
@@ -208754,7 +212741,7 @@ var WebGLTextureWrapper = new Class({
         {
             gl.texImage2D(gl.TEXTURE_2D, mipLevel, format, width, height, 0, format, gl.UNSIGNED_BYTE, pixels);
 
-            generateMipmap = IsSizePowerOfTwo(width, height);
+            this.generateMipmap();
         }
         else
         {
@@ -208766,13 +212753,49 @@ var WebGLTextureWrapper = new Class({
 
             gl.texImage2D(gl.TEXTURE_2D, mipLevel, format, format, gl.UNSIGNED_BYTE, pixels);
 
-            generateMipmap = IsSizePowerOfTwo(width, height);
+            this.generateMipmap();
+        }
+    },
+
+    /**
+     * Return whether the texture is set to use a mipmap minification filter.
+     *
+     * @name Phaser.Renderer.WebGL.Wrappers.WebGLTextureWrapper#isMipmap
+     * @since 4.1.0
+     * @returns {boolean} Whether the texture is set to use a mipmap minification filter.
+     */
+    isMipmap: function ()
+    {
+        var minFilter = this.minFilter;
+        var gl = this.renderer.gl;
+        return minFilter === gl.NEAREST_MIPMAP_NEAREST ||
+            minFilter === gl.LINEAR_MIPMAP_NEAREST ||
+            minFilter === gl.LINEAR_MIPMAP_LINEAR ||
+            minFilter === gl.NEAREST_MIPMAP_LINEAR;
+    },
+
+    /**
+     * Generate mipmap levels for the texture.
+     * This method is called internally.
+     *
+     * Mipmaps are only generated if this texture is mipmap-enabled
+     * and has a size which is a power of two.
+     * Otherwise this function returns without side effects.
+     *
+     * @name Phaser.Renderer.WebGL.Wrappers.WebGLTextureWrapper#generateMipmap
+     * @since 4.1.0
+     */
+    generateMipmap: function ()
+    {
+        this.needsMipmapRegeneration = false;
+
+        var gl = this.renderer.gl;
+        if (!(this.isMipmap() && IsSizePowerOfTwo(this.width, this.height)))
+        {
+            return;
         }
 
-        if (generateMipmap)
-        {
-            gl.generateMipmap(gl.TEXTURE_2D);
-        }
+        gl.generateMipmap(gl.TEXTURE_2D);
     },
 
     /**
@@ -210792,8 +214815,15 @@ var ScaleManager = new Class({
         {
             _this.updateBounds();
 
+            // --- FIX START ---
+            // Recalculate parent container size and force Phaser to resize.
+            _this.getParentBounds();
+            _this.refresh();
+            // --- FIX END ---
+
             _this.dirty = true;
         };
+
 
         //  Only dispatched on mobile devices
         if (screen.orientation && screen.orientation.addEventListener)
@@ -227449,6 +231479,13 @@ var TransformMatrix = __webpack_require__(61340);
  * to be drawn with no aliasing around the edges. This is a technical limitation of WebGL1. To get around it,
  * create your shape as a texture in an art package, then draw that to this texture.
  *
+ * If you activate mipmap support in your game, it will not automatically
+ * be applied to DynamicTextures.
+ * This is because regenerating the mipmap for a texture
+ * costs over 10 microseconds, a big performance loss for a single frame.
+ * If you want to render your DynamicTextures with mipmaps,
+ * you must also activate the render config option `mipmapRegeneration`.
+ *
  * In the event that the WebGL context is lost, this DynamicTexture will
  * lose its contents. Once context is restored (signalled by the `restorewebgl`
  * event), you can choose to redraw the contents of the DynamicTexture.
@@ -227585,7 +231622,8 @@ var DynamicTexture = new Class({
             width: width,
             height: height,
             camera: this.camera,
-            autoClear: false
+            autoClear: false,
+            enableMipmap: true
         });
 
         if (!isCanvas)
@@ -229744,6 +233782,7 @@ module.exports = Frame;
  */
 
 var Class = __webpack_require__(83419);
+var FilterMode = __webpack_require__(19673);
 var Frame = __webpack_require__(4327);
 var TextureSource = __webpack_require__(11876);
 
@@ -230372,7 +234411,7 @@ var Texture = new Class({
 
         if (value)
         {
-            this.setFilter(Phaser.Textures.FilterMode.LINEAR);
+            this.setFilter(FilterMode.LINEAR);
         }
     },
 
@@ -236251,6 +240290,17 @@ var Tile = new Class({
         this.tint = 0xffffff;
 
         /**
+         * The secondary tint to apply to this tile.
+         * Used in two-color tint modes.
+         *
+         * @name Phaser.Tilemaps.Tile#tint2
+         * @type {number}
+         * @default 0x000000
+         * @since 4.2.0
+         */
+        this.tint2 = 0x000000;
+
+        /**
          * The tint mode.
          *
          * Available modes are:
@@ -236260,6 +240310,7 @@ var Tile = new Class({
          * - Phaser.TintModes.SCREEN
          * - Phaser.TintModes.OVERLAY
          * - Phaser.TintModes.HARD_LIGHT
+         * - Phaser.TintModes.MULTIPLY_TWO
          *
          * @name Phaser.Tilemaps.Tile#tintMode
          * @type {Phaser.TintModes}
@@ -236314,6 +240365,7 @@ var Tile = new Class({
         this.visible = tile.visible;
         this.setFlip(tile.flipX, tile.flipY);
         this.tint = tile.tint;
+        this.tint2 = tile.tint2;
         this.rotation = tile.rotation;
         this.collideUp = tile.collideUp;
         this.collideDown = tile.collideDown;
@@ -240482,10 +244534,11 @@ var TilemapLayer = new Class({
     },
 
     /**
-     * Sets an additive tint on each Tile within the given area.
+     * Sets a tint color on each Tile within the given area.
      *
-     * The tint works by taking the pixel color values from the tileset texture, and then
-     * multiplying it by the color value of the tint.
+     * The tint works by taking the pixel color values from the tileset texture
+     * and combining it with the color value of the tint,
+     * according to the tint mode.
      *
      * If no area values are given then all tiles will be tinted to the given color.
      *
@@ -240519,6 +244572,41 @@ var TilemapLayer = new Class({
     },
 
     /**
+     * Sets a secondary tint color on each Tile within the given area.
+     * Secondary tints are used by two-color tint modes such as MULTIPLY_TWO.
+     *
+     * If no area values are given then all tiles will be tinted to the given color.
+     *
+     * To remove a secondary tint call this method with either no parameters, or by passing black `0x000000` as the secondary tint color.
+     *
+     * If a tile already has a secondary tint set then calling this method will override that.
+     *
+     * @method Phaser.Tilemaps.TilemapLayer#setTint2
+     * @webglOnly
+     * @since 4.2.0
+     *
+     * @param {number} [tint2=0x000000] - The secondary tint color being applied to each tile within the region. Given as a hex value, i.e. `0xff0000` for red. Set to black (`0x000000`) to reset the secondary tint.
+     * @param {number} [tileX] - The left most tile index (in tile coordinates) to use as the origin of the area to search.
+     * @param {number} [tileY] - The top most tile index (in tile coordinates) to use as the origin of the area to search.
+     * @param {number} [width] - How many tiles wide from the `tileX` index the area will be.
+     * @param {number} [height] - How many tiles tall from the `tileY` index the area will be.
+     * @param {Phaser.Types.Tilemaps.FilteringOptions} [filteringOptions] - Optional filters to apply when getting the tiles.
+     *
+     * @return {this} This Tilemap Layer object.
+     */
+    setTint2: function (tint2, tileX, tileY, width, height, filteringOptions)
+    {
+        if (tint2 === undefined) { tint2 = 0x000000; }
+
+        var tintTile = function (tile)
+        {
+            tile.tint2 = tint2;
+        };
+
+        return this.forEachTile(tintTile, this, tileX, tileY, width, height, filteringOptions);
+    },
+
+    /**
      * Sets the tint mode to use when applying the tint to the texture.
      *
      * Available modes are:
@@ -240529,6 +244617,7 @@ var TilemapLayer = new Class({
      * - Phaser.TintModes.SCREEN
      * - Phaser.TintModes.OVERLAY
      * - Phaser.TintModes.HARD_LIGHT
+     * - Phaser.TintModes.MULTIPLY_TWO
      *
      * Call this method with no parameters to reset the tint mode to the default.
      *
@@ -242074,6 +246163,7 @@ var TilemapLayerWebGLRenderer = function (renderer, src, drawingContext, parentM
         var frameY = tileTexCoords.y;
 
         var tint = getTint(tile.tint, alpha * tile.alpha);
+        var tint2 = tile.tint2;
 
         texturerData.frame.source.glTexture = tileset.glTexture;
         texturerData.frameWidth = frameWidth;
@@ -242088,6 +246178,10 @@ var TilemapLayerWebGLRenderer = function (renderer, src, drawingContext, parentM
         tinterData.tintTopRight = tint;
         tinterData.tintBottomLeft = tint;
         tinterData.tintBottomRight = tint;
+        tinterData.tint2TopLeft = tint2;
+        tinterData.tint2TopRight = tint2;
+        tinterData.tint2BottomLeft = tint2;
+        tinterData.tint2BottomRight = tint2;
 
         submitterNode.run(
             drawingContext,
@@ -250981,10 +255075,11 @@ var Events = __webpack_require__(89809);
  * ```
  *
  * The Timeline can also be looped with the repeat method:
+ *
  * ```js
  * timeline.repeat().play();
  * ```
- * 
+ *
  * There are lots of options available to you via the configuration object. See the
  * {@link Phaser.Types.Time.TimelineEventConfig} typedef for more details.
  *
@@ -251175,7 +255270,7 @@ var Timeline = new Class({
      * If the `TimelineEvent.event` property is set then the Timeline emits that event.
      *
      * If the `TimelineEvent.run` property is set then the Timeline invokes that method.
-     * 
+     *
      * If the `TimelineEvent.loop` property is set then the Timeline invokes that method when repeated.
      *
      * If the `TimelineEvent.target` property is set then the Timeline invokes the `run` method on that target.
@@ -251395,15 +255490,15 @@ var Timeline = new Class({
      *
      * If the value for `amount` is positive, the Timeline will repeat that many additional times.
      * For example a value of 1 will actually run this Timeline twice.
-     * 
+     *
      * Passing `false` is equivalent to 0 (no additional repeats). Passing `true`, `undefined`, or a negative number will repeat indefinitely.
-     * 
+     *
      * If this Timeline had any events set to `once` that have already been removed,
      * they will **not** be repeated each loop.
      *
      * @method Phaser.Time.Timeline#repeat
      * @since 3.80.0
-     * 
+     *
      * @param {number|boolean} [amount=-1] - Amount of times to repeat, if `true` or negative it will be infinite.
      *
      * @return {this} This Timeline instance.
@@ -251479,14 +255574,14 @@ var Timeline = new Class({
      *
      * If the Timeline isn't currently running (i.e. it's paused or complete) then
      * calling this method resets those states, the same as calling `Timeline.play(true)`.
-     * 
+     *
      * Any Tweens that were currently running as a result of this Timeline will be stopped.
      *
      * @method Phaser.Time.Timeline#reset
      * @since 3.60.0
-     * 
+     *
      * @param {boolean} [loop=false] - Set to `true` to preserve the loop iteration counters. Used internally when the Timeline auto-repeats. Leave as `false` to perform a full reset.
-     * 
+     *
      * @return {this} This Timeline instance.
      */
     reset: function (loop)
@@ -251507,7 +255602,7 @@ var Timeline = new Class({
             var event = events[i];
 
             event.complete = false;
-            
+
             if (!loop)
             {
                 event.repeat = 0;
@@ -251608,7 +255703,7 @@ var Timeline = new Class({
     /**
      * Removes all events from this Timeline, resets the elapsed time to zero
      * and pauses the Timeline.
-     * 
+     *
      * Any Tweens that were currently running as a result of this Timeline will be stopped.
      *
      * @method Phaser.Time.Timeline#clear
@@ -251682,7 +255777,7 @@ var Timeline = new Class({
      * Destroys this Timeline.
      *
      * This will remove all events from the Timeline and stop it from processing.
-     * 
+     *
      * Any Tweens that were currently running as a result of this Timeline will be stopped.
      *
      * This method is called automatically when the Scene shuts down, but you may
@@ -251776,7 +255871,7 @@ var Timeline = new Class({
  * ```js
  * timeline.repeat().play();
  * ```
- * 
+ *
  * There are lots of options available to you via the configuration object. See the
  * {@link Phaser.Types.Time.TimelineEventConfig} typedef for more details.
  *
@@ -255968,13 +260063,13 @@ var BaseTween = new Class({
      */
     updateStartCountdown: function (delta)
     {
-        this.countdown -= delta;
+        this.startDelay -= delta;
 
-        if (this.countdown <= 0)
+        if (this.startDelay <= 0)
         {
-            this.hasStarted = true;
-
             this.setActiveState();
+            
+            this.hasStarted = true;
 
             this.dispatchEvent(Events.TWEEN_START, 'onStart');
 
@@ -257794,17 +261889,7 @@ var Tween = new Class({
         }
         else if (!this.hasStarted)
         {
-            this.startDelay -= delta;
-
-            if (this.startDelay <= 0)
-            {
-                this.hasStarted = true;
-
-                this.dispatchEvent(Events.TWEEN_START, 'onStart');
-
-                //  Reset the delta so we always start progress from zero
-                delta = 0;
-            }
+            delta = this.updateStartCountdown(delta);
         }
 
         var stillRunning = false;
@@ -258409,17 +262494,7 @@ var TweenChain = new Class({
         }
         else if (!this.hasStarted)
         {
-            this.startDelay -= delta;
-
-            if (this.startDelay <= 0)
-            {
-                this.hasStarted = true;
-
-                this.dispatchEvent(Events.TWEEN_START, 'onStart');
-
-                //  Reset the delta so we always start progress from zero
-                delta = 0;
-            }
+            delta = this.updateStartCountdown(delta);
         }
 
         var remove = false;
@@ -260609,7 +264684,7 @@ var GetRandom = function (array, startIndex, length)
     if (startIndex === undefined) { startIndex = 0; }
     if (length === undefined) { length = array.length; }
 
-    var randomIndex = startIndex + Math.floor(Math.random() * length);
+    var randomIndex = startIndex + Math.floor(Math.random() * (length - startIndex));
 
     return (array[randomIndex] === undefined) ? null : array[randomIndex];
 };
