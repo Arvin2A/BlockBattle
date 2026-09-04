@@ -5,6 +5,7 @@ import { MenuScene } from './scenes/MenuScene.js';
 import { player1Character, player2Character, CharacterSelectScene } from './scenes/CharacterSelectScreen.js';
 import { preload } from './scenes/GameScene/preload.js';
 import { runBotAI } from './scenes/GameScene/botAI.js';
+import { Map } from './scenes/GameScene/Map.js';
 //3 NEW SCRIPTS: main.js (current), players.js, attacks.js
 
 
@@ -84,9 +85,7 @@ loadFont().then(() => {
     game = new Phaser.Game(config);
 });
 
-//important game variables, including player objects, controls, and the platforms group
-var platforms;
-var topPlatforms;
+//important game variables, including player objects and controls
 var players;
 
 var player;
@@ -129,10 +128,6 @@ var mobileControls = {
     }
 };
 
-const xOff = 500;
-const yOff = 300;
-
-
 var winBar;
 var restartBtn;
 var restartBtnPressed;
@@ -142,8 +137,7 @@ function create() {
     this.finisherActive = false;
     this.gameState = {
         players: null,
-        platforms: null,
-        topPlatforms: null
+        map: null
     };
 
     lastWinState = {
@@ -160,13 +154,8 @@ function create() {
         p1: [],
         p2: []
     }
-    this.gameState.platforms = this.physics.add.staticGroup();
-    this.gameState.topPlatforms = this.physics.add.staticGroup();
-    //Making the background, platforms, and the KB stat display
-    const bg = this.add.image(1000, 600, 'background');
-    bg.setDisplaySize(this.scale.width*2, this.scale.height*2);
-    bg.setDepth(-1);
-    this.objs.add(bg);
+    this.gameState.map = new Map(this);
+    //Making the map, platforms, and the KB stat display
     this.cameras.main.fadeIn(500, 0, 0, 0);
 
     winBar = this.add.image(500 , 300, 'winbar');
@@ -216,49 +205,6 @@ function create() {
     const p2guide = this.add.image(850, 65, 'p2guide');
     p2guide.setAlpha(0.65);
     this.hud.add(p2guide);
-
-    const platform = this.add.image(xOff+ 725, yOff+425, 'platform1');
-    platform.setScale(0.5);
-    platform.setDepth(0);
-    this.objs.add(platform);
-
-    const secondplatform = this.add.image(xOff+ 275, yOff+425, 'platform');
-    secondplatform.setScale(0.5);
-    secondplatform.setDepth(0);
-    this.objs.add(secondplatform);
-
-
-    const groundVisual = this.add.image(xOff+ 500, yOff+1085, 'betterground');
-    groundVisual.setDisplaySize(this.scale.width, 1200);
-    this.objs.add(groundVisual);
-    groundVisual.setDepth(1);
-
-    // Invisible collision ground, the actual ground
-    const ground = this.gameState.platforms.create(xOff+ 500, yOff+575, 'thickgroundhitbox');
-    ground.setDisplaySize(this.scale.width, 0);
-    ground.setVisible(false);
-    ground.refreshBody();
-    this.objs.add(ground);
-    this.mainGround = ground;
-
-    const ground2 = this.gameState.topPlatforms.create(xOff+ 725, yOff+470, 'groundhitbox');
-    ground2.setDisplaySize(this.scale.width / 2, 0);
-    ground2.setVisible(true);
-    ground2.refreshBody();
-    this.objs.add(ground2);
-    ground2.body.checkCollision.down = false
-    ground2.body.checkCollision.left = false
-    ground2.body.checkCollision.right = false
-
-    const ground3 = this.gameState.topPlatforms.create(xOff+ 275, yOff+337, 'groundhitbox');
-    ground3.setDisplaySize(this.scale.width / 2, 0);
-    ground3.setVisible(true);
-    ground3.refreshBody();
-    this.objs.add(ground2);
-    ground3.body.checkCollision.down = false
-    ground3.body.checkCollision.left = false
-    ground3.body.checkCollision.right = false
-
 
     //platform.refreshBody();
 
@@ -480,8 +426,8 @@ function create() {
 
     for (const key in this.gameState.players) {
         const player = this.gameState.players[key];
-        this.physics.add.collider(player, this.gameState.platforms);
-        this.physics.add.collider(player, this.gameState.topPlatforms);
+        this.physics.add.collider(player, this.gameState.map.platforms);
+        this.physics.add.collider(player, this.gameState.map.topPlatforms);
     }
 
     const keys = Object.keys(this.gameState.players);
