@@ -403,6 +403,105 @@ export function hardSwing(scene, attacker, target, animKey) {
     });
 
 }
+export function thirdAttack(scene, attacker, target, animKey) {
+    // The third attack launches the target away
+    setAttackSprite(attacker, animKey);
+
+    if (attackIsElligible(attacker, target) && !scene.finisherActive) {
+        target.hitstunUntil = 500 * target.KBmultiplier + scene.time.now;
+        target.willDecelerate = false;
+        target.freezeUntil = scene.time.now - 1;
+        attacker.freezeUntil = scene.time.now - 1;
+        attacker.willDecelerate = true;
+        attacker.comboTimer = 600;
+
+        target.KBmultiplier += 0.07 * attacker.baseDamageScale;
+
+        // Attack sound
+        if (attacker.name === "SWORDMAN") {
+            scene.sound.play('swordthirdhitsfx');
+        } else if (attacker.name === "AXEMAN") {
+            scene.sound.play('axethirdhitsfx');
+        } else if (attacker.name === "FISHERMAN") {
+            scene.sound.play('rodthirdhitsfx');
+        } else if (attacker.name === "SLATEMAN") {
+            scene.sound.play('slatepunch');
+        }
+
+        // Get the direction of the attack
+        const dirX = attacker.lastDir.x;
+
+        let dirY = attacker.lastDir.y;
+
+        // If attacking horizontally, give the attack a slight
+        // upward launch instead of completely horizontal knockback.
+        if (dirY === 0) {
+            dirY = -0.5;
+        }
+
+        // Third attack has stronger knockback than pushAttack
+        const plungeMultiplier = target.plunged
+            ? finalplungeMultiplier
+            : 0;
+
+        hitFreeze(scene, 100, false);
+
+        // If the target is grounded and the attack is strongly downward,
+        // launch them sideways instead.
+        if (target.body.touching.down && dirY > 0.7) {
+            const randDir = Math.random() < 0.5 ? -1 : 1;
+
+            applyKnockback(
+                scene,
+                target,
+                (400 * target.KBmultiplier) * randDir,
+                -200 * target.KBmultiplier
+            );
+        } else {
+            // Normal directional launch
+            applyKnockback(
+                scene,
+                target,
+                (500 * target.KBmultiplier *
+                    (attacker.baseDamageScale + plungeMultiplier)) * dirX,
+                (500 * target.KBmultiplier) * dirY,
+                true
+            );
+        }
+
+        attacker.combo = 0;
+        attacker.comboTimer = 0;
+    }
+
+    attacker.canAttack = false;
+
+    scene.time.delayedCall(250, () => {
+        attacker.atk.stop();
+        attacker.atk.setVisible(false);
+    });
+
+    scene.time.delayedCall(400, () => {
+        attacker.canAttack = true;
+    });
+
+    if (attacker.revokeAggressorStun) {
+        scene.time.removeEvent(attacker.revokeAggressorStun);
+    }
+
+    if (target.revokeVictimStun) {
+        scene.time.removeEvent(target.revokeVictimStun);
+    }
+
+    scene.time.delayedCall(500 * target.KBmultiplier, () => {
+        target.hitstun = false;
+    });
+
+    scene.time.delayedCall(1000, () => {
+        if (!scene.finisherActive) {
+            target.willDecelerate = true;
+        }
+    });
+}
 export function lungePush(scene, attacker, target, animKey) {
     //Push attacks happen if the player is at maximum velocity
     setAttackSprite(attacker, animKey);
@@ -453,70 +552,7 @@ export function lungePush(scene, attacker, target, animKey) {
     });
 
 }
-export function thirdAttack(scene, attacker, target, animKey) {
-    //The third attack launching the target away
-    setAttackSprite(attacker, animKey);
-    attacker._hitDone = false;
-    if (attackIsElligible(attacker, target) && !scene.finisherActive) {
-        target.hitstunUntil = 500 * target.KBmultiplier + scene.time.now;
-        target.willDecelerate = false;
-        target.freezeUntil = scene.time.now-1;
-        attacker.freezeUntil = scene.time.now-1;
-        attacker.willDecelerate = true;
-        attacker.comboTimer = 600;
-        target.KBmultiplier += 0.07* attacker.baseDamageScale;
-        if (attacker.name == "SWORDMAN") {
-            scene.sound.play('swordthirdhitsfx');
-        } else if (attacker.name === "AXEMAN") {
-            scene.sound.play('axethirdhitsfx');
-        } else if (attacker.name === "FISHERMAN") {
-            scene.sound.play('rodthirdhitsfx');
-        } else if (attacker.name === "SLATEMAN") {
-            scene.sound.play('slatepunch');
-        }
-        const dirX = attacker.lastDir.x;
 
-        let dirY = attacker.lastDir.y;
-        if (dirY === 0) dirY = -0.5; //always launch upwards if on same level
-
-        //very stronk knockback
-        //launch to the side if the target is pinned against the ground, otherwise launch in the direction of the attack
-        const plungeMultiplier = target.plunged ? finalplungeMultiplier : 0;
-        attacker.atk.on('animationupdate', (anim, frame) => {
-            if (frame.index ===  anim.frames.length - 1  && !attacker._hitDone) {
-                attacker._hitDone = true;
-
-                hitFreeze(scene, 100, false);
-                 if (target.body.touching.down && dirY > 0.7) {
-                    const randDir = Math.random() < 0.5 ? -1 : 1;
-                    applyKnockback(scene, target, (400 * target.KBmultiplier) * randDir, -200 * target.KBmultiplier);
-                } else {
-                    applyKnockback(scene, target, (500 * target.KBmultiplier * (attacker.baseDamageScale + plungeMultiplier)) * dirX, (500 * target.KBmultiplier) * dirY, true);
-                }
-            }
-        });
-       
-        attacker.combo = 0;
-        attacker.comboTimer = 0;
-    }
-    attacker.canAttack = false;
-    scene.time.delayedCall(250, () => {
-        attacker.atk.stop();
-        attacker.atk.setVisible(false);
-    });
-    scene.time.delayedCall(400, () => {
-        attacker.canAttack = true;
-    });
-    if (attacker.revokeAggressorStun) scene.time.removeEvent(attacker.revokeAggressorStun);
-    if (target.revokeVictimStun) scene.time.removeEvent(target.revokeVictimStun);
-    scene.time.delayedCall(500 * target.KBmultiplier, () => {
-        target.hitstun = false;
-    });
-    scene.time.delayedCall(1000, () => {
-        if (!scene.finisherActive) target.willDecelerate = true;
-    });
-
-}
 export function slamThirdAttack(scene, attacker, target, animKey) {
     //The third attack launching the target away
     setAttackSprite(attacker, animKey);
