@@ -267,7 +267,7 @@ export function superSwing(scene, attacker, target, animKey) {
             const randDir = Math.random() < 0.5 ? -1 : 1;
             applyKnockback(scene, target, (600 * target.KBmultiplier * attacker.baseDamageScale) * randDir, -200 * target.KBmultiplier * attacker.baseDamageScale);
         } else {
-            applyKnockback(scene, target, (900 * attacker.baseDamageScale) * dirX, (800 * attacker.baseDamageScale) * dirY);
+            applyKnockback(scene, target, (1500 * attacker.baseDamageScale) * dirX, (800 * attacker.baseDamageScale) * dirY);
         }
         attacker.combo = 0;
         attacker.comboTimer = 0; 
