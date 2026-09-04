@@ -1,5 +1,5 @@
 import { botMode } from "../main.js";
-import { preload as bigPreload} from "./GameScene/preload.js";
+import { preload as bigPreload } from "./GameScene/preload.js";
 
 export var player1Character = '';
 export var player2Character = '';
@@ -29,7 +29,7 @@ export const CharacterSelectScene = {
             { name: 'FISHERMAN', desc: 'Using a fishing rod as a whip?? \n\n(BUGGED) DIR SPECIAL: GRAPPLE \n\n Throw your hook far for the chance to reel your opponent in.', color: '#00318d' },
             { name: 'SCYTHEMAN', desc: 'Its third neutral hit goes slightly higher. \n\nDIR SPECIAL: MOW \n\n Throw a bigger scythe like a boomerang that stuns the opponent.', color: '#686868' },
             { name: 'HAMMERMAN', desc: 'EVERY hit is a knockback attack. \n\nDIR SPECIAL: SIPHONING REPAIR \n\n Let out a flurry of 3 strikes that siphon KB from your foe!.', color: '#3da115' },
-            { name: 'SLATEMAN', desc: 'Start with extra resistance to attacks. The more damage you take the faster you get, but deal less damage. \n\nDIR SPECIAL: PLUNGE \n\n Apply PLUNGED to your opponent, which makes the foe take 100% more knockback for the next hits within 2.5 seconds!', color: '#ffffff', fontSize: 17}
+            { name: 'SLATEMAN', desc: 'Start with extra resistance to attacks. The more damage you take the faster you get, but deal less damage. \n\nDIR SPECIAL: PLUNGE \n\n Apply PLUNGED to your opponent, which makes the foe take 100% more knockback for the next hits within 2.5 seconds!', color: '#ffffff', fontSize: 17 }
 
         ];
 
@@ -57,13 +57,13 @@ export const CharacterSelectScene = {
             500,
             50,
             botMode
-        ? 'SELECT PLAYER AND CPU'
-        : 'SELECT YOUR CHARACTER',
+                ? 'SELECT PLAYER AND CPU'
+                : 'SELECT YOUR CHARACTER',
             {
                 fontFamily: 'VCROSD',
                 fontSize: '35px',
-                fill: '#f691ff',
-                stroke: '#500000',
+                fill: '#ffffff',
+                stroke: '#000000',
                 strokeThickness: 6
             }
         ).setOrigin(0.5);
@@ -82,14 +82,15 @@ export const CharacterSelectScene = {
             0,
             60,
             60
-        ).setStrokeStyle(4, 0x00aaff);
+        ).setStrokeStyle(4, botMode ? 0x686868 : 0x00aaff);
 
         // -----------------------------
         // CHARACTER LIST
         // -----------------------------
 
         this.characterIcons = [];
-        
+        const isTouchDevice = this.sys.game.device.input.touch;
+
         const spacingX = 75;
         const spacingY = 75;
 
@@ -112,18 +113,21 @@ export const CharacterSelectScene = {
                 startY + row * spacingY,
                 this.characters[i]
             )
-            .setScale(1)
-            .setInteractive({ useHandCursor: true });
+                .setScale(1)
+                .setInteractive({ useHandCursor: true });
 
             icon.characterIndex = i;
 
             this.characterIcons.push(icon);
         }
-        
 
-        if (botMode) {
-            this.p2Cursor.setText('CPU');
+        if (isTouchDevice) {
+            this.characterIcons.forEach(icon => icon.setVisible(false));
+            this.p1SelectBox.setVisible(false);
+            this.p2SelectBox.setVisible(false);
         }
+
+
 
         //DESCRIPTIONS:
         const DESCBOX1 = this.add.rectangle(
@@ -168,8 +172,8 @@ export const CharacterSelectScene = {
             align: 'center',
             wordWrap: { width: 200 }
         }).setOrigin(0.5);
-        
-        this.updateCharacterDescriptions = function() {
+
+        this.updateCharacterDescriptions = function () {
             const p1 = this.characterData[this.p1Index];
             const p2 = this.characterData[this.p2Index];
 
@@ -190,9 +194,9 @@ export const CharacterSelectScene = {
             const p2Icon = this.characterIcons[this.p2Index];
 
             if (p1Icon === p2Icon) {
-                this.p2SelectBox.setStrokeStyle(4,0xc300ff);
+                this.p2SelectBox.setStrokeStyle(4, 0xc300ff);
             } else {
-                this.p2SelectBox.setStrokeStyle(4,0x00aaff);
+                this.p2SelectBox.setStrokeStyle(4, botMode ? 0x686868 : 0x00aaff);
             }
 
 
@@ -220,7 +224,73 @@ export const CharacterSelectScene = {
             } else {
                 this.p2DescText.setFontSize(20);
             }
+
+            if (this.mobileWheels) {
+                this.mobileWheels.p1.refresh(this.p1Index);
+                this.mobileWheels.p2.refresh(this.p2Index);
+            }
         };
+
+        const createCharacterWheel = (x, player, color) => {
+            const wheelIcons = [-1, 0, 1].map(offset => this.add.image(
+                x,
+                320 + offset * 65,
+                this.characters[0]
+            ).setScale(0.65));
+
+            const createWheelButton = (y, label, callback) => {
+                const button = this.add.rectangle(x, y, 70, 45, color)
+                    .setStrokeStyle(3, 0xffffff)
+                    .setInteractive({ useHandCursor: true });
+                this.add.text(x, y, label, {
+                    fontFamily: 'VCROSD',
+                    fontSize: '30px',
+                    fill: '#ffffff'
+                }).setOrigin(0.5);
+
+                button.on('pointerover', () => button.setAlpha(0.8));
+                button.on('pointerout', () => button.setAlpha(1));
+                button.on('pointerdown', () => {
+                    this.sound.play('hover');
+                    callback();
+                    this.updateCharacterDescriptions();
+                });
+            };
+
+            createWheelButton(200, '^', () => {
+                if (player === 1) {
+                    this.p1Index = (this.p1Index - 1 + this.characters.length) % this.characters.length;
+                } else {
+                    this.p2Index = (this.p2Index - 1 + this.characters.length) % this.characters.length;
+                }
+            });
+            createWheelButton(440, 'v', () => {
+                if (player === 1) {
+                    this.p1Index = (this.p1Index + 1) % this.characters.length;
+                } else {
+                    this.p2Index = (this.p2Index + 1) % this.characters.length;
+                }
+            });
+
+            return {
+                refresh: index => {
+                    [-1, 0, 1].forEach((offset, iconIndex) => {
+                        const characterIndex = (index + offset + this.characters.length) % this.characters.length;
+                        wheelIcons[iconIndex].setTexture(this.characters[characterIndex]);
+                        wheelIcons[iconIndex].setAlpha(offset === 0 ? 1 : 0.45);
+                        wheelIcons[iconIndex].setScale(offset === 0 ? 1 : 0.65);
+
+                    });
+                }
+            };
+        };
+
+        this.mobileWheels = isTouchDevice
+            ? {
+                p1: createCharacterWheel(300, 1, 0xf54242),
+                p2: createCharacterWheel(700, 2, botMode ? 0x686868 : 0x00aaff)
+            }
+            : null;
 
         // -----------------------------
         // PLAY BUTTON
@@ -288,7 +358,7 @@ export const CharacterSelectScene = {
         this.updateCharacterDescriptions();
 
 
-        this.input.on('pointerdown', (pointer) => {
+        /*this.input.on('pointerdown', (pointer) => {
             // Ignore clicks on the PLAY button area
             if (
                 pointer.x >= 390 &&
@@ -317,7 +387,8 @@ export const CharacterSelectScene = {
             }
 
             this.updateCharacterDescriptions();
-        });
+        });*/
+
     },
 
     update: function () {
@@ -349,7 +420,7 @@ export const CharacterSelectScene = {
         if (Phaser.Input.Keyboard.JustDown(this.keys.s)) {
             this.sound.play('hover');
 
-            this.p1Index = this.p1Index+4;
+            this.p1Index = this.p1Index + 4;
 
             if (this.p1Index >= this.characters.length) {
                 this.p1Index = 0;
@@ -362,7 +433,7 @@ export const CharacterSelectScene = {
         if (Phaser.Input.Keyboard.JustDown(this.keys.w)) {
             this.sound.play('hover');
 
-            this.p1Index = this.p1Index-4;
+            this.p1Index = this.p1Index - 4;
 
             if (this.p1Index >= this.characters.length) {
                 this.p1Index = 0;
@@ -399,7 +470,7 @@ export const CharacterSelectScene = {
         if (Phaser.Input.Keyboard.JustDown(this.keys.down)) {
             this.sound.play('hover');
 
-            this.p2Index = this.p2Index+4;
+            this.p2Index = this.p2Index + 4;
 
             if (this.p2Index >= this.characters.length) {
                 this.p2Index = 0;
@@ -412,7 +483,7 @@ export const CharacterSelectScene = {
         if (Phaser.Input.Keyboard.JustDown(this.keys.up)) {
             this.sound.play('hover');
 
-            this.p2Index = this.p2Index-4;
+            this.p2Index = this.p2Index - 4;
 
             if (this.p2Index >= this.characters.length) {
                 this.p2Index = 0;
