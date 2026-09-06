@@ -20,6 +20,8 @@ export function initiatePlayers(scene, p1Select = 'axeman', p2Select = 'swordman
         p.revokeAggressorStun = null;
         p.revokeVictimStun = null;
         p.revokeMowStun = null;
+        p.activeGrab = null;
+        p.grabbedBy = null;
         p.stunToken = 0;
         p.mowStunToken = 0;
         p.hitstun = false;
@@ -147,6 +149,12 @@ export function initiatePlayers(scene, p1Select = 'axeman', p2Select = 'swordman
                 'slateatk'
             );
             p.KBmultiplier = 0.70;
+        } else if (p.name === "CROWBARMAN") {
+            p.atk = scene.add.sprite(
+                p.x + (p.lastDir.x * 50),
+                p.y + (p.lastDir.y * 50),
+                'crowbargrab'
+            );
         } else {
             //fallback to axe sprite
             p.atk = scene.add.sprite(

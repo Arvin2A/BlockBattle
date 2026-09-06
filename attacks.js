@@ -267,7 +267,7 @@ export function superSwing(scene, attacker, target, animKey) {
             const randDir = Math.random() < 0.5 ? -1 : 1;
             applyKnockback(scene, target, (600 * target.KBmultiplier * attacker.baseDamageScale) * randDir, -200 * target.KBmultiplier * attacker.baseDamageScale);
         } else {
-            applyKnockback(scene, target, (1500 * attacker.baseDamageScale) * dirX, (800 * attacker.baseDamageScale) * dirY);
+            applyKnockback(scene, target, (1200 * attacker.baseDamageScale) * dirX, (800 * attacker.baseDamageScale) * dirY);
         }
         attacker.combo = 0;
         attacker.comboTimer = 0; 
@@ -426,6 +426,8 @@ export function thirdAttack(scene, attacker, target, animKey) {
             scene.sound.play('rodthirdhitsfx');
         } else if (attacker.name === "SLATEMAN") {
             scene.sound.play('slatepunch');
+        } else if (attacker.name === "CROWBARMAN") {
+            scene.sound.play('crowbarhit');
         }
 
         // Get the direction of the attack
@@ -607,6 +609,132 @@ export function slamThirdAttack(scene, attacker, target, animKey) {
     });
 
 }
+export function tryGrab(scene, attacker, target, direction, currentTime, animKey = 'crowbargrab') {
+    //Exclusive to the crowbarman, this attack initiates a grab on the target
+    //When the target is grabbed, they are unable to move or attack, they will be hooked on the crowbar for 3 seconds before released
+    //However, if the attacker presses the attack button again, they will swing the target away with a strong knockback
+    //Longest range but weakest attack in the game, however it can easily turn the tides of a match.
+    const dtapDelay = 250;
+    const grabCD = 3500;
+    if (attacker.hitstun || attacker.freeze) return;
+    if (currentTime < attacker.nextSideSpecialTime) return;
+
+    if (currentTime - attacker.lastTap[direction] < dtapDelay || attacker.isBot) {
+
+        setAttackSprite(attacker, animKey);
+
+        if (attackIsElligible(attacker, target, 200) && !scene.finisherActive) {
+            const grabOffset = {
+                x: target.x - attacker.x,
+                y: Math.min(target.y - attacker.y, 0)
+            };
+
+            target.hitstunUntil = 3000 + scene.time.now;
+            target.hitstun = true;
+            target.willDecelerate = false;
+            target.freezeUntil = scene.time.now-1;
+            attacker.freezeUntil = scene.time.now-1;
+            attacker.willDecelerate = true;
+            attacker.comboTimer = 600;
+            target.KBmultiplier += 0.01* attacker.baseDamageScale;
+            //weak damage, but the target is grabbed and unable to move or attack for 3 seconds
+            scene.sound.play('grab');
+            target.body.allowGravity = false;
+            target.setVelocity(0, 0);
+            target.grabbedBy = attacker;
+            attacker.activeGrab = {
+                target,
+                offset: grabOffset,
+                atkOffset: {
+                    x: attacker.atk.x - attacker.x,
+                    y: attacker.atk.y - attacker.y
+                },
+                atkFlipX: attacker.atk.flipX,
+                atkAngle: attacker.atk.angle,
+                releaseEvent: scene.time.delayedCall(3000, () => releaseGrab(scene, attacker, scene.time.now, false))
+            };
+            attacker.atk.once(`animationcomplete-${animKey}`, () => {
+                if (attacker.activeGrab && attacker.activeGrab.target === target) {
+                    attacker.atk.setFrame(6);
+                    attacker.atk.stop();
+                }
+            });
+            
+            /*const dirX = attacker.lastDir.x;
+
+            let dirY = attacker.lastDir.y;
+            if (dirY === 0) dirY = -0.5; //always launch upwards if on same level
+
+            //very stronk knockback
+            //launch to the side if the target is pinned against the ground, otherwise launch in the direction of the attack
+            if (target.body.touching.down && dirY > 0.7) {
+                const randDir = Math.random() < 0.5 ? -1 : 1;
+                applyKnockback(scene, target, (400 * target.KBmultiplier) * randDir, -200 * target.KBmultiplier);
+            } else {
+                applyKnockback(scene, target, (350 * target.KBmultiplier * attacker.baseDamageScale) * dirX, (700 * target.KBmultiplier) * dirY);
+            }*/ //its a grab, obviously no knockback.
+
+
+
+            attacker.combo = 0;
+            attacker.comboTimer = 0;
+        } else {
+            scene.sound.play('miss');
+            scene.time.delayedCall(300, () => {
+                attacker.atk.stop();
+                attacker.atk.setVisible(false);
+            });
+        }
+        attacker.nextSideSpecialTime = currentTime + grabCD;
+
+        attacker.canAttack = false;
+        
+        scene.time.delayedCall(400, () => {
+            attacker.canAttack = true;
+        });
+        if (attacker.revokeAggressorStun) scene.time.removeEvent(attacker.revokeAggressorStun);
+        if (target.revokeVictimStun) scene.time.removeEvent(target.revokeVictimStun);
+        scene.time.delayedCall(500 * target.KBmultiplier, () => {
+            if (!target.grabbedBy) target.hitstun = false;
+        });
+        scene.time.delayedCall(1000, () => {
+            if (!target.grabbedBy && !scene.finisherActive) target.willDecelerate = true;
+        });
+    }
+    attacker.lastTap[direction] = currentTime;
+
+}
+
+export function releaseGrab(scene, attacker, currentTime, fling = true) {
+    const grab = attacker.activeGrab;
+    if (!grab) return false;
+
+    const target = grab.target;
+    if (grab.releaseEvent) grab.releaseEvent.remove(false);
+    attacker.activeGrab = null;
+    target.grabbedBy = null;
+    target.body.allowGravity = true;
+    target.hitstun = false;
+    target.hitstunUntil = 0;
+    target.freezeUntil = 0;
+    target.willDecelerate = true;
+    attacker.atk.stop();
+    attacker.atk.setVisible(false);
+    
+    attacker.nextSideSpecialTime = currentTime + 3500;
+
+    
+
+    if (fling) {
+        const flingDirection = attacker.lastDir.x || (Math.random() < 0.5 ? -1 : 1);
+        applyKnockback(scene, target, 1500 * flingDirection, -600);
+    } else {
+        target.setVelocity(0, 0);
+    }
+    return true;
+
+    
+}
 export function tiltAttack(scene, attacker, target, {
     animKey,
     kb = 0.1,
@@ -786,6 +914,7 @@ export function tryLunge(scene, player, direction, currentTime, animKey = 'sword
     player.lastTap[direction] = currentTime;
 
 }
+
 export function tryCleave(scene, player, direction, currentTime) {
     const dtapDelay = 250;
     const cleaveCD = 3000;
@@ -1332,7 +1461,9 @@ export function tryPull(scene, player, target, direction, currentTime) {
     player.lastTap[direction] = currentTime;
 }
 export function handleAttack(scene, attacker, victim) {
-    if (attacker.name === "SWORDMAN") {
+    if (attacker.name === "CROWBARMAN" && attacker.activeGrab) {
+        releaseGrab(scene, attacker, scene.time.now, true);
+    } else if (attacker.name === "SWORDMAN") {
         tryAttack(scene, attacker, victim ,'swordatk', 'swordatkthird');
     } else if (attacker.name === "AXEMAN") {
         tryAttack(scene, attacker, victim ,'axeatk', 'axeatkthird');
@@ -1344,6 +1475,8 @@ export function handleAttack(scene, attacker, victim) {
         tryAttack3(scene, attacker, victim ,'hammeratk', 'hammeratk');
     } else if (attacker.name === "SLATEMAN") {
         tryAttack(scene, attacker, victim ,'slateatk', 'slateatkthird');
+    } else if (attacker.name === "CROWBARMAN") {
+        tryAttack(scene, attacker, victim, 'crowbaratk', 'crowbaratk');
     }
 }
 export function handleDirSpecial(scene, attacker, direction, currentTime, victim) {
@@ -1359,6 +1492,8 @@ export function handleDirSpecial(scene, attacker, direction, currentTime, victim
         tryRepair(scene, attacker, victim ,direction, currentTime);
     } else if (attacker.name === "SLATEMAN") {
         tryPlunge(scene, attacker, victim ,direction, currentTime);
+    } else if (attacker.name === "CROWBARMAN") {
+        tryGrab(scene, attacker, victim, direction, currentTime);
     }
 
 }

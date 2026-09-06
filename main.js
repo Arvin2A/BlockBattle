@@ -76,6 +76,9 @@ var config = {
             debug: false
         }
     },
+    audio: {
+        disableWebAudio: true // Forces HTML5 Audio to ignore the silent switch
+    },
     scene: [MenuScene, CharacterSelectScene, GameScene]
 };
 
@@ -291,6 +294,18 @@ function create() {
         key: 'slateplunge',
         frames: this.anims.generateFrameNumbers('slateplunge', { start: 0, end: 10 }),
         frameRate: 12,
+        repeat: 0
+    });
+    this.anims.create({
+        key: 'crowbargrab',
+        frames: this.anims.generateFrameNumbers('crowbargrab', { start: 0, end: 6 }),
+        frameRate: 48,
+        repeat: 0
+    });
+    this.anims.create({
+        key: 'crowbaratk',
+        frames: this.anims.generateFrameNumbers('crowbaratk', { start: 0, end: 3 }),
+        frameRate: 32,
         repeat: 0
     });
 
@@ -736,7 +751,7 @@ function update() {
     }
     
     
-    if ((attackKey1.isDown || mobileControls.p1.attack) && !p1.hitstun) {
+    if ((attackKey1.isDown || mobileControls.p1.attack) && (!p1.hitstun || p1.activeGrab)) {
         const now = this.time.now;
         if (inputMode.p1 !== "keyboard" && !mobileControls.p1.attack) {
             this.mobileButtons.p1.forEach(obj => {
@@ -759,7 +774,7 @@ function update() {
             handleAttack(this, p1, p2);
         }
     }
-    if ((attackKey2.isDown || mobileControls.p2.attack) && !p2.hitstun && !botMode) {
+    if ((attackKey2.isDown || mobileControls.p2.attack) && (!p2.hitstun || p2.activeGrab) && !botMode) {
         const now = this.time.now;
         if (inputMode.p2 !== "keyboard" && !mobileControls.p2.attack) {
             this.mobileButtons.p2.forEach(obj => {
@@ -783,6 +798,19 @@ function update() {
 
     for (const key in this.gameState.players) {
         const player = this.gameState.players[key];
+
+        if (player.activeGrab) {
+            const grab = player.activeGrab;
+            const target = grab.target;
+            target.setPosition(player.x + grab.offset.x, player.y + grab.offset.y);
+            target.setVelocity(0, 0);
+            target.body.allowGravity = false;
+            player.atk.x = player.x + grab.atkOffset.x;
+            player.atk.y = player.y + grab.atkOffset.y;
+            player.atk.setFlipX(grab.atkFlipX);
+            player.atk.setAngle(grab.atkAngle);
+            player.atk.setVisible(true);
+        }
 
         if (player.body.touching.down) {
             player.airTime = 0;
@@ -826,11 +854,15 @@ function update() {
             player.setVelocityX(0);
         }
     }
-    p1.atk.x = p1.x + (p1.lastDir.x * p1.atkXOffset);
-    p1.atk.y = p1.y + (p1.lastDir.y * p1.atkYOffset) - 15;
+    if (!p1.activeGrab) {
+        p1.atk.x = p1.x + (p1.lastDir.x * p1.atkXOffset);
+        p1.atk.y = p1.y + (p1.lastDir.y * p1.atkYOffset) - 15;
+    }
 
-    p2.atk.x = p2.x + (p2.lastDir.x * p2.atkXOffset);
-    p2.atk.y = p2.y + (p2.lastDir.y * p2.atkYOffset) - 15;
+    if (!p2.activeGrab) {
+        p2.atk.x = p2.x + (p2.lastDir.x * p2.atkXOffset);
+        p2.atk.y = p2.y + (p2.lastDir.y * p2.atkYOffset) - 15;
+    }
  
     p1.doubleJumpEffect.x = p1.x;
     p1.doubleJumpEffect.y = p1.y + 40;
