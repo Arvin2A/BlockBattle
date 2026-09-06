@@ -260,6 +260,33 @@ export function preload() {
     );
 
     // =====================================================
+    // CROWBARMAN
+    // =====================================================
+
+    this.load.image(
+        'crowbarman',
+        'assets/sprites/crowbarman/crowbarman-default.png'
+    );
+
+    this.load.spritesheet(
+        'crowbaratk',
+        'assets/sprites/crowbarman/crowbaratk.png',
+        {
+            frameWidth: 50,
+            frameHeight: 50
+        }
+    );
+
+    this.load.spritesheet(
+        'crowbargrab',
+        'assets/sprites/crowbarman/crowbargrab.png',
+        {
+            frameWidth: 200,
+            frameHeight: 200
+        }
+    );
+
+    // =====================================================
     // MISC SPRITESHEETS
     // =====================================================
 
@@ -328,8 +355,16 @@ export function preload() {
     this.load.audio('plunge', 'audio/plunge.ogg');
 
     // =====================================================
+    // AUDIO - CROWBARMAN
+    // =====================================================
+
+    this.load.audio('grab', 'audio/snd_grab.wav');
+    this.load.audio('crowbarhit', 'audio/hl_crowbar.mp3');
+
+    // =====================================================
     // AUDIO - MISC
     // =====================================================
 
     this.load.audio('bamboo', 'audio/snd_spearrise.wav');
+
 }

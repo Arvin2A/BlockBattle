@@ -359,6 +359,25 @@ export function runBotAI(scene, bot, target) {
 
             return;
         }
+    } else if (bot.name === "CROWBARMAN") {
+        const attackRange = 200;
+
+        if (Math.abs(dx) < attackRange) {
+
+            if (scene.time.now - bot.lastDirSpecial > 500 && Math.abs(dy) < 50) {
+
+                bot.lastDirSpecial = scene.time.now;
+
+                handleDirSpecial(scene, bot, specDirection, scene.time.now, target);
+            }
+
+            executeStateCommand(scene, scene.gameState.players, {
+                playerID: bot.id,
+                type: Commands.NONE
+            });
+
+            return;
+        }
     }
     
 }
