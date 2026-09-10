@@ -82,9 +82,6 @@ export var config = {
         antialias: false,
         pixelArt: true
     },
-    audio: {
-        disableWebAudio: true // Forces HTML5 Audio to ignore the silent switch
-    },
     scene: [MenuScene, MapAndModifierSelectScene, CharacterSelectScene, GameScene]
 };
 
