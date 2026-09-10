@@ -1,3 +1,4 @@
+import { modifierOptions } from './scenes/MapAndModifierSelect.js';
 export function initiatePlayers(scene, p1Select = 'axeman', p2Select = 'swordman') {
     const players = {
         player: null,
@@ -37,8 +38,13 @@ export function initiatePlayers(scene, p1Select = 'axeman', p2Select = 'swordman
         p.outOfBounds = false;
         p.airTime = 0;
         p.KBmultiplier = 1.00;
+        if (modifierOptions.SUDDEN_DEATH.enabled) {
+            p.KBmultiplier = 4.00;
+        }
         p.lastKBmultiplier = 1.00;
         p.nextSideSpecialTime = 0;
+        p.sideSpecialCooldownDuration = 0;
+        p.hasUsedSideSpecial = false;
         p.lastTap = { left: 0, right: 0 };
         p.isUsingSideSpecial = false;
         p.hasHitSideSpecial = false;
@@ -78,11 +84,36 @@ export function initiatePlayers(scene, p1Select = 'axeman', p2Select = 'swordman
         p.plunged = false;
         p.lastPlungeTick = 0;
 
+        p.chopped = false;
+        p.choppedUntil = 0;
+        p.choppedMark = scene.add.image(p.x, p.y, 'chopped');
+        p.choppedMark.visible = false;
+        scene.objs.add(p.choppedMark);
+
         p.plungeMark;
 
-        p.movementSpeed = 300;
-        p.movementSpeedScale = 1;
+        p.playerSpeedScaling = 1;
+        p.baseMovementSpeed = 300;
+        //SLUGGISH IS PRIORITIZED OVER FAST AND HYPERACTIVE
+        if (modifierOptions.SLUGGISH.enabled) {
+            p.baseMovementSpeed = 150;
+        } else if (modifierOptions.FAST.enabled) {
+            p.baseMovementSpeed = 450;
+        } else if (modifierOptions.HYPERACTIVE.enabled) {
+            p.baseMovementSpeed = 600;
+        }
+        p.dirSpecialCooldown = 3500;
+        if (modifierOptions.HYPERACTIVE.enabled) {
+            p.dirSpecialCooldown = 1750;
+        }
+        p.movementSpeed = p.baseMovementSpeed * p.playerSpeedScaling;
+
+
         p.baseDamageScale = 1;
+        p.externalDamageScale = 1;
+        if (modifierOptions.DOUBLE_DAMAGE.enabled) {
+            p.externalDamageScale = 2;
+        }
 
         p.plungeAura = scene.add.image(p.x, p.y, 'plungedAura');
         p.plungeAura.visible = false;

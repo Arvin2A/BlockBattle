@@ -1,42 +1,9 @@
-export const DEFAULT_MAP = {
-    background: 'background',
-    groundVisual: 'betterground',
-    mainGround: {
-        x: 1000,
-        y: 875,
-        texture: 'thickgroundhitbox',
-        width: 1000,
-        height: 0,
-        visible: false
-    },
-    platforms: [
-        {
-            x: 1225,
-            y: 770,
-            texture: 'groundhitbox',
-            width: 500,
-            height: 0
-        },
-        {
-            x: 775,
-            y: 637,
-            texture: 'groundhitbox',
-            width: 500,
-            height: 0
-        }
-    ],
-    platformVisuals: [
-        { x: 1225, y: 725, texture: 'platform1', scale: 0.5 },
-        { x: 775, y: 725, texture: 'platform', scale: 0.5 }
-    ],
-    playerSpawns: [
-        { x: 550, y: 845 },
-        { x: 1300, y: 740 }
-    ]
-};
+import { DEFAULT_MAP, SNOWY_MAP } from './MapDefinitions.js';
+
+export { DEFAULT_MAP, SNOWY_MAP };
 
 export class Map {
-    constructor(scene, definition = DEFAULT_MAP) {
+    constructor(scene, definition = SNOWY_MAP) {
         this.scene = scene;
         this.definition = definition;
         this.platforms = scene.physics.add.staticGroup();
@@ -54,8 +21,12 @@ export class Map {
 
     createGeometry() {
         const { scene, definition } = this;
-        const groundVisual = scene.add.image(1000, 1385, definition.groundVisual);
-        groundVisual.setDisplaySize(scene.scale.width, 1200);
+        const groundVisual = scene.add.image(
+            definition.groundVisualPosition.x,
+            definition.groundVisualPosition.y,
+            definition.groundVisual
+        );
+        groundVisual.setDisplaySize(groundVisual.width, 1200);
         groundVisual.setDepth(1);
         scene.objs.add(groundVisual);
 
