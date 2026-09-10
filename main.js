@@ -3,9 +3,11 @@ import { initiatePlayers, updateCombo } from './players.js';
 import { Commands, executeStateCommand} from './commands.js';
 import { MenuScene } from './scenes/MenuScene.js';
 import { player1Character, player2Character, CharacterSelectScene } from './scenes/CharacterSelectScreen.js';
+import { MapAndModifierSelectScene, selectedMapDefinition, resetMapAndModifierSelection } from './scenes/MapAndModifierSelect.js';
 import { preload } from './scenes/GameScene/preload.js';
 import { runBotAI } from './scenes/GameScene/botAI.js';
-import { Map } from './scenes/GameScene/Map.js';
+import { Map, SNOWY_MAP } from './scenes/GameScene/Map.js';
+import { modifierOptions } from './scenes/MapAndModifierSelect.js';
 //3 NEW SCRIPTS: main.js (current), players.js, attacks.js
 
 
@@ -60,7 +62,7 @@ var GameScene = {
     create: create,
     update: update
 };
-var config = {
+export var config = {
     type: Phaser.AUTO,
     width: 1000,
     height: 600,
@@ -76,10 +78,14 @@ var config = {
             debug: false
         }
     },
+    render: {
+        antialias: false,
+        pixelArt: true
+    },
     audio: {
         disableWebAudio: true // Forces HTML5 Audio to ignore the silent switch
     },
-    scene: [MenuScene, CharacterSelectScene, GameScene]
+    scene: [MenuScene, MapAndModifierSelectScene, CharacterSelectScene, GameScene]
 };
 
 var game;
@@ -134,10 +140,98 @@ var mobileControls = {
 var winBar;
 var restartBtn;
 var restartBtnPressed;
+
+var homeBtn;
+var homeBtnPressed;
+
+function createSpecialMeters(scene) {
+    scene.specialMeters = {};
+    const meterWidth = 160;
+    const meterHeight = 18;
+    const meters = [
+        { key: 'p1', player: scene.gameState.players.player, x: 205, color: 0xf54242, label: 'P1 ABILITY' },
+        { key: 'p2', player: scene.gameState.players.player2, x: 795, color: 0x00aaff, label: 'P2 ABILITY' }
+    ];
+
+    meters.forEach(meter => {
+        const label = scene.add.text(meter.x, 123, meter.label, {
+            fontFamily: 'GameFont',
+            fontSize: '14px',
+            fill: '#ffffff'
+        }).setOrigin(0.5);
+        const background = scene.add.rectangle(meter.x, 145, meterWidth, meterHeight, 0x171717)
+            .setStrokeStyle(2, 0xffffff);
+        const fill = scene.add.rectangle(meter.x - meterWidth / 2, 145, meterWidth, meterHeight, meter.color)
+            .setOrigin(0, 0.5);
+        const status = scene.add.text(meter.x, 167, 'READY', {
+            fontFamily: 'GameFont',
+            fontSize: '12px',
+            fill: '#ffffff'
+        }).setOrigin(0.5);
+
+        scene.hud.add(label);
+        scene.hud.add(background);
+        scene.hud.add(fill);
+        scene.hud.add(status);
+        scene.specialMeters[meter.key] = { player: meter.player, fill, status, meterWidth };
+    });
+
+    scene.specialPrompt = scene.add.text(500, 180, 'DOUBLE TAP LEFT OR RIGHT TO USE YOUR ABILITY', {
+        fontFamily: 'GameFont',
+        fontSize: '18px',
+        fill: '#ffffff',
+        stroke: '#000000',
+        strokeThickness: 4,
+        align: 'center'
+    }).setOrigin(0.5).setAlpha(0);
+    scene.hud.add(scene.specialPrompt);
+    scene.specialPromptShown = false;
+}
+
+function updateSpecialMeters(scene) {
+    if (!scene.specialMeters) return;
+
+    Object.values(scene.specialMeters).forEach(meter => {
+        const { player, fill, status, meterWidth } = meter;
+        const cooldownDuration = Number.isFinite(player.sideSpecialCooldownDuration)
+            ? player.sideSpecialCooldownDuration
+            : 0;
+        const remaining = Math.max(0, player.nextSideSpecialTime - scene.time.now);
+        const progress = !player.hasUsedSideSpecial || cooldownDuration <= 0
+            ? 1
+            : Phaser.Math.Clamp(1 - remaining / cooldownDuration, 0, 1);
+        const fillWidth = Math.max(0, meterWidth * progress);
+
+        fill.setDisplaySize(fillWidth, 18);
+        status.setText(progress >= 1 ? 'READY' : `RECHARGING ${Math.ceil(remaining / 1000)}s`);
+        status.setColor(progress >= 1 ? '#ffffff' : '#bbbbbb');
+    });
+
+    const players = scene.gameState.players;
+    if (
+        !scene.specialPromptShown &&
+        scene.matchStartTime !== null &&
+        scene.time.now >= scene.matchStartTime + 5000 &&
+        (!players.player.hasUsedSideSpecial || !players.player2.hasUsedSideSpecial)
+    ) {
+        scene.specialPromptShown = true;
+        scene.specialPrompt.setAlpha(1);
+        scene.tweens.add({
+            targets: scene.specialPrompt,
+            alpha: 0,
+            duration: 250,
+            yoyo: true,
+            repeat: 5,
+            onComplete: () => scene.specialPrompt.setAlpha(0)
+        });
+    }
+}
+
 function create() {
     this.gameEnded = false;
     this.winCooldown = false;
     this.finisherActive = false;
+    this.matchStartTime = null;
     this.gameState = {
         players: null,
         map: null
@@ -157,7 +251,7 @@ function create() {
         p1: [],
         p2: []
     }
-    this.gameState.map = new Map(this);
+    this.gameState.map = new Map(this, selectedMapDefinition);
     //Making the map, platforms, and the KB stat display
     this.cameras.main.fadeIn(500, 0, 0, 0);
 
@@ -168,15 +262,18 @@ function create() {
     winBar.setAlpha(0.85);
     this.hud.add(winBar);
 
-    restartBtn = this.add.image(500,450, 'restartBtn');
+    restartBtn = this.add.image(425,450, 'restartBtn');
     restartBtn.setScale(0.35);
     restartBtn.setVisible(false);
     this.hud.add(restartBtn);
 
-    restartBtnPressed = this.add.image(500,450, 'restartBtnPressed');
+    restartBtnPressed = this.add.image(425,450, 'restartBtnPressed');
     restartBtnPressed.setScale(0.35);
     restartBtnPressed.setVisible(false);
     this.hud.add(restartBtnPressed)
+
+
+    
 
     restartBtn.setInteractive({ useHandCursor: true });
     restartBtn.on('pointerdown', () => {
@@ -189,6 +286,34 @@ function create() {
         this.time.delayedCall(150, () => {
             restartBtn.setVisible(false);
             this.scene.restart();
+        });
+    });
+
+    homeBtn = this.add.image(600,450, 'gohomeBtn');
+    homeBtn.setScale(0.35);
+    homeBtn.setVisible(false);
+    this.hud.add(homeBtn);
+
+    homeBtnPressed = this.add.image(600,450, 'gohomeBtnPressed');
+    homeBtnPressed.setScale(0.35);
+    homeBtnPressed.setVisible(false);
+    this.hud.add(homeBtnPressed)
+
+
+    
+
+    homeBtn.setInteractive({ useHandCursor: true });
+    homeBtn.on('pointerdown', () => {
+        homeBtn.setVisible(false);
+        homeBtnPressed.setVisible(true);
+        this.time.delayedCall(75, () => {
+            homeBtn.setVisible(true);
+            homeBtnPressed.setVisible(false);
+        });
+        this.time.delayedCall(150, () => {
+            homeBtn.setVisible(false);
+            resetMapAndModifierSelection();
+            this.scene.start('MenuScene');
         });
     });
 
@@ -323,7 +448,7 @@ function create() {
     //mobile support:
     const isMobile = this.sys.game.device.input.touch;
 
-    if (true) {
+    if (isMobile) {
 
         function makeButton(scene, x, y, text, keyRef) {
             
@@ -431,6 +556,7 @@ function create() {
 
     //---PLAYER---\\
     this.gameState.players = initiatePlayers(this, player1Character, player2Character);
+    createSpecialMeters(this);
 
     //a bit of cam intiation:
     this.physics.world.setBounds(0, 0, 2000, 1200);
@@ -538,6 +664,7 @@ function create() {
                     this.gameState.players.player2.freezeUntil = 0;
                     this.gameState.players.player.hitstunUntil = 0;
                     this.gameState.players.player2.hitstunUntil = 0;
+                    this.matchStartTime = this.time.now;
 
                 });   
             });   
@@ -594,7 +721,8 @@ const accelFactor = 20;
 
 const baseZoom = 1;
 const minZoom = 0.6;
-const maxZoom = 1.4;
+const defaultMaxZoom = 1.4;
+const snowyMaxZoom = 0.8;
 
 const tiltThreshold = 150;
 
@@ -624,6 +752,8 @@ function spawnAfterimage(scene, player) {
 function updateKB(scene) {
     for (const key in scene.gameState.players) {
         const player = scene.gameState.players[key];
+        player.movementSpeed = player.baseMovementSpeed * player.playerSpeedScaling;
+
         const spawnBox = () => {
             const box = scene.add.rectangle(
                 player.x,
@@ -666,6 +796,16 @@ function updateKB(scene) {
             player.lastPlungeTick = null;
         }
 
+        if (player.chopped) {
+            player.baseDamageScale = 0.5;
+            player.playerSpeedScaling = 0.5;
+            player.choppedMark.visible = true;
+        } else if (!player.chopped) {
+            player.baseDamageScale = 1;
+            player.playerSpeedScaling = 1;
+            player.choppedMark.visible = false;
+        }
+
         if (player.lastKBmultiplier !== player.KBmultiplier) {
             // KB multiplier changed
 
@@ -675,7 +815,8 @@ function updateKB(scene) {
                 if (player.KBmultiplier >= 2.00) player.setTexture('slatemanphase2');
                 if (player.KBmultiplier >= 2.50) player.setTexture('slatemanphase3');
 
-                player.movementSpeed = 250 + ((player.KBmultiplier - 1) * 150);
+                player.playerSpeedScaling =
+                    (250 + ((player.KBmultiplier - 1) * 150)) / 300;
 
                 player.baseDamageScale =
                     1 - ((player.KBmultiplier - 1) * 0.35);
@@ -685,6 +826,8 @@ function updateKB(scene) {
             }
         }
         player.plungeAura.setPosition(player.x, player.y);
+        player.choppedMark.setPosition(player.x, player.y);
+
         player.lastKBmultiplier = player.KBmultiplier;
         if (scene.time.now > player.nextSideSpecialTime && scene.time.now - player.nextSideSpecialTime < 100) {
             spawnBox();
@@ -700,6 +843,7 @@ function update() {
 
     const p1 = this.gameState.players.player;
     const p2 = this.gameState.players.player2;
+    updateSpecialMeters(this);
 
     var midX = (p1.x + p2.x) / 2;
     var midY = (p1.y + p2.y) / 2;
@@ -730,6 +874,9 @@ function update() {
 
     let zoom = this.baseZoom - (distance / 2000);
 
+    const maxZoom = this.gameState.map.definition === SNOWY_MAP
+        ? snowyMaxZoom
+        : defaultMaxZoom;
     zoom = Phaser.Math.Clamp(zoom, minZoom, maxZoom);
 
     this.cameras.main.scrollX += (
@@ -810,6 +957,7 @@ function update() {
             player.atk.setFlipX(grab.atkFlipX);
             player.atk.setAngle(grab.atkAngle);
             player.atk.setVisible(true);
+            player.playerSpeedScaling = 0.5;
         }
 
         if (player.body.touching.down) {
@@ -824,6 +972,7 @@ function update() {
 
         player.freeze =
             this.time.now < player.freezeUntil;
+        player.chopped = this.time.now < player.choppedUntil;
         //player.canAttack =
             //this.time.now < player.canAttackUntil;
     };
@@ -875,6 +1024,8 @@ function update() {
 
     p2.header.x = p2.x - 10;
     p2.header.y = p2.y - 50;
+
+    
 
     if (p1.KBmultiplier < 0.7) {
         p1.KBmultiplier = 0.70;
@@ -1174,7 +1325,13 @@ function update() {
         if (p1.outOfBounds) {
             this.winCooldown = true;
             p2.winNumber = p2.winNumber + 1;
-            p1.KBmultiplier = 1.00;
+
+            if (modifierOptions.SUDDEN_DEATH.enabled) {
+                p1.KBmultiplier = 4.00
+            } else {
+                p1.KBmultiplier = 1.00;
+            }
+
             console.log(p2.winNumber)
             updateWins(this);
             teleportBackToArena(p1);
@@ -1185,7 +1342,11 @@ function update() {
         } else if (p2.outOfBounds) {
             this.winCooldown = true;
             p1.winNumber = p1.winNumber + 1;
-            p2.KBmultiplier = 1.00;
+            if (modifierOptions.SUDDEN_DEATH.enabled) {
+                p2.KBmultiplier = 4.00
+            } else {
+                p2.KBmultiplier = 1.00;
+            }
             updateWins(this);
             teleportBackToArena(p2);
             
@@ -1205,6 +1366,7 @@ function update() {
                 this.hud.add(winner);
             }
             restartBtn.setVisible(true);
+            homeBtn.setVisible(true);
         }
     }
     updateKB(this);

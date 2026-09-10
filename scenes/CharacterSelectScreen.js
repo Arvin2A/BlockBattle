@@ -26,7 +26,7 @@ export const CharacterSelectScene = {
 
         this.characterData = [
             { name: 'SWORDMAN', desc: 'Beware of the slashing sword. \n\nDIR SPECIAL: LUNGE \n\n Mediocre knockback on hit, however it has insane clutch potential.', color: '#0080ff' },
-            { name: 'AXEMAN', desc: 'Beware of the chopping axe. \n\nDIR SPECIAL: POWER SWING \n\n The most knockback you can ever do in this entire game, send your foes across the galaxy!', color: '#ff4444' },
+            { name: 'AXEMAN', desc: 'Beware of the chopping axe. \n\nDIR SPECIAL: POWER SWING \n\n Deal a 34% KB medium knockback strike, weakens your opponent for a bit!', color: '#ff4444' },
             { name: 'FISHERMAN', desc: 'Using a fishing rod as a whip?? \n\n(BUGGED) DIR SPECIAL: GRAPPLE \n\n Throw your hook far for the chance to reel your opponent in.', color: '#00318d' },
             { name: 'SCYTHEMAN', desc: 'Its third neutral hit goes slightly higher. \n\nDIR SPECIAL: MOW \n\n Throw a bigger scythe like a boomerang that stuns the opponent.', color: '#686868' },
             { name: 'HAMMERMAN', desc: 'EVERY hit is a knockback attack. \n\nDIR SPECIAL: SIPHONING REPAIR \n\n Let out a flurry of 3 strikes that siphon KB from your foe!.', color: '#3da115' },
@@ -41,7 +41,7 @@ export const CharacterSelectScene = {
         // background
         this.cameras.main.setBackgroundColor('#1b1b1b');
 
-        this.add.image(500, 300, 'arenapreview');
+        this.add.image(500, 300, 'desertpreview');
         const overlay = this.add.rectangle(
             500,
             300,
@@ -50,6 +50,11 @@ export const CharacterSelectScene = {
             0x1b1b1b,
             0.90
         );
+
+        
+
+        this.p1IsReady = false;
+        this.p2IsReady = false;
 
         // -----------------------------
         // TITLE
@@ -103,7 +108,7 @@ export const CharacterSelectScene = {
         const gridHeight = (rows - 1) * spacingY;
 
         const startX = 500 - gridWidth / 2;
-        const startY = 300 - gridHeight / 2;
+        const startY = 200 - gridHeight / 2;
 
         for (let i = 0; i < this.characters.length; i++) {
 
@@ -134,26 +139,28 @@ export const CharacterSelectScene = {
         //DESCRIPTIONS:
         const DESCBOX1 = this.add.rectangle(
             130,
-            350,
+            300,
             225,
             400,
             0x171717
         );
         const DESCBOX2 = this.add.rectangle(
             870,
-            350,
+            300,
             225,
             400,
             0x171717
         );
-        this.p1NameText = this.add.text(130, 200, '', {
+
+        
+        this.p1NameText = this.add.text(130, 150, '', {
             fontFamily: 'GameFont',
             fontSize: '26px',
             fill: '#ffffff',
             align: 'center',
         }).setOrigin(0.5);
 
-        this.p1DescText = this.add.text(130, 350, '', {
+        this.p1DescText = this.add.text(130, 300, '', {
             fontFamily: 'VCROSD',
             fontSize: '20px',
             fill: '#ffffff',
@@ -161,19 +168,31 @@ export const CharacterSelectScene = {
             wordWrap: { width: 200 }
         }).setOrigin(0.5);
 
-        this.p2NameText = this.add.text(870, 200, '', {
+        this.p2NameText = this.add.text(870, 150, '', {
             fontFamily: 'GameFont',
             fontSize: '26px',
             fill: '#ffffff'
         }).setOrigin(0.5);
 
-        this.p2DescText = this.add.text(870, 350, '', {
+        this.p2DescText = this.add.text(870, 300, '', {
             fontFamily: 'VCROSD',
             fontSize: '20px',
             fill: '#ffffff',
             align: 'center',
             wordWrap: { width: 200 }
         }).setOrigin(0.5);
+
+        const p1BoxSelectedOverlay = this.add.image(
+            0,
+            0,
+            'selectedoverlay'
+        ).setAlpha(0).setDepth(50);
+
+        const p2BoxSelectedOverlay = this.add.image(
+            0,
+            0,
+            'selectedoverlay'
+        ).setAlpha(0).setDepth(50);
 
         this.updateCharacterDescriptions = function () {
             const p1 = this.characterData[this.p1Index];
@@ -204,7 +223,7 @@ export const CharacterSelectScene = {
 
             if (this.p1BoxTween) this.p1BoxTween = null;
             this.p1BoxTween = this.tweens.add({
-                targets: this.p1SelectBox,
+                targets: this.p1SelectBox, p1BoxSelectedOverlay,
                 x: p1Icon.x,
                 y: p1Icon.y,
                 duration: 100,
@@ -218,6 +237,10 @@ export const CharacterSelectScene = {
                 duration: 100,
                 ease: 'Quad.easeOut'
             });
+            if (!isTouchDevice) {
+                p1BoxSelectedOverlay.setPosition(p1Icon.x, p1Icon.y);
+                p2BoxSelectedOverlay.setPosition(p2Icon.x, p2Icon.y);
+            }
 
 
             this.p2DescText.setText(p2.desc);
@@ -253,6 +276,8 @@ export const CharacterSelectScene = {
                 button.on('pointerover', () => button.setAlpha(0.8));
                 button.on('pointerout', () => button.setAlpha(1));
                 button.on('pointerdown', () => {
+                    if (player === 1 && this.p1IsReady) return;
+                    if (player === 2 && this.p2IsReady) return;
                     this.sound.play('hover');
                     callback();
                     this.updateCharacterDescriptions();
@@ -274,6 +299,7 @@ export const CharacterSelectScene = {
                 }
             });
 
+
             return {
                 refresh: index => {
                     [-1, 0, 1].forEach((offset, iconIndex) => {
@@ -281,8 +307,14 @@ export const CharacterSelectScene = {
                         wheelIcons[iconIndex].setTexture(this.characters[characterIndex]);
                         wheelIcons[iconIndex].setAlpha(offset === 0 ? 1 : 0.45);
                         wheelIcons[iconIndex].setScale(offset === 0 ? 1 : 0.65);
+                        if (player === 1) {
+                            p1BoxSelectedOverlay.setPosition(wheelIcons[1].x, wheelIcons[1].y);
+                        } else {
+                            p2BoxSelectedOverlay.setPosition(wheelIcons[1].x, wheelIcons[1].y);
+                        }
 
                     });
+                
                 }
             };
         };
@@ -294,17 +326,16 @@ export const CharacterSelectScene = {
             }
             : null;
 
-        // -----------------------------
-        // PLAY BUTTON
-        // -----------------------------
+        // START GAME ON CLICK
 
+        //changing it so that both players must click their ready button, then the play button will be activated.
         const playBox = this.add.rectangle(
             500,
             520,
             220,
             70,
             0x228B22
-        );
+        ).setAlpha(0);
 
         playBox.setStrokeStyle(4, 0xffffff);
 
@@ -317,7 +348,125 @@ export const CharacterSelectScene = {
                 fontSize: '44px',
                 fill: '#ffffff'
             }
+        ).setOrigin(0.5).setAlpha(0);
+
+        
+
+        const DESCOVERLAY1 = this.add.rectangle(
+            130,
+            300,
+            225,
+            400,
+            0x171717
+        ).setAlpha(0);
+        const DESCOVERLAY2 = this.add.rectangle(
+            870,
+            300,
+            225,
+            400,
+            0x171717
+        ).setAlpha(0);
+
+        const DESCIMAGE1 = this.add.image(
+            130,
+            300,
+            'ready'
+        ).setAlpha(0);
+        const DESCIMAGE2 = this.add.image(
+            870,
+            300,
+            'ready'
+        ).setAlpha(0);
+
+
+        const p1ReadyButton = this.add.rectangle(
+            130,
+            550,
+            150,
+            50,
+            0xf54242
+        ).setStrokeStyle(3, 0xffffff).setInteractive({ useHandCursor: true });
+
+        const p1ReadyText = this.add.text(
+            130,
+            550,
+            'READY',
+            {
+                fontFamily: 'VCROSD',
+                fontSize: '24px',
+                fill: '#ffffff'
+            }
         ).setOrigin(0.5);
+
+        p1ReadyButton.on('pointerdown', () => {
+            this.sound.play('hover');
+            p1ReadyButton.setFillStyle(0x686868);
+            p1ReadyButton.disableInteractive();
+            DESCOVERLAY1.setAlpha(0.5);
+            DESCIMAGE1.setAlpha(1);
+            p1BoxSelectedOverlay.setAlpha(1);
+            this.p1IsReady = true;
+            if (this.p2IsReady) {
+                playBox.setAlpha(1);
+                playText.setAlpha(1);
+            }
+        });
+
+        p1ReadyButton.on('pointerover', () => {
+            p1ReadyButton.setFillStyle(0xff6666);
+        });
+
+        p1ReadyButton.on('pointerout', () => {
+            p1ReadyButton.setFillStyle(0xf54242);
+        });
+
+        const p2ReadyButton = this.add.rectangle(
+            870,
+            550,
+            150,
+            50,
+            botMode ? 0x686868 : 0x00aaff
+        ).setStrokeStyle(3, 0xffffff).setInteractive({ useHandCursor: true });
+
+        const p2ReadyText = this.add.text(
+            870,
+            550,
+            'READY',
+            {
+                fontFamily: 'VCROSD',
+                fontSize: '24px',
+                fill: '#ffffff'
+            }
+        ).setOrigin(0.5);
+
+        p2ReadyButton.on('pointerdown', () => {
+            this.sound.play('hover');
+            p2ReadyButton.setFillStyle(0x686868);
+            p2ReadyButton.disableInteractive();
+            p2BoxSelectedOverlay.setAlpha(1);
+            DESCOVERLAY2.setAlpha(0.5);
+            DESCIMAGE2.setAlpha(1);
+            this.p2IsReady = true;
+            if (this.p1IsReady) {
+                playBox.setAlpha(1);
+                playText.setAlpha(1);
+            }
+        });
+
+        p2ReadyButton.on('pointerover', () => {
+            p2ReadyButton.setFillStyle(0x48c2ff);
+        });
+
+        p2ReadyButton.on('pointerout', () => {
+            p2ReadyButton.setFillStyle(0x00aaff);
+        });
+
+
+        
+
+        
+
+        
 
         playBox.setInteractive({ useHandCursor: true });
 
@@ -332,11 +481,38 @@ export const CharacterSelectScene = {
         playBox.on('pointerdown', () => {
             this.cameras.main.fadeOut(200, 0, 0, 0);
             this.time.delayedCall(200, () => {
-                this.scene.start('GameScene');
+                this.scene.start('GameScene', {
+                    player1Character: this.characters[this.p1Index],
+                    player2Character: this.characters[this.p2Index]
+                });
             });
             player1Character = this.characters[this.p1Index];
             player2Character = this.characters[this.p2Index];
 
+        });
+
+        const backBox = this.add.rectangle(
+            500,
+            580,
+            150,
+            35,
+            0x686868
+        ).setStrokeStyle(3, 0xffffff).setInteractive({ useHandCursor: true });
+
+        this.add.text(500, 580, 'BACK', {
+            fontFamily: 'VCROSD',
+            fontSize: '20px',
+            fill: '#ffffff'
+        }).setOrigin(0.5);
+
+        backBox.on('pointerover', () => backBox.setFillStyle(0x888888));
+        backBox.on('pointerout', () => backBox.setFillStyle(0x686868));
+        backBox.on('pointerdown', () => {
+            this.sound.play('hover');
+            this.cameras.main.fadeOut(200, 0, 0, 0);
+            this.time.delayedCall(200, () => {
+                this.scene.start('MapAndModifierSelectScene');
+            });
         });
 
         // -----------------------------
@@ -398,104 +574,105 @@ export const CharacterSelectScene = {
         // -----------------------------
         // P1 CONTROLS
         // -----------------------------
+        if (!this.p1IsReady) {
+            if (Phaser.Input.Keyboard.JustDown(this.keys.a)) {
+                this.sound.play('hover');
+                this.p1Index--;
 
-        if (Phaser.Input.Keyboard.JustDown(this.keys.a)) {
-            this.sound.play('hover');
-            this.p1Index--;
-
-            if (this.p1Index < 0) {
-                this.p1Index = this.characters.length - 1;
+                if (this.p1Index < 0) {
+                    this.p1Index = this.characters.length - 1;
+                }
+                this.updateCharacterDescriptions();
             }
-            this.updateCharacterDescriptions();
-        }
 
-        if (Phaser.Input.Keyboard.JustDown(this.keys.d)) {
-            this.sound.play('hover');
+            if (Phaser.Input.Keyboard.JustDown(this.keys.d)) {
+                this.sound.play('hover');
 
-            this.p1Index++;
+                this.p1Index++;
 
-            if (this.p1Index >= this.characters.length) {
-                this.p1Index = 0;
+                if (this.p1Index >= this.characters.length) {
+                    this.p1Index = 0;
+                }
+                this.updateCharacterDescriptions();
             }
-            this.updateCharacterDescriptions();
-        }
-        if (Phaser.Input.Keyboard.JustDown(this.keys.s)) {
-            this.sound.play('hover');
+            if (Phaser.Input.Keyboard.JustDown(this.keys.s)) {
+                this.sound.play('hover');
 
-            this.p1Index = this.p1Index + 4;
+                this.p1Index = this.p1Index + 4;
 
-            if (this.p1Index >= this.characters.length) {
-                this.p1Index = 0;
+                if (this.p1Index >= this.characters.length) {
+                    this.p1Index = 0;
+                }
+                if (this.p1Index < 0) {
+                    this.p1Index = this.characters.length - 1;
+                }
+                this.updateCharacterDescriptions();
             }
-            if (this.p1Index < 0) {
-                this.p1Index = this.characters.length - 1;
-            }
-            this.updateCharacterDescriptions();
-        }
-        if (Phaser.Input.Keyboard.JustDown(this.keys.w)) {
-            this.sound.play('hover');
+            if (Phaser.Input.Keyboard.JustDown(this.keys.w)) {
+                this.sound.play('hover');
 
-            this.p1Index = this.p1Index - 4;
+                this.p1Index = this.p1Index - 4;
 
-            if (this.p1Index >= this.characters.length) {
-                this.p1Index = 0;
+                if (this.p1Index >= this.characters.length) {
+                    this.p1Index = 0;
+                }
+                if (this.p1Index < 0) {
+                    this.p1Index = this.characters.length - 1;
+                }
+                this.updateCharacterDescriptions();
             }
-            if (this.p1Index < 0) {
-                this.p1Index = this.characters.length - 1;
-            }
-            this.updateCharacterDescriptions();
         }
 
         // -----------------------------
         // P2 CONTROLS
         // -----------------------------
+        if (!this.p2IsReady) {
+            if (Phaser.Input.Keyboard.JustDown(this.keys.left)) {
+                this.sound.play('hover');
+                this.p2Index--;
 
-        if (Phaser.Input.Keyboard.JustDown(this.keys.left)) {
-            this.sound.play('hover');
-            this.p2Index--;
-
-            if (this.p2Index < 0) {
-                this.p2Index = this.characters.length - 1;
+                if (this.p2Index < 0) {
+                    this.p2Index = this.characters.length - 1;
+                }
+                this.updateCharacterDescriptions();
             }
-            this.updateCharacterDescriptions();
+
+            if (Phaser.Input.Keyboard.JustDown(this.keys.right)) {
+                this.sound.play('hover');
+                this.p2Index++;
+
+                if (this.p2Index >= this.characters.length) {
+                    this.p2Index = 0;
+                }
+                this.updateCharacterDescriptions();
+            }
+            if (Phaser.Input.Keyboard.JustDown(this.keys.down)) {
+                this.sound.play('hover');
+
+                this.p2Index = this.p2Index + 4;
+
+                if (this.p2Index >= this.characters.length) {
+                    this.p2Index = 0;
+                }
+                if (this.p2Index < 0) {
+                    this.p2Index = this.characters.length - 1;
+                }
+                this.updateCharacterDescriptions();
+            }
+            if (Phaser.Input.Keyboard.JustDown(this.keys.up)) {
+                this.sound.play('hover');
+
+                this.p2Index = this.p2Index - 4;
+
+                if (this.p2Index >= this.characters.length) {
+                    this.p2Index = 0;
+                }
+                if (this.p2Index < 0) {
+                    this.p2Index = this.characters.length - 1;
+                }
+                this.updateCharacterDescriptions();
+            }
         }
-
-        if (Phaser.Input.Keyboard.JustDown(this.keys.right)) {
-            this.sound.play('hover');
-            this.p2Index++;
-
-            if (this.p2Index >= this.characters.length) {
-                this.p2Index = 0;
-            }
-            this.updateCharacterDescriptions();
-        }
-        if (Phaser.Input.Keyboard.JustDown(this.keys.down)) {
-            this.sound.play('hover');
-
-            this.p2Index = this.p2Index + 4;
-
-            if (this.p2Index >= this.characters.length) {
-                this.p2Index = 0;
-            }
-            if (this.p2Index < 0) {
-                this.p2Index = this.characters.length - 1;
-            }
-            this.updateCharacterDescriptions();
-        }
-        if (Phaser.Input.Keyboard.JustDown(this.keys.up)) {
-            this.sound.play('hover');
-
-            this.p2Index = this.p2Index - 4;
-
-            if (this.p2Index >= this.characters.length) {
-                this.p2Index = 0;
-            }
-            if (this.p2Index < 0) {
-                this.p2Index = this.characters.length - 1;
-            }
-            this.updateCharacterDescriptions();
-        }
-
         // -----------------------------
         // UPDATE CURSOR POSITIONS
         // -----------------------------

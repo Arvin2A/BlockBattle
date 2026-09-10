@@ -36,7 +36,7 @@ export const MenuScene = {
         });
         startText.on('pointerdown', function () {
             changeBotMode(false);
-            this.scene.start('CharacterSelectScene');
+            this.scene.start('MapAndModifierSelectScene');
         }, this);
         const botBox = this.add.rectangle(
             875,

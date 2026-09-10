@@ -1,5 +1,19 @@
 export function preload() {
     // =====================================================
+    // PLUGINS
+    // =====================================================
+
+    /*this.load.scenePlugin(
+        'rexUI', 
+        'https://githubusercontent.com', 
+        'rexUI', 
+        'rexUI'
+    );*/
+
+    //this.load.scenePlugin('rexuiplugin', 'https://raw.githubusercontent.com/rexrainbow/phaser3-rex-notes/master/dist/rexuiplugin.min.js', 'rexUI', 'rexUI');
+
+   
+    // =====================================================
     // MENU
     // =====================================================
 
@@ -7,7 +21,11 @@ export function preload() {
     this.load.image('uifade', 'assets/uifade.png');
     
     this.load.audio('hover', 'audio/hover.wav');
-    this.load.image('arenapreview', 'assets/arenapreview.png');
+
+    //map preview images
+    this.load.image('desertpreview', 'assets/arenapreview.png');
+    this.load.image('snowypreview', 'assets/snowy_preview.png');
+
     // =====================================================
     // MAP / STAGE
     // =====================================================
@@ -22,6 +40,13 @@ export function preload() {
 
     this.load.image('groundhitbox', 'assets/groundhitbox.png');
     this.load.image('thickgroundhitbox', 'assets/groundhitbox2.png');
+
+    this.load.image('snowy_background', 'assets/snowy_background.png');
+    this.load.image('snowy_betterground', 'assets/snowy_betterground.png');
+    
+    this.load.image('snowplatform1', 'assets/snowplatform1.png');
+    this.load.image('snowplatform2', 'assets/snowplatform2.png');
+
 
     // =====================================================
     // UI
@@ -38,9 +63,15 @@ export function preload() {
     this.load.image('restartBtn', 'assets/restartBtn.png');
     this.load.image('restartBtnPressed', 'assets/pressedRestart.png');
 
+    this.load.image('gohomeBtn', 'assets/goHomeBtn.png');
+    this.load.image('gohomeBtnPressed', 'assets/pressedgoHome.png');
+
     for (let i = 1; i < 5; i++) {
         this.load.image('countdown' + i, 'assets/countdown' + i + '.png');
     }
+
+    this.load.image('ready', 'assets/READY.png');
+    this.load.image('selectedoverlay', 'assets/selectedOverlay.png');
 
     // =====================================================
     // EFFECTS
@@ -84,6 +115,7 @@ export function preload() {
             frameHeight: 75
         }
     );
+    this.load.image('chopped', 'assets/woodcrack.png');
 
     // =====================================================
     // SWORDMAN
@@ -324,6 +356,7 @@ export function preload() {
     // =====================================================
 
     this.load.audio('axethirdhitsfx', 'audio/snd_damage_c.wav');
+    this.load.audio('axecleavesfx', 'audio/axechop.wav');
 
     // =====================================================
     // AUDIO - FISHERMAN
