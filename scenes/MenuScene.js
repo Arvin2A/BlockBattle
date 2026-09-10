@@ -62,7 +62,7 @@ export const MenuScene = {
         botText.setInteractive();
         botText.on('pointerdown', function () {
             changeBotMode(true);
-            this.scene.start('CharacterSelectScene');
+            this.scene.start('MapAndModifierSelectScene');
         }, this);
         botText.on('pointerover', function () {
             botBox.setFillStyle(0xffffff);
