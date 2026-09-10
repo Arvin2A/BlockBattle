@@ -82,6 +82,9 @@ export var config = {
         antialias: false,
         pixelArt: true
     },
+    audio: {
+        disableWebAudio: true
+    },
     scene: [MenuScene, MapAndModifierSelectScene, CharacterSelectScene, GameScene]
 };
 
