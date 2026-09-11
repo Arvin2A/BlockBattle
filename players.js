@@ -110,7 +110,7 @@ export function initiatePlayers(scene, p1Select = 'axeman', p2Select = 'swordman
         if (modifierOptions.HYPERACTIVE.enabled) {
             p.dirSpecialCooldown = 1750;
         }
-        if (modifierOptions.NO_ABILITY_COOLDOWN) {
+        if (modifierOptions.NO_ABILITY_COOLDOWN.enabled) {
             p.dirSpecialCooldown = 0;
         }
         p.movementSpeed = p.baseMovementSpeed * p.playerSpeedScaling;
