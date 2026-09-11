@@ -1,3 +1,4 @@
+import Phaser from 'phaser';
 import {handleAttack, handleDirSpecial, handleDirSpecialAttack, handleHorizantalTilt, handleDownTilt, handleUpTilt} from './attacks.js';
 import { initiatePlayers, updateCombo } from './players.js';
 import { Commands, executeStateCommand} from './commands.js';
@@ -6,11 +7,12 @@ import { player1Character, player2Character, CharacterSelectScene } from './scen
 import { MapAndModifierSelectScene, selectedMapDefinition, resetMapAndModifierSelection } from './scenes/MapAndModifierSelect.js';
 import { preload } from './scenes/GameScene/preload.js';
 import { runBotAI } from './scenes/GameScene/botAI.js';
-import { Map, SNOWY_MAP } from './scenes/GameScene/Map.js';
+import { DEFAULT_MAP, Map, SNOWY_MAP } from './scenes/GameScene/Map.js';
 import { modifierOptions } from './scenes/MapAndModifierSelect.js';
 import UIPlugin from 'phaser4-rex-plugins/templates/ui/ui-plugin.js';
 import unmuteAudio from 'unmute-ios-audio';
 
+window.Phaser = Phaser;
 unmuteAudio();
 
 //3 NEW SCRIPTS: main.js (current), players.js, attacks.js
@@ -241,11 +243,95 @@ function updateSpecialMeters(scene) {
     }
 }
 
+function applyWeatherDamage(scene, amount) {
+    Object.values(scene.gameState.players).forEach(player => {
+        player.KBmultiplier += amount;
+        player.flash();
+    });
+}
+
+function startWeatherHazard(scene, type) {
+    const key = type === 'blizzard' ? 'blizzard' : 'sandstorm';
+    const sprite = scene.add.sprite(500, 300, key)
+        .setDisplaySize(1000, 600)
+        .setDepth(10000)
+        .setAlpha(0.72);
+    scene.hud.add(sprite);
+    sprite.play(key);
+
+    scene.weatherHazard = {
+        type,
+        sprite,
+        endsAt: scene.time.now + 5000,
+        nextDamageAt: scene.time.now + 1000
+    };
+
+    if (type === 'blizzard') {
+        Object.values(scene.gameState.players).forEach(player => {
+            player.weatherOriginalBaseMovementSpeed = player.baseMovementSpeed;
+            player.baseMovementSpeed *= 0.5;
+        });
+        applyWeatherDamage(scene, 0.35);
+    }
+}
+
+function isResistingSandstorm(scene, player) {
+    return player.id === 1
+        ? wasd.right.isDown || mobileControls.p1.right
+        : cursors.right.isDown || mobileControls.p2.right;
+}
+
+function updateWeatherHazard(scene) {
+    if (!scene.blizzardEnabled && !scene.sandstormEnabled) return;
+
+    const now = scene.time.now;
+    const hazard = scene.weatherHazard;
+
+    if (hazard) {
+        if (now >= hazard.endsAt) {
+            hazard.sprite.destroy();
+            if (hazard.type === 'blizzard') {
+                Object.values(scene.gameState.players).forEach(player => {
+                    player.baseMovementSpeed = player.weatherOriginalBaseMovementSpeed;
+                    player.weatherOriginalBaseMovementSpeed = undefined;
+                });
+            }
+            scene.weatherHazard = null;
+        } else {
+            Object.values(scene.gameState.players).forEach(player => {
+                if (hazard.type === 'sandstorm') {
+                    const pushStrength = isResistingSandstorm(scene, player) ? 3 : 8;
+                    player.setVelocityX(player.body.velocity.x - pushStrength);
+                }
+            });
+
+            if (hazard.type === 'sandstorm' && now >= hazard.nextDamageAt) {
+                applyWeatherDamage(scene, 0.10);
+                hazard.nextDamageAt += 1000;
+            }
+        }
+        return;
+    }
+
+    if (scene.matchStartTime !== null && now >= scene.nextHazardCheckAt) {
+        scene.nextHazardCheckAt = now + 5000;
+        if (Math.random() < 0.5) {
+            startWeatherHazard(scene, scene.sandstormEnabled ? 'sandstorm' : 'blizzard');
+        }
+    }
+}
+
 function create() {
     this.gameEnded = false;
     this.winCooldown = false;
     this.finisherActive = false;
     this.matchStartTime = null;
+    this.blizzardEnabled = false;
+    this.sandstormEnabled = false;
+    this.weatherHazard = null;
+    this.nextHazardCheckAt = 0;
+
+
     this.gameState = {
         players: null,
         map: null
@@ -266,6 +352,14 @@ function create() {
         p2: []
     }
     this.gameState.map = new Map(this, selectedMapDefinition);
+    if (modifierOptions.MAP_HAZARDS.enabled) {
+        if (selectedMapDefinition == SNOWY_MAP) {
+            this.blizzardEnabled = true;
+        } else if (selectedMapDefinition == DEFAULT_MAP) {
+            this.sandstormEnabled = true;
+        }
+    }
+    this.nextHazardCheckAt = this.time.now + 5000;
     //Making the map, platforms, and the KB stat display
     this.cameras.main.fadeIn(500, 0, 0, 0);
 
@@ -454,6 +548,18 @@ function create() {
         frames: this.anims.generateFrameNumbers('upbambooGrow', { start: 0, end: 3 }),
         frameRate: 18,
         repeat: 0
+    });
+    this.anims.create({
+        key: 'blizzard',
+        frames: this.anims.generateFrameNumbers('blizzard', { start: 0, end: 3 }),
+        frameRate: 32,
+        repeat: -1
+    });
+    this.anims.create({
+        key: 'sandstorm',
+        frames: this.anims.generateFrameNumbers('sandstorm', { start: 0, end: 3 }),
+        frameRate: 32,
+        repeat: -1
     });
 
 
@@ -1387,6 +1493,7 @@ function update() {
     if (botMode) {
         runBotAI(this, p2, p1);
     }
+    updateWeatherHazard(this);
     if (fiveframecount >= 5) {
         fiveframecount = 0;
     }

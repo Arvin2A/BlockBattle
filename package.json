@@ -1,7 +1,7 @@
 {
   "scripts": {
     "dev": "vite",
-    "build": "vite build && cp phaser.js dist/phaser.js && cp -r assets audio dist/",
+    "build": "vite build && cp -r assets audio dist/",
     "preview": "vite preview"
   },
   "dependencies": {
