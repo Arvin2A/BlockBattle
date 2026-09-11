@@ -8,7 +8,7 @@ import { preload } from './scenes/GameScene/preload.js';
 import { runBotAI } from './scenes/GameScene/botAI.js';
 import { Map, SNOWY_MAP } from './scenes/GameScene/Map.js';
 import { modifierOptions } from './scenes/MapAndModifierSelect.js';
-import UIPlugin from 'phaser4-rex-plugins/templates/ui/ui-plugin.js';
+import UIPlugin from 'phaser3-rex-plugins/templates/ui/ui-plugin.js';
 import unmuteAudio from 'unmute-ios-audio';
 
 unmuteAudio();

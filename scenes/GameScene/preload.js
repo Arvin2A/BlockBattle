@@ -1,7 +1,7 @@
 export function preload() {
 
     //dont be fooled i didn't ai this, i did use it to reorganize my preload
-    
+
     // =====================================================
     // PLUGINS
     // =====================================================
@@ -75,6 +75,13 @@ export function preload() {
 
     this.load.image('ready', 'assets/READY.png');
     this.load.image('selectedoverlay', 'assets/selectedOverlay.png');
+
+
+    // =====================================================
+    // HAZARDS
+    // =====================================================
+
+    this.load.spritesheet('sandstorm', 'assets/sandstorm.png', {frameWidth: 1000, frameHeight: 600});    
 
     // =====================================================
     // EFFECTS
