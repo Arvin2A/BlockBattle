@@ -5,6 +5,7 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "phaser4-rex-plugins": "^4.2.0",
     "unmute-ios-audio": "^3.3.0"
   },
   "devDependencies": {

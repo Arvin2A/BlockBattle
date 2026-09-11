@@ -94,13 +94,12 @@ export function initiatePlayers(scene, p1Select = 'axeman', p2Select = 'swordman
 
         p.playerSpeedScaling = 1;
         p.baseMovementSpeed = 300;
-        //SLUGGISH IS PRIORITIZED OVER FAST AND HYPERACTIVE
         if (modifierOptions.SLUGGISH.enabled) {
-            p.baseMovementSpeed = 150;
+            p.baseMovementSpeed -= 150;
         } else if (modifierOptions.FAST.enabled) {
-            p.baseMovementSpeed = 450;
+            p.baseMovementSpeed += 150;
         } else if (modifierOptions.HYPERACTIVE.enabled) {
-            p.baseMovementSpeed = 600;
+            p.baseMovementSpeed += 300;
         }
         p.dirSpecialCooldown = 3500;
         if (modifierOptions.HYPERACTIVE.enabled) {

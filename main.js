@@ -8,6 +8,7 @@ import { preload } from './scenes/GameScene/preload.js';
 import { runBotAI } from './scenes/GameScene/botAI.js';
 import { Map, SNOWY_MAP } from './scenes/GameScene/Map.js';
 import { modifierOptions } from './scenes/MapAndModifierSelect.js';
+import UIPlugin from 'phaser4-rex-plugins/templates/ui/ui-plugin.js';
 import unmuteAudio from 'unmute-ios-audio';
 
 unmuteAudio();
@@ -66,6 +67,9 @@ var GameScene = {
     create: create,
     update: update
 };
+if ('audioSession' in navigator) {
+    navigator.audioSession.type = 'playback';
+}
 export var config = {
     type: Phaser.AUTO,
     width: 1000,
@@ -81,6 +85,15 @@ export var config = {
             gravity: { y: 500 },
             debug: false
         }
+    },
+    plugins: {
+        scene: [{
+            key: 'rexUI',
+            plugin: UIPlugin,
+            mapping: 'rexUI'
+        },
+        // ...
+        ]
     },
     render: {
         antialias: false,

@@ -1,4 +1,7 @@
 export function preload() {
+
+    //dont be fooled i didn't ai this, i did use it to reorganize my preload
+    
     // =====================================================
     // PLUGINS
     // =====================================================
