@@ -1,1 +1,14 @@
-{}
+{
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build && cp phaser.js dist/phaser.js",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "unmute-ios-audio": "^3.3.0"
+  },
+  "devDependencies": {
+    "esbuild": "^0.28.2",
+    "vite": "^6.3.5"
+  }
+}

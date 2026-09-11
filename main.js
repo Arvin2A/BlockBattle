@@ -8,6 +8,10 @@ import { preload } from './scenes/GameScene/preload.js';
 import { runBotAI } from './scenes/GameScene/botAI.js';
 import { Map, SNOWY_MAP } from './scenes/GameScene/Map.js';
 import { modifierOptions } from './scenes/MapAndModifierSelect.js';
+import unmuteAudio from 'unmute-ios-audio';
+
+unmuteAudio();
+
 //3 NEW SCRIPTS: main.js (current), players.js, attacks.js
 
 
