@@ -888,7 +888,7 @@ export function tryLunge(scene, player, direction, currentTime, animKey = 'sword
     //Why do this? Using arrow keys and right shift is harder than using WASD and E
     //Basically it balances out the controls.
     const dtapDelay = 250;
-    const lungecd = attacker.dirSpecialCooldown;
+    const lungecd = player.dirSpecialCooldown;
 
     if (player.hitstun || player.freeze) return;
     if (currentTime < player.nextSideSpecialTime) return;
@@ -940,7 +940,7 @@ export function tryLunge(scene, player, direction, currentTime, animKey = 'sword
 
 export function tryCleave(scene, player, direction, currentTime) {
     const dtapDelay = 250;
-    const cleaveCD = attacker.dirSpecialCooldown;
+    const cleaveCD = player.dirSpecialCooldown;
 
     if (player.hitstun || player.freeze) return;
     if (currentTime < player.nextSideSpecialTime) return;
