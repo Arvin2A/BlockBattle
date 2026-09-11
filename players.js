@@ -96,14 +96,22 @@ export function initiatePlayers(scene, p1Select = 'axeman', p2Select = 'swordman
         p.baseMovementSpeed = 300;
         if (modifierOptions.SLUGGISH.enabled) {
             p.baseMovementSpeed -= 150;
-        } else if (modifierOptions.FAST.enabled) {
+        } 
+        if (modifierOptions.SUPER_SLUGGISH.enabled) {
+            p.baseMovementSpeed = 75;
+        } 
+        if (modifierOptions.FAST.enabled) {
             p.baseMovementSpeed += 150;
-        } else if (modifierOptions.HYPERACTIVE.enabled) {
+        }
+        if (modifierOptions.HYPERACTIVE.enabled) {
             p.baseMovementSpeed += 300;
         }
         p.dirSpecialCooldown = 3500;
         if (modifierOptions.HYPERACTIVE.enabled) {
             p.dirSpecialCooldown = 1750;
+        }
+        if (modifierOptions.NO_ABILITY_COOLDOWN) {
+            p.dirSpecialCooldown = 0;
         }
         p.movementSpeed = p.baseMovementSpeed * p.playerSpeedScaling;
 
