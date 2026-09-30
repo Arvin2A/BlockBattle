@@ -109,6 +109,74 @@ export function runBotAI(scene, bot, target) {
         return;
     }
 
+    if (!bot.body.blocked.down && dy > 0 &&
+        Math.hypot(dx, dy) <= 125 &&
+        scene.time.now >= (bot.nextDownslamTime || 0)) {
+        bot.nextDownslamTime = scene.time.now + 1000;
+        executeStateCommand(scene, scene.gameState.players, {
+            playerID: bot.id,
+            type: Commands.DOWNSLAM
+        });
+        return;
+    }
+
+    const targetIsAttacking = !target.canAttack || target.isUsingSideSpecial;
+    if (targetIsAttacking && !bot.targetWasAttacking) {
+        bot.attackEvadeUntil = scene.time.now + 450;
+    }
+    bot.targetWasAttacking = targetIsAttacking;
+
+    if (target.nextSideSpecialTime > 0 &&
+        scene.time.now >= target.nextSideSpecialTime &&
+        target.nextSideSpecialTime !== bot.lastTargetSpecialReadyTime) {
+        bot.lastTargetSpecialReadyTime = target.nextSideSpecialTime;
+        bot.specialReadyEvadeUntil = scene.time.now + 1000;
+    }
+
+    if (scene.time.now < (bot.specialReadyEvadeUntil || 0) ||
+        scene.time.now < (bot.attackEvadeUntil || 0)) {
+        let evadeDirection = dx > 0 ? -1 : 1;
+        const roomToEvade = evadeDirection < 0
+            ? bot.x - groundLeft
+            : groundRight - bot.x;
+        if (roomToEvade < edgeBuffer + 80) evadeDirection *= -1;
+
+        bot.lastDir = { x: evadeDirection, y: 0 };
+        executeStateCommand(scene, scene.gameState.players, {
+            playerID: bot.id,
+            type: evadeDirection < 0 ? Commands.LEFT : Commands.RIGHT
+        });
+        return;
+    }
+
+    const targetIsClosing = Math.abs(dx) < 170 &&
+        Math.abs(dy) < 100 &&
+        target.body.velocity.x * Math.sign(dx) < -100;
+
+    if (targetIsClosing) {
+        bot.nextJukeTime ??= 0;
+        if (scene.time.now >= bot.nextJukeTime) {
+            let jukeDirection = dx > 0 ? -1 : 1;
+            const roomToJuke = jukeDirection < 0
+                ? bot.x - groundLeft
+                : groundRight - bot.x;
+            if (roomToJuke < edgeBuffer + 80) jukeDirection *= -1;
+
+            bot.jukeDirection = jukeDirection;
+            bot.jukeUntil = scene.time.now + 1000;
+            bot.nextJukeTime = scene.time.now + 1100;
+        }
+    }
+
+    if (scene.time.now < (bot.jukeUntil || 0)) {
+        bot.lastDir = { x: bot.jukeDirection, y: 0 };
+        executeStateCommand(scene, scene.gameState.players, {
+            playerID: bot.id,
+            type: bot.jukeDirection < 0 ? Commands.LEFT : Commands.RIGHT
+        });
+        return;
+    }
+
     // ======================
     // JUMP TO TARGET
     // ======================
@@ -215,7 +283,7 @@ export function runBotAI(scene, bot, target) {
     // ======================
     // CHASE
     // ======================
-    
+
     if (dx > deadzone) {
 
         bot.lastDir = { x: 1, y: 0 };
@@ -303,7 +371,7 @@ export function runBotAI(scene, bot, target) {
             return;
         }
     } else if (bot.name === "SCYTHEMAN") {
-        const attackRange = 500;
+        const attackRange = 300;
 
         if (Math.abs(dx) < attackRange && Math.abs(dy) < 125) {
 

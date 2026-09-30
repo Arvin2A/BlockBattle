@@ -3,6 +3,8 @@ import { preload as bigPreload } from "./GameScene/preload.js";
 
 export var player1Character = '';
 export var player2Character = '';
+export var player1Variant = '';
+export var player2Variant = '';
 export const CharacterSelectScene = {
 
     key: 'CharacterSelectScene',
@@ -25,18 +27,20 @@ export const CharacterSelectScene = {
         ];
 
         this.characterData = [
-            { name: 'SWORDMAN', desc: 'Beware of the slashing sword. \n\nDIR SPECIAL: LUNGE \n\n Mediocre knockback on hit, however it has insane clutch potential.', color: '#0080ff' },
-            { name: 'AXEMAN', desc: 'Beware of the chopping axe. \n\nDIR SPECIAL: POWER SWING \n\n Deal a 34% KB medium knockback strike, weakens your opponent for a bit!', color: '#ff4444' },
-            { name: 'FISHERMAN', desc: 'Using a fishing rod as a whip?? \n\n(BUGGED) DIR SPECIAL: GRAPPLE \n\n Throw your hook far for the chance to reel your opponent in.', color: '#00318d' },
-            { name: 'SCYTHEMAN', desc: 'Its third neutral hit goes slightly higher. \n\nDIR SPECIAL: MOW \n\n Throw a bigger scythe like a boomerang that stuns the opponent.', color: '#686868' },
-            { name: 'HAMMERMAN', desc: 'EVERY hit is a knockback attack. \n\nDIR SPECIAL: SIPHONING REPAIR \n\n Let out a flurry of 3 strikes that siphon KB from your foe!.', color: '#3da115' },
-            { name: 'SLATEMAN', desc: 'Start with extra resistance to attacks. The more damage you take the faster you get, but deal less damage. \n\nDIR SPECIAL: PLUNGE \n\n Apply PLUNGED to your opponent, which makes the foe take 100% more knockback for the next hits within 2.5 seconds!', color: '#ffffff', fontSize: 17 },
-            { name: 'CROWBARMAN', desc: 'Not for cutting weeds bro. \n\nDIR SPECIAL: GRAB \n\n Grab your opponent and hold them in place for 3 seconds. Press attack again to fling them away. Has a stupidly long range.', color: '#68b96b' }
+            { name: 'SWORDMAN', variants: ['LONGSWORD'], desc: 'Beware of the slashing sword. \n\nDIR SPECIAL: LUNGE \n\n Mediocre knockback on hit, however it has insane clutch potential.', color: '#0080ff' },
+            { name: 'AXEMAN', variants: ['LUMBERER'], desc: 'Beware of the chopping axe. \n\nDIR SPECIAL: POWER SWING \n\n Deal a 34% KB medium knockback strike, weakens your opponent for a bit!', color: '#ff4444' },
+            { name: 'FISHERMAN', variants: ['ANGLER'], desc: 'Using a fishing rod as a whip?? \n\n(BUGGED) DIR SPECIAL: GRAPPLE \n\n Throw your hook far for the chance to reel your opponent in.', color: '#00318d' },
+            { name: 'SCYTHEMAN', variants: ['LANDSCAPER'], desc: 'Its third neutral hit goes slightly higher. \n\nDIR SPECIAL: MOW \n\n Throw a bigger scythe like a boomerang that stuns the opponent.', color: '#686868' },
+            { name: 'HAMMERMAN', variants: ['MALLET'], desc: 'EVERY hit is a knockback attack. \n\nDIR SPECIAL: SIPHONING REPAIR \n\n Let out a flurry of 3 strikes that siphon KB from your foe!.', color: '#3da115' },
+            { name: 'SLATEMAN', variants: ['METAMORPHIC'], desc: 'Start with extra resistance to attacks. The more damage you take the faster you get, but deal less damage. \n\nDIR SPECIAL: PLUNGE \n\n Apply PLUNGED to your opponent, which makes the foe take 100% more knockback for the next hits within 2.5 seconds!', color: '#ffffff', fontSize: 17 },
+            { name: 'CROWBARMAN', variants: ['HOOKER'], desc: 'Not for cutting weeds bro. \n\nDIR SPECIAL: GRAB \n\n Grab your opponent and hold them in place for 3 seconds. Press attack again to fling them away. Has a stupidly long range.', color: '#68b96b' }
 
         ];
 
         this.p1Index = 1;
         this.p2Index = 0;
+        this.p1VariantIndex = 0;
+        this.p2VariantIndex = 0;
 
         // background
         this.cameras.main.setBackgroundColor('#1b1b1b');
@@ -160,7 +164,7 @@ export const CharacterSelectScene = {
             align: 'center',
         }).setOrigin(0.5);
 
-        this.p1DescText = this.add.text(130, 300, '', {
+        this.p1DescText = this.add.text(130, 340, '', {
             fontFamily: 'VCROSD',
             fontSize: '20px',
             fill: '#ffffff',
@@ -174,7 +178,67 @@ export const CharacterSelectScene = {
             fill: '#ffffff'
         }).setOrigin(0.5);
 
-        this.p2DescText = this.add.text(870, 300, '', {
+        this.p1VariantText = this.add.text(130, 180, '', {
+            fontFamily: 'VCROSD',
+            fontSize: '16px',
+            fill: '#686868'
+        }).setOrigin(0.5);
+
+        this.p2VariantText = this.add.text(870, 180, '', {
+            fontFamily: 'VCROSD',
+            fontSize: '16px',
+            fill: '#686868'
+        }).setOrigin(0.5);
+
+
+        const createVariantButton = (x, player, direction) => {
+            const button = this.add.text(x, 180, direction < 0 ? '<' : '>', {
+                fontFamily: 'VCROSD',
+                fontSize: '20px',
+                fill: '#686868'
+            }).setOrigin(0.5).setInteractive({ useHandCursor: true });
+
+            const characterIndex = player === 1 ? this.p1Index : this.p2Index;
+            const variants = this.characterData[characterIndex].variants;
+                
+
+            const variantText = player === 1 ? this.p1VariantText : this.p2VariantText;
+            if (variants.length === 1) {
+                variantText.setColor('#B91F1C');
+            }
+
+            button.on('pointerover', () => button.setColor('#ffffff'));
+            button.on('pointerout', () => button.setColor('#686868'));
+            button.on('pointerdown', () => {
+                if (player === 1 && this.p1IsReady) return;
+                if (player === 2 && this.p2IsReady) return;
+
+                if (variants.length === 1) {
+                    this.sound.play('deny');
+                }
+                const variantIndex = player === 1 ? this.p1VariantIndex : this.p2VariantIndex;
+               
+                const nextVariantIndex = (variantIndex + direction + variants.length) % variants.length;
+
+                if (player === 1) {
+                    this.p1VariantIndex = nextVariantIndex;
+                } else {
+                    this.p2VariantIndex = nextVariantIndex;
+                }
+
+                this.sound.play('hover');
+                this.updateCharacterDescriptions();
+            });
+
+            return button;
+        };
+
+        createVariantButton(70, 1, -1);
+        createVariantButton(190, 1, 1);
+        createVariantButton(810, 2, -1);
+        createVariantButton(930, 2, 1);
+
+        this.p2DescText = this.add.text(870, 340, '', {
             fontFamily: 'VCROSD',
             fontSize: '20px',
             fill: '#ffffff',
@@ -194,12 +258,25 @@ export const CharacterSelectScene = {
             'selectedoverlay'
         ).setAlpha(0).setDepth(50);
 
+        let previousP1Index = null;
+        let previousP2Index = null;
+
         this.updateCharacterDescriptions = function () {
             const p1 = this.characterData[this.p1Index];
             const p2 = this.characterData[this.p2Index];
 
+            if (this.p1Index !== previousP1Index) {
+                this.p1VariantIndex = 0;
+                previousP1Index = this.p1Index;
+            }
+            if (this.p2Index !== previousP2Index) {
+                this.p2VariantIndex = 0;
+                previousP2Index = this.p2Index;
+            }
+
             this.p1NameText.setText(p1.name);
             this.p1NameText.setColor(p1.color);
+            this.p1VariantText.setText(p1.variants[this.p1VariantIndex]);
 
             this.p1DescText.setText(p1.desc);
             if (p1.fontSize) {
@@ -210,6 +287,7 @@ export const CharacterSelectScene = {
 
             this.p2NameText.setText(p2.name);
             this.p2NameText.setColor(p2.color);
+            this.p2VariantText.setText(p2.variants[this.p2VariantIndex]);
 
             const p1Icon = this.characterIcons[this.p1Index];
             const p2Icon = this.characterIcons[this.p2Index];
@@ -483,11 +561,15 @@ export const CharacterSelectScene = {
             this.time.delayedCall(200, () => {
                 this.scene.start('GameScene', {
                     player1Character: this.characters[this.p1Index],
-                    player2Character: this.characters[this.p2Index]
+                    player2Character: this.characters[this.p2Index],
+                    player1Variant: this.characterData[this.p1Index].variants[this.p1VariantIndex],
+                    player2Variant: this.characterData[this.p2Index].variants[this.p2VariantIndex]
                 });
             });
             player1Character = this.characters[this.p1Index];
             player2Character = this.characters[this.p2Index];
+            player1Variant = this.characterData[this.p1Index].variants[this.p1VariantIndex];
+            player2Variant = this.characterData[this.p2Index].variants[this.p2VariantIndex];
 
         });
 

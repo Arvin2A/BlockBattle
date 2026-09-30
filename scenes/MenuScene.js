@@ -13,6 +13,27 @@ export const MenuScene = {
         // Create menu UI elements here
         const fade = this.add.image(500, 300, 'uifade');
         fade.setDisplaySize(this.scale.width, this.scale.height);
+        const changelogBox = this.add.rectangle(190, 300, 340, 450, 0x111111, 0.78);
+        changelogBox.setStrokeStyle(3, 0x000000, 0.9);
+
+        this.add.text(40, 135, '(NEW) CHANGELOG', {
+            fontFamily: 'VCROSD',
+            fontSize: '24px',
+            fill: '#FFFFFF',
+            stroke: '#000000',
+            strokeThickness: 5
+        });
+        const changelogText = 'Thank you for waiting. \n\n Unfortunately, the promised variants and new character (outlawman) will not be coming quickly, expect a week or more as characters are still in development. However, I have delivered you recent patches and the rework of scytheman.';
+        this.add.text(40, 180, changelogText, {
+            fontFamily: 'VCROSD',
+            fontSize: '18px',
+            fill: '#FFFFFF',
+            stroke: '#000000',
+            strokeThickness: 3,
+            lineSpacing: 8,
+            wordWrap: { width: 300 }
+        });
+
         const startBox = this.add.rectangle(
             850,
             500,

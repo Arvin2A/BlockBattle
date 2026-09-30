@@ -24,6 +24,7 @@ export function preload() {
     this.load.image('uifade', 'assets/uifade.png');
     
     this.load.audio('hover', 'audio/hover.wav');
+    this.load.audio('deny', 'audio/deny.wav');
 
     //map preview images
     this.load.image('desertpreview', 'assets/arenapreview.png');
@@ -341,6 +342,15 @@ export function preload() {
             frameHeight: 50
         }
     );
+    this.load.spritesheet(
+        'upgrassGrow',
+        'assets/upGrass.png',
+        {
+            frameWidth: 75,
+            frameHeight: 75
+        }
+    );
+
 
     // =====================================================
     // AUDIO - GLOBAL
@@ -355,12 +365,18 @@ export function preload() {
 
     this.load.audio('finisher', 'audio/finisher.wav');
 
+    this.load.audio('slamimpact', 'audio/slamimpact.wav');
+
     // =====================================================
     // AUDIO - SWORDMAN
     // =====================================================
 
     this.load.audio('swordthirdhitsfx', 'audio/swordlunge.wav');
     this.load.audio('lunge', 'audio/Dodge3.wav');
+    this.load.audio('swordslash1', 'audio/swordslash1.wav');
+    this.load.audio('swordslash2', 'audio/swordslash2.wav');
+
+
 
     // =====================================================
     // AUDIO - AXEMAN
@@ -368,6 +384,8 @@ export function preload() {
 
     this.load.audio('axethirdhitsfx', 'audio/snd_damage_c.wav');
     this.load.audio('axecleavesfx', 'audio/axechop.wav');
+    this.load.audio('axeslash1', 'audio/axeslash1.wav');
+    this.load.audio('axeslash2', 'audio/axeslash2.wav');
 
     // =====================================================
     // AUDIO - FISHERMAN
@@ -383,6 +401,7 @@ export function preload() {
     this.load.audio('scythethirdhitsfx', 'audio/scythethird.wav');
     this.load.audio('slash', 'audio/slash.ogg');
     this.load.audio('twirl', 'audio/Twirling.ogg');
+    this.load.audio('slice', 'audio/preslice.wav');
 
     // =====================================================
     // AUDIO - HAMMERMAN
@@ -397,6 +416,8 @@ export function preload() {
 
     this.load.audio('slatepunch', 'audio/slatepunch.wav');
     this.load.audio('plunge', 'audio/plunge.ogg');
+    this.load.audio('slatelight1', 'audio/slatelight1.wav');
+    this.load.audio('slatelight2', 'audio/slatelight2.wav');
 
     // =====================================================
     // AUDIO - CROWBARMAN
@@ -404,11 +425,14 @@ export function preload() {
 
     this.load.audio('grab', 'audio/snd_grab.wav');
     this.load.audio('crowbarhit', 'audio/hl_crowbar.mp3');
+    this.load.audio('crowbarclang1', 'audio/crowbarclang1.wav');
+    this.load.audio('crowbarclang2', 'audio/crowbarclang2.wav');
 
     // =====================================================
     // AUDIO - MISC
     // =====================================================
 
     this.load.audio('bamboo', 'audio/snd_spearrise.wav');
+    this.load.audio('harvest', 'audio/harvest.wav');
 
 }

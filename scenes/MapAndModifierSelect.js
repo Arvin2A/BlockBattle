@@ -255,10 +255,12 @@ export const MapAndModifierSelectScene = {
             });
         }
 
-		const playButton = this.add.rectangle(500, 555, 220, 45, 0x228b22)
+		this.updateModifierSelection();
+
+		const playButton = this.add.rectangle(530, 555, 220, 45, 0x228b22)
 			.setStrokeStyle(3, 0xffffff)
 			.setInteractive({ useHandCursor: true });
-		this.add.text(500, 555, 'NEXT', {
+		this.add.text(530, 555, 'NEXT', {
 			fontFamily: 'GameFont',
 			fontSize: '28px',
 			fill: '#ffffff'
@@ -266,5 +268,17 @@ export const MapAndModifierSelectScene = {
 		playButton.on('pointerover', () => playButton.setFillStyle(0x2ecc71));
 		playButton.on('pointerout', () => playButton.setFillStyle(0x228b22));
 		playButton.on('pointerdown', () => this.scene.start('CharacterSelectScene'));
+
+		const backButton = this.add.rectangle(300, 555, 220, 45, 0x686868)
+			.setStrokeStyle(3, 0xffffff)
+			.setInteractive({ useHandCursor: true });
+		this.add.text(300, 555, 'BACK', {
+			fontFamily: 'GameFont',
+			fontSize: '28px',
+			fill: '#ffffff'
+		}).setOrigin(0.5);
+		backButton.on('pointerover', () => backButton.setFillStyle(0x888888));
+		backButton.on('pointerout', () => backButton.setFillStyle(0x686868));
+		backButton.on('pointerdown', () => this.scene.start('MenuScene'));
 	}
 };

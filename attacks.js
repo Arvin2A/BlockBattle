@@ -14,7 +14,130 @@ function getAttackDamageScale(attacker) {
         ? attacker.externalDamageScale
         : 1;
 
-    return baseDamageScale * externalDamageScale;
+    const grassDamageScale = attacker.inGrass && attacker.name !== 'SCYTHEMAN'
+        ? 0.75
+        : 1;
+    const scytheGrassCutScale = attacker.name === 'SCYTHEMAN'
+        ? 1 + (attacker.grassCutCount || 0) * 0.001
+        : 1;
+
+    return baseDamageScale * externalDamageScale * grassDamageScale * scytheGrassCutScale;
+}
+
+function spawnDirtBurst(scene, x, y, particleCount = 8, minSize = 3, maxSize = 6, burstScale = 1) {
+    //afraid to use phaser's current particle system. so ill use this manual one from chatgpt instead.
+    const dirtColors = [0x6b4423, 0x8b5a2b, 0xa66a35];
+
+    for (let index = 0; index < particleCount; index += 1) {
+        const pixel = scene.add.rectangle(
+            x + Phaser.Math.Between(-12, 12) * burstScale,
+            y + Phaser.Math.Between(-4, 4) * burstScale,
+            Phaser.Math.Between(minSize, maxSize),
+            Phaser.Math.Between(minSize, maxSize),
+            Phaser.Utils.Array.GetRandom(dirtColors)
+        );
+        pixel.setDepth(4);
+        scene.objs.add(pixel);
+
+        const angle = Phaser.Math.FloatBetween(Math.PI * 1.1, Math.PI * 1.9);
+        const distance = Phaser.Math.Between(18, 38) * burstScale;
+        scene.tweens.add({
+            targets: pixel,
+            x: x + Math.cos(angle) * distance,
+            y: y + Math.sin(angle) * distance - Phaser.Math.Between(8, 18) * burstScale,
+            alpha: 0,
+            duration: Phaser.Math.Between(180, 280),
+            ease: 'Cubic.easeOut',
+            onComplete: () => pixel.destroy()
+        });
+    }
+}
+
+function removeGrass(scene, grass) {
+    if (!grass || !grass.active) return;
+    const index = scene.scytheGrass.indexOf(grass);
+    if (index !== -1) scene.scytheGrass.splice(index, 1);
+    if (grass.owner && grass.owner.name === 'SCYTHEMAN') {
+        grass.owner.grassCutCount += 1;
+    }
+    spawnDirtBurst(scene, grass.x, grass.y);
+    grass.destroy();
+    scene.sound.play('harvest');
+}
+
+function cutNearbyGrass(scene, x, y, range) {
+    for (const grass of [...scene.scytheGrass]) {
+        if (Phaser.Math.Distance.Between(x, y, grass.x, grass.y) <= range) {
+            removeGrass(scene, grass);
+        }
+    }
+}
+
+function cutGrassBeforeMaturity(attacker) {
+    const scene = attacker.scene;
+    if (!scene || !scene.scytheGrass) return;
+
+    for (const grass of [...scene.scytheGrass]) {
+        if (grass.grassStage < 2 && Phaser.Math.Distance.Between(
+            attacker.x,
+            attacker.y + 20,
+            grass.x,
+            grass.y
+        ) <= 90) {
+            removeGrass(scene, grass);
+        }
+    }
+}
+
+export function updateScythemanGrass(scene, players) {
+    if (!scene.scytheGrass) scene.scytheGrass = [];
+
+    for (const key in players) {
+        const player = players[key];
+        player.inGrass = scene.scytheGrass.some(grass =>
+            grass.active && grass.getBounds().contains(player.x, player.y + 20)
+        );
+        if (player.inGrass && player.name !== 'SCYTHEMAN' &&
+            scene.time.now >= player.nextGrassDamageTime) {
+            player.KBmultiplier += 0.025;
+            player.nextGrassDamageTime = scene.time.now + 450;
+            player.flash();
+        }
+    }
+
+    const scytheman = players.player.name === 'SCYTHEMAN'
+        ? players.player
+        : players.player2.name === 'SCYTHEMAN'
+            ? players.player2
+            : null;
+    if (!scytheman || !scytheman.body.blocked.down) return;
+    const grassTooClose = scene.scytheGrass.some(grass =>
+        grass.active &&
+        Phaser.Math.Distance.Between(
+            scytheman.x,
+            scytheman.y,
+            grass.x,
+            grass.y
+        ) < 45
+    );
+
+    if (grassTooClose) return;
+    if (scytheman.grassTrailX !== null && Phaser.Math.Distance.Between(
+        scytheman.x, scytheman.y, scytheman.grassTrailX, scytheman.grassTrailY
+    ) < 45) return;
+
+    const grass = scene.add.sprite(scytheman.x, scytheman.y, 'upgrassGrow');
+    grass.setDepth(3);
+    grass.grassStage = 0;
+    grass.owner = scytheman;
+    grass.on('animationupdate', (animation, frame) => {
+        grass.grassStage = frame.index;
+    });
+    grass.play('upgrassGrow');
+    scene.objs.add(grass);
+    scene.scytheGrass.push(grass);
+    scytheman.grassTrailX = scytheman.x;
+    scytheman.grassTrailY = scytheman.y;
 }
 
 export function attackIsElligible(attacker, target, range = 100, onlyOnCanAttack = true) {
@@ -22,78 +145,23 @@ export function attackIsElligible(attacker, target, range = 100, onlyOnCanAttack
     const dx = target.x - attacker.x;
     const dy = target.y - attacker.y;
     const distance = Math.hypot(dx, dy);
-    if (distance > range) return false; // Too far away
+    if (distance > range) return false;
     target.flash();
-
-    const dirToTargetX = dx / distance;
-    const dirToTargetY = dy / distance;
-
-    const dot = dirToTargetX * attacker.lastDir.x + dirToTargetY * attacker.lastDir.y;
-    //dot product checks if the attacker is facing the target, which is the general rule for attacks in this game
-    //However, to add some depth and counterplay, I added two custom rules for fun
+    const dot = (dx / distance) * attacker.lastDir.x + (dy / distance) * attacker.lastDir.y;
     const isFacingUp = attacker.lastDir.y < -0.9 && Math.abs(attacker.lastDir.x) < 0.2;
     const isFacingDown = attacker.lastDir.y > 0.9 && Math.abs(attacker.lastDir.x) < 0.2;
-    //technically, decimal values are useless, because the values are only 0, 1, or -1
-    //but this just adds a bit of leniency just in case we add mobile or controller support later where the input might not be perfectly digital
     const isTargetAbove = dy < (isFacingUp || isFacingDown ? -25 : -10);
-    let isAttackerAbove = dy > 25;
-    const una = isAttackerAbove && isFacingUp; // CUSTOM RULE: Prevent attacking upwards and pulling the player under the attacker
-    const una2 = isFacingDown && isTargetAbove; // SECOND CUSTOM RULE: Prevent attacking downwards if the target is above also to avoid pinning
-    if (una) return false;
-    if (una2) return false;
-    if (dot > 0.7 || isFacingUp || isTargetAbove) {
-        const angleToTarget = Phaser.Math.RadToDeg(
-            Math.atan2(target.y - attacker.y, target.x - attacker.x)
-        );
-
-        const attackDirAngle = Phaser.Math.RadToDeg(
-            Math.atan2(attacker.lastDir.y, attacker.lastDir.x)
-        );
-
-        let finalAngle =
-            attackDirAngle +
-            Phaser.Math.Angle.ShortestBetween(
-                attackDirAngle,
-                angleToTarget
-            ) / 2;
-
-        if (attacker.lastDir.x < 0) {
-            finalAngle += 180;
-        }
-        if (attacker.lastDir.y !== 0) {
-            finalAngle += 180;
-        }
-        attacker.atk.setAngle(finalAngle);
-
-        target.flash();
-
-    }
-    console.log();
-    return dot > 0.7 || isFacingUp || isTargetAbove; // Attack range and facing target
+    if ((dy > 25 && isFacingUp) || (isFacingDown && isTargetAbove)) return false;
+    const eligible = dot > 0.7 || isFacingUp || isTargetAbove;
+    if (eligible) cutGrassBeforeMaturity(attacker);
+    return eligible;
 }
-function hitFreeze(scene, ms = 50, flash = false) {
+
+function hitFreeze(scene, ms = 50) {
     scene.physics.world.pause();
-
-    scene.anims.pauseAll();   // IMPORTANT
+    scene.anims.pauseAll();
     scene.tweens.pauseAll();
-
     scene.baseZoom = 2;
-
-
-    
-
-    if (flash) {
-        const flash = scene.add.rectangle(500, 300, 1000, 600, 0xff0000, 0.25);
-        scene.hud.add(flash);
-        flash.setDepth(9999);
-        scene.tweens.add({
-            targets: flash,
-            alpha: 0,
-            duration: ms,
-            onComplete: () => flash.destroy()
-        });
-    }
-
     scene.time.delayedCall(ms, () => {
         scene.physics.world.resume();
         scene.anims.resumeAll();
@@ -107,7 +175,6 @@ function clearQueuedStunTimers(scene, attacker, target) {
         scene.time.removeEvent(attacker.revokeAggressorStun);
         attacker.revokeAggressorStun = null;
     }
-
     if (target.revokeVictimStun) {
         scene.time.removeEvent(target.revokeVictimStun);
         target.revokeVictimStun = null;
@@ -116,18 +183,14 @@ function clearQueuedStunTimers(scene, attacker, target) {
 
 function queueStunRelease(scene, attacker, target, attackerDelay = 400, victimDelay = 650) {
     clearQueuedStunTimers(scene, attacker, target);
-    console.log("apply stun");
-
     const stunToken = (target.stunToken || 0) + 1;
     target.stunToken = stunToken;
-
     attacker.revokeAggressorStun = scene.time.delayedCall(attackerDelay, () => {
         attacker.canAttack = true;
         attacker.freeze = false;
         attacker.willDecelerate = true;
         attacker.revokeAggressorStun = null;
     });
-
     target.revokeVictimStun = scene.time.delayedCall(victimDelay, () => {
         if (target.stunToken !== stunToken) return;
         target.hitstun = false;
@@ -141,58 +204,26 @@ export function setAttackSprite(attacker, animKey) {
     attacker.atk.setVisible(true);
     attacker.atk.x = attacker.x + attacker.lastDir.x * 50;
     attacker.atk.y = attacker.y + attacker.lastDir.y * 50 - 20;
-
-    if (animKey == "scytheatktilt") {
-        attacker.atk.setFlipX(attacker.lastDir.x < 0);
-
-    } else {
-        attacker.atk.setFlipX(-attacker.lastDir.x < 0);
-    }
-    
-
-    if (attacker.lastDir.y < 0) {
-        attacker.atk.setAngle(90);
-    } else if (attacker.lastDir.y > 0) {
-        attacker.atk.setAngle(-90);
-    } else {
-        attacker.atk.setAngle(0);
-    }
-    //animation
-    console.log("played");
-
+    attacker.atk.setFlipX(animKey === 'scytheatktilt'
+        ? attacker.lastDir.x < 0
+        : -attacker.lastDir.x < 0);
+    if (attacker.lastDir.y < 0) attacker.atk.setAngle(90);
+    else if (attacker.lastDir.y > 0) attacker.atk.setAngle(-90);
+    else attacker.atk.setAngle(0);
     attacker.atk.setFrame(0);
     attacker.atk.play(animKey, true);
 }
+
 export function finisherFreeze(scene) {
     scene.finisherActive = true;
     scene.physics.pause();
     scene.baseZoom = 2;
     scene.sound.stopAll();
     scene.sound.play('finisher');
-   
-    const flash = scene.add.rectangle(
-        500,
-        300,
-        1000,
-        600,
-        0xff0000,
-        0.25
-    );
-    scene.hud.add(flash);
-
-    flash.setDepth(9999);
-    scene.tweens.add({
-        targets: flash,
-        alpha: 1,
-        duration: 1000,
-        onComplete: () => flash.destroy()
-    });
-
     scene.time.delayedCall(1000, () => {
         scene.physics.world.resume();
-        scene.baseZoom = 1
+        scene.baseZoom = 1;
         scene.finisherActive = false;
-        return true
     });
 }
 const FINISHER_THRESHOLD = 1555;
@@ -237,7 +268,26 @@ export function attack(scene, attacker, target, animKey) {
         applyKnockback(scene, target, 0, 0);
         attacker.setVelocityX(0);
         attacker.setVelocityY(0);
-        scene.sound.play('anyhit');
+        // Attack sound
+        if (attacker.name === "SWORDMAN") {
+            const randomNumber = Math.round(Math.random());
+            const soundID = randomNumber === 0 ? 'swordslash1' : 'swordslash2';
+            scene.sound.play(soundID);
+        } else if (attacker.name === "AXEMAN") {
+            const randomNumber = Math.round(Math.random());
+            const soundID = randomNumber === 0 ? 'axeslash1' : 'axeslash2';
+            scene.sound.play(soundID);
+        } else if (attacker.name === "SLATEMAN") {
+            const randomNumber = Math.round(Math.random());
+            const soundID = randomNumber === 0 ? 'slatelight1' : 'slatelight2';
+            scene.sound.play(soundID);
+        } else if (attacker.name === "CROWBARMAN") {
+            const randomNumber = Math.round(Math.random());
+            const soundID = randomNumber === 0 ? 'crowbarclang1' : 'crowbarclang2';
+            scene.sound.play(soundID);
+        } else {
+            scene.sound.play('anyhit');
+        }
         target.KBmultiplier += 0.03 * getAttackDamageScale(attacker); // Increase KB multiplier for third hit
         
     } else {
@@ -271,7 +321,7 @@ export function superSwing(scene, attacker, target, animKey) {
         attacker.freezeUntil =  scene.time.now-1;
         attacker.willDecelerate = true;
         attacker.comboTimer = 600;
-        target.choppedUntil = scene.time.now + 2000;
+        target.choppedUntil = scene.time.now + 3000;
         target.KBmultiplier += 0.34 * getAttackDamageScale(attacker);
         hitFreeze(scene, 50);
         scene.sound.play('axecleavesfx');
@@ -296,13 +346,11 @@ export function superSwing(scene, attacker, target, animKey) {
     scene.time.delayedCall(400, () => {
         attacker.atk.stop();
         attacker.atk.setVisible(false);
+        attacker.canAttack = true;
         console.log(target.choppedUntil);
         console.log(target.chopped);
     });
-    scene.time.delayedCall(2500, () => {
-        //super swing is OP, so you wont be able to attack for a long time if missed or even after landing it
-        attacker.canAttack = true;
-    });
+
     if (attacker.revokeAggressorStun) scene.time.removeEvent(attacker.revokeAggressorStun);
     if (target.revokeVictimStun) scene.time.removeEvent(target.revokeVictimStun);
     scene.time.delayedCall(1000, () => {
@@ -330,6 +378,26 @@ export function pushAttack(scene, attacker, target, animKey) {
         hitFreeze(scene, 50);
         if (attacker.name === "HAMMERMAN") {
             scene.sound.play('hammerhit');
+        } else if (attacker.name === "SWORDMAN") {
+            const randomNumber = Math.round(Math.random());
+            const soundID = randomNumber === 0 ? 'swordslash1' : 'swordslash2';
+            scene.sound.play(soundID);
+        } else if (attacker.name === "AXEMAN") {
+            const randomNumber = Math.round(Math.random());
+            const soundID = randomNumber === 0 ? 'axeslash1' : 'axeslash2';
+            scene.sound.play(soundID);
+        } else if (attacker.name === "SCYTHEMAN") {
+            const randomNumber = Math.round(Math.random());
+            const soundID = randomNumber === 0 ? 'axeslash1' : 'axeslash2';
+            scene.sound.play(soundID);
+        } else if (attacker.name === "SLATEMAN") {
+            const randomNumber = Math.round(Math.random());
+            const soundID = randomNumber === 0 ? 'slatelight1' : 'slatelight2';
+            scene.sound.play(soundID);
+        } else if (attacker.name === "CROWBARMAN") {
+            const randomNumber = Math.round(Math.random());
+            const soundID = randomNumber === 0 ? 'crowbarclang1' : 'crowbarclang2';
+            scene.sound.play(soundID);
         } else {
             scene.sound.play('anyhit');
         }
@@ -540,7 +608,7 @@ export function lungePush(scene, attacker, target, animKey) {
         attacker.comboTimer = 600;
         target.KBmultiplier += 0.30 * getAttackDamageScale(attacker);
         hitFreeze(scene);
-        scene.sound.play('anyhit');
+        scene.sound.play('swordslash1');
         const dirX = attacker.lastDir.x;
 
         let dirY = attacker.lastDir.y;
@@ -644,13 +712,14 @@ export function tryGrab(scene, attacker, target, direction, currentTime, animKey
     if (currentTime - attacker.lastTap[direction] < dtapDelay || attacker.isBot) {
 
         setAttackSprite(attacker, animKey);
+        attacker.isUsingSideSpecial = true
 
         if (attackIsElligible(attacker, target, 200) && !scene.finisherActive) {
             const grabOffset = {
                 x: Math.sign(target.x - attacker.x) * 150,
                 y: Math.min(target.y - attacker.y, 0)
             };
-
+            attacker.isUsingSideSpecial = false;
             target.hitstunUntil = 3000 + scene.time.now;
             target.hitstun = true;
             target.willDecelerate = false;
@@ -778,7 +847,7 @@ export function tiltAttack(scene, attacker, target, {
         onUse(scene);
     }
     if (attackIsElligible(attacker, target, range) && !scene.finisherActive) {
-        target.hitstunUntil = kbTime + 250 + scene.time.now;
+        target.hitstunUntil = kbTime + scene.time.now;
         target.willDecelerate = false;
         target.freezeUntil = scene.time.now-1;
         attacker.freeze = scene.time.now-1;
@@ -802,7 +871,7 @@ export function tiltAttack(scene, attacker, target, {
             const randDir = Math.random() < 0.5 ? -1 : 1;
             applyKnockback(scene, target, 325 * (target.KBmultiplier / 2 * (getAttackDamageScale(attacker) + plungeMultiplier)) * randDir, -200 * (target.KBmultiplier / 2));
         } else {
-            applyKnockback(scene, target, (500 * xMul * (getAttackDamageScale(attacker) + plungeMultiplier)) * dirX, (500 * yMul) * dirY);
+            applyKnockback(scene, target, (400 * xMul * (getAttackDamageScale(attacker) + plungeMultiplier)) * dirX, (500 * yMul) * dirY);
         }
         attacker.combo = 0;
         attacker.comboTimer = 0;
@@ -822,11 +891,11 @@ export function tiltAttack(scene, attacker, target, {
         target.hitstunTimer.remove();
     }
 
-    target.hitstunTimer = scene.time.delayedCall(kbTime + 250, () => {
+    target.hitstunTimer = scene.time.delayedCall(kbTime, () => {
         target.hitstun = false;
         target.hitstunTimer = null;
     });
-    scene.time.delayedCall(kbTime + 150, () => {
+    scene.time.delayedCall(kbTime, () => {
         if (!scene.finisherActive) target.willDecelerate = true;
     });
     attacker.nextAttackTime = scene.time.now + 400;
@@ -985,6 +1054,50 @@ export function tryMow(scene, player, target, direction, currentTime) {
     if (currentTime < player.nextSideSpecialTime) return;
 
     if (currentTime - player.lastTap[direction] < dtapDelay || player.isBot) {
+        player.isUsingSideSpecial = true;
+        player.lastDir = direction === 'left' ? { x: -1, y: 0 } : { x: 1, y: 0 };
+        setAttackSprite(player, 'scytheatktilt');
+        player.atk.setScale(3);
+
+        const inGrass = player.inGrass || target.inGrass;
+        const knockbackScale = inGrass ? 2 : 1;
+        if (attackIsElligible(player, target, 150) && !scene.finisherActive) {
+            target.hitstunUntil = scene.time.now + 450;
+            target.willDecelerate = false;
+            target.freezeUntil = scene.time.now - 1;
+            target.KBmultiplier += 0.15 * knockbackScale * getAttackDamageScale(player);
+            applyKnockback(scene, target, 850 * knockbackScale * player.lastDir.x, -150 * knockbackScale);
+            hitFreeze(scene, 70);
+            scene.sound.play('slice');
+            target.flash();
+            scene.time.delayedCall(450, () => {
+                if (!scene.finisherActive) target.willDecelerate = true;
+            });
+        } else {
+            scene.sound.play('miss');
+        }
+
+        cutNearbyGrass(scene, player.x, player.y + 20, 180);
+        startSideSpecialCooldown(player, currentTime, mowCD);
+        player.canAttack = false;
+        scene.time.delayedCall(350, () => {
+            player.canAttack = true;
+            player.isUsingSideSpecial = false;
+            player.atk.setScale(1);
+            player.atk.stop();
+            player.atk.setVisible(false);
+        });
+    }
+    player.lastTap[direction] = currentTime;
+}
+
+function tryMowLegacy(scene, player, target, direction, currentTime) {
+    const dtapDelay = 250;
+    const mowCD = player.dirSpecialCooldown;
+    if (player.hitstun || player.freeze) return;
+    if (currentTime < player.nextSideSpecialTime) return;
+
+    if (currentTime - player.lastTap[direction] < dtapDelay || player.isBot) {
         //summon a mowing scythe
         player.isUsingSideSpecial = true;
         player.hasHitSideSpecial = false;
@@ -1027,11 +1140,11 @@ export function tryMow(scene, player, target, direction, currentTime) {
         });
         mowsound.play();
         player.isUsingSideSpecial = false;
+        let dir = (direction === 'left') ? -1 : 1
         scene.physics.add.overlap(fakescythe, target, () => {
             if (player.hasHitSideSpecial) return;
             if (!canhit) return;
-            target.freezeUntil = 1000 + scene.time.now;
-            target.hitstunUntil = 1000 + scene.time.now;
+            target.hitstunUntil = 100 + scene.time.now;
             const slash = scene.add.image(target.x, target.y, 'slasheffect');
             slash.setScale(1.5);
             scene.tweens.add({
@@ -1049,7 +1162,7 @@ export function tryMow(scene, player, target, direction, currentTime) {
             }
 
             const mowStunToken = ++target.mowStunToken;
-            const mowStunDuration = 1750;
+            const mowStunDuration = 1000;
 
             target.revokeMowStun = scene.time.delayedCall(mowStunDuration, () => {
                 if (target.mowStunToken !== mowStunToken) return;
@@ -1058,8 +1171,11 @@ export function tryMow(scene, player, target, direction, currentTime) {
                 target.revokeMowStun = null;
             });
 
+            
+
             scene.sound.play('slash');
-            target.KBmultiplier += 0.055 * getAttackDamageScale(player);
+            target.KBmultiplier += 0.08 * getAttackDamageScale(player);
+            applyKnockback(scene, target, 500 * dir, 300);
             target.flash();
 
         });
@@ -1071,6 +1187,7 @@ export function tryMow(scene, player, target, direction, currentTime) {
 
             // boomerang return
             if (returning) {
+                dir = dir * -1;
                 //nearest distance calculation to the player
                 const dx = player.x - fakescythe.x;
                 const dy = player.y - fakescythe.y;
@@ -1249,6 +1366,33 @@ export function markPlunge(scene, attacker, target, dir) {
         target.plunged = false;
     });
     return hit;
+}
+
+export function downslamAttack(scene, attacker, target) {
+    spawnDirtBurst(scene, attacker.x, attacker.y, 16, 6, 10, 1.5);
+    scene.sound.play('slamimpact');
+
+    const dx = target.x - attacker.x;
+    const dy = target.y - attacker.y;
+    if (Math.hypot(dx, dy) > 125 || scene.finisherActive) return false;
+
+    target.hitstunUntil = scene.time.now + 500 * target.KBmultiplier;
+    target.willDecelerate = false;
+    target.KBmultiplier += 0.10 * getAttackDamageScale(attacker);
+
+    const direction = dx === 0 ? (attacker.lastDir.x || 1) : Math.sign(dx);
+    applyKnockback(
+        scene,
+        target,
+        100 * target.KBmultiplier * direction,
+        -500 * target.KBmultiplier
+    );
+    target.flash();
+    scene.sound.play('anyhit');
+    scene.time.delayedCall(200 * target.KBmultiplier, () => {
+        target.willDecelerate = true;
+    });
+    return true;
 }
 export function tryPlunge(scene, player, target, direction, currentTime) {
     const dtapDelay = 250;
@@ -1541,24 +1685,24 @@ export function handleHorizantalTilt(scene, attacker, victim, direction) {
         tiltAttack(scene, attacker, victim, {
             animKey: 'swordatktilt',
             kb: 0.035,
-            xMul: 0.9,
-            yMul: 0.3,
+            xMul: 0.6,
+            yMul: 1,
             range: 150,
             freeze: 80,
             sfx: 'swosh',
-            kbTime: 300,
+            kbTime: 600,
             }
         );
     } else if (attacker.name === "AXEMAN") {
         tiltAttack(scene, attacker, victim, {
             animKey: 'axeatktilt',
             kb: 0.035,
-            xMul: 0.9,
-            yMul: 0.3,
+            xMul: 0.6,
+            yMul: 1,
             range: 150,
             freeze: 80,
             sfx: 'swosh',
-            kbTime: 300,
+            kbTime: 600,
         });
     } else if (attacker.name === "FISHERMAN") {
         tryAttack(scene, attacker, victim ,'rodatk', 'rodatk');
@@ -1566,12 +1710,12 @@ export function handleHorizantalTilt(scene, attacker, victim, direction) {
         tiltAttack(scene, attacker, victim, {
             animKey: 'scytheatktilt',
             kb: 0.035,
-            xMul: 0.9,
-            yMul: 0.3,
+            xMul: 0.6,
+            yMul: 1,
             range: 150,
             freeze: 80,
             sfx: 'swosh',
-            kbTime: 300,
+            kbTime: 600,
             
         });
     } else if (attacker.name === "HAMMERMAN") {
@@ -1580,23 +1724,23 @@ export function handleHorizantalTilt(scene, attacker, victim, direction) {
         tiltAttack(scene, attacker, victim, {
             animKey: 'slateatktilt',
             kb: 0.035,
-            xMul: 0.9,
-            yMul: 0.3,
+            xMul: 0.6,
+            yMul: 1,
             range: 150,
             freeze: 80,
             sfx: 'swosh',
-            kbTime: 300,
+            kbTime: 600,
         });
     } else if (attacker.name === "CROWBARMAN") {
         tiltAttack(scene, attacker, victim, {
             animKey: 'crowbaratk',
             kb: 0.035,
-            xMul: 0.9,
-            yMul: 0.3,
+            xMul: 0.6,
+            yMul: 1,
             range: 150,
             freeze: 80,
             sfx: 'swosh',
-            kbTime: 300,
+            kbTime: 600,
         });
     }
 }
