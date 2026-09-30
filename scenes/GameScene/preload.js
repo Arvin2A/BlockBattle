@@ -29,6 +29,7 @@ export function preload() {
     //map preview images
     this.load.image('desertpreview', 'assets/arenapreview.png');
     this.load.image('snowypreview', 'assets/snowy_preview.png');
+    this.load.image('randompreview', 'assets/random_preview.png');
 
     // =====================================================
     // MAP / STAGE
