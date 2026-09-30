@@ -1,5 +1,5 @@
 import Phaser from 'phaser';
-import {handleAttack, handleDirSpecial, handleDirSpecialAttack, handleHorizantalTilt, handleDownTilt, handleUpTilt} from './attacks.js';
+import {handleAttack, handleDirSpecial, handleDirSpecialAttack, handleHorizantalTilt, handleDownTilt, handleUpTilt, downslamAttack, updateScythemanGrass} from './attacks.js';
 import { initiatePlayers, updateCombo } from './players.js';
 import { Commands, executeStateCommand} from './commands.js';
 import { MenuScene } from './scenes/MenuScene.js';
@@ -561,6 +561,12 @@ function create() {
         frameRate: 32,
         repeat: -1
     });
+    this.anims.create({
+        key: 'upgrassGrow',
+        frames: this.anims.generateFrameNumbers('upgrassGrow', { start: 0, end: 2}),
+        frameRate: 0.75,
+        repeat: 0
+    });
 
 
 
@@ -1081,6 +1087,11 @@ function update() {
         }
 
         if (player.body.touching.down) {
+            if (player.downslamming && player.airTime > 0) {
+                const target = key === 'player' ? p2 : p1;
+                downslamAttack(this, player, target);
+                player.downslamming = false;
+            }
             player.airTime = 0;
         } else {
             player.airTime += this.game.loop.delta;
@@ -1096,6 +1107,7 @@ function update() {
         //player.canAttack =
             //this.time.now < player.canAttackUntil;
     };
+    updateScythemanGrass(this, this.gameState.players);
     const cal1 = ((p1.KBmultiplier * 100) - 100);
     const cal2 = ((p2.KBmultiplier * 100) - 100);
     p1.KBText.setText(`KB: ${cal1.toFixed(1)}%`);
@@ -1144,6 +1156,14 @@ function update() {
 
     p2.header.x = p2.x - 10;
     p2.header.y = p2.y - 50;
+
+    for (const key in this.gameState.players) {
+        const player = this.gameState.players[key];
+        if (player.grassCutText) {
+            player.grassCutText.setPosition(player.x, player.y - 75);
+            player.grassCutText.setText(`Grass cuts: ${player.grassCutCount}`);
+        }
+    }
 
     
 

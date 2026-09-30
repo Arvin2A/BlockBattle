@@ -22,10 +22,16 @@ function decelerate(player) {
 
     if (Math.abs(vx) > 10) {
         if (player.body.blocked.down) {
-            player.setVelocityX(vx * 0.9);
+            if (player.hitstun) {
+                player.setVelocityX(vx * player.hitstunGroundDeceleration);
+            } else {
+                player.setVelocityX(vx * 0.9);
+            }
         } else {
             player.setVelocityX(vx * 0.95);
         } 
+        
+        
     } else {
         player.setVelocityX(0);
     }
@@ -59,6 +65,7 @@ export function executeStateCommand(scene, players, command) {
             break;
 
         case Commands.DOWNSLAM:
+            attacker.downslamming = true;
             attacker.afterimage = true;
             attacker.setVelocityY(800);
             break;

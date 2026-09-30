@@ -30,6 +30,12 @@ export function initiatePlayers(scene, p1Select = 'axeman', p2Select = 'swordman
         p.freeze = false;
         p.freezeUntil = 0;
         p.willDecelerate = true;
+        p.hitstunGroundDeceleration = 0.98;
+        p.inGrass = false;
+        p.grassTrailX = null;
+        p.grassTrailY = null;
+        p.grassCutCount = 0;
+        p.nextGrassDamageTime = 0;
         p.nextAttackTime = 0;
         p.nextTiltTime = 0;
         p.combo = 0;
@@ -37,6 +43,7 @@ export function initiatePlayers(scene, p1Select = 'axeman', p2Select = 'swordman
         p.winNumber = 0;
         p.outOfBounds = false;
         p.airTime = 0;
+        p.downslamming = false;
         p.KBmultiplier = 1.00;
         if (modifierOptions.SUDDEN_DEATH.enabled) {
             p.KBmultiplier = 4.00;
@@ -208,6 +215,19 @@ export function initiatePlayers(scene, p1Select = 'axeman', p2Select = 'swordman
     players.player2.header = scene.add.text(players.player2.x, players.player2.y - 50, scene.botMode ? 'CPU' : 'P2' ,{ fontFamily: 'GameFont', fontSize: '18px', fill: '#0051ff' });
     scene.objs.add(players.player.header);
     scene.objs.add(players.player2.header);
+
+    for (const key in players) {
+        const player = players[key];
+        if (player.name === 'SCYTHEMAN') {
+            player.grassCutText = scene.add.text(
+                player.x,
+                player.y - 75,
+                `Grass cuts: ${player.grassCutCount}`,
+                { fontFamily: 'GameFont', fontSize: '14px', fill: '#ffffff' }
+            ).setOrigin(0.5).setStroke('#000000', 3);
+            scene.objs.add(player.grassCutText);
+        }
+    }
 
     players.player.atk.setVisible(false);
     players.player2.atk.setVisible(false);
