@@ -1376,7 +1376,7 @@ export function downslamAttack(scene, attacker, target) {
     const dy = target.y - attacker.y;
     if (Math.hypot(dx, dy) > 125 || scene.finisherActive) return false;
 
-    target.hitstunUntil = scene.time.now + 500 * target.KBmultiplier;
+    target.hitstunUntil = scene.time.now + 500;
     target.willDecelerate = false;
     target.KBmultiplier += 0.10 * getAttackDamageScale(attacker);
 
