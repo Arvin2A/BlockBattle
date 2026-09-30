@@ -23,7 +23,7 @@ export const MenuScene = {
             stroke: '#000000',
             strokeThickness: 5
         });
-        const changelogText = 'Thank you for waiting. \n\n Unfortunately, the promised variants and new character (outlawman) will not be coming quickly, expect a week or more as characters are still in development. However, I have delivered you recent patches and the rework of scytheman.';
+        const changelogText = 'Thank you for waiting. \n\n Unfortunately, the promised variants and new character (outlawman) will not be coming quickly, expect a week or more as characters are still in development. However, this smaller update includes new sound effects, better AI, downslam attacks, and scytheman\'s rework.';
         this.add.text(40, 180, changelogText, {
             fontFamily: 'VCROSD',
             fontSize: '18px',
