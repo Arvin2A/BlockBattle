@@ -58,9 +58,12 @@ export const MapAndModifierSelectScene = {
 	key: 'MapAndModifierSelectScene',
 	preload: bigPreload,
 	create: function () {
+		const randInt = Math.round(Math.random());
+		const randomDef = randInt === 0 ? DEFAULT_MAP : SNOWY_MAP
 		const maps = [
 			{ definition: DEFAULT_MAP, preview: 'desertpreview', name: 'DESERT ARENA' },
-			{ definition: SNOWY_MAP, preview: 'snowypreview', name: 'SNOWY ARENA' }
+			{ definition: SNOWY_MAP, preview: 'snowypreview', name: 'SNOWY ARENA' },
+			{ definition: randomDef, preview: 'randompreview', name: 'RANDOM' }
 		];
 
 
@@ -150,7 +153,7 @@ export const MapAndModifierSelectScene = {
 		
 
 		this.mapCards = maps.map((map, index) => {
-			const x = 255 + index * 275;
+			const x = 350;
 			const preview = this.add.image(x, 320, map.preview)
 				.setDisplaySize(240, 200)
 				.setInteractive({ useHandCursor: true });
@@ -166,7 +169,7 @@ export const MapAndModifierSelectScene = {
 			const select = () => {
 				selectedMapDefinition = map.definition;
 				this.selectedMapIndex = index;
-				this.updateMapSelection();
+				this.updateMapSelection(true);
 				this.sound.play('hover');
 			};
 
@@ -176,7 +179,13 @@ export const MapAndModifierSelectScene = {
 			preview.on('pointerover', () => card.setAlpha(0.8));
 			preview.on('pointerout', () => card.setAlpha(1));
 
-			return { card, preview, name };
+			return {
+				card,
+				preview,
+				name,
+				previewScaleX: preview.scaleX,
+				previewScaleY: preview.scaleY
+			};
 		});
 
         this.modifierCards = Object.keys(modifierOptions).map((modifierKey, index) => {
@@ -235,12 +244,43 @@ export const MapAndModifierSelectScene = {
 		if (this.selectedMapIndex < 0) this.selectedMapIndex = 0;
 		selectedMapDefinition = maps[this.selectedMapIndex].definition;
 
-		this.updateMapSelection = () => {
+		this.updateMapSelection = (animate = false) => {
 			this.mapCards.forEach((mapCard, index) => {
 				const selected = index === this.selectedMapIndex;
+				const previous = (index - this.selectedMapIndex + this.mapCards.length) % this.mapCards.length === this.mapCards.length - 1;
+				const targetX = selected ? 350 : previous ? 175 : 525;
+				const scale = selected ? 1 : 0.82;
+				const objects = [
+					{
+						gameObject: mapCard.preview,
+						y: 320,
+						scaleX: mapCard.previewScaleX * scale,
+						scaleY: mapCard.previewScaleY * scale
+					},
+					{ gameObject: mapCard.card, y: 320, scaleX: scale, scaleY: scale },
+					{ gameObject: mapCard.name, y: 510, scaleX: scale, scaleY: scale }
+				];
+
 				mapCard.card.setStrokeStyle(4, selected ? 0xffffff : 0x686868);
 				mapCard.preview.setAlpha(selected ? 1 : 0.65);
 				mapCard.name.setColor(selected ? '#ffffff' : '#888888');
+				objects.forEach(({ gameObject, y, scaleX, scaleY }) => {
+					gameObject.setDepth(selected ? 2 : 1);
+					this.tweens.killTweensOf(gameObject);
+					if (animate) {
+						this.tweens.add({
+							targets: gameObject,
+							x: targetX,
+							y,
+							scaleX,
+							scaleY,
+							duration: 280,
+							ease: 'Cubic.Out'
+						});
+					} else {
+						gameObject.setPosition(targetX, y).setScale(scaleX, scaleY);
+					}
+				});
 			});
 		};
 		this.updateMapSelection();
