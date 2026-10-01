@@ -86,6 +86,8 @@ export function preload() {
     this.load.spritesheet('sandstorm', 'assets/sandstorm.png', {frameWidth: 1000, frameHeight: 600});    
     this.load.spritesheet('blizzard', 'assets/blizzard.png', {frameWidth: 1000, frameHeight: 600});
 
+    this.load.audio('storm', 'audio/sandstorm.mp3');
+
     // =====================================================
     // EFFECTS
     // =====================================================

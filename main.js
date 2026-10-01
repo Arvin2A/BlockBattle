@@ -263,8 +263,10 @@ function startWeatherHazard(scene, type) {
         type,
         sprite,
         endsAt: scene.time.now + 5000,
-        nextDamageAt: scene.time.now + 1000
+        nextDamageAt: scene.time.now + 1000,
+        sound: scene.sound.add('storm', { volume: 0.80, loop: true })
     };
+    scene.weatherHazard.sound.play();
 
     if (type === 'blizzard') {
         Object.values(scene.gameState.players).forEach(player => {
@@ -296,6 +298,7 @@ function updateWeatherHazard(scene) {
                     player.weatherOriginalBaseMovementSpeed = undefined;
                 });
             }
+            hazard.sound.stop();
             scene.weatherHazard = null;
         } else {
             Object.values(scene.gameState.players).forEach(player => {
