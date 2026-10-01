@@ -44,7 +44,7 @@ jobs:
           path: dist
 
       - name: Build for InfinityFree
-        run: npm run build -- --mode infinityfree
+        run: INFINITYFREE=true npm run build
 
       - name: Show InfinityFree build output
         run: find dist -type f -print
