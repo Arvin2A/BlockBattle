@@ -280,6 +280,10 @@ export function attack(scene, attacker, target, animKey) {
             const randomNumber = Math.round(Math.random());
             const soundID = randomNumber === 0 ? 'slatelight1' : 'slatelight2';
             scene.sound.play(soundID);
+        } else if (attacker.name === "SCYTHEMAN") {
+            const randomNumber = Math.round(Math.random());
+            const soundID = randomNumber === 0 ? 'axeslash1' : 'axeslash2';
+            scene.sound.play(soundID);
         } else if (attacker.name === "CROWBARMAN") {
             const randomNumber = Math.round(Math.random());
             const soundID = randomNumber === 0 ? 'crowbarclang1' : 'crowbarclang2';
