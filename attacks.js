@@ -1,5 +1,7 @@
 const finalplungeMultiplier = 1.0;
-//attack is hard to explain so haha no comments
+import { CHARACTER_ATTACK_SCRIPTS } from './playerAttackScripts/index.js';
+
+// Shared damage scaling and grass effects.
 function startSideSpecialCooldown(player, currentTime, duration) {
     player.hasUsedSideSpecial = true;
     player.sideSpecialCooldownDuration = duration;
@@ -89,6 +91,7 @@ function cutGrassBeforeMaturity(attacker) {
     }
 }
 
+// Scytheman grass tracking and shared hit checks.
 export function updateScythemanGrass(scene, players) {
     if (!scene.scytheGrass) scene.scytheGrass = [];
 
@@ -156,6 +159,7 @@ export function attackIsElligible(attacker, target, range = 100, onlyOnCanAttack
     return eligible;
 }
 
+// Shared hit feedback, stun timing, and attack sprites.
 function hitFreeze(scene, ms = 50) {
     scene.physics.world.pause();
     scene.anims.pauseAll();
@@ -311,6 +315,7 @@ export function attack(scene, attacker, target, animKey) {
     queueStunRelease(scene, attacker, target, 400, 650);
     return hit;
 }
+// Shared attack types and character-exclusive move mechanics.
 export function superSwing(scene, attacker, target, animKey) {
 
     let hit = false;
@@ -831,6 +836,7 @@ export function releaseGrab(scene, attacker, currentTime, fling = true) {
 
     
 }
+// Configurable tilt attack shared by character scripts.
 export function tiltAttack(scene, attacker, target, {
     animKey,
     kb = 0.1,
@@ -904,6 +910,7 @@ export function tiltAttack(scene, attacker, target, {
     });
     attacker.nextAttackTime = scene.time.now + 400;
 }
+// Combo selection and shared attack cooldowns.
 export function tryAttack(scene, attacker, target, animKey, thirdAnimKey) {
     //handles some other stuff before calling either attack functions
     //such as checking if the attack is on cooldown, and whether to use the third attack or not
@@ -1631,248 +1638,57 @@ export function tryPull(scene, player, target, direction, currentTime) {
 
     player.lastTap[direction] = currentTime;
 }
+const sharedAttackHelpers = {
+    tryAttack,
+    tryAttack2,
+    tryAttack3,
+    tryLunge,
+    tryCleave,
+    tryPull,
+    tryMow,
+    tryRepair,
+    tryPlunge,
+    tryGrab,
+    releaseGrab,
+    lungePush,
+    superSwing,
+    tiltAttack,
+    distanceBetween: (first, second) => Phaser.Math.Distance.Between(
+        first.x, first.y, second.x, second.y
+    )
+};
+
+function getCharacterScript(attacker) {
+    return CHARACTER_ATTACK_SCRIPTS[attacker.name];
+}
+
+// Public input handlers delegate character choices to their own scripts.
 export function handleAttack(scene, attacker, victim) {
-    if (attacker.name === "CROWBARMAN" && attacker.activeGrab) {
-        releaseGrab(scene, attacker, scene.time.now, true);
-    } else if (attacker.name === "SWORDMAN") {
-        tryAttack(scene, attacker, victim ,'swordatk', 'swordatkthird');
-    } else if (attacker.name === "AXEMAN") {
-        tryAttack(scene, attacker, victim ,'axeatk', 'axeatkthird');
-    } else if (attacker.name === "FISHERMAN") {
-        tryAttack(scene, attacker, victim ,'rodatk', 'rodatk');
-    } else if (attacker.name === "SCYTHEMAN") {
-        tryAttack2(scene, attacker, victim ,'scytheatk', 'scytheatk');
-    } else if (attacker.name === "HAMMERMAN") {
-        tryAttack3(scene, attacker, victim ,'hammeratk', 'hammeratk');
-    } else if (attacker.name === "SLATEMAN") {
-        tryAttack(scene, attacker, victim ,'slateatk', 'slateatkthird');
-    } else if (attacker.name === "CROWBARMAN" && !attacker.activeGrab) {
-        tryAttack(scene, attacker, victim, 'crowbaratk', 'crowbaratk');
-    }
+    return getCharacterScript(attacker)?.handleAttack(sharedAttackHelpers, scene, attacker, victim);
 }
+
 export function handleDirSpecial(scene, attacker, direction, currentTime, victim) {
-    if (attacker.name === "SWORDMAN") {
-        tryLunge(scene, attacker, direction, currentTime);
-    } else if (attacker.name === "AXEMAN") {
-        tryCleave(scene, attacker, direction, currentTime);
-    } else if (attacker.name === "FISHERMAN") {
-        tryPull(scene, attacker, victim, direction, currentTime);
-    } else if (attacker.name === "SCYTHEMAN") {
-        tryMow(scene, attacker, victim, direction, currentTime);
-    } else if (attacker.name === "HAMMERMAN") {
-        tryRepair(scene, attacker, victim ,direction, currentTime);
-    } else if (attacker.name === "SLATEMAN") {
-        tryPlunge(scene, attacker, victim ,direction, currentTime);
-    } else if (attacker.name === "CROWBARMAN") {
-        tryGrab(scene, attacker, victim, direction, currentTime);
-    }
-
-}
-export function handleDirSpecialAttack(scene, attacker, victim) {
-    const distance = Phaser.Math.Distance.Between(
-        attacker.x,
-        attacker.y,
-        victim.x,
-        victim.y
+    return getCharacterScript(attacker)?.handleDirSpecial(
+        sharedAttackHelpers, scene, attacker, direction, currentTime, victim
     );
+}
 
-    if (distance <= 150) {
-        if (attacker.name === "SWORDMAN") {
-            lungePush(scene, attacker, victim, 'swordatkthird');
-        } else if (attacker.name === "AXEMAN") {
-            superSwing(scene, attacker, victim, 'axeatkthird');
-        }
-    }
+export function handleDirSpecialAttack(scene, attacker, victim) {
+    return getCharacterScript(attacker)?.handleDirSpecialAttack?.(
+        sharedAttackHelpers, scene, attacker, victim
+    );
 }
+
 export function handleHorizantalTilt(scene, attacker, victim, direction) {
-    if (attacker.name === "SWORDMAN") {
-        tiltAttack(scene, attacker, victim, {
-            animKey: 'swordatktilt',
-            kb: 0.035,
-            xMul: 0.6,
-            yMul: 1,
-            range: 150,
-            freeze: 80,
-            sfx: 'swosh',
-            kbTime: 600,
-            }
-        );
-    } else if (attacker.name === "AXEMAN") {
-        tiltAttack(scene, attacker, victim, {
-            animKey: 'axeatktilt',
-            kb: 0.035,
-            xMul: 0.6,
-            yMul: 1,
-            range: 150,
-            freeze: 80,
-            sfx: 'swosh',
-            kbTime: 600,
-        });
-    } else if (attacker.name === "FISHERMAN") {
-        tryAttack(scene, attacker, victim ,'rodatk', 'rodatk');
-    } else if (attacker.name === "SCYTHEMAN") {
-        tiltAttack(scene, attacker, victim, {
-            animKey: 'scytheatktilt',
-            kb: 0.035,
-            xMul: 0.6,
-            yMul: 1,
-            range: 150,
-            freeze: 80,
-            sfx: 'swosh',
-            kbTime: 600,
-            
-        });
-    } else if (attacker.name === "HAMMERMAN") {
-        tryAttack3(scene, attacker, victim ,'hammeratk', 'hammeratk');
-    } else if (attacker.name === "SLATEMAN") {
-        tiltAttack(scene, attacker, victim, {
-            animKey: 'slateatktilt',
-            kb: 0.035,
-            xMul: 0.6,
-            yMul: 1,
-            range: 150,
-            freeze: 80,
-            sfx: 'swosh',
-            kbTime: 600,
-        });
-    } else if (attacker.name === "CROWBARMAN") {
-        tiltAttack(scene, attacker, victim, {
-            animKey: 'crowbaratk',
-            kb: 0.035,
-            xMul: 0.6,
-            yMul: 1,
-            range: 150,
-            freeze: 80,
-            sfx: 'swosh',
-            kbTime: 600,
-        });
-    }
+    return getCharacterScript(attacker)?.handleHorizantalTilt(
+        sharedAttackHelpers, scene, attacker, victim, direction
+    );
 }
+
 export function handleDownTilt(scene, attacker, victim) {
-    if (attacker.name === "SWORDMAN") {
-        tiltAttack(scene, attacker, victim, {
-            animKey: 'swordatktilt',
-            kb: 0.035,
-            xMul: 0,
-            yMul: 2,
-            range: 150,
-            freeze: 80,
-            sfx: 'swosh',
-            kbTime: 300,
-            }
-        );
-    } else if (attacker.name === "AXEMAN") {
-        tiltAttack(scene, attacker, victim, {
-            animKey: 'axeatktilt',
-            kb: 0.035,
-            xMul: 0,
-            yMul: 2,
-            range: 150,
-            freeze: 80,
-            sfx: 'swosh',
-            kbTime: 300,
-            }
-        );
-    } else if (attacker.name === "FISHERMAN") {
-        tryAttack(scene, attacker, victim ,'rodatk', 'rodatk');
-    } else if (attacker.name === "SCYTHEMAN") {
-        tiltAttack(scene, attacker, victim, {
-            animKey: 'scytheatktilt',
-            kb: 0.035,
-            xMul: 0,
-            yMul: 2,
-            range: 150,
-            freeze: 80,
-            sfx: 'swosh',
-            kbTime: 300,
-            
-        });
-    } else if (attacker.name === "HAMMERMAN") {
-        tryAttack3(scene, attacker, victim ,'hammeratk', 'hammeratk');
-    } else if (attacker.name === "SLATEMAN") {
-        tiltAttack(scene, attacker, victim, {
-            animKey: 'slateatktilt',
-            kb: 0.035,
-            xMul: 0,
-            yMul: 2,
-            range: 150,
-            freeze: 80,
-            sfx: 'swosh',
-            kbTime: 300
-        });
-    } else if (attacker.name === "CROWBARMAN") {
-        tiltAttack(scene, attacker, victim, {
-            animKey: 'crowbaratk',
-            kb: 0.035,
-            xMul: 0,
-            yMul: 2,
-            range: 150,
-            freeze: 80,
-            sfx: 'swosh',
-            kbTime: 300
-        });
-    }
+    return getCharacterScript(attacker)?.handleDownTilt(sharedAttackHelpers, scene, attacker, victim);
 }
+
 export function handleUpTilt(scene, attacker, victim) {
-    if (attacker.name === "SWORDMAN") {
-        tiltAttack(scene, attacker, victim, {
-            animKey: 'swordatktilt',
-            kb: 0.035,
-            xMul: 0,
-            yMul: 0.88,
-            range: 150,
-            freeze: 80,
-            sfx: 'swosh',
-            kbTime: 300,
-            }
-        );
-    } else if (attacker.name === "AXEMAN") {
-        tiltAttack(scene, attacker, victim, {
-            animKey: 'axeatktilt',
-            kb: 0.035,
-            xMul: 0,
-            yMul: 0.88,
-            range: 150,
-            freeze: 80,
-            sfx: 'swosh',
-            kbTime: 300,
-        });
-    } else if (attacker.name === "FISHERMAN") {
-        tryAttack(scene, attacker, victim ,'rodatk', 'rodatk');
-    } else if (attacker.name === "SCYTHEMAN") {
-        tiltAttack(scene, attacker, victim, {
-            animKey: 'scytheatktilt',
-            kb: 0.035,
-            xMul: 0,
-            yMul: 0.88,
-            range: 150,
-            freeze: 80,
-            sfx: 'swosh',
-            kbTime: 300,
-        });
-    } else if (attacker.name === "HAMMERMAN") {
-        tryAttack3(scene, attacker, victim ,'hammeratk', 'hammeratk');
-    } else if (attacker.name === "SLATEMAN") {
-        tiltAttack(scene, attacker, victim, {
-            animKey: 'slateatktilt',
-            kb: 0.035,
-            xMul: 0,
-            yMul: 0.88,
-            range: 150,
-            freeze: 80,
-            sfx: 'swosh',
-            kbTime: 300,
-        });
-    } else if (attacker.name === "CROWBARMAN") {
-        tiltAttack(scene, attacker, victim, {
-            animKey: 'crowbaratk',
-            kb: 0.035,
-            xMul: 0,
-            yMul: 0.88,
-            range: 150,
-            freeze: 80,
-            sfx: 'swosh',
-            kbTime: 300,
-        });
-    }
+    return getCharacterScript(attacker)?.handleUpTilt(sharedAttackHelpers, scene, attacker, victim);
 }
