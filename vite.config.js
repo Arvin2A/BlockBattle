@@ -1,5 +1,5 @@
 import { defineConfig } from 'vite'
 
-export default defineConfig(({ mode }) => ({
-  base: mode === 'infinityfree' ? '/' : '/BlockBattle/',
+export default defineConfig(() => ({
+  base: process.env.INFINITYFREE === 'true' ? '/' : '/BlockBattle/',
 }))
