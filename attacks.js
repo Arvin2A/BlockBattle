@@ -1065,7 +1065,7 @@ export function tryMow(scene, player, target, direction, currentTime) {
 
         const inGrass = player.inGrass || target.inGrass;
         const knockbackScale = inGrass ? 2 : 1;
-        if (attackIsElligible(player, target, 150) && !scene.finisherActive) {
+        if (attackIsElligible(player, target, 250) && !scene.finisherActive) {
             target.hitstunUntil = scene.time.now + 450;
             target.willDecelerate = false;
             target.freezeUntil = scene.time.now - 1;
