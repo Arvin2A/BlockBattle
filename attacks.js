@@ -149,7 +149,7 @@ export function attackIsElligible(attacker, target, range = 100, onlyOnCanAttack
     const dot = (dx / distance) * attacker.lastDir.x + (dy / distance) * attacker.lastDir.y;
     const isFacingUp = attacker.lastDir.y < -0.9 && Math.abs(attacker.lastDir.x) < 0.2;
     const isFacingDown = attacker.lastDir.y > 0.9 && Math.abs(attacker.lastDir.x) < 0.2;
-    const isTargetAbove = dy < (isFacingUp || isFacingDown ? -25 : -10);
+    const isTargetAbove = dy < (isFacingUp || isFacingDown ? -25 : -10) && Math.abs(dy) <= 135;
     if ((dy > 25 && isFacingUp) || (isFacingDown && isTargetAbove)) return false;
     const eligible = dot > 0.7 || isFacingUp || isTargetAbove;
     if (eligible) cutGrassBeforeMaturity(attacker);
