@@ -53,22 +53,22 @@ function spawnDirtBurst(scene, x, y, particleCount = 8, minSize = 3, maxSize = 6
     }
 }
 
-function removeGrass(scene, grass) {
+function removeGrass(scene, grass, cutter) {
     if (!grass || !grass.active) return;
     const index = scene.scytheGrass.indexOf(grass);
     if (index !== -1) scene.scytheGrass.splice(index, 1);
-    if (grass.owner && grass.owner.name === 'SCYTHEMAN') {
-        grass.owner.grassCutCount += 1;
+    if (cutter && cutter.name === 'SCYTHEMAN') {
+        cutter.grassCutCount += 1;
     }
     spawnDirtBurst(scene, grass.x, grass.y);
     grass.destroy();
     scene.sound.play('harvest');
 }
 
-function cutNearbyGrass(scene, x, y, range) {
+function cutNearbyGrass(scene, x, y, range, cutter) {
     for (const grass of [...scene.scytheGrass]) {
         if (Phaser.Math.Distance.Between(x, y, grass.x, grass.y) <= range) {
-            removeGrass(scene, grass);
+            removeGrass(scene, grass, cutter);
         }
     }
 }
@@ -84,7 +84,7 @@ function cutGrassBeforeMaturity(attacker) {
             grass.x,
             grass.y
         ) <= 90) {
-            removeGrass(scene, grass);
+            removeGrass(scene, grass, attacker);
         }
     }
 }
@@ -105,39 +105,38 @@ export function updateScythemanGrass(scene, players) {
         }
     }
 
-    const scytheman = players.player.name === 'SCYTHEMAN'
-        ? players.player
-        : players.player2.name === 'SCYTHEMAN'
-            ? players.player2
-            : null;
-    if (!scytheman || !scytheman.body.blocked.down) return;
-    const grassTooClose = scene.scytheGrass.some(grass =>
-        grass.active &&
-        Phaser.Math.Distance.Between(
-            scytheman.x,
-            scytheman.y,
-            grass.x,
-            grass.y
-        ) < 45
-    );
+    for (const key in players) {
+        const scytheman = players[key];
+        if (scytheman.name !== 'SCYTHEMAN' || !scytheman.body.blocked.down) continue;
 
-    if (grassTooClose) return;
-    if (scytheman.grassTrailX !== null && Phaser.Math.Distance.Between(
-        scytheman.x, scytheman.y, scytheman.grassTrailX, scytheman.grassTrailY
-    ) < 45) return;
+        const grassTooClose = scene.scytheGrass.some(grass =>
+            grass.active && grass.owner === scytheman &&
+            Phaser.Math.Distance.Between(
+                scytheman.x,
+                scytheman.y,
+                grass.x,
+                grass.y
+            ) < 45
+        );
 
-    const grass = scene.add.sprite(scytheman.x, scytheman.y, 'upgrassGrow');
-    grass.setDepth(3);
-    grass.grassStage = 0;
-    grass.owner = scytheman;
-    grass.on('animationupdate', (animation, frame) => {
-        grass.grassStage = frame.index;
-    });
-    grass.play('upgrassGrow');
-    scene.objs.add(grass);
-    scene.scytheGrass.push(grass);
-    scytheman.grassTrailX = scytheman.x;
-    scytheman.grassTrailY = scytheman.y;
+        if (grassTooClose) continue;
+        if (scytheman.grassTrailX !== null && Phaser.Math.Distance.Between(
+            scytheman.x, scytheman.y, scytheman.grassTrailX, scytheman.grassTrailY
+        ) < 45) continue;
+
+        const grass = scene.add.sprite(scytheman.x, scytheman.y, 'upgrassGrow');
+        grass.setDepth(3);
+        grass.grassStage = 0;
+        grass.owner = scytheman;
+        grass.on('animationupdate', (animation, frame) => {
+            grass.grassStage = frame.index;
+        });
+        grass.play('upgrassGrow');
+        scene.objs.add(grass);
+        scene.scytheGrass.push(grass);
+        scytheman.grassTrailX = scytheman.x;
+        scytheman.grassTrailY = scytheman.y;
+    }
 }
 
 export function attackIsElligible(attacker, target, range = 100, onlyOnCanAttack = true) {
@@ -713,13 +712,14 @@ export function tryGrab(scene, attacker, target, direction, currentTime, animKey
 
         setAttackSprite(attacker, animKey);
         attacker.isUsingSideSpecial = true
+        attacker.isUsingSideSpecial = false;
+
 
         if (attackIsElligible(attacker, target, 200) && !scene.finisherActive) {
             const grabOffset = {
                 x: Math.sign(target.x - attacker.x) * 150,
                 y: Math.min(target.y - attacker.y, 0)
             };
-            attacker.isUsingSideSpecial = false;
             target.hitstunUntil = 3000 + scene.time.now;
             target.hitstun = true;
             target.willDecelerate = false;
@@ -957,7 +957,7 @@ export function tryLunge(scene, player, direction, currentTime, animKey = 'sword
     //Why do this? Using arrow keys and right shift is harder than using WASD and E
     //Basically it balances out the controls.
     const dtapDelay = 250;
-    const lungecd = 4000;
+    const lungecd = player.dirSpecialCooldown;
 
     if (player.hitstun || player.freeze) return;
     if (currentTime < player.nextSideSpecialTime) return;
@@ -1009,7 +1009,7 @@ export function tryLunge(scene, player, direction, currentTime, animKey = 'sword
 
 export function tryCleave(scene, player, direction, currentTime) {
     const dtapDelay = 250;
-    const cleaveCD = 3000;
+    const cleaveCD = player.dirSpecialCooldown;
 
     if (player.hitstun || player.freeze) return;
     if (currentTime < player.nextSideSpecialTime) return;
@@ -1077,7 +1077,7 @@ export function tryMow(scene, player, target, direction, currentTime) {
             scene.sound.play('miss');
         }
 
-        cutNearbyGrass(scene, player.x, player.y + 20, 180);
+        cutNearbyGrass(scene, player.x, player.y + 20, 180, player);
         startSideSpecialCooldown(player, currentTime, mowCD);
         player.canAttack = false;
         scene.time.delayedCall(350, () => {

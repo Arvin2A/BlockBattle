@@ -1,4 +1,4 @@
-name: Deploy to GitHub Pages
+name: Deploy to GitHub Pages and InfinityFree
 
 on:
   push:
@@ -33,6 +33,19 @@ jobs:
 
       - name: Build website
         run: npm run build
+
+      - name: Show build output
+        run: find dist -type f -print
+
+      # New step added here to push to InfinityFree right after building
+      - name: FTP Deploy to InfinityFree
+        uses: SamKirkland/FTP-Deploy-Action@v4.3.5
+        with:
+          server: ${{ secrets.FTP_SERVER }}
+          username: ${{ secrets.FTP_USERNAME }}
+          password: ${{ secrets.FTP_PASSWORD }}
+          local-dir: ./dist/
+          server-dir: /htdocs/
 
       - name: Upload website
         uses: actions/upload-pages-artifact@v3
