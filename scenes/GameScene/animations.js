@@ -120,6 +120,18 @@ export function createGameAnimations(scene) {
         frameRate: 32,
         repeat: 0
     });
+    scene.anims.create({
+        key: 'gunmanatk',
+        frames: scene.anims.generateFrameNumbers('gunmanatk', { start: 0, end: 2 }),
+        frameRate: 50,
+        repeat: 0
+    });
+    scene.anims.create({
+        key: 'explosion',
+        frames: scene.anims.generateFrameNumbers('explosion', { start: 0, end: 14 }),
+        frameRate: 24,
+        repeat: 0
+    });
 
     // Miscellaneous
     scene.anims.create({

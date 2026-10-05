@@ -319,13 +319,14 @@ export function finisherFreeze(scene) {
 const FINISHER_THRESHOLD = 1555;
 
 export function applyKnockback(scene, target, vx, vy, finishable = false) {
-    target.setVelocity(vx, vy);
+    const resistance = Number.isFinite(target.playerKBresistance) && target.playerKBresistance > 0
+        ? target.playerKBresistance
+        : 1;
+    const resistantVx = vx / resistance;
+    const resistantVy = vy / resistance;
+    target.setVelocity(resistantVx, resistantVy);
 
-    const kb = Math.hypot(vx, vy);
-
-    target.setVelocity(vx, vy);
-
-    return kb;
+    return Math.hypot(resistantVx, resistantVy);
 }
 export function attack(scene, attacker, target, animKey) {
     //the core attack function that is used as of now
@@ -1973,6 +1974,8 @@ export function tryPull(scene, player, target, direction, currentTime) {
     player.lastTap[direction] = currentTime;
 }
 const sharedAttackHelpers = {
+    applyKnockback,
+    getAttackDamageScale,
     tryAttack,
     tryAttack2,
     tryAttack3,

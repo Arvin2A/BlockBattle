@@ -182,6 +182,37 @@ export function runBotAI(scene, bot, target) {
         return;
     }
 
+    if (bot.name === "GUNMAN") {
+        const horizontalLane = Math.abs(dy + 10) <= target.body.height / 2 + 1;
+        const verticalLane = Math.abs(dx) <= target.body.width / 2 + 1;
+        const canShootHorizontally = horizontalLane && Math.abs(dx) > 50;
+        const canShootVertically = verticalLane && (dy <= -35 || dy >= 15);
+
+        if (canShootHorizontally || canShootVertically) {
+            bot.lastDir = canShootHorizontally
+                ? { x: Math.sign(dx), y: 0 }
+                : { x: 0, y: Math.sign(dy) };
+
+            if (scene.time.now >= bot.nextAttackTime && bot.canAttack) {
+                handleAttack(scene, bot, target);
+            }
+            executeStateCommand(scene, scene.gameState.players, {
+                playerID: bot.id,
+                type: Commands.NONE
+            });
+            return;
+        }
+
+        if (horizontalLane && Math.abs(dx) <= 50) {
+            bot.lastDir = { x: dx >= 0 ? 1 : -1, y: 0 };
+            executeStateCommand(scene, scene.gameState.players, {
+                playerID: bot.id,
+                type: dx >= 0 ? Commands.LEFT : Commands.RIGHT
+            });
+            return;
+        }
+    }
+
     // ======================
     // JUMP TO TARGET
     // ======================
@@ -268,7 +299,8 @@ export function runBotAI(scene, bot, target) {
 
     const attackRange = 65;
     
-    if (Math.abs(dx) < attackRange && Math.abs(dy) < attackRange+50) {
+    if (bot.name !== "GUNMAN" &&
+        Math.abs(dx) < attackRange && Math.abs(dy) < attackRange+50) {
 
         if (scene.time.now - bot.lastAttack > 100) {
 

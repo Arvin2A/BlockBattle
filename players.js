@@ -32,7 +32,8 @@ export function initiatePlayers(scene, p1Select = 'axeman', p2Select = 'swordman
             nextAttackTime: 0,
             nextTiltTime: 0,
             combo: 0,
-            comboTimer: 0
+            comboTimer: 0,
+            playerKBresistance: 1
         });
 
         // Hitstun, freeze, and grab state.
@@ -190,6 +191,14 @@ export function initiatePlayers(scene, p1Select = 'axeman', p2Select = 'swordman
     players.player.name = p1Select.toUpperCase();
     players.player2.name = p2Select.toUpperCase();
 
+    for (const player of Object.values(players)) {
+        if (player.name === 'SLATEMAN') {
+            player.playerKBresistance = 1.25;
+        } else if (player.name === 'HAMMERMAN' && player.variant === 'SLEDGEHAMMER') {
+            player.playerKBresistance = 1.5;
+        }
+    }
+
     players.player.icon = getPlayerTexture(p1Select, p1Variant);
     players.player2.icon = getPlayerTexture(p2Select, p2Variant);
 
@@ -240,6 +249,12 @@ export function initiatePlayers(scene, p1Select = 'axeman', p2Select = 'swordman
                 p.y + (p.lastDir.y * 50),
                 'crowbargrab'
             );
+        } else if (p.name === "GUNMAN") {
+            p.atk = scene.add.sprite(
+                p.x + (p.lastDir.x * 50),
+                p.y + (p.lastDir.y * 50),
+                'gunmanatk'
+            );
         } else {
             //fallback to axe sprite
             p.atk = scene.add.sprite(
@@ -284,6 +299,7 @@ export function initiatePlayers(scene, p1Select = 'axeman', p2Select = 'swordman
 }
 
 export function updateCombo(player, dt) {
+    if (player.name === 'GUNMAN') return;
     if (player.combo > 0) {
         player.comboTimer -= dt;
         if (player.comboTimer <= 0) {

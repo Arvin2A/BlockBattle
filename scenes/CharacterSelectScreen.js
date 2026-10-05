@@ -23,7 +23,8 @@ export const CharacterSelectScene = {
             'scytheman',
             'hammerman',
             'slateman',
-            'crowbarman'
+            'crowbarman',
+            'gunman'
         ];
 
         this.characterData = [
@@ -89,11 +90,18 @@ export const CharacterSelectScene = {
                     desc: 'Not for cutting weeds bro. \n\nDIR SPECIAL: GRAB \n\n Grab your opponent and hold them in place for 3 seconds. Press attack again to fling them away. Has a stupidly long range.',
                     color: '#68b96b'
                 }]
+            },
+            {
+                name: 'GUNMAN', variants: [{
+                    name: 'STANDARD ISSUE',
+                    desc: 'Modern conflicts need modern solutions, just use a gun!',
+                    color: '#e2c542'
+                }]
             }
         ];
 
         this.p1Index = 1;
-        this.p2Index = 0;
+        this.p2Index = 0 ? botMode : Math.min(1, this.characters.length - 1);
         this.p1VariantIndex = 0;
         this.p2VariantIndex = 0;
 
