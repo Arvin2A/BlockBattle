@@ -1024,8 +1024,6 @@ function update() {
 
         if (player.hitstun && player.isAttacking && !player.activeGrab &&
             !player.attackBypassesHitstun) {
-            player.atk.stop();
-            player.atk.setVisible(player.variant === 'SLEDGEHAMMER');
             player.isAttacking = false;
         }
 
