@@ -158,9 +158,7 @@ export const CharacterSelectScene = {
             60
         ).setStrokeStyle(4, botMode ? 0x686868 : 0x00aaff);
 
-        // -----------------------------
         // CHARACTER LIST
-        // -----------------------------
 
         this.characterIcons = [];
         const isTouchDevice = this.sys.game.device.input.touch;
