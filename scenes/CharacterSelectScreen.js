@@ -279,9 +279,9 @@ export const CharacterSelectScene = {
 
                 if (player === 1) {
                     this.p1VariantIndex = nextVariantIndex;
-                    if (this.p1VariantIndex === 1 && this.p1Index === 4) {
+                    if (this.p2VariantIndex === 1 && this.p2Index === 4) {
                         this.characterIcons[4].setTexture('sledgehammerman');
-                    } else if (this.p1VariantIndex === 1 && this.p1Index === 4) {
+                    } else if (this.p2VariantIndex === 1 && this.p2Index === 4) {
                         this.characterIcons[4].setTexture('hammerman');
                     } 
                 } else {
@@ -467,8 +467,18 @@ export const CharacterSelectScene = {
                         wheelIcons[iconIndex].setScale(offset === 0 ? 1 : 0.65);
                         if (player === 1) {
                             p1BoxSelectedOverlay.setPosition(wheelIcons[1].x, wheelIcons[1].y);
+                            if (this.p1VariantIndex === 1 && this.p1Index === 4) {
+                                wheelIcons[1].setTexture('sledgehammerman');
+                            } else if (this.p1VariantIndex === 1 && this.p1Index === 4) {
+                                wheelIcons[1].setTexture('hammerman');
+                            } 
                         } else {
                             p2BoxSelectedOverlay.setPosition(wheelIcons[1].x, wheelIcons[1].y);
+                            if (this.p2VariantIndex === 1 && this.p2Index === 4) {
+                                wheelIcons[1].setTexture('sledgehammerman');
+                            } else if (this.p2VariantIndex === 1 && this.p2Index === 4) {
+                                wheelIcons[1].setTexture('hammerman');
+                            } 
                         }
 
                     });
