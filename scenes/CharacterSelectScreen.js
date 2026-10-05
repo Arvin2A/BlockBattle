@@ -279,9 +279,16 @@ export const CharacterSelectScene = {
 
                 if (player === 1) {
                     this.p1VariantIndex = nextVariantIndex;
+                    if (this.p1VariantIndex === 1 && this.p1Index === 4) {
+                        this.characterIcons[4].setTexture('sledgehammerman');
+                    } else if (this.p1VariantIndex === 1 && this.p1Index === 4) {
+                        this.characterIcons[4].setTexture('hammerman');
+                    } 
                 } else {
                     this.p2VariantIndex = nextVariantIndex;
                 }
+
+                
 
                 this.sound.play('hover');
                 this.updateCharacterDescriptions();
