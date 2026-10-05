@@ -27,14 +27,69 @@ export const CharacterSelectScene = {
         ];
 
         this.characterData = [
-            { name: 'SWORDMAN', variants: ['LONGSWORD'], desc: 'Beware of the slashing sword. \n\nDIR SPECIAL: LUNGE \n\n Mediocre knockback on hit, however it has insane clutch potential.', color: '#0080ff' },
-            { name: 'AXEMAN', variants: ['LUMBERER'], desc: 'Beware of the chopping axe. \n\nDIR SPECIAL: POWER SWING \n\n Deal a 34% KB medium knockback strike, weakens your opponent for a bit!', color: '#ff4444' },
-            { name: 'FISHERMAN', variants: ['ANGLER'], desc: 'Using a fishing rod as a whip?? \n\n(BUGGED) DIR SPECIAL: GRAPPLE \n\n Throw your hook far for the chance to reel your opponent in.', color: '#00318d' },
-            { name: 'SCYTHEMAN', variants: ['LANDSCAPER'], desc: 'Built for my exact purpose, cutting them grass, each cut adds to the damage. \n\nDIR SPECIAL: MOW \n\n A quick grass cutting swipe that deals moderate damage. 2x more power when inside a grass patch.', color: '#686868' },
-            { name: 'HAMMERMAN', variants: ['MALLET'], desc: 'EVERY hit is a knockback attack. \n\nDIR SPECIAL: SIPHONING REPAIR \n\n Let out a flurry of 3 strikes that siphon KB from your foe!.', color: '#3da115' },
-            { name: 'SLATEMAN', variants: ['METAMORPHIC'], desc: 'Start with extra resistance to attacks. The more damage you take the faster you get, but deal less damage. \n\nDIR SPECIAL: PLUNGE \n\n Apply PLUNGED to your opponent, which makes the foe take 100% more knockback for the next hits within 2.5 seconds!', color: '#ffffff', fontSize: 17 },
-            { name: 'CROWBARMAN', variants: ['HOOKER'], desc: 'Not for cutting weeds bro. \n\nDIR SPECIAL: GRAB \n\n Grab your opponent and hold them in place for 3 seconds. Press attack again to fling them away. Has a stupidly long range.', color: '#68b96b' }
+            {
+                name: 'SWORDMAN', variants: [{
+                    name: 'LONGSWORD',
+                    desc: 'Beware of the slashing sword. \n\nDIR SPECIAL: LUNGE \n\n Mediocre knockback on hit, however it has insane clutch potential.',
+                    color: '#0080ff'
+                }]
+            },
+            {
+                name: 'AXEMAN', variants: [{
+                    name: 'LUMBERER',
+                    desc: 'Beware of the chopping axe. \n\nDIR SPECIAL: POWER SWING \n\n Deal a 34% KB medium knockback strike, weakens your opponent for a bit!',
+                    color: '#ff4444'
+                }]
+            },
+            {
+                name: 'FISHERMAN', variants: [{
+                    name: 'ANGLER',
+                    desc: 'Using a fishing rod as a whip?? \n\nDIR SPECIAL: GRAPPLE \n\n Throw your hook far for the chance to reel your opponent in.',
+                    color: '#00318d'
+                }]
+            },
+            {
+                name: 'SCYTHEMAN', variants: [
+                    {
+                        name: 'LANDSCAPER',
+                        desc: 'Built for my exact purpose, cutting them grass, each cut adds to the damage. \n\nDIR SPECIAL: MOW \n\n A quick grass cutting swipe that deals moderate damage. 2x more power when inside a grass patch.',
+                        color: '#686868'
+                    }
+                ]
+            },
+            {
+                name: 'HAMMERMAN', variants: [
+                    {
+                        name: 'MALLET',
+                        desc: 'EVERY hit is a knockback attack. \n\nDIR SPECIAL: SIPHONING REPAIR \n\n Let out a flurry of 3 strikes that siphon KB from your foe!.',
+                        color: '#3da115'
+                    },
+                    {
+                        name: 'SLEDGEHAMMER',
+                            desc: "Now its hammer is REALLY heavy, KILLER damage ouput, at the cost of speed and attack speed. \n\nDIR SPECIAL: QUICKSLAM \n\n A powerful slam attack that sends the opponent flying up. Jumping immediately after will perform a follow-up attack.",
+                        color: '#a5a5a5',
+                        fontSize: 16
+                    }
+                ]
+            },
+            {
+                name: 'SLATEMAN', variants: [
+                    {
+                        name: 'METAMORPHIC',
+                        desc: 'Start with extra resistance to attacks. The more damage you take the faster you get, but deal less damage. \n\nDIR SPECIAL: PLUNGE \n\n Apply PLUNGED to your opponent, which makes the foe take 100% more knockback for the next hits within 2.5 seconds!',
+                        color: '#ffffff',
+                        fontSize: 17
+                    }
+                ]
 
+            },
+            {
+                name: 'CROWBARMAN', variants: [{
+                    name: 'HOOKER',
+                    desc: 'Not for cutting weeds bro. \n\nDIR SPECIAL: GRAB \n\n Grab your opponent and hold them in place for 3 seconds. Press attack again to fling them away. Has a stupidly long range.',
+                    color: '#68b96b'
+                }]
+            }
         ];
 
         this.p1Index = 1;
@@ -198,14 +253,7 @@ export const CharacterSelectScene = {
                 fill: '#686868'
             }).setOrigin(0.5).setInteractive({ useHandCursor: true });
 
-            const characterIndex = player === 1 ? this.p1Index : this.p2Index;
-            const variants = this.characterData[characterIndex].variants;
-                
-
             const variantText = player === 1 ? this.p1VariantText : this.p2VariantText;
-            if (variants.length === 1) {
-                variantText.setColor('#B91F1C');
-            }
 
             button.on('pointerover', () => button.setColor('#ffffff'));
             button.on('pointerout', () => button.setColor('#686868'));
@@ -213,8 +261,11 @@ export const CharacterSelectScene = {
                 if (player === 1 && this.p1IsReady) return;
                 if (player === 2 && this.p2IsReady) return;
 
+                const characterIndex = player === 1 ? this.p1Index : this.p2Index;
+                const variants = this.characterData[characterIndex].variants;
                 if (variants.length === 1) {
                     this.sound.play('deny');
+                    return;
                 }
                 const variantIndex = player === 1 ? this.p1VariantIndex : this.p2VariantIndex;
                
@@ -233,10 +284,14 @@ export const CharacterSelectScene = {
             return button;
         };
 
-        createVariantButton(70, 1, -1);
-        createVariantButton(190, 1, 1);
-        createVariantButton(810, 2, -1);
-        createVariantButton(930, 2, 1);
+        this.p1VariantButtons = [
+            createVariantButton(70, 1, -1),
+            createVariantButton(190, 1, 1)
+        ];
+        this.p2VariantButtons = [
+            createVariantButton(810, 2, -1),
+            createVariantButton(930, 2, 1)
+        ];
 
         this.p2DescText = this.add.text(870, 340, '', {
             fontFamily: 'VCROSD',
@@ -274,20 +329,32 @@ export const CharacterSelectScene = {
                 previousP2Index = this.p2Index;
             }
 
-            this.p1NameText.setText(p1.name);
-            this.p1NameText.setColor(p1.color);
-            this.p1VariantText.setText(p1.variants[this.p1VariantIndex]);
+            const p1Variant = p1.variants[this.p1VariantIndex];
+            const p2Variant = p2.variants[this.p2VariantIndex];
+            const p1HasMultipleVariants = p1.variants.length > 1;
+            const p2HasMultipleVariants = p2.variants.length > 1;
 
-            this.p1DescText.setText(p1.desc);
-            if (p1.fontSize) {
-                this.p1DescText.setFontSize(p1.fontSize);
+            this.p1VariantText.setVisible(p1HasMultipleVariants);
+            this.p1VariantButtons.forEach(button => button.setVisible(p1HasMultipleVariants));
+            this.p2VariantText.setVisible(p2HasMultipleVariants);
+            this.p2VariantButtons.forEach(button => button.setVisible(p2HasMultipleVariants));
+
+            this.p1NameText.setText(p1.name);
+            this.p1NameText.setColor(p1Variant.color);
+            this.p1VariantText.setText(p1Variant.name);
+            this.p1VariantText.setColor(p1Variant.color);
+
+            this.p1DescText.setText(p1Variant.desc);
+            if (p1Variant.fontSize) {
+                this.p1DescText.setFontSize(p1Variant.fontSize);
             } else {
                 this.p1DescText.setFontSize(20);
             }
 
             this.p2NameText.setText(p2.name);
-            this.p2NameText.setColor(p2.color);
-            this.p2VariantText.setText(p2.variants[this.p2VariantIndex]);
+            this.p2NameText.setColor(p2Variant.color);
+            this.p2VariantText.setText(p2Variant.name);
+            this.p2VariantText.setColor(p2Variant.color);
 
             const p1Icon = this.characterIcons[this.p1Index];
             const p2Icon = this.characterIcons[this.p2Index];
@@ -321,9 +388,9 @@ export const CharacterSelectScene = {
             }
 
 
-            this.p2DescText.setText(p2.desc);
-            if (p2.fontSize) {
-                this.p2DescText.setFontSize(p2.fontSize);
+            this.p2DescText.setText(p2Variant.desc);
+            if (p2Variant.fontSize) {
+                this.p2DescText.setFontSize(p2Variant.fontSize);
             } else {
                 this.p2DescText.setFontSize(20);
             }
@@ -562,14 +629,14 @@ export const CharacterSelectScene = {
                 this.scene.start('GameScene', {
                     player1Character: this.characters[this.p1Index],
                     player2Character: this.characters[this.p2Index],
-                    player1Variant: this.characterData[this.p1Index].variants[this.p1VariantIndex],
-                    player2Variant: this.characterData[this.p2Index].variants[this.p2VariantIndex]
+                    player1Variant: this.characterData[this.p1Index].variants[this.p1VariantIndex].name,
+                    player2Variant: this.characterData[this.p2Index].variants[this.p2VariantIndex].name
                 });
             });
             player1Character = this.characters[this.p1Index];
             player2Character = this.characters[this.p2Index];
-            player1Variant = this.characterData[this.p1Index].variants[this.p1VariantIndex];
-            player2Variant = this.characterData[this.p2Index].variants[this.p2VariantIndex];
+            player1Variant = this.characterData[this.p1Index].variants[this.p1VariantIndex].name;
+            player2Variant = this.characterData[this.p2Index].variants[this.p2VariantIndex].name;
 
         });
 

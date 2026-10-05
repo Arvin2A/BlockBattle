@@ -25,6 +25,11 @@ export function runBotAI(scene, bot, target) {
         bot.escapeUntil = 0;
     }
 
+    if (!bot.hitstun && !bot.freeze && !bot.hasHitSideSpecial &&
+        bot.isUsingSideSpecial && fiveframecount === 5) {
+        handleDirSpecialAttack(scene, bot, target);
+    }
+
     if (bot.hitstun || bot.freeze || bot.isUsingSideSpecial) {
         executeStateCommand(scene, scene.gameState.players, {
             playerID: bot.id,
@@ -109,7 +114,7 @@ export function runBotAI(scene, bot, target) {
         return;
     }
 
-    if (!bot.body.blocked.down && dy > 0 &&
+    if (!bot.body.blocked.down && bot.airTime >= 1000 && dy > 0 &&
         Math.hypot(dx, dy) <= 125 &&
         scene.time.now >= (bot.nextDownslamTime || 0)) {
         bot.nextDownslamTime = scene.time.now + 1000;
@@ -311,9 +316,6 @@ export function runBotAI(scene, bot, target) {
     
     const specDirection = (bot.lastDir.x > 0 && bot.lastDir.x !== 0) ? "right" : "left";
     //CHARACTER-SPECIFIC SPECIAL ATTACK INTERACTIONS:
-    if (!bot.hasHitSideSpecial && bot.isUsingSideSpecial && fiveframecount === 5) {
-        handleDirSpecialAttack(scene, bot, target);
-    }
     if (bot.name === "AXEMAN") {
         const attackRange = 80;
 
