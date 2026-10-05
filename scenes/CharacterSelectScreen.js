@@ -255,7 +255,7 @@ export const CharacterSelectScene = {
         const createVariantButton = (x, player, direction) => {
             const button = this.add.text(x, 180, direction < 0 ? '<' : '>', {
                 fontFamily: 'VCROSD',
-                fontSize: '20px',
+                fontSize: '30px',
                 fill: '#686868'
             }).setOrigin(0.5).setInteractive({ useHandCursor: true });
 
@@ -298,12 +298,12 @@ export const CharacterSelectScene = {
         };
 
         this.p1VariantButtons = [
-            createVariantButton(70, 1, -1),
-            createVariantButton(190, 1, 1)
+            createVariantButton(60, 1, -1),
+            createVariantButton(200, 1, 1)
         ];
         this.p2VariantButtons = [
-            createVariantButton(810, 2, -1),
-            createVariantButton(930, 2, 1)
+            createVariantButton(800, 2, -1),
+            createVariantButton(940, 2, 1)
         ];
 
         this.p2DescText = this.add.text(870, 340, '', {
