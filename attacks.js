@@ -1525,7 +1525,7 @@ export function quickslam1(scene, attacker, target, animKey = 'sledgehammerquick
         target.freezeUntil = scene.time.now - 1;
         attacker.freezeUntil = scene.time.now - 1;
         attacker.comboTimer = 600;
-        target.KBmultiplier += 0.15 * getAttackDamageScale(attacker);
+        target.KBmultiplier += 0.25 * getAttackDamageScale(attacker);
         hitFreeze(scene, 100);
         const dirX = attacker.lastDir.x;
 
@@ -1655,7 +1655,7 @@ export function quickslam2(scene, attacker, target, animKey = 'sledgehammerquick
             attacker.freezeUntil = scene.time.now - 1;
             attacker.willDecelerate = true;
             attacker.comboTimer = 600;
-            target.KBmultiplier += 0.15 * getAttackDamageScale(attacker);
+            target.KBmultiplier += 0.25 * getAttackDamageScale(attacker);
             scene.sound.play('sledgehammerquickslam');
             scene.sound.play('damn', { volume: 2 });
             hitFreeze(scene, 100);
@@ -1670,7 +1670,7 @@ export function quickslam2(scene, attacker, target, animKey = 'sledgehammerquick
                 const randDir = Math.random() < 0.5 ? -1 : 1;
                 applyKnockback(scene, target, (200 * target.KBmultiplier) * randDir, -1500 * target.KBmultiplier);
             } else {
-                applyKnockback(scene, target, (200 * target.KBmultiplier * getAttackDamageScale(attacker)) * dirX, (1000));
+                applyKnockback(scene, target, (500 * target.KBmultiplier * getAttackDamageScale(attacker)) * dirX, (1000));
             }
             attacker.combo = 0;
             attacker.comboTimer = 0;
