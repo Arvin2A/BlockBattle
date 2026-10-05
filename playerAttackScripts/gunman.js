@@ -87,9 +87,9 @@ function handleShot(api, scene, attacker, victim) {
         victim.flash();
         const damageScale = api.getAttackDamageScale(attacker);
         victim.KBmultiplier += (isExplosion ? 0.10 : 0.01) * damageScale;
-        victim.hitstunUntil = scene.time.now + (isExplosion ? 750 : 350) * victim.KBmultiplier;
+        victim.hitstunUntil = scene.time.now + (isExplosion ? 750 : -1) * victim.KBmultiplier;
         victim.willDecelerate = false;
-        const knockback = (isExplosion ? 500 : 50) * victim.KBmultiplier * damageScale;
+        const knockback = (isExplosion ? 500 : 10) * victim.KBmultiplier * damageScale;
         const verticalKick = attacker.lastDir.y === 0
             ? (isExplosion ? -220 : -40)
             : attacker.lastDir.y * knockback;
