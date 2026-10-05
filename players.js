@@ -193,7 +193,7 @@ export function initiatePlayers(scene, p1Select = 'axeman', p2Select = 'swordman
 
     for (const player of Object.values(players)) {
         if (player.name === 'SLATEMAN') {
-            player.playerKBresistance = 1.25;
+            player.playerKBresistance = 2;
         } else if (player.name === 'HAMMERMAN' && player.variant === 'SLEDGEHAMMER') {
             player.playerKBresistance = 1.5;
         }
