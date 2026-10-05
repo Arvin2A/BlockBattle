@@ -377,6 +377,33 @@ export function preload() {
     );
 
     // =====================================================
+    // GUNMAN
+    // =====================================================
+
+    this.load.image(
+        'gunman',
+        'assets/sprites/gunman/gunman-default.png'
+    );
+
+    this.load.spritesheet(
+        'gunmanatk',
+        'assets/sprites/gunman/gunmanatk.png',
+        {
+            frameWidth: 50,
+            frameHeight: 50
+        }
+    );
+    this.load.spritesheet(
+        'explosion',
+        'assets/explosion.png',
+        {
+            frameWidth: 120,
+            frameHeight: 200
+        }
+
+    )
+
+    // =====================================================
     // MISC SPRITESHEETS/ASSETS
     // =====================================================
 
@@ -479,6 +506,15 @@ export function preload() {
     this.load.audio('crowbarhit', 'audio/hl_crowbar.mp3');
     this.load.audio('crowbarclang1', 'audio/crowbarclang1.wav');
     this.load.audio('crowbarclang2', 'audio/crowbarclang2.wav');
+
+    // =====================================================
+    // AUDIO - GUNMAN
+    // =====================================================
+
+    this.load.audio('gunshot', 'audio/fire.wav');
+    this.load.audio('reload', 'audio/reload.ogg');
+    this.load.audio('explosion', 'audio/explosion.wav');
+
 
     // =====================================================
     // AUDIO - MISC
