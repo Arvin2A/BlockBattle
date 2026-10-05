@@ -590,7 +590,7 @@ export function veryhardSwing(scene, attacker, target, animKey) {
     setAttackSprite(attacker, animKey);
     scene.time.delayedCall(800, () => {
         //the delay makes slegdehammer man telegraphable and punishable, but also makes it feel like a big swing.
-        if (attackIsElligible(attacker, target, 150, false) && !scene.finisherActive && attacker.variant === "SLEDGEHAMMER") {
+        if (attackIsElligible(attacker, target, 150) && !scene.finisherActive && attacker.variant === "SLEDGEHAMMER") {
             target.hitstunUntil = 400 * target.KBmultiplier + scene.time.now;
             target.willDecelerate = false;
             target.freezeUntil = scene.time.now - 1;
