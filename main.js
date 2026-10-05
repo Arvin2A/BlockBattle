@@ -1,11 +1,12 @@
 import Phaser from 'phaser';
-import {handleAttack, handleDirSpecial, handleDirSpecialAttack, handleHorizantalTilt, handleDownTilt, handleUpTilt, downslamAttack, updateScythemanGrass} from './attacks.js';
+import {handleAttack, handleDirSpecial, handleDirSpecialAttack, handleHorizantalTilt, handleDownTilt, handleUpTilt, downslamAttack, updateScythemanGrass, tryQuickslamJump} from './attacks.js';
 import { initiatePlayers, updateCombo } from './players.js';
 import { Commands, executeStateCommand} from './commands.js';
 import { MenuScene } from './scenes/MenuScene.js';
-import { player1Character, player2Character, CharacterSelectScene } from './scenes/CharacterSelectScreen.js';
+import { player1Character, player2Character, player1Variant, player2Variant, CharacterSelectScene } from './scenes/CharacterSelectScreen.js';
 import { MapAndModifierSelectScene, selectedMapDefinition, resetMapAndModifierSelection } from './scenes/MapAndModifierSelect.js';
 import { preload } from './scenes/GameScene/preload.js';
+import { createGameAnimations } from './scenes/GameScene/animations.js';
 import { runBotAI } from './scenes/GameScene/botAI.js';
 import { DEFAULT_MAP, Map, SNOWY_MAP } from './scenes/GameScene/Map.js';
 import { modifierOptions } from './scenes/MapAndModifierSelect.js';
@@ -396,6 +397,7 @@ function create() {
         });
         this.time.delayedCall(150, () => {
             restartBtn.setVisible(false);
+            this.sound.stopAll();
             this.scene.restart();
         });
     });
@@ -447,132 +449,7 @@ function create() {
 
     //platform.refreshBody();
 
-    //attacks
-    this.anims.create({
-        key: 'axeatk',
-        frames: this.anims.generateFrameNumbers('axeatk', { start: 0, end: 3 }),
-        frameRate: 32,
-        repeat: 0
-    });
-    this.anims.create({
-        key: 'axeatktilt',
-        frames: this.anims.generateFrameNumbers('axeatktilt', { start: 0, end: 3 }),
-        frameRate: 32,
-        repeat: 0
-    });
-    this.anims.create({
-        key: 'swordatk',
-        frames: this.anims.generateFrameNumbers('swordatk', { start: 0, end: 3 }),
-        frameRate: 32,
-        repeat: 0
-    });
-    this.anims.create({
-        key: 'swordatkthird',
-        frames: this.anims.generateFrameNumbers('swordatkthird', { start: 0, end: 3 }),
-        frameRate: 32,
-        repeat: 0
-    });
-    this.anims.create({
-        key: 'swordatktilt',
-        frames: this.anims.generateFrameNumbers('swordatktilt', { start: 0, end: 4 }),
-        frameRate: 28,
-        repeat: 0
-    });
-    this.anims.create({
-        key: 'axeatkthird',
-        frames: this.anims.generateFrameNumbers('axeatkthird', { start: 0, end: 6 }),
-        frameRate: 42,
-        repeat: 0
-    });
-    this.anims.create({
-        key: 'rodatk',
-        frames: this.anims.generateFrameNumbers('rodatk', { start: 0, end: 3 }),
-        frameRate: 28,
-        repeat: 0
-    });
-    this.anims.create({
-        key: 'scytheatk',
-        frames: this.anims.generateFrameNumbers('scytheatk', { start: 0, end: 3 }),
-        frameRate: 32,
-        repeat: 0
-    });
-    this.anims.create({
-        key: 'scytheatktilt',
-        frames: this.anims.generateFrameNumbers('scytheatktilt', { start: 0, end: 4 }),
-        frameRate: 48,
-        repeat: 0
-    });
-    this.anims.create({
-        key: 'hammeratk',
-        frames: this.anims.generateFrameNumbers('hammeratk', { start: 0, end: 3 }),
-        frameRate: 32,
-        repeat: 0
-    });
-    this.anims.create({
-        key: 'slateatk',
-        frames: this.anims.generateFrameNumbers('slateatk', { start: 0, end: 3 }),
-        frameRate: 32,
-        repeat: 0
-    });
-    this.anims.create({
-        key: 'slateatktilt',
-        frames: this.anims.generateFrameNumbers('slateatktilt', { start: 0, end: 4 }),
-        frameRate: 32,
-        repeat: 0
-    });
-    this.anims.create({
-        key: 'slateatkthird',
-        frames: this.anims.generateFrameNumbers('slateatkthird', { start: 0, end: 3 }),
-        frameRate: 32,
-        repeat: 0
-    });
-    this.anims.create({
-        key: 'slateplunge',
-        frames: this.anims.generateFrameNumbers('slateplunge', { start: 0, end: 10 }),
-        frameRate: 12,
-        repeat: 0
-    });
-    this.anims.create({
-        key: 'crowbargrab',
-        frames: this.anims.generateFrameNumbers('crowbargrab', { start: 0, end: 6 }),
-        frameRate: 48,
-        repeat: 0
-    });
-    this.anims.create({
-        key: 'crowbaratk',
-        frames: this.anims.generateFrameNumbers('crowbaratk', { start: 0, end: 3 }),
-        frameRate: 32,
-        repeat: 0
-    });
-
-    //misc
-    this.anims.create({
-        key: 'upbambooGrow',
-        frames: this.anims.generateFrameNumbers('upbambooGrow', { start: 0, end: 3 }),
-        frameRate: 18,
-        repeat: 0
-    });
-    this.anims.create({
-        key: 'blizzard',
-        frames: this.anims.generateFrameNumbers('blizzard', { start: 0, end: 3 }),
-        frameRate: 32,
-        repeat: -1
-    });
-    this.anims.create({
-        key: 'sandstorm',
-        frames: this.anims.generateFrameNumbers('sandstorm', { start: 0, end: 3 }),
-        frameRate: 32,
-        repeat: -1
-    });
-    this.anims.create({
-        key: 'upgrassGrow',
-        frames: this.anims.generateFrameNumbers('upgrassGrow', { start: 0, end: 2}),
-        frameRate: 0.75,
-        repeat: 0
-    });
-
-
-
+    createGameAnimations(this);
 
     //mobile support:
     const isMobile = this.sys.game.device.input.touch;
@@ -684,7 +561,13 @@ function create() {
     }
 
     //---PLAYER---\\
-    this.gameState.players = initiatePlayers(this, player1Character, player2Character);
+    this.gameState.players = initiatePlayers(
+        this,
+        player1Character,
+        player2Character,
+        player1Variant,
+        player2Variant
+    );
     createSpecialMeters(this);
 
     //a bit of cam intiation:
@@ -878,6 +761,37 @@ function spawnAfterimage(scene, player) {
         onComplete: () => ghost.destroy()
     });
 }
+
+function updateSledgehammerAnimation(player) {
+    if (player.variant !== 'SLEDGEHAMMER') return;
+    const sprite = player.atk;
+
+    sprite.setPosition(player.x, player.y);
+    if (player.lastDir.x !== 0) sprite.setFlipX(-player.lastDir.x < 0);
+
+    if (player.isAttacking) {
+        if (sprite.anims.currentAnim?.key === 'sledge_walk') {
+            sprite.stop();
+            sprite.setTexture('sledge_idle');
+        }
+        if (player.rockslidingSound.isPlaying) player.rockslidingSound.stop();
+        return;
+    }
+
+    if (Math.abs(player.body.velocity.x) > 1 && player.body.touching.down) {
+        if (sprite.texture.key !== 'sledge_walk' || !sprite.anims.isPlaying) {
+            sprite.play('sledge_walk');
+        }
+        if (!player.rockslidingSound.isPlaying) player.rockslidingSound.play();
+    } else if (sprite.texture.key !== 'sledge_idle' || sprite.anims.isPlaying) {
+        sprite.stop();
+        sprite.setTexture('sledge_idle');
+        if (player.rockslidingSound.isPlaying) player.rockslidingSound.stop();
+    } else if (player.rockslidingSound.isPlaying) {
+        player.rockslidingSound.stop();
+    }
+}
+
 function updateKB(scene) {
     for (const key in scene.gameState.players) {
         const player = scene.gameState.players[key];
@@ -1025,6 +939,9 @@ function update() {
         p2.setVelocity(0, 0);
         return;
     }
+
+    p1.hitstun = this.time.now < p1.hitstunUntil;
+    p2.hitstun = this.time.now < p2.hitstunUntil;
     
     
     if ((attackKey1.isDown || mobileControls.p1.attack) && (!p1.hitstun || p1.activeGrab)) {
@@ -1050,6 +967,7 @@ function update() {
             handleAttack(this, p1, p2);
         }
     }
+    p2.hitstun = this.time.now < p2.hitstunUntil;
     if ((attackKey2.isDown || mobileControls.p2.attack) && (!p2.hitstun || p2.activeGrab) && !botMode) {
         const now = this.time.now;
         if (inputMode.p2 !== "keyboard" && !mobileControls.p2.attack) {
@@ -1104,6 +1022,13 @@ function update() {
         player.hitstun =
             this.time.now < player.hitstunUntil;
 
+        if (player.hitstun && player.isAttacking && !player.activeGrab &&
+            !player.attackBypassesHitstun) {
+            player.atk.stop();
+            player.atk.setVisible(player.variant === 'SLEDGEHAMMER');
+            player.isAttacking = false;
+        }
+
         player.freeze =
             this.time.now < player.freezeUntil;
         player.chopped = this.time.now < player.choppedUntil;
@@ -1121,6 +1046,7 @@ function update() {
     else if (wasd.right.isDown || mobileControls.p1.right) p1.lastDir = { x: 1, y: 0 };
     else if (wasd.up.isDown || mobileControls.p1.up) p1.lastDir = { x: 0, y: -1 };
     else if (wasd.down.isDown || mobileControls.p1.down) p1.lastDir = { x: 0, y: 1 };
+    if (p1.lastDir.y === 0) p1.atk.setAngle(0);
 
 
     // PLAYER 2 (arrows)
@@ -1128,6 +1054,7 @@ function update() {
     else if (cursors.right.isDown || mobileControls.p2.right) p2.lastDir = { x: 1, y: 0 };
     else if (cursors.up.isDown || mobileControls.p2.up) p2.lastDir = { x: 0, y: -1 };
     else if (cursors.down.isDown || mobileControls.p2.down) p2.lastDir = { x: 0, y: 1 };
+    if (p2.lastDir.y === 0) p2.atk.setAngle(0);
     function decelerate(player) {
         if (player.isUsingSideSpecial) return;
         let vx = player.body.velocity.x;
@@ -1203,6 +1130,7 @@ function update() {
         }
     }
 
+    p1.hitstun = this.time.now < p1.hitstunUntil;
     if (!p1.hitstun) {
         if (Phaser.Input.Keyboard.JustDown(wasd.left) || mobileControls.p1.leftPressed) {
             p1.lastInput.left = this.time.now;
@@ -1271,7 +1199,8 @@ function update() {
                 });
                 inputMode.p1 = "keyboard";
             }
-            if (!p1.body.touching.down && !p1.hasDoubleJumped) {
+            const quickslamJumped = tryQuickslamJump(this, p1, this.time.now);
+            if (!quickslamJumped && !p1.body.touching.down && !p1.hasDoubleJumped) {
                 executeStateCommand(this, this.gameState.players, {
                     playerID: p1.id,
                     type: Commands.DOUBLE_UP
@@ -1308,7 +1237,7 @@ function update() {
             });
         }
 
-        if ((wasd.down.isDown || mobileControls.p1.down) && p1.airTime > 600) {
+        if ((wasd.down.isDown || mobileControls.p1.down) && p1.airTime >= 1000) {
             executeStateCommand(this, this.gameState.players, {
                 playerID: p1.id,
                 type: Commands.DOWNSLAM
@@ -1318,6 +1247,7 @@ function update() {
     }
 
 
+    p2.hitstun = this.time.now < p2.hitstunUntil;
     if (!p2.hitstun && !botMode) {
 
         // Player 2 controls
@@ -1393,7 +1323,8 @@ function update() {
         if (
             (Phaser.Input.Keyboard.JustDown(cursors.up) || mobileControls.p2.upPressed)
         ) {
-            if (!p2.body.touching.down && !p2.hasDoubleJumped) {
+            const quickslamJumped = tryQuickslamJump(this, p2, this.time.now);
+            if (!quickslamJumped && !p2.body.touching.down && !p2.hasDoubleJumped) {
                 executeStateCommand(this, this.gameState.players, {
                     playerID: p2.id,
                     type: Commands.DOUBLE_UP
@@ -1435,7 +1366,7 @@ function update() {
                 type: Commands.UP_CANCEL
             });
         }
-        if ((cursors.down.isDown || mobileControls.p2.down) && p2.airTime > 600) {
+        if ((cursors.down.isDown || mobileControls.p2.down) && p2.airTime >= 1000) {
             executeStateCommand(this, this.gameState.players, {
                 playerID: p2.id,
                 type: Commands.DOWNSLAM
@@ -1460,6 +1391,9 @@ function update() {
         p2.setVelocityX(0);
         p2.setVelocityY(0);
     }
+
+    updateSledgehammerAnimation(p1);
+    updateSledgehammerAnimation(p2);
 
     //WIN CONDITION -- DETECT IF PLAYER IS LAUNCHED FAR OFF SCREEN
 

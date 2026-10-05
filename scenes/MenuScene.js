@@ -16,14 +16,14 @@ export const MenuScene = {
         const changelogBox = this.add.rectangle(190, 300, 340, 450, 0x111111, 0.78);
         changelogBox.setStrokeStyle(3, 0x000000, 0.9);
 
-        this.add.text(40, 135, '(NEW) CHANGELOG', {
+        this.add.text(40, 135, 'CHANGELOG UPDATE!', {
             fontFamily: 'VCROSD',
             fontSize: '24px',
-            fill: '#FFFFFF',
+            fill: '#a70000',
             stroke: '#000000',
             strokeThickness: 5
         });
-        const changelogText = 'Thank you for waiting. \n\n Unfortunately, the promised variants and new character (outlawman) will not be coming quickly, expect a week or more as characters are still in development. However, this smaller update includes new sound effects, better AI, downslam attacks, and scytheman\'s rework.';
+        const changelogText = 'Thank you for waiting. \n\n We have added the first working character variant, SLEDGEHAMMER. \n\n This character is a heavy hitter, with a slower attack speed and movement speed. (Hint, try jumping after using SLEDGEHAMMER\'s special!)';
         this.add.text(40, 180, changelogText, {
             fontFamily: 'VCROSD',
             fontSize: '18px',

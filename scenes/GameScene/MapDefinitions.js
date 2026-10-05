@@ -33,7 +33,8 @@ export const DEFAULT_MAP = {
     playerSpawns: [
         { x: 550, y: 845 },
         { x: 1300, y: 740 }
-    ]
+    ],
+    tint: '#8d5c00'
 };
 
 export const SNOWY_MAP = {
@@ -72,5 +73,6 @@ export const SNOWY_MAP = {
     playerSpawns: [
         { x: 550, y: 760},
         { x: 1300, y: 760 }
-    ]
+    ],
+    tint: '#2b4363'
 };

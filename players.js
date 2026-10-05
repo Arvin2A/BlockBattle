@@ -1,13 +1,21 @@
 import { modifierOptions } from './scenes/MapAndModifierSelect.js';
-export function initiatePlayers(scene, p1Select = 'axeman', p2Select = 'swordman') {
+export function initiatePlayers(scene, p1Select = 'axeman', p2Select = 'swordman', p1Variant = '', p2Variant = '') {
+    const isSledgehammer = (character, variant) =>
+        character.toUpperCase() === 'HAMMERMAN' && variant === 'SLEDGEHAMMER';
+    const getPlayerTexture = (character, variant) =>
+        isSledgehammer(character, variant)
+            ? 'sledgehammerman'
+            : character;
     const players = {
         player: null,
         player2: null
     };
     const p1Spawn = scene.gameState.map.getSpawn(1);
     const p2Spawn = scene.gameState.map.getSpawn(2);
-    players.player = scene.physics.add.sprite(p1Spawn.x, p1Spawn.y, p1Select);
-    players.player2 = scene.physics.add.sprite(p2Spawn.x, p2Spawn.y, p2Select);
+    players.player = scene.physics.add.sprite(p1Spawn.x, p1Spawn.y, getPlayerTexture(p1Select, p1Variant));
+    players.player2 = scene.physics.add.sprite(p2Spawn.x, p2Spawn.y, getPlayerTexture(p2Select, p2Variant));
+    players.player.variant = p1Variant;
+    players.player2.variant = p2Variant;
     players.player.id = 1;
     players.player2.id = 2;
     players.player.lastDir = { x: 1, y: 0 };
@@ -16,46 +24,61 @@ export function initiatePlayers(scene, p1Select = 'axeman', p2Select = 'swordman
     for (const key in players) {
         const p = players[key];
         p.setDepth(5);
-        p.canAttack = true;
-        p.cantAttackUntil = 0;
-        p.revokeAggressorStun = null;
-        p.revokeVictimStun = null;
-        p.revokeMowStun = null;
-        p.activeGrab = null;
-        p.grabbedBy = null;
-        p.stunToken = 0;
-        p.mowStunToken = 0;
-        p.hitstun = false;
-        p.hitstunUntil = 0;
-        p.freeze = false;
-        p.freezeUntil = 0;
-        p.willDecelerate = true;
-        p.hitstunGroundDeceleration = 0.98;
-        p.inGrass = false;
-        p.grassTrailX = null;
-        p.grassTrailY = null;
-        p.grassCutCount = 0;
-        p.nextGrassDamageTime = 0;
-        p.nextAttackTime = 0;
-        p.nextTiltTime = 0;
-        p.combo = 0;
-        p.comboTimer = 0;
-        p.winNumber = 0;
-        p.outOfBounds = false;
-        p.airTime = 0;
-        p.downslamming = false;
-        p.KBmultiplier = 1.00;
+        // Attack availability and combo state.
+        Object.assign(p, {
+            canAttack: true,
+            isAttacking: false,
+            cantAttackUntil: 0,
+            nextAttackTime: 0,
+            nextTiltTime: 0,
+            combo: 0,
+            comboTimer: 0
+        });
+
+        // Hitstun, freeze, and grab state.
+        Object.assign(p, {
+            revokeAggressorStun: null,
+            revokeVictimStun: null,
+            revokeMowStun: null,
+            activeGrab: null,
+            grabbedBy: null,
+            stunToken: 0,
+            mowStunToken: 0,
+            hitstun: false,
+            hitstunUntil: 0,
+            freeze: false,
+            freezeUntil: 0,
+            willDecelerate: true,
+            hitstunGroundDeceleration: 0.98
+        });
+
+        // Arena tracking and damage state.
+        Object.assign(p, {
+            inGrass: false,
+            grassTrailX: null,
+            grassTrailY: null,
+            grassCutCount: 0,
+            nextGrassDamageTime: 0,
+            winNumber: 0,
+            outOfBounds: false,
+            airTime: 0,
+            downslamming: false,
+            KBmultiplier: 1.00
+        });
         if (modifierOptions.SUDDEN_DEATH.enabled) {
             p.KBmultiplier = 4.00;
         }
         p.lastKBmultiplier = 1.00;
-        p.nextSideSpecialTime = 0;
-        p.sideSpecialCooldownDuration = 0;
-        p.hasUsedSideSpecial = false;
-        p.lastTap = { left: 0, right: 0 };
-        p.isUsingSideSpecial = false;
-        p.hasHitSideSpecial = false;
-        p.hasDoubleJumped = false;
+        // Side-special and double-jump state.
+        Object.assign(p, {
+            nextSideSpecialTime: 0,
+            sideSpecialCooldownDuration: 0,
+            hasUsedSideSpecial: false,
+            lastTap: { left: 0, right: 0 },
+            isUsingSideSpecial: false,
+            hasHitSideSpecial: false,
+            hasDoubleJumped: false
+        });
         p.doubleJumpEffect = scene.add.image(
             p.x,
             p.y + 40, 'doublejump');
@@ -63,17 +86,23 @@ export function initiatePlayers(scene, p1Select = 'axeman', p2Select = 'swordman
         p.doubleJumpEffect.setAlpha(0);
         scene.objs.add(p);
         p.setDepth(2);
-        p.afterimage = false;
-        p.afterimageTimer = 0;
-        p.lastInput = {
-            left: 0,
-            right: 0,
-            up: 0,
-            down: 0
-        };
-        p.atkXOffset = 45;
-        p.atkYOffset = 50;
-        p.lastAttackTime = 0
+        if (p.variant === 'SLEDGEHAMMER') {
+            p.rockslidingSound = scene.sound.add('rocksliding', { volume: 0.25, loop: true });
+        }
+        // Input history, attack positioning, and afterimage state.
+        Object.assign(p, {
+            afterimage: false,
+            afterimageTimer: 0,
+            lastInput: {
+                left: 0,
+                right: 0,
+                up: 0,
+                down: 0
+            },
+            atkXOffset: 45,
+            atkYOffset: 50,
+            lastAttackTime: 0
+        });
         p.flashObject = scene.add.rectangle(p.x, p.y, 50, 50, 0xffffff);
         p.flashObject.setAlpha(0);
         p.flashObject.setDepth(9999);
@@ -88,19 +117,27 @@ export function initiatePlayers(scene, p1Select = 'axeman', p2Select = 'swordman
                 duration: 200
             });
         }
-        p.plunged = false;
-        p.lastPlungeTick = 0;
-
-        p.chopped = false;
-        p.choppedUntil = 0;
+        // Temporary effects applied by attacks.
+        Object.assign(p, {
+            plunged: false,
+            lastPlungeTick: 0,
+            chopped: false,
+            choppedUntil: 0
+        });
         p.choppedMark = scene.add.image(p.x, p.y, 'chopped');
         p.choppedMark.visible = false;
         scene.objs.add(p.choppedMark);
 
         p.plungeMark;
 
-        p.playerSpeedScaling = 1;
-        p.baseMovementSpeed = 300;
+        // Base movement, damage, and ability tuning.
+        Object.assign(p, {
+            playerSpeedScaling: 1,
+            baseMovementSpeed: 300,
+            baseDamageScale: 1,
+            externalDamageScale: 1,
+            dirSpecialCooldown: 3500
+        });
         if (modifierOptions.SLUGGISH.enabled) {
             p.baseMovementSpeed -= 150;
         } 
@@ -113,18 +150,19 @@ export function initiatePlayers(scene, p1Select = 'axeman', p2Select = 'swordman
         if (modifierOptions.HYPERACTIVE.enabled) {
             p.baseMovementSpeed += 300;
         }
-        p.dirSpecialCooldown = 3500;
         if (modifierOptions.HYPERACTIVE.enabled) {
             p.dirSpecialCooldown = 1750;
         }
         if (modifierOptions.NO_ABILITY_COOLDOWN.enabled) {
             p.dirSpecialCooldown = 0;
         }
+        if (p.variant === 'SLEDGEHAMMER') {
+            p.baseMovementSpeed = p.baseMovementSpeed/2;
+        }
         p.movementSpeed = p.baseMovementSpeed * p.playerSpeedScaling;
 
 
-        p.baseDamageScale = 1;
-        p.externalDamageScale = 1;
+        
         if (modifierOptions.DOUBLE_DAMAGE.enabled) {
             p.externalDamageScale = 2;
         }
@@ -152,12 +190,14 @@ export function initiatePlayers(scene, p1Select = 'axeman', p2Select = 'swordman
     players.player.name = p1Select.toUpperCase();
     players.player2.name = p2Select.toUpperCase();
 
-    players.player.icon = p1Select;
-    players.player2.icon = p2Select;
+    players.player.icon = getPlayerTexture(p1Select, p1Variant);
+    players.player2.icon = getPlayerTexture(p2Select, p2Variant);
 
     for (const key in players) {
         const p = players[key];
-        if (p.name === "SWORDMAN") {
+        if (p.variant === 'SLEDGEHAMMER') {
+            p.atk = scene.add.sprite(p.x, p.y, 'sledge_idle');
+        } else if (p.name === "SWORDMAN") {
             p.atk = scene.add.sprite(
                 p.x + (p.lastDir.x * 50),
                 p.y + (p.lastDir.y * 50),
@@ -185,7 +225,7 @@ export function initiatePlayers(scene, p1Select = 'axeman', p2Select = 'swordman
             p.atk = scene.add.sprite(
                 p.x + (p.lastDir.x * 50),
                 p.y + (p.lastDir.y * 50),
-                'hammeratk'
+                p.variant === 'SLEDGEHAMMER' ? 'sledgehammeratk' : 'hammeratk'
             );
         } else if (p.name == "SLATEMAN") {
             p.atk = scene.add.sprite(
@@ -216,6 +256,9 @@ export function initiatePlayers(scene, p1Select = 'axeman', p2Select = 'swordman
     scene.objs.add(players.player.header);
     scene.objs.add(players.player2.header);
 
+    players.player.atk.setVisible(players.player.variant === 'SLEDGEHAMMER');
+    players.player2.atk.setVisible(players.player2.variant === 'SLEDGEHAMMER');
+
     for (const key in players) {
         const player = players[key];
         if (player.name === 'SCYTHEMAN') {
@@ -228,9 +271,6 @@ export function initiatePlayers(scene, p1Select = 'axeman', p2Select = 'swordman
             scene.objs.add(player.grassCutText);
         }
     }
-
-    players.player.atk.setVisible(false);
-    players.player2.atk.setVisible(false);
 
     if (scene.botMode) {
         players.player2.lastJump = 0;

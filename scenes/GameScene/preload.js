@@ -246,6 +246,49 @@ export function preload() {
         }
     );
 
+    //HAMMERMAN // SLEDGEHAMMER
+
+    this.load.image(
+        'sledgehammerman',
+        'assets/sprites/hammerman/hammerman-sledgehammer.png'
+    );
+    this.load.spritesheet(
+        'sledgehammeratk',
+        'assets/sprites/hammerman/sledgehammerswing.png',
+        {
+            frameWidth: 150,
+            frameHeight: 150
+        }
+    );
+    this.load.image(
+        'sledge_idle',
+        'assets/sprites/hammerman/sledge_idle.png'
+    );
+    this.load.spritesheet(
+        'sledge_walk',
+        'assets/sprites/hammerman/sledge_walk.png',
+        {
+            frameWidth: 150,
+            frameHeight: 150
+        }
+    );
+    this.load.spritesheet(
+        'sledgehammerquickslam1',
+        'assets/sprites/hammerman/quickslam.png',
+        {
+            frameWidth: 175,
+            frameHeight: 175
+        }
+    );
+    this.load.spritesheet(
+        'sledgehammerquickslam2',
+        'assets/sprites/hammerman/quickslam2.png',
+        {
+            frameWidth: 175,
+            frameHeight: 175
+        }
+    );
+
     // =====================================================
     // SLATEMAN
     // =====================================================
@@ -334,7 +377,7 @@ export function preload() {
     );
 
     // =====================================================
-    // MISC SPRITESHEETS
+    // MISC SPRITESHEETS/ASSETS
     // =====================================================
 
     this.load.spritesheet(
@@ -353,6 +396,7 @@ export function preload() {
             frameHeight: 75
         }
     );
+    this.load.image('impactcrater', 'assets/impactcrater.png');
 
 
     // =====================================================
@@ -413,6 +457,11 @@ export function preload() {
     this.load.audio('hammerhit', 'audio/punch.wav');
     this.load.audio('repair', 'audio/Hitwrench.ogg');
 
+    this.load.audio('rocksliding', 'audio/rocksliding.wav');
+    this.load.audio('sledgehammerhit', 'audio/sledgehammerhit.wav');
+    this.load.audio('sledgewhoosh', 'audio/sledgewhoosh.wav');
+    this.load.audio('sledgehammerquickslam', 'audio/quickslamgrounded.wav');
+
     // =====================================================
     // AUDIO - SLATEMAN
     // =====================================================
@@ -437,5 +486,6 @@ export function preload() {
 
     this.load.audio('bamboo', 'audio/snd_spearrise.wav');
     this.load.audio('harvest', 'audio/harvest.wav');
+    this.load.audio('damn', 'audio/daaaaaamn.wav');
 
 }
