@@ -1125,12 +1125,12 @@ function update() {
         p2.KBmultiplier = 0.70;
     }
     if (p1.KBmultiplier < 1) {
-        p1.KBText.setColor("#0059ff");
+        p1.KBText.setColor("#00a2ff");
     } else {
         p1.KBText.setColor("#ffffff");
     }
     if (p2.KBmultiplier < 1) {
-        p2.KBText.setColor("#4083ff");
+        p2.KBText.setColor("#009ffc");
     } else {
         p2.KBText.setColor("#ffffff");
     }
