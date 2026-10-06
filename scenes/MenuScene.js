@@ -19,7 +19,7 @@ export const MenuScene = {
         this.add.text(40, 135, 'CHANGELOG UPDATE!', {
             fontFamily: 'VCROSD',
             fontSize: '24px',
-            fill: '#a70000',
+            fill: '#5792ffc2',
             stroke: '#000000',
             strokeThickness: 5
         });
