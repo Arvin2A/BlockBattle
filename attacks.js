@@ -281,7 +281,7 @@ function queueStunRelease(scene, attacker, target, attackerDelay = 400, victimDe
     });
 }
 
-export function setAttackSprite(attacker, animKey) {
+export function positionAttackSprite(attacker, animKey = '') {
     attacker.attackBypassesHitstun = false;
     attacker.atk.setVisible(true);
     attacker.atk.x = attacker.x + attacker.lastDir.x * 50;
@@ -292,6 +292,10 @@ export function setAttackSprite(attacker, animKey) {
     if (attacker.lastDir.y < 0) attacker.atk.setAngle(90);
     else if (attacker.lastDir.y > 0) attacker.atk.setAngle(-90);
     else attacker.atk.setAngle(0);
+}
+
+export function setAttackSprite(attacker, animKey) {
+    positionAttackSprite(attacker, animKey);
     attacker.atk.setFrame(0);
     attacker.isAttacking = true;
     attacker.atk.once(`animationcomplete-${animKey}`, () => {
@@ -316,6 +320,16 @@ export function finisherFreeze(scene) {
         scene.finisherActive = false;
     });
 }
+
+export function spawnExplosion(scene, victim) {
+    const explosion = scene.add.sprite(victim.x, victim.y, 'explosion')
+        .setDepth(8)
+        .setScale(0.7);
+    scene.objs.add(explosion);
+    explosion.play('explosion');
+    explosion.once('animationcomplete-explosion', () => explosion.destroy());
+}
+
 const FINISHER_THRESHOLD = 1555;
 
 export function applyKnockback(scene, target, vx, vy, finishable = false) {
@@ -1677,7 +1691,7 @@ export function quickslam2(scene, attacker, target, animKey = 'sledgehammerquick
         } else {
             attacker.combo = 0;
         }
-        attacker.canAttack = false;
+        attacker.canAttack = true;
 
         if (attacker.revokeAggressorStun) scene.time.removeEvent(attacker.revokeAggressorStun);
         if (target.revokeVictimStun) scene.time.removeEvent(target.revokeVictimStun);
@@ -1687,10 +1701,6 @@ export function quickslam2(scene, attacker, target, animKey = 'sledgehammerquick
         scene.time.delayedCall(1000, () => {
             if (!scene.finisherActive) target.willDecelerate = true;
         });
-    });
-    scene.time.delayedCall(2000, () => {
-        //obviously its a longer delay, its a sledgehammer. the player should be punished for using it.
-        attacker.canAttack = true;
     });
 }
 export function tryQuickslam(scene, attacker, target, direction, currentTime) {
@@ -1976,6 +1986,17 @@ export function tryPull(scene, player, target, direction, currentTime) {
 const sharedAttackHelpers = {
     applyKnockback,
     getAttackDamageScale,
+    attackIsElligible,
+    positionAttackSprite,
+    setAttackSprite,
+    hideAttackSprite,
+    hitFreeze,
+    startSideSpecialCooldown,
+    spawnDirtBurst,
+    spawnCrater,
+    spawnExplosion,
+    removeGrass,
+    cutNearbyGrass,
     tryAttack,
     tryAttack2,
     tryAttack3,
@@ -1994,6 +2015,7 @@ const sharedAttackHelpers = {
     distanceBetween: (first, second) => Phaser.Math.Distance.Between(
         first.x, first.y, second.x, second.y
     )
+
 };
 
 function getCharacterScript(attacker) {

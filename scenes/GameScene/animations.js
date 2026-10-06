@@ -37,6 +37,18 @@ export function createGameAnimations(scene) {
         repeat: 0
     });
     scene.anims.create({
+        key: 'activechainsaw',
+        frames: scene.anims.generateFrameNumbers('activechainsaw', { start: 0, end: 3 }),
+        frameRate: 32,
+        repeat: -1
+    });
+    scene.anims.create({
+        key: 'inactivechainsaw',
+        frames: scene.anims.generateFrameNumbers('inactivechainsaw', { start: 0, end: 0 }),
+        frameRate: 1,
+        repeat: 0
+    });
+    scene.anims.create({
         key: 'rodatk',
         frames: scene.anims.generateFrameNumbers('rodatk', { start: 0, end: 3 }),
         frameRate: 28,
