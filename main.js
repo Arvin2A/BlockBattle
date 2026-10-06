@@ -1,5 +1,5 @@
 import Phaser from 'phaser';
-import {handleAttack, handleDirSpecial, handleDirSpecialAttack, handleHorizantalTilt, handleDownTilt, handleUpTilt, downslamAttack, updateScythemanGrass, tryQuickslamJump} from './attacks.js';
+import {handleAttack, handleDirSpecial, handleDirSpecialAttack, handleHorizantalTilt, handleDownTilt, handleUpTilt, downslamAttack, updateScythemanGrass, tryQuickslamJump, positionAttackSprite} from './attacks.js';
 import { initiatePlayers, updateCombo } from './players.js';
 import { Commands, executeStateCommand} from './commands.js';
 import { MenuScene } from './scenes/MenuScene.js';
@@ -16,7 +16,6 @@ import unmuteAudio from 'unmute-ios-audio';
 window.Phaser = Phaser;
 unmuteAudio();
 
-//3 NEW SCRIPTS: main.js (current), players.js, attacks.js
 
 
 //TESTER CREDITS:
@@ -34,16 +33,6 @@ unmuteAudio();
 // and the sound effects were taken from various games as listed in the preload function.
 //WASD controls the first player , arrow keys control the second player.
 //E is the player1 attack, SHIFT is the player2 attack.
-
-//Mobile controls are added to the game now
-//You can double tap each player's corresponding side buttons (A + D), or (LEFT ARROW + RIGHT ARROW KEY) to do a special attack.
-//NEW UPDATE - LIGHT ATTACKS: Press a movement key, then quickly press the attack key to do a light attack. This can be helpful for comboing
-
-//We will still continue to work on this project, its really fun.
-
-
-//UPDATE: ADDED 3 NEW CHARACTERS: FISHERMAN, SCYTHEMAN, AND HAMMERMAN
-//FUTURE UPDATES: ADD VFX AND POLISH
 
 export var botMode = false; //Instead of a P2, you can fight an AI instead. (CPU)
 export function changeBotMode(newBotMode) {
@@ -139,7 +128,8 @@ var mobileControls = {
         upPressed: false,
         down: false,
         downPressed: false,
-        attack: false
+        attack: false,
+        attackPressed: false
     },
     p2: {
         left: false,
@@ -150,7 +140,8 @@ var mobileControls = {
         upPressed: false,
         down: false,
         downPressed: false,
-        attack: false
+        attack: false,
+        attackPressed: false
     }
 };
 
@@ -944,14 +935,21 @@ function update() {
     p2.hitstun = this.time.now < p2.hitstunUntil;
     
     
-    if ((attackKey1.isDown || mobileControls.p1.attack) && (!p1.hitstun || p1.activeGrab)) {
+    const p1Chainsaw = p1.name === 'AXEMAN' && p1.variant === 'CHAINSAW';
+    const p1AttackPressed = p1Chainsaw
+        ? Phaser.Input.Keyboard.JustDown(attackKey1) || mobileControls.p1.attackPressed
+        : attackKey1.isDown || mobileControls.p1.attack;
+    if (p1Chainsaw) mobileControls.p1.attackPressed = false;
+    if (p1AttackPressed && (!p1.hitstun || p1.activeGrab)) {
         const now = this.time.now;
         if (inputMode.p1 !== "keyboard" && !mobileControls.p1.attack) {
             this.mobileButtons.p1.forEach(obj => {
                 obj.setAlpha(0.25);
             });
         }        
-        if (now - p1.lastInput.up < tiltThreshold) {
+        if (p1Chainsaw) {
+            handleAttack(this, p1, p2);
+        } else if (now - p1.lastInput.up < tiltThreshold) {
             //placeholder
             handleUpTilt(this, p1, p2);
         } else if (now - p1.lastInput.down < tiltThreshold) {
@@ -968,14 +966,21 @@ function update() {
         }
     }
     p2.hitstun = this.time.now < p2.hitstunUntil;
-    if ((attackKey2.isDown || mobileControls.p2.attack) && (!p2.hitstun || p2.activeGrab) && !botMode) {
+    const p2Chainsaw = p2.name === 'AXEMAN' && p2.variant === 'CHAINSAW';
+    const p2AttackPressed = p2Chainsaw
+        ? Phaser.Input.Keyboard.JustDown(attackKey2) || mobileControls.p2.attackPressed
+        : attackKey2.isDown || mobileControls.p2.attack;
+    if (p2Chainsaw) mobileControls.p2.attackPressed = false;
+    if (p2AttackPressed && (!p2.hitstun || p2.activeGrab) && !botMode) {
         const now = this.time.now;
         if (inputMode.p2 !== "keyboard" && !mobileControls.p2.attack) {
             this.mobileButtons.p2.forEach(obj => {
                 obj.setAlpha(0.25);
             });
         }
-        if (now - p2.lastInput.up < tiltThreshold) {
+        if (p2Chainsaw) {
+            handleAttack(this, p2, p1);
+        } else if (now - p2.lastInput.up < tiltThreshold) {
             handleUpTilt(this, p2, p1);
         } else if (now - p2.lastInput.down < tiltThreshold) {
             handleDownTilt(this, p2, p1);
@@ -1072,6 +1077,24 @@ function update() {
         p2.atk.x = p2.x + (p2.lastDir.x * p2.atkXOffset);
         p2.atk.y = p2.y + (p2.lastDir.y * p2.atkYOffset) - 15;
     }
+
+    if (p1.name === 'AXEMAN' && p1.variant === 'CHAINSAW') {
+        positionAttackSprite(p1, 'activechainsaw');
+        if (p1.chainsawCooldownUntil > this.time.now) {
+            p1.atk.setAlpha(0);
+        } else {
+            p1.atk.setAlpha(1);
+        }
+    }
+    if (p2.name === 'AXEMAN' && p2.variant === 'CHAINSAW') {
+        positionAttackSprite(p2, 'activechainsaw');
+        if (p2.chainsawCooldownUntil > this.time.now) {
+            p2.atk.setAlpha(0);
+        } else {
+            p2.atk.setAlpha(1);
+        }
+    }
+    
  
     p1.doubleJumpEffect.x = p1.x;
     p1.doubleJumpEffect.y = p1.y + 40;
@@ -1102,12 +1125,12 @@ function update() {
         p2.KBmultiplier = 0.70;
     }
     if (p1.KBmultiplier < 1) {
-        p1.KBText.setColor("#ff0000");
+        p1.KBText.setColor("#0059ff");
     } else {
         p1.KBText.setColor("#ffffff");
     }
     if (p2.KBmultiplier < 1) {
-        p2.KBText.setColor("#ff0000");
+        p2.KBText.setColor("#4083ff");
     } else {
         p2.KBText.setColor("#ffffff");
     }

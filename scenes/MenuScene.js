@@ -23,7 +23,7 @@ export const MenuScene = {
             stroke: '#000000',
             strokeThickness: 5
         });
-        const changelogText = 'Thank you for waiting. \n\n We have added the first working character variant, SLEDGEHAMMER. \n\n This character is a heavy hitter, with a slower attack speed and movement speed. (Hint, try jumping after using SLEDGEHAMMER\'s special!)';
+        const changelogText = 'Axeman\'s CHAINSAW variant is now playable. Its wood-gathering and building ability is planned for a future update.\n\nGunman now has a new special ability: ANOTHER GUN.';
         this.add.text(40, 180, changelogText, {
             fontFamily: 'VCROSD',
             fontSize: '18px',

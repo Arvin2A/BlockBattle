@@ -169,6 +169,33 @@ export function preload() {
     );
 
     // =====================================================
+    // AXEMAN - CHAINSAW
+    // =====================================================
+
+    this.load.image(
+        'chainsawman',
+        'assets/sprites/axeman/axeman-chainsaw.png'
+    );
+    
+    this.load.spritesheet(
+        'activechainsaw',
+        'assets/sprites/axeman/activechainsaw.png',
+        {
+            frameWidth: 50,
+            frameHeight: 50
+        }
+    );
+    this.load.spritesheet(
+        'inactivechainsaw',
+        'assets/sprites/axeman/inactivechainsaw.png',
+        {
+            frameWidth: 50,
+            frameHeight: 50
+        }
+    )
+
+
+    // =====================================================
     // FISHERMAN
     // =====================================================
 
@@ -460,6 +487,9 @@ export function preload() {
     this.load.audio('axecleavesfx', 'audio/axechop.wav');
     this.load.audio('axeslash1', 'audio/axeslash1.wav');
     this.load.audio('axeslash2', 'audio/axeslash2.wav');
+
+    this.load.audio('chainsaw', 'audio/chainsaw.wav');
+    this.load.audio('deactivatechainsaw', 'audio/deactivatechainsaw.wav');
 
     // =====================================================
     // AUDIO - FISHERMAN

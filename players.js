@@ -1,19 +1,14 @@
 import { modifierOptions } from './scenes/MapAndModifierSelect.js';
+import { getCharacterTexture } from './characterTextures.js';
 export function initiatePlayers(scene, p1Select = 'axeman', p2Select = 'swordman', p1Variant = '', p2Variant = '') {
-    const isSledgehammer = (character, variant) =>
-        character.toUpperCase() === 'HAMMERMAN' && variant === 'SLEDGEHAMMER';
-    const getPlayerTexture = (character, variant) =>
-        isSledgehammer(character, variant)
-            ? 'sledgehammerman'
-            : character;
     const players = {
         player: null,
         player2: null
     };
     const p1Spawn = scene.gameState.map.getSpawn(1);
     const p2Spawn = scene.gameState.map.getSpawn(2);
-    players.player = scene.physics.add.sprite(p1Spawn.x, p1Spawn.y, getPlayerTexture(p1Select, p1Variant));
-    players.player2 = scene.physics.add.sprite(p2Spawn.x, p2Spawn.y, getPlayerTexture(p2Select, p2Variant));
+    players.player = scene.physics.add.sprite(p1Spawn.x, p1Spawn.y, getCharacterTexture(p1Select, p1Variant));
+    players.player2 = scene.physics.add.sprite(p2Spawn.x, p2Spawn.y, getCharacterTexture(p2Select, p2Variant));
     players.player.variant = p1Variant;
     players.player2.variant = p2Variant;
     players.player.id = 1;
@@ -109,7 +104,7 @@ export function initiatePlayers(scene, p1Select = 'axeman', p2Select = 'swordman
         p.flashObject.setDepth(9999);
         scene.objs.add(p.flashObject);
         p.flash = function() {
-            
+            scene.tweens.killTweensOf(p.flashObject);
             p.flashObject.setAlpha(0.5);
 
             scene.tweens.add({
@@ -139,6 +134,9 @@ export function initiatePlayers(scene, p1Select = 'axeman', p2Select = 'swordman
             externalDamageScale: 1,
             dirSpecialCooldown: 3500
         });
+        if (p.name === 'GUNMAN') {
+            p.dirSpecialCooldown = 10000;
+        }
         if (modifierOptions.SLUGGISH.enabled) {
             p.baseMovementSpeed -= 150;
         } 
@@ -171,6 +169,8 @@ export function initiatePlayers(scene, p1Select = 'axeman', p2Select = 'swordman
         p.plungeAura = scene.add.image(p.x, p.y, 'plungedAura');
         p.plungeAura.visible = false;
         p.isBot = false;
+
+        p.chainsawSFX = scene.sound.add('chainsaw', { volume: 1, loop: true });
         scene.objs.add(p.plungeAura);
     }
     
@@ -199,13 +199,15 @@ export function initiatePlayers(scene, p1Select = 'axeman', p2Select = 'swordman
         }
     }
 
-    players.player.icon = getPlayerTexture(p1Select, p1Variant);
-    players.player2.icon = getPlayerTexture(p2Select, p2Variant);
+    players.player.icon = getCharacterTexture(p1Select, p1Variant);
+    players.player2.icon = getCharacterTexture(p2Select, p2Variant);
 
     for (const key in players) {
         const p = players[key];
         if (p.variant === 'SLEDGEHAMMER') {
             p.atk = scene.add.sprite(p.x, p.y, 'sledge_idle');
+        } else if (p.name === 'AXEMAN' && p.variant === 'CHAINSAW') {
+            p.atk = scene.add.sprite(p.x, p.y, 'inactivechainsaw');
         } else if (p.name === "SWORDMAN") {
             p.atk = scene.add.sprite(
                 p.x + (p.lastDir.x * 50),
@@ -271,8 +273,14 @@ export function initiatePlayers(scene, p1Select = 'axeman', p2Select = 'swordman
     scene.objs.add(players.player.header);
     scene.objs.add(players.player2.header);
 
-    players.player.atk.setVisible(players.player.variant === 'SLEDGEHAMMER');
-    players.player2.atk.setVisible(players.player2.variant === 'SLEDGEHAMMER');
+    players.player.atk.setVisible(
+        players.player.variant === 'SLEDGEHAMMER' ||
+        (players.player.name === 'AXEMAN' && players.player.variant === 'CHAINSAW')
+    );
+    players.player2.atk.setVisible(
+        players.player2.variant === 'SLEDGEHAMMER' ||
+        (players.player2.name === 'AXEMAN' && players.player2.variant === 'CHAINSAW')
+    );
 
     for (const key in players) {
         const player = players[key];

@@ -1,5 +1,6 @@
 import { botMode } from "../main.js";
 import { preload as bigPreload } from "./GameScene/preload.js";
+import { getCharacterTexture } from "../characterTextures.js";
 
 export var player1Character = '';
 export var player2Character = '';
@@ -17,14 +18,14 @@ export const CharacterSelectScene = {
         // -----------------------------
 
         this.characters = [
-            'swordman',
-            'axeman',
-            'fisherman',
-            'scytheman',
-            'hammerman',
-            'slateman',
-            'crowbarman',
-            'gunman'
+            { key: 'swordman' },
+            { key: 'axeman' },
+            { key: 'fisherman' },
+            { key: 'scytheman' },
+            { key: 'hammerman' },
+            { key: 'slateman' },
+            { key: 'crowbarman' },
+            { key: 'gunman' }
         ];
 
         this.characterData = [
@@ -36,11 +37,18 @@ export const CharacterSelectScene = {
                 }]
             },
             {
-                name: 'AXEMAN', variants: [{
-                    name: 'LUMBERER',
-                    desc: 'Beware of the chopping axe. \n\nDIR SPECIAL: POWER SWING \n\n Deal a 34% KB medium knockback strike, weakens your opponent for a bit!',
-                    color: '#ff4444'
-                }]
+                name: 'AXEMAN', variants: [
+                    {
+                        name: 'LUMBERER',
+                        desc: 'Beware of the chopping axe. \n\nDIR SPECIAL: POWER SWING \n\n Deal a 34% KB medium knockback strike, weakens your opponent for a bit!',
+                        color: '#ff4444'
+                    },
+                    {
+                        name: 'CHAINSAW',
+                        desc: 'Whats better than brutally grinding down your opponent? Building, yes, really. \n\n DIR SPECIAL: MODE SWITCH \n\n Switch between a chainsaw and a claw hammer, chainsaw to cut, claw hammer to build.',
+                        color: '#ffae00'
+                    }
+                ]
             },
             {
                 name: 'FISHERMAN', variants: [{
@@ -94,11 +102,17 @@ export const CharacterSelectScene = {
             {
                 name: 'GUNMAN', variants: [{
                     name: 'STANDARD ISSUE',
-                    desc: 'Modern conflicts need modern solutions, just use a gun!',
+                    desc: 'Modern conflicts need modern solutions, just use a gun! \n\n DIR SPECIAL: ANOTHER GUN \n\n One is never enough, doubles your firepower that stuns the poor soul for 2 seconds.',
                     color: '#e2c542'
                 }]
             }
         ];
+
+        const getCharacterIcon = (characterIndex, variantIndex = 0) => {
+            const character = this.characters[characterIndex];
+            const variant = this.characterData[characterIndex].variants[variantIndex];
+            return getCharacterTexture(character.key, variant.name);
+        };
 
         this.p1Index = 1;
         this.p2Index = 0 ? botMode : Math.min(1, this.characters.length - 1);
@@ -183,7 +197,7 @@ export const CharacterSelectScene = {
             const icon = this.add.image(
                 startX + col * spacingX,
                 startY + row * spacingY,
-                this.characters[i]
+                this.characters[i].key
             )
                 .setScale(1)
                 .setInteractive({ useHandCursor: true });
@@ -277,13 +291,9 @@ export const CharacterSelectScene = {
                
                 const nextVariantIndex = (variantIndex + direction + variants.length) % variants.length;
 
+                this.lastSelectedIconPlayer = player;
                 if (player === 1) {
                     this.p1VariantIndex = nextVariantIndex;
-                    if (this.p2VariantIndex === 1 && this.p2Index === 4) {
-                        this.characterIcons[4].setTexture('sledgehammerman');
-                    } else if (this.p2VariantIndex === 1 && this.p2Index === 4) {
-                        this.characterIcons[4].setTexture('hammerman');
-                    } 
                 } else {
                     this.p2VariantIndex = nextVariantIndex;
                 }
@@ -328,6 +338,7 @@ export const CharacterSelectScene = {
 
         let previousP1Index = null;
         let previousP2Index = null;
+        this.lastSelectedIconPlayer = 2;
 
         this.updateCharacterDescriptions = function () {
             const p1 = this.characterData[this.p1Index];
@@ -336,14 +347,34 @@ export const CharacterSelectScene = {
             if (this.p1Index !== previousP1Index) {
                 this.p1VariantIndex = 0;
                 previousP1Index = this.p1Index;
+                this.lastSelectedIconPlayer = 1;
             }
             if (this.p2Index !== previousP2Index) {
                 this.p2VariantIndex = 0;
                 previousP2Index = this.p2Index;
+                this.lastSelectedIconPlayer = 2;
             }
 
             const p1Variant = p1.variants[this.p1VariantIndex];
             const p2Variant = p2.variants[this.p2VariantIndex];
+            this.characterIcons.forEach((icon, index) => {
+                icon.setTexture(this.characters[index].key);
+            });
+            if (this.p1Index === this.p2Index) {
+                const selectedVariantIndex = this.lastSelectedIconPlayer === 1
+                    ? this.p1VariantIndex
+                    : this.p2VariantIndex;
+                this.characterIcons[this.p1Index].setTexture(
+                    getCharacterIcon(this.p1Index, selectedVariantIndex)
+                );
+            } else {
+                this.characterIcons[this.p1Index].setTexture(
+                    getCharacterIcon(this.p1Index, this.p1VariantIndex)
+                );
+                this.characterIcons[this.p2Index].setTexture(
+                    getCharacterIcon(this.p2Index, this.p2VariantIndex)
+                );
+            }
             const p1HasMultipleVariants = p1.variants.length > 1;
             const p2HasMultipleVariants = p2.variants.length > 1;
 
@@ -418,7 +449,7 @@ export const CharacterSelectScene = {
             const wheelIcons = [-1, 0, 1].map(offset => this.add.image(
                 x,
                 320 + offset * 65,
-                this.characters[0]
+                this.characters[0].key
             ).setScale(0.65));
 
             const createWheelButton = (y, label, callback) => {
@@ -462,26 +493,19 @@ export const CharacterSelectScene = {
                 refresh: index => {
                     [-1, 0, 1].forEach((offset, iconIndex) => {
                         const characterIndex = (index + offset + this.characters.length) % this.characters.length;
-                        wheelIcons[iconIndex].setTexture(this.characters[characterIndex]);
+                        const variantIndex = offset === 0
+                            ? player === 1 ? this.p1VariantIndex : this.p2VariantIndex
+                            : 0;
+                        wheelIcons[iconIndex].setTexture(
+                            getCharacterIcon(characterIndex, variantIndex)
+                        );
                         wheelIcons[iconIndex].setAlpha(offset === 0 ? 1 : 0.45);
                         wheelIcons[iconIndex].setScale(offset === 0 ? 1 : 0.65);
-                        if (player === 1) {
-                            p1BoxSelectedOverlay.setPosition(wheelIcons[1].x, wheelIcons[1].y);
-                            if (this.p1VariantIndex === 1 && this.p1Index === 4) {
-                                wheelIcons[1].setTexture('sledgehammerman');
-                            } else if (this.p1VariantIndex === 1 && this.p1Index === 4) {
-                                wheelIcons[1].setTexture('hammerman');
-                            } 
-                        } else {
-                            p2BoxSelectedOverlay.setPosition(wheelIcons[1].x, wheelIcons[1].y);
-                            if (this.p2VariantIndex === 1 && this.p2Index === 4) {
-                                wheelIcons[1].setTexture('sledgehammerman');
-                            } else if (this.p2VariantIndex === 1 && this.p2Index === 4) {
-                                wheelIcons[1].setTexture('hammerman');
-                            } 
-                        }
-
                     });
+                    const selectedOverlay = player === 1
+                        ? p1BoxSelectedOverlay
+                        : p2BoxSelectedOverlay;
+                    selectedOverlay.setPosition(wheelIcons[1].x, wheelIcons[1].y);
                 
                 }
             };
@@ -650,14 +674,14 @@ export const CharacterSelectScene = {
             this.cameras.main.fadeOut(200, 0, 0, 0);
             this.time.delayedCall(200, () => {
                 this.scene.start('GameScene', {
-                    player1Character: this.characters[this.p1Index],
-                    player2Character: this.characters[this.p2Index],
+                    player1Character: this.characters[this.p1Index].key,
+                    player2Character: this.characters[this.p2Index].key,
                     player1Variant: this.characterData[this.p1Index].variants[this.p1VariantIndex].name,
                     player2Variant: this.characterData[this.p2Index].variants[this.p2VariantIndex].name
                 });
             });
-            player1Character = this.characters[this.p1Index];
-            player2Character = this.characters[this.p2Index];
+            player1Character = this.characters[this.p1Index].key;
+            player2Character = this.characters[this.p2Index].key;
             player1Variant = this.characterData[this.p1Index].variants[this.p1VariantIndex].name;
             player2Variant = this.characterData[this.p2Index].variants[this.p2VariantIndex].name;
 

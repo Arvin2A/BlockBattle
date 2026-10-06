@@ -1,24 +1,32 @@
-function playShotAnimation(scene, attacker) {
-    attacker.atk.setPosition(
+function playShotAnimation(scene, attacker, sprite = attacker.atk, delay = 0) {
+    const verticalOffset = sprite === attacker.atk ? 0 : -5;
+    sprite.setPosition(
         attacker.x + attacker.lastDir.x * 50,
-        attacker.y + attacker.lastDir.y * 50
+        attacker.y + attacker.lastDir.y * 50 + verticalOffset
     );
-    attacker.atk.setFlipX(attacker.lastDir.x < 0);
-    attacker.atk.setAngle(attacker.lastDir.y < 0 ? -90 : attacker.lastDir.y > 0 ? 90 : 0);
-    attacker.atk.setFrame(0);
-    attacker.atk.setVisible(true);
-    attacker.atk.play('gunmanatk', true);
-    scene.time.delayedCall(180, () => {
-        if (attacker.active && !attacker.activeGrab) attacker.atk.setVisible(false);
-    });
+    sprite.setFlipX(attacker.lastDir.x < 0);
+    sprite.setAngle(attacker.lastDir.y < 0 ? -90 : attacker.lastDir.y > 0 ? 90 : 0);
+
+    const play = () => {
+        if (!attacker.active || !sprite.active) return;
+        sprite.setFrame(0);
+        sprite.setVisible(true);
+        sprite.play('gunmanatk', true);
+        scene.time.delayedCall(180, () => {
+            if (attacker.active && !attacker.activeGrab) sprite.setVisible(false);
+        });
+    };
+
+    if (delay > 0) scene.time.delayedCall(delay, play);
+    else play();
 }
 
-function createBeam(scene, attacker, victim) {
+function createBeam(scene, attacker, victim, sprite = attacker.atk) {
     const aimLength = Math.hypot(attacker.lastDir.x, attacker.lastDir.y) || 1;
     const directionX = attacker.lastDir.x / aimLength;
     const directionY = attacker.lastDir.y / aimLength;
-    const startX = attacker.x + directionX * 50;
-    const startY = attacker.y + directionY * 25 -10;
+    const startX = sprite.x;
+    const startY = sprite.y-10;
     const contactDistance = getBeamContactDistance(victim, {
         directionX,
         directionY,
@@ -64,65 +72,131 @@ function getBeamContactDistance(victim, beam) {
     return Math.max(0, distanceAlongBeam - extentAlongBeam);
 }
 
-function spawnExplosion(scene, victim) {
-    const explosion = scene.add.sprite(victim.x, victim.y, 'explosion')
-        .setDepth(8)
-        .setScale(0.7);
-    scene.objs.add(explosion);
-    explosion.play('explosion');
-    explosion.once('animationcomplete-explosion', () => explosion.destroy());
-}
 
-function handleShot(api, scene, attacker, victim) {
-    if (scene.time.now < attacker.nextAttackTime || !attacker.canAttack || attacker.hitstun) return;
-
-    const isExplosion = attacker.combo >= 4;
-    const beam = createBeam(scene, attacker, victim);
+function handleShot(api, scene, attacker, victim, options = {}) {
+    if ((!options.ignoreCooldown &&
+        (scene.time.now < attacker.nextAttackTime || !attacker.canAttack)) || attacker.hitstun) return;
+    if (!options.isSpecial && attacker.gunmanSpecialActive) return;
+    const isExplosion = options.damageIncrement === undefined && attacker.combo >= 4;
     playShotAnimation(scene, attacker);
+    if (options.delayedSprite) {
+        playShotAnimation(scene, attacker, options.delayedSprite, options.animationDelay);
+    }
+    const beams = options.isSpecial
+        ? [
+            createBeam(scene, attacker, victim, attacker.atk),
+            createBeam(scene, attacker, victim, options.sprite)
+        ]
+        : [createBeam(scene, attacker, victim, options.sprite)];
     scene.sound.play('gunshot');
     if (isExplosion) scene.sound.play('reload');
 
-    const hit = beam.hit && !scene.finisherActive;
-    if (hit) {
+    const hitCount = scene.finisherActive
+        ? 0
+        : beams.filter(beam => beam.hit).length;
+    if (hitCount > 0) {
         victim.flash();
         const damageScale = api.getAttackDamageScale(attacker);
-        victim.KBmultiplier += (isExplosion ? 0.10 : 0.01) * damageScale;
-        victim.hitstunUntil = scene.time.now + (isExplosion ? 750 : -1) * victim.KBmultiplier;
+        victim.KBmultiplier += (options.damageIncrement ?? (isExplosion ? 0.10 : 0.02)) * damageScale * hitCount;
+        const hitstunDuration = options.hitstunDuration ?? (isExplosion ? 750 : -1);
+        victim.hitstunUntil = scene.time.now + hitstunDuration * victim.KBmultiplier;
+        if (options.freezeDuration !== undefined) {
+            victim.freezeUntil = scene.time.now + options.freezeDuration;
+        }
         victim.willDecelerate = false;
-        const knockback = (isExplosion ? 500 : 10) * victim.KBmultiplier * damageScale;
+        const knockback = (isExplosion ? 600 : 0) * victim.KBmultiplier * damageScale;
         const verticalKick = attacker.lastDir.y === 0
             ? (isExplosion ? -220 : -40)
             : attacker.lastDir.y * knockback;
         api.applyKnockback(scene, victim, attacker.lastDir.x * knockback, verticalKick);
         if (isExplosion) scene.sound.play('explosion');
-        scene.time.delayedCall(isExplosion ? 750 : 350, () => {
+        scene.time.delayedCall(isExplosion ? 850 : 350, () => {
             if (victim.active) victim.willDecelerate = true;
         });
 
-        if (isExplosion) {
-            spawnExplosion(scene, victim);
-            attacker.combo = 0;
-            attacker.comboTimer = 0;
-        } else {
-            attacker.combo += 1;
-            attacker.comboTimer = 0;
+        if (!options.ignoreCombo) {
+            if (isExplosion) {
+                api.spawnExplosion(scene, victim);
+                attacker.combo = 0;
+                attacker.comboTimer = 0;
+            } else {
+                attacker.combo += 1;
+                attacker.comboTimer = 0;
+            }
         }
-    } else {
+    } else if (!options.ignoreCombo) {
         attacker.combo = 0;
         attacker.comboTimer = 0;
     }
 
-    const cooldown = isExplosion ? 2000 : 100;
-    attacker.canAttack = false;
-    attacker.nextAttackTime = scene.time.now + cooldown;
-    scene.time.delayedCall(cooldown, () => {
-        if (attacker.active) attacker.canAttack = true;
-    });
+    if (!options.ignoreCooldown) {
+        const cooldown = isExplosion ? 2550 : 100;
+        attacker.canAttack = false;
+        attacker.nextAttackTime = scene.time.now + cooldown;
+        scene.time.delayedCall(cooldown, () => {
+            if (attacker.active) attacker.canAttack = true;
+        });
+    }
+}
+
+function startSideSpecialCooldown(player, currentTime, duration) {
+    player.hasUsedSideSpecial = true;
+    player.sideSpecialCooldownDuration = duration;
+    player.nextSideSpecialTime = currentTime + duration;
+}
+function handleGunmanSpecial(api, scene, attacker, direction, currentTime, victim) {
+    const dtapDelay = 250;
+    const gunCD = attacker.dirSpecialCooldown;
+
+    if (attacker.hitstun || attacker.freeze) return;
+    if (currentTime < attacker.nextSideSpecialTime) return;
+
+    if (currentTime - attacker.lastTap[direction] < dtapDelay || attacker.isBot) {
+        if (!victim || !attacker.active || attacker.gunmanSpecialActive) return;
+
+        attacker.isUsingSideSpecial = true;
+        attacker.isAttacking = true;
+        attacker.hasHitSideSpecial = false;
+
+        attacker.isUsingSideSpecial = false;
+
+        startSideSpecialCooldown(attacker, currentTime, gunCD);
+
+        const delayedSprite = scene.add.sprite(attacker.x, attacker.y+20, 'gunmanatk')
+            .setVisible(false)
+            .setDepth(attacker.atk.depth);
+        scene.objs.add(delayedSprite);
+        attacker.gunmanSpecialActive = true;
+
+        const fireBullet = () => {
+            if (!attacker.active || !victim.active) return;
+            handleShot(api, scene, attacker, victim, {
+                damageIncrement: 0.015,
+                hitstunDuration: 100,
+                freezeDuration: 50,
+                ignoreCooldown: true,
+                ignoreCombo: true,
+                sprite: delayedSprite,
+                delayedSprite,
+                animationDelay: 50,
+                isSpecial: true
+            });
+        };
+
+        fireBullet();
+        const firingEvent = scene.time.addEvent({ delay: 50, loop: true, callback: fireBullet });
+        scene.time.delayedCall(2000, () => {
+            firingEvent.remove(false);
+            delayedSprite.destroy();
+            attacker.gunmanSpecialActive = false;
+        });
+    }
+    attacker.lastTap[direction] = currentTime;
 }
 
 export default {
     handleAttack: handleShot,
-    handleDirSpecial: () => {},
+    handleDirSpecial: handleGunmanSpecial,
     handleHorizantalTilt: handleShot,
     handleDownTilt: handleShot,
     handleUpTilt: handleShot
