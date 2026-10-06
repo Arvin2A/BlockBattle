@@ -187,6 +187,17 @@ export function runBotAI(scene, bot, target) {
         const verticalLane = Math.abs(dx) <= target.body.width / 2 + 1;
         const canShootHorizontally = horizontalLane && Math.abs(dx) > 50;
         const canShootVertically = verticalLane && (dy <= -35 || dy >= 15);
+        const specialHorizontal = canShootHorizontally && Math.abs(dx) <= 1000;
+        const specialVertical = canShootVertically && Math.abs(dy) <= 1000;
+
+        if ((specialHorizontal || specialVertical) && !bot.gunmanSpecialActive &&
+            scene.time.now >= bot.nextSideSpecialTime) {
+            bot.lastDir = specialHorizontal
+                ? { x: Math.sign(dx), y: 0 }
+                : { x: 0, y: Math.sign(dy) };
+            const specialDirection = bot.lastDir.x < 0 ? 'left' : 'right';
+            handleDirSpecial(scene, bot, specialDirection, scene.time.now, target);
+        }
 
         if (canShootHorizontally || canShootVertically) {
             bot.lastDir = canShootHorizontally
@@ -298,8 +309,23 @@ export function runBotAI(scene, bot, target) {
     }
 
     const attackRange = 65;
+
+    const chainsawDistance = Math.hypot(target.x - bot.atk.x, target.y - bot.atk.y);
+    if (bot.name === 'AXEMAN' && bot.variant === 'CHAINSAW' && chainsawDistance <= 85) {
+        if (!bot.chainsawActive && scene.time.now - bot.lastAttack > 500) {
+            bot.lastAttack = scene.time.now;
+            handleAttack(scene, bot, target);
+        }
+
+        executeStateCommand(scene, scene.gameState.players, {
+            playerID: bot.id,
+            type: Commands.NONE
+        });
+        return;
+    }
     
     if (bot.name !== "GUNMAN" &&
+        !(bot.name === 'AXEMAN' && bot.variant === 'CHAINSAW') &&
         Math.abs(dx) < attackRange && Math.abs(dy) < attackRange+50) {
 
         if (scene.time.now - bot.lastAttack > 100) {
@@ -348,7 +374,7 @@ export function runBotAI(scene, bot, target) {
     
     const specDirection = (bot.lastDir.x > 0 && bot.lastDir.x !== 0) ? "right" : "left";
     //CHARACTER-SPECIFIC SPECIAL ATTACK INTERACTIONS:
-    if (bot.name === "AXEMAN") {
+    if (bot.name === "AXEMAN" && bot.variant !== 'CHAINSAW') {
         const attackRange = 80;
 
         if (Math.abs(dx) < attackRange && Math.abs(dy) < 50) {
@@ -481,5 +507,6 @@ export function runBotAI(scene, bot, target) {
             return;
         }
     }
+    
     
 }

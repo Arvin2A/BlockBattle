@@ -134,7 +134,8 @@ export function initiatePlayers(scene, p1Select = 'axeman', p2Select = 'swordman
             externalDamageScale: 1,
             dirSpecialCooldown: 3500
         });
-        if (p.name === 'GUNMAN') {
+        const selectedCharacter = p.id === 1 ? p1Select : p2Select;
+        if (selectedCharacter.toUpperCase() === 'GUNMAN') {
             p.dirSpecialCooldown = 10000;
         }
         if (modifierOptions.SLUGGISH.enabled) {
