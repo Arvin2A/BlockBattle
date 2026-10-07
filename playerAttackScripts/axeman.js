@@ -181,94 +181,17 @@ function updateChainsaw(api, scene, attacker, victim, options = {}) {
     }
 }
 
-function getPlankObstacles(scene) {
-    return [
-        ...scene.gameState.map.platforms.getChildren(),
-        ...scene.gameState.map.topPlatforms.getChildren(),
-        ...scene.planks.getChildren()
-    ].filter(obstacle => obstacle.active && obstacle.body?.enable);
-}
-
-function getPlankBounds(x, y, rotated) {
-    const width = rotated ? 10 : 200;
-    const height = rotated ? 200 : 10;
-    return {
-        left: x - width / 2,
-        right: x + width / 2,
-        top: y - height / 2,
-        bottom: y + height / 2
-    };
-}
-
-function overlapsBounds(first, second) {
-    return first.left < second.right &&
-        first.right > second.left &&
-        first.top < second.bottom &&
-        first.bottom > second.top;
-}
-
-function resolvePlankPlacement(scene, x, y, rotated) {
-    const obstacles = getPlankObstacles(scene);
-    const intendedBounds = getPlankBounds(x, y, rotated);
-    const intersecting = obstacles.filter(obstacle =>
-        overlapsBounds(intendedBounds, obstacle.body)
-    );
-    if (intersecting.length === 0) {
-        return { y, valid: true };
-    }
-
-    const halfHeight = rotated ? 100 : 5;
-    const clearance = 1;
-    const candidateYs = new Set();
-    for (const obstacle of intersecting) {
-        candidateYs.add(obstacle.body.top - halfHeight - clearance);
-        candidateYs.add(obstacle.body.bottom + halfHeight + clearance);
-    }
-
-    const validCandidates = [...candidateYs].filter(candidateY => {
-        const candidateBounds = getPlankBounds(x, candidateY, rotated);
-        return obstacles.every(obstacle =>
-            !overlapsBounds(candidateBounds, obstacle.body)
-        );
-    });
-
-    if (validCandidates.length === 0) {
-        return { y, valid: false };
-    }
-
-    return {
-        y: validCandidates.reduce((nearest, candidateY) =>
-            Math.abs(candidateY - y) < Math.abs(nearest - y)
-                ? candidateY
-                : nearest
-        ),
-        valid: true
-    };
-}
-
 function updateChainsawWood(scene, attacker, victim) {
     if (attacker.name !== 'AXEMAN' || attacker.variant !== 'CHAINSAW') return;
 
     const isRotated = attacker.lastDir.y === 0;
     const intendedX = attacker.x + attacker.lastDir.x * 200;
     const intendedY = attacker.y + attacker.lastDir.y * 200;
-    const resolvedPlacement = resolvePlankPlacement(
-        scene,
-        intendedX,
-        intendedY,
-        isRotated
-    );
-    attacker.plankGhost.setPosition(
-        intendedX,
-        resolvedPlacement.y
-    );
+    attacker.plankGhost.setPosition(intendedX, intendedY);
     attacker.plankGhost.setAngle(isRotated ? 90 : 0);
     attacker.plankGhost.setVisible(!attacker.chainsawMode);
-    attacker.plankGhost.setTint(resolvedPlacement.valid ? 0x000080 : 0xff2222);
-    attacker.plankGhost.setAlpha(
-        resolvedPlacement.valid && attacker.woodCount >= 50 ? 0.45 : 0.2
-    );
-    attacker.plankGhostPlacementValid = resolvedPlacement.valid;
+    attacker.plankGhost.setTint(0x000080);
+    attacker.plankGhost.setAlpha(attacker.woodCount >= 15 ? 0.45 : 0.2);
 
     const standingOnVictim = attacker.body.touching.down &&
         victim?.body?.touching?.up &&
@@ -319,8 +242,7 @@ function updateChainsawWood(scene, attacker, victim) {
 
 function placePlank(api, scene, attacker) {
     if (attacker.chainsawMode || attacker.hitstun || attacker.freeze ||
-        scene.finisherActive || attacker.woodCount < 15 ||
-        !attacker.plankGhostPlacementValid) return;
+        scene.finisherActive || attacker.woodCount < 15) return;
 
     const rotated = attacker.lastDir.y === 0;
     const plank = scene.physics.add.image(
@@ -337,9 +259,6 @@ function placePlank(api, scene, attacker) {
     plank.body.setOffset(rotated ? 95 : 0, rotated ? 0 : 95);
     scene.objs.add(plank);
     scene.planks.add(plank);
-
-    scene.physics.add.collider(plank, scene.gameState.map.platforms);
-    scene.physics.add.collider(plank, scene.gameState.map.topPlatforms);
 
     attacker.woodCount -= 15;
     attacker.woodText.setText(`Wood: ${attacker.woodCount} ft³`);
