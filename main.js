@@ -326,6 +326,16 @@ function updateSpecialMeters(scene) {
             status.setColor('#ffcc80');
             return;
         }
+        Object.values(scene.specialMeters).forEach(meter => {
+            if (meter.woodFill && meter.player.name === 'AXEMAN' && meter.player.variant === 'CHAINSAW') {
+                const woodAmount = meter.player.chainsawWood || 0;
+                const maxWood = meter.woodMaxValue;
+                const woodProgress = Math.min(woodAmount / maxWood, 1);
+                
+                meter.woodFill.setDisplaySize(meter.meterWidth * woodProgress, 18);
+                meter.woodStatus.setText(`${Math.floor(woodAmount)} / ${maxWood}`);
+            }
+        });
 
         const cooldownDuration = Number.isFinite(player.sideSpecialCooldownDuration)
             ? player.sideSpecialCooldownDuration
