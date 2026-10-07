@@ -1,5 +1,6 @@
 import Phaser from 'phaser';
 import {handleAttack, handleDirSpecial, handleDirSpecialAttack, handleHorizantalTilt, handleDownTilt, handleUpTilt, downslamAttack, updateScythemanGrass, updateChainsawWood, toggleChainsawMode, tryQuickslamJump, positionAttackSprite} from './attacks.js';
+import { MAX_WOOD_COUNT } from './playerAttackScripts/axeman.js';
 import { initiatePlayers, updateCombo } from './players.js';
 import { Commands, executeStateCommand} from './commands.js';
 import { MenuScene } from './scenes/MenuScene.js';
@@ -261,9 +262,10 @@ function createSpecialMeters(scene) {
             }).setOrigin(0.5);
             const woodBackground = scene.add.rectangle(meter.x, woodMeterY, meterWidth, meterHeight, 0x171717)
                 .setStrokeStyle(2, 0xffffff);
-            const woodFill = scene.add.rectangle(meter.x - meterWidth / 2, woodMeterY, 0, meterHeight, 0x8B4513)
-                .setOrigin(0, 0.5);
-            const woodStatus = scene.add.text(meter.x, woodMeterY + 22, '0 / 300', {
+            const woodFill = scene.add.rectangle(meter.x - meterWidth / 2, woodMeterY, meterWidth, meterHeight, 0x8B4513)
+                .setOrigin(0, 0.5)
+                .setDisplaySize(0, meterHeight);
+            const woodStatus = scene.add.text(meter.x, woodMeterY + 22, `0 / ${MAX_WOOD_COUNT}`, {
                 fontFamily: 'GameFont',
                 fontSize: '12px',
                 fill: '#ffffff'
@@ -274,9 +276,10 @@ function createSpecialMeters(scene) {
             scene.hud.add(woodFill);
             scene.hud.add(woodStatus);
             
-            meter.woodFill = woodFill;
-            meter.woodStatus = woodStatus;
-            meter.woodMaxValue = 300;
+            const specialMeter = scene.specialMeters[meter.key];
+            specialMeter.woodFill = woodFill;
+            specialMeter.woodStatus = woodStatus;
+            specialMeter.woodMaxValue = MAX_WOOD_COUNT;
         }
     });
     scene.specialPrompt = scene.add.text(500, 180, 'DOUBLE TAP LEFT OR RIGHT TO USE YOUR ABILITY', {
@@ -296,6 +299,17 @@ function updateSpecialMeters(scene) {
 
     Object.values(scene.specialMeters).forEach(meter => {
         const { player, fill, status, meterWidth } = meter;
+        if (meter.woodFill) {
+            const woodAmount = player.woodCount ?? 0;
+            const woodProgress = Phaser.Math.Clamp(
+                woodAmount / meter.woodMaxValue,
+                0,
+                1
+            );
+            meter.woodFill.setDisplaySize(meterWidth * woodProgress, 18);
+            meter.woodStatus.setText(`${Math.floor(woodAmount)} / ${meter.woodMaxValue}`);
+        }
+
         const isChainsawBuildMode =
             player.name === 'AXEMAN' &&
             player.variant === 'CHAINSAW' &&
@@ -326,17 +340,6 @@ function updateSpecialMeters(scene) {
             status.setColor('#ffcc80');
             return;
         }
-        Object.values(scene.specialMeters).forEach(meter => {
-            if (meter.woodFill && meter.player.name === 'AXEMAN' && meter.player.variant === 'CHAINSAW') {
-                const woodAmount = meter.player.chainsawWood || 0;
-                const maxWood = meter.woodMaxValue;
-                const woodProgress = Math.min(woodAmount / maxWood, 1);
-                
-                meter.woodFill.setDisplaySize(meter.meterWidth * woodProgress, 18);
-                meter.woodStatus.setText(`${Math.floor(woodAmount)} / ${maxWood}`);
-            }
-        });
-
         const cooldownDuration = Number.isFinite(player.sideSpecialCooldownDuration)
             ? player.sideSpecialCooldownDuration
             : 0;

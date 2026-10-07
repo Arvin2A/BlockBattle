@@ -1,3 +1,5 @@
+export const MAX_WOOD_COUNT = 225;
+
 function tilt(api, scene, attacker, victim, xMul, yMul, kbTime) {
     api.tiltAttack(scene, attacker, victim, {
         animKey: 'axeatktilt', kb: 0.035, xMul, yMul,
@@ -88,7 +90,7 @@ function explodeChainsaw(api, scene, attacker, victim, options = {}) {
     const damageScale = api.getAttackDamageScale(attacker);
     const hitstunDuration = options.explosionHitstun ?? 500;
     victim.KBmultiplier += (options.explosionDamage ?? 0.25) * damageScale;
-    const knockback = (options.explosionKnockback ?? 650) *
+    const knockback = (options.explosionKnockback ?? 550) *
         damageScale *
         victim.KBmultiplier * 0.5;
     victim.freezeUntil = scene.time.now - 1;
@@ -225,8 +227,14 @@ function updateChainsawWood(scene, attacker, victim) {
             (now - attacker.woodCollectionLastTick) / collectionInterval
         );
         if (collectionTicks > 0) {
-            attacker.woodCount += collectionTicks * 5;
-            scene.sound.play('collectwood');
+            const nextWoodCount = Math.min(
+                attacker.woodCount + collectionTicks * 5,
+                MAX_WOOD_COUNT
+            );
+            if (nextWoodCount > attacker.woodCount) {
+                attacker.woodCount = nextWoodCount;
+                scene.sound.play('collectwood');
+            }
             attacker.woodCollectionLastTick += collectionTicks * collectionInterval;
             attacker.woodText.setText(`Wood: ${attacker.woodCount} ft³`);
         }
