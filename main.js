@@ -702,10 +702,10 @@ function create() {
                 .setScrollFactor(0)
                 .setDepth(999)
                 .setInteractive();
-            const label = this.add.text(x, 420, '🗘', {
+            const label = this.add.text(x, 420, 'Q', {
                 fontSize: '36px',
                 color: '#ffffff',
-                fontFamily: 'Arial'
+                fontFamily: 'VCROSD'
             }).setOrigin(0.5).setScrollFactor(0).setDepth(1000);
             button.on('pointerdown', () => {
                 inputMode[player.id === 1 ? 'p1' : 'p2'] = 'touch';
