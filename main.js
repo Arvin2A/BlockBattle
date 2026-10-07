@@ -251,7 +251,34 @@ function createSpecialMeters(scene) {
         scene.hud.add(status);
         scene.specialMeters[meter.key] = { player: meter.player, fill, status, meterWidth };
     });
+    meters.forEach(meter => {
+        if (meter.player.name === 'AXEMAN' && meter.player.variant === 'CHAINSAW') {
+            const woodMeterY = 145 + 65; // 65 pixels below the ability meter
+            const woodLabel = scene.add.text(meter.x, woodMeterY - 22, 'WOOD (ft³)', {
+                fontFamily: 'VCROSD
+                fontSize: '15px',
+                fill: '#ffffff'
+            }).setOrigin(0.5);
+            const woodBackground = scene.add.rectangle(meter.x, woodMeterY, meterWidth, meterHeight, 0x171717)
+                .setStrokeStyle(2, 0xffffff);
+            const woodFill = scene.add.rectangle(meter.x - meterWidth / 2, woodMeterY, 0, meterHeight, 0x8B4513)
+                .setOrigin(0, 0.5);
+            const woodStatus = scene.add.text(meter.x, woodMeterY + 22, '0 / 300', {
+                fontFamily: 'GameFont',
+                fontSize: '12px',
+                fill: '#ffffff'
+            }).setOrigin(0.5);
 
+            scene.hud.add(woodLabel);
+            scene.hud.add(woodBackground);
+            scene.hud.add(woodFill);
+            scene.hud.add(woodStatus);
+            
+            meter.woodFill = woodFill;
+            meter.woodStatus = woodStatus;
+            meter.woodMaxValue = 300;
+        }
+    });
     scene.specialPrompt = scene.add.text(500, 180, 'DOUBLE TAP LEFT OR RIGHT TO USE YOUR ABILITY', {
         fontFamily: 'GameFont',
         fontSize: '18px',
