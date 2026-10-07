@@ -255,7 +255,7 @@ function createSpecialMeters(scene) {
         if (meter.player.name === 'AXEMAN' && meter.player.variant === 'CHAINSAW') {
             const woodMeterY = 145 + 65; // 65 pixels below the ability meter
             const woodLabel = scene.add.text(meter.x, woodMeterY - 22, 'WOOD (ft³)', {
-                fontFamily: 'VCROSD
+                fontFamily: 'VCROSD',
                 fontSize: '15px',
                 fill: '#ffffff'
             }).setOrigin(0.5);
