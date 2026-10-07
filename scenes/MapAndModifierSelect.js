@@ -1,5 +1,5 @@
 import { DEFAULT_MAP, SNOWY_MAP } from './GameScene/MapDefinitions.js';
-import { preload as bigPreload } from './GameScene/preload.js';
+import { preloadMapSelection } from './GameScene/preload.js';
 import { config } from '../main.js';
 
 export let selectedMapDefinition = DEFAULT_MAP;
@@ -56,7 +56,7 @@ export function resetMapAndModifierSelection() {
 
 export const MapAndModifierSelectScene = {
 	key: 'MapAndModifierSelectScene',
-	preload: bigPreload,
+	preload: preloadMapSelection,
 	create: function () {
 		const randInt = Math.round(Math.random());
 		const randomDef = randInt === 0 ? DEFAULT_MAP : SNOWY_MAP

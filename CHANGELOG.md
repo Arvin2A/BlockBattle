@@ -3,8 +3,9 @@
 ## 2026-10-05
 
 ### Added
-- Released Axeman's CHAINSAW variant.
-- Added a new special ability for Gunman.
+- Axeman's CHAINSAW variant has a special now, and build mode.
+- Special ability is revamped for gunman.
 
 ### Planned
-- Axeman's CHAINSAW wood-gathering and building ability is planned for a future update.
+- LAWNMOWER for scytheman
+- DAGGER for swordman

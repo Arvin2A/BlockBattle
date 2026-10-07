@@ -8,6 +8,17 @@ function startSideSpecialCooldown(player, currentTime, duration) {
     player.nextSideSpecialTime = currentTime + duration;
 }
 
+function addSceneUpdateListener(scene, listener) {
+    const removeListener = () => {
+        scene.events.off('update', listener);
+        scene.events.off('shutdown', removeListener);
+    };
+
+    scene.events.on('update', listener);
+    scene.events.once('shutdown', removeListener);
+    return removeListener;
+}
+
 function getAttackDamageScale(attacker) {
     const baseDamageScale = Number.isFinite(attacker.baseDamageScale)
         ? attacker.baseDamageScale
@@ -321,10 +332,10 @@ export function finisherFreeze(scene) {
     });
 }
 
-export function spawnExplosion(scene, victim) {
+export function spawnExplosion(scene, victim, scale = 0.7) {
     const explosion = scene.add.sprite(victim.x, victim.y, 'explosion')
         .setDepth(8)
-        .setScale(0.7);
+        .setScale(scale);
     scene.objs.add(explosion);
     explosion.play('explosion');
     explosion.once('animationcomplete-explosion', () => explosion.destroy());
@@ -1357,7 +1368,7 @@ function tryMowLegacy(scene, player, target, direction, currentTime) {
                 // reached player
                 if (dist < 60) {
 
-                    scene.events.off('update', scytheUpdate);
+                    removeScytheUpdate();
 
                     fakescythe.destroy();
 
@@ -1369,14 +1380,14 @@ function tryMowLegacy(scene, player, target, direction, currentTime) {
             }
         };
 
-        scene.events.on('update', scytheUpdate);
+        const removeScytheUpdate = addSceneUpdateListener(scene, scytheUpdate);
 
         // emergency cleanup
         scene.time.delayedCall(3000, () => {
 
             if (fakescythe.active) {
 
-                scene.events.off('update', scytheUpdate);
+                removeScytheUpdate();
 
                 fakescythe.destroy();
 
@@ -1806,8 +1817,8 @@ export function tryPlunge(scene, player, target, direction, currentTime) {
         }
     };
 
-    scene.events.on('update', daggerTrack);
-    scene.events.on('update', plungeUpdate);
+    const removeDaggerTrack = addSceneUpdateListener(scene, daggerTrack);
+    const removePlungeUpdate = addSceneUpdateListener(scene, plungeUpdate);
 
     dagger.play('slateplunge');
     player.afterimage = true;
@@ -1831,8 +1842,8 @@ export function tryPlunge(scene, player, target, direction, currentTime) {
     });
 
     dagger.on('animationcomplete-slateplunge', () => {
-        scene.events.off('update', daggerTrack);
-        scene.events.off('update', plungeUpdate);
+        removeDaggerTrack();
+        removePlungeUpdate();
         player.afterimage = false;
         player.isAttacking = false;
         player.attackBypassesHitstun = false;
@@ -1916,7 +1927,7 @@ export function tryPull(scene, player, target, direction, currentTime) {
             scene.sound.play('anyhit');
             target.KBmultiplier += 0.22 * getAttackDamageScale(player);
 
-            scene.events.off('update', ropeUpdate);
+            removeRopeUpdate();
 
             rope.destroy();
             hook.destroy();
@@ -1961,14 +1972,14 @@ export function tryPull(scene, player, target, direction, currentTime) {
             hook.body.velocity.y *= 0.992;
         };
 
-        scene.events.on('update', ropeUpdate);
+        const removeRopeUpdate = addSceneUpdateListener(scene, ropeUpdate);
 
         // cleanup
         scene.time.delayedCall(1000, () => {
             if (!player.isUsingSideSpecial) {
                 return;
             }
-            scene.events.off('update', ropeUpdate);
+            removeRopeUpdate();
 
             rope.destroy();
             hook.destroy();
@@ -2025,6 +2036,14 @@ function getCharacterScript(attacker) {
 // Public input handlers delegate character choices to their own scripts.
 export function handleAttack(scene, attacker, victim) {
     return getCharacterScript(attacker)?.handleAttack(sharedAttackHelpers, scene, attacker, victim);
+}
+
+export function updateChainsawWood(scene, attacker, victim) {
+    return getCharacterScript(attacker)?.updateChainsawWood?.(scene, attacker, victim);
+}
+
+export function toggleChainsawMode(scene, attacker) {
+    return getCharacterScript(attacker)?.toggleChainsawMode?.(scene, attacker);
 }
 
 export function handleDirSpecial(scene, attacker, direction, currentTime, victim) {

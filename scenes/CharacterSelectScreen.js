@@ -1,5 +1,5 @@
 import { botMode } from "../main.js";
-import { preload as bigPreload } from "./GameScene/preload.js";
+import { preloadCharacterSelection } from "./GameScene/preload.js";
 import { getCharacterTexture } from "../characterTextures.js";
 
 export var player1Character = '';
@@ -10,7 +10,7 @@ export const CharacterSelectScene = {
 
     key: 'CharacterSelectScene',
 
-    preload: bigPreload,
+    preload: preloadCharacterSelection,
     create: function () {
 
         // -----------------------------
@@ -45,8 +45,9 @@ export const CharacterSelectScene = {
                     },
                     {
                         name: 'CHAINSAW',
-                        desc: 'Whats better than brutally grinding down your opponent? Building, yes, really. \n\n DIR SPECIAL: MODE SWITCH \n\n Switch between a chainsaw and a claw hammer, chainsaw to cut, claw hammer to build.',
-                        color: '#ffae00'
+                        desc: 'Whats better than brutally grinding down your opponent? Building. Press Q to switch between build and chainsaw mode. Gain wood by digging down. \n\n DIR SPECIAL: RAMPAGE \n\n Doubles your damage output for 1 second.',
+                        color: '#ffae00',
+                        fontSize: 17
                     }
                 ]
             },
@@ -101,8 +102,8 @@ export const CharacterSelectScene = {
             },
             {
                 name: 'GUNMAN', variants: [{
-                    name: 'STANDARD ISSUE',
-                    desc: 'Modern conflicts need modern solutions, just use a gun! \n\n DIR SPECIAL: ANOTHER GUN \n\n One is never enough, doubles your firepower that stuns the poor soul for 2 seconds.',
+                    name: 'GRUNT',
+                    desc: 'Modern conflicts need modern solutions, just use a gun! \n\n DIR SPECIAL: MINI \n\n This absolute beast shreds down your opponents at the cost of a 10 second cooldown.',
                     color: '#e2c542'
                 }]
             }
@@ -115,7 +116,9 @@ export const CharacterSelectScene = {
         };
 
         this.p1Index = 1;
-        this.p2Index = 0 ? botMode : Math.min(1, this.characters.length - 1);
+        this.p2Index = botMode
+            ? Phaser.Math.Between(0, this.characters.length - 1)
+            : 0;
         this.p1VariantIndex = 0;
         this.p2VariantIndex = 0;
 

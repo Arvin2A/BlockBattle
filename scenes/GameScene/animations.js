@@ -139,6 +139,12 @@ export function createGameAnimations(scene) {
         repeat: 0
     });
     scene.anims.create({
+        key: 'gunmanspecial',
+        frames: scene.anims.generateFrameNumbers('gunmanspecial', { start: 0, end: 2 }),
+        frameRate: 50,
+        repeat: 0
+    });
+    scene.anims.create({
         key: 'explosion',
         frames: scene.anims.generateFrameNumbers('explosion', { start: 0, end: 14 }),
         frameRate: 24,
@@ -167,7 +173,13 @@ export function createGameAnimations(scene) {
     scene.anims.create({
         key: 'upgrassGrow',
         frames: scene.anims.generateFrameNumbers('upgrassGrow', { start: 0, end: 2 }),
-        frameRate: 0.75,
+        frameRate: 0.25,
         repeat: 0
     });
+    scene.anims.create({
+        key: 'woodcollect',
+        frames: scene.anims.generateFrameNumbers('woodcollect', { start: 0, end: 7 }),
+        frameRate: 35,
+        repeat: -1
+    })
 }

@@ -1,5 +1,5 @@
 import Phaser from 'phaser';
-import {handleAttack, handleDirSpecial, handleDirSpecialAttack, handleHorizantalTilt, handleDownTilt, handleUpTilt, downslamAttack, updateScythemanGrass, tryQuickslamJump, positionAttackSprite} from './attacks.js';
+import {handleAttack, handleDirSpecial, handleDirSpecialAttack, handleHorizantalTilt, handleDownTilt, handleUpTilt, downslamAttack, updateScythemanGrass, updateChainsawWood, toggleChainsawMode, tryQuickslamJump, positionAttackSprite} from './attacks.js';
 import { initiatePlayers, updateCombo } from './players.js';
 import { Commands, executeStateCommand} from './commands.js';
 import { MenuScene } from './scenes/MenuScene.js';
@@ -42,14 +42,80 @@ function sleep(ms) {
     return new Promise(resolve => setTimeout(resolve, ms));
     //was meant to be used, but was succeeded later after the discovery of scene.time.delayedCall
 }
+function interpolateColor(startColor, endColor, amount) {
+    const start = Phaser.Display.Color.HexStringToColor(startColor);
+    const end = Phaser.Display.Color.HexStringToColor(endColor);
+    const red = Math.round(start.red + (end.red - start.red) * amount);
+    const green = Math.round(start.green + (end.green - start.green) * amount);
+    const blue = Math.round(start.blue + (end.blue - start.blue) * amount);
+    return `#${[red, green, blue].map(channel => channel.toString(16).padStart(2, '0')).join('')}`;
+}
+function getKBTextColor(multiplier) {
+    if (multiplier <= 1) {
+        return interpolateColor('#00a2ff', '#ffffff', (multiplier - 0.7) / 0.3);
+    }
+    if (multiplier <= 1.2) {
+        return interpolateColor('#ffffff', '#fff4a3', (multiplier - 1) / 0.2);
+    }
+    if (multiplier <= 2.5) {
+        return interpolateColor('#fff4a3', '#ff0000', (multiplier - 1.2) / 1.3);
+    }
+    if (multiplier <= 4) {
+        return interpolateColor('#ff0000', '#000000', (multiplier - 2.5) / 1.5);
+    }
+    return '#000000';
+}
+function getKBTextStrokeColor(multiplier) {
+    if (multiplier <= 2.5) return '#000000';
+    if (multiplier <= 4) {
+        return interpolateColor('#000000', '#ffffff', (multiplier - 2.5) / 1.5);
+    }
+    return '#ffffff';
+}
+function createKBText(scene, player, x, y) {
+    const style = { fontFamily: 'GameFont', fontSize: '20px', fill: '#FFFFFF' };
+    player.KBText = scene.add.text(x, y, 'KB: 0.0%', style);
+    player.KBText.setStroke('#000000', 3);
+    player.KBFlashText = scene.add.text(x, y, 'KB: 0.0%', {
+        ...style,
+        fill: '#FFFFFF'
+    });
+    player.KBFlashText.setStroke('#000000', 3);
+    player.KBFlashText.setAlpha(0);
+    player.kbDisplayedValue = null;
+}
+function updateKBText(scene, player, multiplier) {
+    const damagePercent = (multiplier * 100) - 100;
+    const nextValue = `KB: ${damagePercent.toFixed(1)}%`;
+    if (player.kbTextValue !== nextValue) {
+        player.KBText.setText(nextValue);
+        player.kbTextValue = nextValue;
+    }
+    if (player.kbColorMultiplier !== multiplier) {
+        player.KBText.setColor(getKBTextColor(multiplier));
+        player.KBText.setStroke(getKBTextStrokeColor(multiplier), 3);
+        player.kbColorMultiplier = multiplier;
+    }
+
+    if (player.kbDisplayedValue !== null && player.kbDisplayedValue !== nextValue) {
+        scene.tweens.killTweensOf(player.KBFlashText);
+        player.KBFlashText.setText(nextValue);
+        player.KBFlashText.setAlpha(0.5);
+        scene.tweens.add({
+            targets: player.KBFlashText,
+            alpha: 0,
+            duration: 200
+        });
+    }
+    player.kbDisplayedValue = nextValue;
+}
 async function loadFont() {
-    const font = new FontFace('GameFont', 'url(assets/fonts/GameFont.ttf)');
-    await font.load();
-    document.fonts.add(font);
-    const font2 = new FontFace('VCROSD', 'url(assets/fonts/VCROSD.ttf)')
-    await font2.load();
-    document.fonts.add(font2)
-    //load the gamefont that is very kool
+    const fonts = [
+        new FontFace('GameFont', 'url(assets/fonts/GameFont.ttf)'),
+        new FontFace('VCROSD', 'url(assets/fonts/VCROSD.ttf)')
+    ];
+    const loadedFonts = await Promise.all(fonts.map(font => font.load()));
+    loadedFonts.forEach(font => document.fonts.add(font));
 }
 
 var GameScene = {
@@ -109,6 +175,8 @@ var cursors;
 var wasd;
 var attackKey1;
 var attackKey2;
+var chainsawModeKey1;
+var chainsawModeKey2;
 var winNumber = 3; //number of rounds needed to win as of now
 var lastWinState = {
     p1: 0,
@@ -201,6 +269,37 @@ function updateSpecialMeters(scene) {
 
     Object.values(scene.specialMeters).forEach(meter => {
         const { player, fill, status, meterWidth } = meter;
+        const isChainsawBuildMode =
+            player.name === 'AXEMAN' &&
+            player.variant === 'CHAINSAW' &&
+            !player.chainsawMode;
+        if (isChainsawBuildMode) {
+            fill.setDisplaySize(0, 18);
+            fill.setFillStyle(0x555555);
+            status.setText('LOCKED: BUILD MODE');
+            status.setColor('#bbbbbb');
+            return;
+        }
+
+        const chainsawCooldownRemaining =
+            player.name === 'AXEMAN' &&
+            player.variant === 'CHAINSAW'
+                ? Math.max(0, (player.chainsawCooldownUntil ?? 0) - scene.time.now)
+                : 0;
+        if (chainsawCooldownRemaining > 0) {
+            const cooldownDuration = 5000;
+            const progress = Phaser.Math.Clamp(
+                1 - chainsawCooldownRemaining / cooldownDuration,
+                0,
+                1
+            );
+            fill.setDisplaySize(meterWidth * progress, 18);
+            fill.setFillStyle(0xff8c00);
+            status.setText(`SAW COOLDOWN ${Math.ceil(chainsawCooldownRemaining / 1000)}s`);
+            status.setColor('#ffcc80');
+            return;
+        }
+
         const cooldownDuration = Number.isFinite(player.sideSpecialCooldownDuration)
             ? player.sideSpecialCooldownDuration
             : 0;
@@ -211,6 +310,11 @@ function updateSpecialMeters(scene) {
         const fillWidth = Math.max(0, meterWidth * progress);
 
         fill.setDisplaySize(fillWidth, 18);
+        fill.setFillStyle(
+            player.name === 'AXEMAN' && player.variant === 'CHAINSAW'
+                ? 0xff8c00
+                : meter.key === 'p1' ? 0xf54242 : 0x00aaff
+        );
         status.setText(progress >= 1 ? 'READY' : `RECHARGING ${Math.ceil(remaining / 1000)}s`);
         status.setColor(progress >= 1 ? '#ffffff' : '#bbbbbb');
     });
@@ -317,6 +421,31 @@ function updateWeatherHazard(scene) {
 }
 
 function create() {
+    this.gamePaused = false;
+    this.time.paused = false;
+    this.physics.world.resume();
+    this.tweens.resumeAll();
+    this.anims.resumeAll();
+    this.sound.resumeAll();
+    fiveframecount = 0;
+    for (const controls of Object.values(mobileControls)) {
+        for (const key of Object.keys(controls)) {
+            controls[key] = false;
+        }
+    }
+    inputMode.p1 = 'touch';
+    inputMode.p2 = 'touch';
+
+    this.events.once('shutdown', () => {
+        this.gamePaused = false;
+        fiveframecount = 0;
+        for (const controls of Object.values(mobileControls)) {
+            for (const key of Object.keys(controls)) {
+                controls[key] = false;
+            }
+        }
+    });
+
     this.gameEnded = false;
     this.winCooldown = false;
     this.finisherActive = false;
@@ -331,6 +460,10 @@ function create() {
         players: null,
         map: null
     };
+    this.planks = this.physics.add.group({
+        allowGravity: false,
+        immovable: true
+    });
 
     lastWinState = {
         p1: 0,
@@ -416,6 +549,7 @@ function create() {
         });
         this.time.delayedCall(150, () => {
             homeBtn.setVisible(false);
+            this.sound.stopAll();
             resetMapAndModifierSelection();
             this.scene.start('MenuScene');
         });
@@ -559,6 +693,29 @@ function create() {
         player1Variant,
         player2Variant
     );
+    if (isMobile) {
+        for (const player of Object.values(this.gameState.players)) {
+            if (player.name !== 'AXEMAN' || player.variant !== 'CHAINSAW') continue;
+
+            const x = player.id === 1 ? 330 : 670;
+            const button = this.add.circle(x, 420, 34, 0x000000, 0.55)
+                .setScrollFactor(0)
+                .setDepth(999)
+                .setInteractive();
+            const label = this.add.text(x, 420, '🗘', {
+                fontSize: '36px',
+                color: '#ffffff',
+                fontFamily: 'Arial'
+            }).setOrigin(0.5).setScrollFactor(0).setDepth(1000);
+            button.on('pointerdown', () => {
+                inputMode[player.id === 1 ? 'p1' : 'p2'] = 'touch';
+                toggleChainsawMode(this, player);
+            });
+            this.hud.add(button);
+            this.hud.add(label);
+            player.modeSwitchButton = button;
+        }
+    }
     createSpecialMeters(this);
 
     //a bit of cam intiation:
@@ -572,6 +729,7 @@ function create() {
         const player = this.gameState.players[key];
         this.physics.add.collider(player, this.gameState.map.platforms);
         this.physics.add.collider(player, this.gameState.map.topPlatforms);
+        this.physics.add.collider(player, this.planks);
     }
 
     const keys = Object.keys(this.gameState.players);
@@ -596,18 +754,20 @@ function create() {
     plr2NameText.setStroke('#000000', 3);
     this.hud.add(plr1NameText);
     this.hud.add(plr2NameText);
-    this.gameState.players.player.KBText = this.add.text(285, 65, 'KB: 1.00', { fontFamily: 'GameFont', fontSize: '20px', fill: '#FFFFFF' });
-    this.gameState.players.player2.KBText = this.add.text(685, 65, 'KB: 1.00', { fontFamily: 'GameFont', fontSize: '20px', fill: '#FFFFFF' });
-    this.gameState.players.player.KBText.setStroke('#000000', 3);
-    this.gameState.players.player2.KBText.setStroke('#000000', 3);
-    this.hud.add(this.gameState.players.player2.KBText);
+    createKBText(this, this.gameState.players.player, 285, 65);
+    createKBText(this, this.gameState.players.player2, 685, 65);
     this.hud.add(this.gameState.players.player.KBText);
+    this.hud.add(this.gameState.players.player.KBFlashText);
+    this.hud.add(this.gameState.players.player2.KBText);
+    this.hud.add(this.gameState.players.player2.KBFlashText);
     
 
     //---CONTROLS---\\
     //Allows holding for the keys too. Later this will be revamped to allow charge attacks
     attackKey1 = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.E);
     attackKey2 = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.SHIFT);
+    chainsawModeKey1 = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.Q);
+    chainsawModeKey2 = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.P);
 
     
 
@@ -674,6 +834,65 @@ function create() {
         });    
     });    
 
+    this.pauseOverlay = this.add.rectangle(500, 300, 1000, 600, 0x000000, 0.5)
+        .setScrollFactor(0)
+        .setDepth(2000)
+        .setInteractive()
+        .setVisible(false);
+    this.pauseResumeButton = this.add.image(300, 300, 'resumeBtn')
+        .setScale(0.35)
+        .setScrollFactor(0)
+        .setDepth(2001)
+        .setInteractive({ useHandCursor: true })
+        .setVisible(false);
+    this.pauseMenuButton = this.add.image(600, 300, 'gohomeBtn')
+        .setScale(0.35)
+        .setScrollFactor(0)
+        .setDepth(2001)
+        .setInteractive({ useHandCursor: true })
+        .setVisible(false);
+    this.pauseButton = this.add.image(970, 30, 'gohomeBtn')
+        .setScale(0.16)
+        .setScrollFactor(0)
+        .setDepth(1999)
+        .setInteractive({ useHandCursor: true });
+
+    this.hud.add(this.pauseOverlay);
+    this.hud.add(this.pauseResumeButton);
+    this.hud.add(this.pauseMenuButton);
+    this.hud.add(this.pauseButton);
+
+    this.resumeGame = () => {
+        if (!this.gamePaused) return;
+        this.gamePaused = false;
+        this.pauseOverlay.setVisible(false);
+        this.pauseResumeButton.setVisible(false);
+        this.pauseMenuButton.setVisible(false);
+        this.pauseButton.setVisible(true);
+        this.physics.world.resume();
+        this.time.paused = false;
+        this.tweens.resumeAll();
+        this.sound.resumeAll();
+    };
+
+    this.pauseButton.on('pointerdown', () => {
+        if (this.gamePaused || this.gameEnded) return;
+        this.gamePaused = true;
+        this.pauseButton.setVisible(false);
+        this.pauseOverlay.setVisible(true);
+        this.pauseResumeButton.setVisible(true);
+        this.pauseMenuButton.setVisible(true);
+        this.physics.world.pause();
+        this.time.paused = true;
+        this.tweens.pauseAll();
+        this.sound.pauseAll();
+    });
+    this.pauseResumeButton.on('pointerdown', () => this.resumeGame());
+    this.pauseMenuButton.on('pointerdown', () => {
+        this.sound.stopAll();
+        resetMapAndModifierSelection();
+        this.scene.start('MenuScene');
+    });
 
 }
 function updateWins(scene) {
@@ -871,6 +1090,7 @@ function updateKB(scene) {
 export var fiveframecount = 0;
 
 function update() {
+    if (this.gamePaused) return;
 
     fiveframecount += 1;
     
@@ -933,6 +1153,12 @@ function update() {
 
     p1.hitstun = this.time.now < p1.hitstunUntil;
     p2.hitstun = this.time.now < p2.hitstunUntil;
+    if (Phaser.Input.Keyboard.JustDown(chainsawModeKey1)) {
+        toggleChainsawMode(this, p1);
+    }
+    if (Phaser.Input.Keyboard.JustDown(chainsawModeKey2)) {
+        toggleChainsawMode(this, p2);
+    }
     
     
     const p1Chainsaw = p1.name === 'AXEMAN' && p1.variant === 'CHAINSAW';
@@ -1039,10 +1265,6 @@ function update() {
             //this.time.now < player.canAttackUntil;
     };
     updateScythemanGrass(this, this.gameState.players);
-    const cal1 = ((p1.KBmultiplier * 100) - 100);
-    const cal2 = ((p2.KBmultiplier * 100) - 100);
-    p1.KBText.setText(`KB: ${cal1.toFixed(1)}%`);
-    p2.KBText.setText(`KB: ${cal2.toFixed(1)}%`);
     updateCombo(p1, this.game.loop.delta);
     updateCombo(p2, this.game.loop.delta);
     if (wasd.left.isDown || mobileControls.p1.left) p1.lastDir = { x: -1, y: 0 };
@@ -1080,7 +1302,7 @@ function update() {
 
     if (p1.name === 'AXEMAN' && p1.variant === 'CHAINSAW') {
         positionAttackSprite(p1, 'activechainsaw');
-        if (p1.chainsawCooldownUntil > this.time.now) {
+        if (p1.chainsawMode && p1.chainsawCooldownUntil > this.time.now) {
             p1.atk.setAlpha(0);
         } else {
             p1.atk.setAlpha(1);
@@ -1088,12 +1310,14 @@ function update() {
     }
     if (p2.name === 'AXEMAN' && p2.variant === 'CHAINSAW') {
         positionAttackSprite(p2, 'activechainsaw');
-        if (p2.chainsawCooldownUntil > this.time.now) {
+        if (p2.chainsawMode && p2.chainsawCooldownUntil > this.time.now) {
             p2.atk.setAlpha(0);
         } else {
             p2.atk.setAlpha(1);
         }
     }
+    updateChainsawWood(this, p1, p2);
+    updateChainsawWood(this, p2, p1);
     
  
     p1.doubleJumpEffect.x = p1.x;
@@ -1112,7 +1336,10 @@ function update() {
         const player = this.gameState.players[key];
         if (player.grassCutText) {
             player.grassCutText.setPosition(player.x, player.y - 75);
-            player.grassCutText.setText(`Grass cuts: ${player.grassCutCount}`);
+            if (player.grassCutTextValue !== player.grassCutCount) {
+                player.grassCutText.setText(`Grass cuts: ${player.grassCutCount}`);
+                player.grassCutTextValue = player.grassCutCount;
+            }
         }
     }
 
@@ -1124,15 +1351,8 @@ function update() {
     if (p2.KBmultiplier < 0.7) {
         p2.KBmultiplier = 0.70;
     }
-    if (p1.KBmultiplier < 1) {
-        p1.KBText.setColor("#00a2ff");
-    } else {
-        p1.KBText.setColor("#ffffff");
-    }
-    if (p2.KBmultiplier < 1) {
-        p2.KBText.setColor("#009ffc");
-    } else {
-        p2.KBText.setColor("#ffffff");
+    for (const player of [p1, p2]) {
+        updateKBText(this, player, player.KBmultiplier);
     }
 
     if (p1.afterimage) {
@@ -1404,13 +1624,17 @@ function update() {
         }
     }
     //PRIORITY
-    if (p1.freeze) {
-        p1.setVelocityX(0);
-        p1.setVelocityY(0);
-    }
-    if (p2.freeze) {
-        p2.setVelocityX(0);
-        p2.setVelocityY(0);
+    for (const player of [p1, p2]) {
+        if (player.freeze) {
+            if (player.freezeGravity === null) {
+                player.freezeGravity = player.body.allowGravity;
+            }
+            player.body.allowGravity = false;
+            player.setVelocity(0, 0);
+        } else if (player.freezeGravity !== null) {
+            player.body.allowGravity = player.freezeGravity;
+            player.freezeGravity = null;
+        }
     }
 
     updateSledgehammerAnimation(p1);

@@ -7,7 +7,7 @@ export const DEFAULT_MAP = {
         y: 875,
         texture: 'thickgroundhitbox',
         width: 1000,
-        height: 0,
+        height: 5,
         visible: false
     },
     platforms: [
@@ -46,7 +46,7 @@ export const SNOWY_MAP = {
         y: 835,
         texture: 'thickgroundhitbox',
         width: 1750,
-        height: 50,
+        height: 55,
         visible: false
     },
     platforms: [
