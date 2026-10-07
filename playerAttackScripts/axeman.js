@@ -186,7 +186,7 @@ function updateChainsawWood(scene, attacker, victim) {
 
     const isRotated = attacker.lastDir.y === 0;
     const intendedX = attacker.x + attacker.lastDir.x * 200;
-    const intendedY = attacker.y + attacker.lastDir.y * 200;
+    const intendedY = attacker.y + attacker.lastDir.y * 200 - 50;
     attacker.plankGhost.setPosition(intendedX, intendedY);
     attacker.plankGhost.setAngle(isRotated ? 90 : 0);
     attacker.plankGhost.setVisible(!attacker.chainsawMode);
