@@ -1,12 +1,12 @@
 
 import { changeBotMode } from "../main.js";
-import { preload as bigPreload} from "./GameScene/preload.js";
+import { preloadMenu } from "./GameScene/preload.js";
 
 export const MenuScene = {
     //load the menu scene which is just a cool background image we made
     //its also has the start button, initiating the game when clicked
     key: 'MenuScene',
-    preload: bigPreload,
+    preload: preloadMenu,
     create: function () {
         const bg = this.add.image(500, 300, 'menuBackground');
         bg.setDisplaySize(this.scale.width, this.scale.height);
@@ -19,11 +19,11 @@ export const MenuScene = {
         this.add.text(40, 135, 'CHANGELOG UPDATE!', {
             fontFamily: 'VCROSD',
             fontSize: '24px',
-            fill: '#5792ffc2',
+            fill: '#9757ffc2',
             stroke: '#000000',
             strokeThickness: 5
         });
-        const changelogText = 'Axeman\'s CHAINSAW variant is now playable. Its wood-gathering and building ability is planned for a future update.\n\nGunman now has a new special ability: ANOTHER GUN.';
+        const changelogText = 'Axeman\'s CHAINSAW variant is complete, including wood gathering and plank building.\n\nGunman\'s special ability has been revamped.';
         this.add.text(40, 180, changelogText, {
             fontFamily: 'VCROSD',
             fontSize: '18px',

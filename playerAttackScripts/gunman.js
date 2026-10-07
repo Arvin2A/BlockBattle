@@ -1,4 +1,11 @@
-function playShotAnimation(scene, attacker, sprite = attacker.atk, delay = 0) {
+function playShotAnimation(
+    scene,
+    attacker,
+    sprite = attacker.atk,
+    delay = 0,
+    animation = 'gunmanatk',
+    hideAfter = 180
+) {
     const verticalOffset = sprite === attacker.atk ? 0 : -5;
     sprite.setPosition(
         attacker.x + attacker.lastDir.x * 50,
@@ -11,10 +18,12 @@ function playShotAnimation(scene, attacker, sprite = attacker.atk, delay = 0) {
         if (!attacker.active || !sprite.active) return;
         sprite.setFrame(0);
         sprite.setVisible(true);
-        sprite.play('gunmanatk', true);
-        scene.time.delayedCall(180, () => {
-            if (attacker.active && !attacker.activeGrab) sprite.setVisible(false);
-        });
+        sprite.play(animation, true);
+        if (hideAfter !== null) {
+            scene.time.delayedCall(hideAfter, () => {
+                if (attacker.active && !attacker.activeGrab) sprite.setVisible(false);
+            });
+        }
     };
 
     if (delay > 0) scene.time.delayedCall(delay, play);
@@ -25,15 +34,33 @@ function createBeam(scene, attacker, victim, sprite = attacker.atk) {
     const aimLength = Math.hypot(attacker.lastDir.x, attacker.lastDir.y) || 1;
     const directionX = attacker.lastDir.x / aimLength;
     const directionY = attacker.lastDir.y / aimLength;
-    const startX = sprite.x;
-    const startY = sprite.y-10;
+    const rayOriginX = attacker.x;
+    const rayOriginY = attacker.y;
+    const visualOffsetX = sprite.x - rayOriginX;
+    const visualOffsetY = sprite.y - 10 - rayOriginY;
+    const visualStartDistance = Math.max(
+        0,
+        visualOffsetX * directionX + visualOffsetY * directionY
+    );
     const contactDistance = getBeamContactDistance(victim, {
         directionX,
         directionY,
-        startX,
-        startY
+        startX: rayOriginX,
+        startY: rayOriginY
     });
-    const beamLength = contactDistance === null ? 10000 : contactDistance;
+    const obstacleDistance = getBeamObstacleDistance(scene, {
+        directionX,
+        directionY,
+        startX: rayOriginX,
+        startY: rayOriginY
+    });
+    const impactDistance = Math.min(
+        contactDistance ?? 10000,
+        obstacleDistance ?? 10000
+    );
+    const beamLength = Math.max(0, impactDistance - visualStartDistance);
+    const startX = rayOriginX + directionX * visualStartDistance;
+    const startY = rayOriginY + directionY * visualStartDistance;
     const beam = scene.add.rectangle(
         startX + directionX * beamLength / 2,
         startY + directionY * beamLength / 2,
@@ -49,7 +76,65 @@ function createBeam(scene, attacker, victim, sprite = attacker.atk) {
         onComplete: () => beam.destroy()
     });
 
-    return { hit: contactDistance !== null };
+    return {
+        hit: contactDistance !== null &&
+            (obstacleDistance === null || contactDistance < obstacleDistance)
+    };
+}
+
+function getBeamObstacleDistance(scene, beam) {
+    const obstacles = [
+        ...scene.gameState.map.platforms.getChildren(),
+        ...scene.gameState.map.topPlatforms.getChildren(),
+        ...scene.planks.getChildren()
+    ];
+    let nearestDistance = null;
+
+    for (const obstacle of obstacles) {
+        if (!obstacle.active || !obstacle.body?.enable) continue;
+        const distance = getRayRectangleDistance(
+            beam.startX,
+            beam.startY,
+            beam.directionX,
+            beam.directionY,
+            obstacle.body
+        );
+        if (distance !== null &&
+            (nearestDistance === null || distance < nearestDistance)) {
+            nearestDistance = distance;
+        }
+    }
+
+    return nearestDistance;
+}
+
+function getRayRectangleDistance(originX, originY, directionX, directionY, rectangle) {
+    let minimumDistance = 0;
+    let maximumDistance = Infinity;
+
+    for (const [origin, direction, minimum, maximum] of [
+        [originX, directionX, rectangle.left, rectangle.right],
+        [originY, directionY, rectangle.top, rectangle.bottom]
+    ]) {
+        if (Math.abs(direction) < 1e-8) {
+            if (origin < minimum || origin > maximum) return null;
+            continue;
+        }
+
+        const firstIntersection = (minimum - origin) / direction;
+        const secondIntersection = (maximum - origin) / direction;
+        minimumDistance = Math.max(
+            minimumDistance,
+            Math.min(firstIntersection, secondIntersection)
+        );
+        maximumDistance = Math.min(
+            maximumDistance,
+            Math.max(firstIntersection, secondIntersection)
+        );
+        if (maximumDistance < minimumDistance) return null;
+    }
+
+    return maximumDistance < 0 ? null : minimumDistance;
 }
 
 function getBeamContactDistance(victim, beam) {
@@ -78,16 +163,22 @@ function handleShot(api, scene, attacker, victim, options = {}) {
         (scene.time.now < attacker.nextAttackTime || !attacker.canAttack)) || attacker.hitstun) return;
     if (!options.isSpecial && attacker.gunmanSpecialActive) return;
     const isExplosion = options.damageIncrement === undefined && attacker.combo >= 4;
-    playShotAnimation(scene, attacker);
-    if (options.delayedSprite) {
+    if (options.isSpecial) {
+        playShotAnimation(
+            scene,
+            attacker,
+            options.sprite,
+            options.animationDelay,
+            options.animation,
+            null
+        );
+    } else {
+        playShotAnimation(scene, attacker);
+    }
+    if (!options.isSpecial && options.delayedSprite) {
         playShotAnimation(scene, attacker, options.delayedSprite, options.animationDelay);
     }
-    const beams = options.isSpecial
-        ? [
-            createBeam(scene, attacker, victim, attacker.atk),
-            createBeam(scene, attacker, victim, options.sprite)
-        ]
-        : [createBeam(scene, attacker, victim, options.sprite)];
+    const beams = [createBeam(scene, attacker, victim, options.sprite)];
     scene.sound.play('gunshot');
     if (isExplosion) scene.sound.play('reload');
 
@@ -110,7 +201,7 @@ function handleShot(api, scene, attacker, victim, options = {}) {
             : attacker.lastDir.y * knockback;
         api.applyKnockback(scene, victim, attacker.lastDir.x * knockback, verticalKick);
         if (isExplosion) scene.sound.play('explosion');
-        scene.time.delayedCall(isExplosion ? 850 : 350, () => {
+        scene.time.delayedCall(isExplosion ? 550 : 350, () => {
             if (victim.active) victim.willDecelerate = true;
         });
 
@@ -162,10 +253,10 @@ function handleGunmanSpecial(api, scene, attacker, direction, currentTime, victi
 
         startSideSpecialCooldown(attacker, currentTime, gunCD);
 
-        const delayedSprite = scene.add.sprite(attacker.x, attacker.y+20, 'gunmanatk')
+        const specialSprite = scene.add.sprite(attacker.x, attacker.y + 20, 'gunmanspecial')
             .setVisible(false)
             .setDepth(attacker.atk.depth);
-        scene.objs.add(delayedSprite);
+        scene.objs.add(specialSprite);
         attacker.gunmanSpecialActive = true;
 
         const fireBullet = () => {
@@ -176,19 +267,27 @@ function handleGunmanSpecial(api, scene, attacker, direction, currentTime, victi
                 freezeDuration: 50,
                 ignoreCooldown: true,
                 ignoreCombo: true,
-                sprite: delayedSprite,
-                delayedSprite,
-                animationDelay: 50,
+                sprite: specialSprite,
+                animation: 'gunmanspecial',
+                animationDelay: 35,
                 isSpecial: true
             });
         };
 
         fireBullet();
-        const firingEvent = scene.time.addEvent({ delay: 50, loop: true, callback: fireBullet });
-        scene.time.delayedCall(2000, () => {
+        const firingEvent = scene.time.addEvent({ delay: 35, loop: true, callback: fireBullet });
+        scene.time.delayedCall(1500, () => {
             firingEvent.remove(false);
-            delayedSprite.destroy();
+            scene.sound.play('gunspecialend', {volume: 0.75})
+            specialSprite.destroy();
             attacker.gunmanSpecialActive = false;
+            if (!attacker.active) return;
+            const reloadCooldown = 2000;
+            attacker.canAttack = false;
+            attacker.nextAttackTime = scene.time.now + reloadCooldown;
+            scene.time.delayedCall(reloadCooldown, () => {
+                if (attacker.active) attacker.canAttack = true;
+            });
         });
     }
     attacker.lastTap[direction] = currentTime;

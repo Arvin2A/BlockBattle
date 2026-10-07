@@ -44,6 +44,7 @@ export function initiatePlayers(scene, p1Select = 'axeman', p2Select = 'swordman
             hitstunUntil: 0,
             freeze: false,
             freezeUntil: 0,
+            freezeGravity: null,
             willDecelerate: true,
             hitstunGroundDeceleration: 0.98
         });
@@ -55,6 +56,10 @@ export function initiatePlayers(scene, p1Select = 'axeman', p2Select = 'swordman
             grassTrailY: null,
             grassCutCount: 0,
             nextGrassDamageTime: 0,
+            woodCount: 0,
+            woodCollectionLastTick: null,
+            woodCollecting: false,
+            plankGhost: null,
             winNumber: 0,
             outOfBounds: false,
             airTime: 0,
@@ -137,6 +142,8 @@ export function initiatePlayers(scene, p1Select = 'axeman', p2Select = 'swordman
         const selectedCharacter = p.id === 1 ? p1Select : p2Select;
         if (selectedCharacter.toUpperCase() === 'GUNMAN') {
             p.dirSpecialCooldown = 10000;
+        } else if (selectedCharacter.toUpperCase() === 'AXEMAN' && p.variant === "CHAINSAW") {
+            p.dirSpecialCooldown = 4000;
         }
         if (modifierOptions.SLUGGISH.enabled) {
             p.baseMovementSpeed -= 150;
@@ -208,6 +215,7 @@ export function initiatePlayers(scene, p1Select = 'axeman', p2Select = 'swordman
         if (p.variant === 'SLEDGEHAMMER') {
             p.atk = scene.add.sprite(p.x, p.y, 'sledge_idle');
         } else if (p.name === 'AXEMAN' && p.variant === 'CHAINSAW') {
+            p.chainsawMode = true;
             p.atk = scene.add.sprite(p.x, p.y, 'inactivechainsaw');
         } else if (p.name === "SWORDMAN") {
             p.atk = scene.add.sprite(
@@ -285,6 +293,47 @@ export function initiatePlayers(scene, p1Select = 'axeman', p2Select = 'swordman
 
     for (const key in players) {
         const player = players[key];
+        if (player.name === 'AXEMAN' && player.variant === 'CHAINSAW') {
+            const switchKey = player.id === 1 ? 'Q' : 'P';
+            const isPlayerOne = player.id === 1;
+            const iconX = isPlayerOne ? 34 : 966;
+            const labelX = isPlayerOne ? 60 : 940;
+            player.modeSwitchIcon = scene.add.sprite(
+                iconX,
+                300,
+                'inactivechainsaw'
+            ).setFrame(0).setScale(0.7).setScrollFactor(0);
+            player.modeSwitchText = scene.add.text(
+                labelX,
+                300,
+                `${switchKey} to switch`,
+                { fontFamily: 'GameFont', fontSize: '12px', fill: '#ffffff' }
+            ).setOrigin(isPlayerOne ? 0 : 1, 0.5)
+                .setStroke('#000000', 3)
+                .setScrollFactor(0);
+            player.woodText = scene.add.text(
+                player.x,
+                player.y - 75,
+                `Wood: ${player.woodCount} ft³`,
+                { fontFamily: 'GameFont', fontSize: '14px', fill: '#ffffff' }
+            ).setOrigin(0.5).setStroke('#000000', 3);
+            player.woodCollectSprite = scene.add.sprite(
+                player.atk.x,
+                player.atk.y,
+                'woodcollect'
+            ).setDepth(4).setVisible(false);
+            player.plankGhost = scene.add.image(player.x, player.y, 'plank')
+                .setOrigin(0.5)
+                .setTint(0x000080)
+                .setAlpha(0.45)
+                .setDepth(2)
+                .setVisible(false);
+            scene.objs.add(player.woodText);
+            scene.objs.add(player.woodCollectSprite);
+            scene.objs.add(player.plankGhost);
+            scene.hud.add(player.modeSwitchIcon);
+            scene.hud.add(player.modeSwitchText);
+        }
         if (player.name === 'SCYTHEMAN') {
             player.grassCutText = scene.add.text(
                 player.x,

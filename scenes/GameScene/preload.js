@@ -1,3 +1,40 @@
+export function preloadMenu() {
+    this.load.image('menuBackground', 'assets/Homescreen.png');
+    this.load.image('uifade', 'assets/uifade.png');
+    this.load.audio('hover', 'audio/hover.wav');
+    this.load.audio('deny', 'audio/deny.wav');
+}
+
+export function preloadMapSelection() {
+    this.load.image('desertpreview', 'assets/arenapreview.png');
+    this.load.image('snowypreview', 'assets/snowy_preview.png');
+    this.load.image('randompreview', 'assets/random_preview.png');
+    this.load.audio('hover', 'audio/hover.wav');
+}
+
+export function preloadCharacterSelection() {
+    this.load.image('desertpreview', 'assets/arenapreview.png');
+    this.load.image('selectedoverlay', 'assets/selectedOverlay.png');
+    this.load.image('ready', 'assets/READY.png');
+    this.load.audio('hover', 'audio/hover.wav');
+    this.load.audio('deny', 'audio/deny.wav');
+
+    const characterTextures = [
+        ['axeman', 'assets/sprites/axeman/axeman-default.png'],
+        ['chainsawman', 'assets/sprites/axeman/axeman-chainsaw.png'],
+        ['swordman', 'assets/sprites/swordman/swordman-default.png'],
+        ['fisherman', 'assets/sprites/fisherman/fisherman-default.png'],
+        ['scytheman', 'assets/sprites/scytheman/scytheman-default.png'],
+        ['hammerman', 'assets/sprites/hammerman/hammerman-default.png'],
+        ['sledgehammerman', 'assets/sprites/hammerman/hammerman-sledgehammer.png'],
+        ['slateman', 'assets/sprites/slateman/slateman-default-1.png'],
+        ['crowbarman', 'assets/sprites/crowbarman/crowbarman-default.png'],
+        ['gunman', 'assets/sprites/gunman/gunman-default.png']
+    ];
+
+    characterTextures.forEach(([key, path]) => this.load.image(key, path));
+}
+
 export function preload() {
 
     //dont be fooled i didn't ai this, i did use it to reorganize my preload
@@ -70,6 +107,8 @@ export function preload() {
 
     this.load.image('gohomeBtn', 'assets/goHomeBtn.png');
     this.load.image('gohomeBtnPressed', 'assets/pressedgoHome.png');
+
+    this.load.image('resumeBtn', 'assets/resumeBtn.png');
 
     for (let i = 1; i < 5; i++) {
         this.load.image('countdown' + i, 'assets/countdown' + i + '.png');
@@ -192,6 +231,27 @@ export function preload() {
             frameWidth: 50,
             frameHeight: 50
         }
+    )
+    this.load.spritesheet(
+        'woodcollect',
+        'assets/sprites/axeman/woodcollect.png',
+        {
+            frameWidth: 50,
+            frameHeight: 50
+        }
+    )
+
+    this.load.spritesheet(
+        'clawhammer',
+        'assets/sprites/axeman/clawhammer.png',
+        {
+            frameWidth: 50,
+            frameHeight: 50
+        }
+    )
+    this.load.image(
+        'plank',
+        'assets/sprites/axeman/plank.png'
     )
 
 
@@ -428,7 +488,16 @@ export function preload() {
             frameHeight: 200
         }
 
-    )
+    );
+    this.load.spritesheet(
+        'gunmanspecial',
+        'assets/sprites/gunman/gunmanspecial.png',
+        {
+            frameWidth: 75,
+            frameHeight: 75
+        }
+    );
+    
 
     // =====================================================
     // MISC SPRITESHEETS/ASSETS
@@ -490,6 +559,7 @@ export function preload() {
 
     this.load.audio('chainsaw', 'audio/chainsaw.wav');
     this.load.audio('deactivatechainsaw', 'audio/deactivatechainsaw.wav');
+    this.load.audio('collectwood', 'audio/collectwood.wav');
 
     // =====================================================
     // AUDIO - FISHERMAN
@@ -544,6 +614,7 @@ export function preload() {
     this.load.audio('gunshot', 'audio/fire.wav');
     this.load.audio('reload', 'audio/reload.ogg');
     this.load.audio('explosion', 'audio/explosion.wav');
+    this.load.audio('gunspecialend', 'audio/gunspecialend.ogg')
 
 
     // =====================================================
