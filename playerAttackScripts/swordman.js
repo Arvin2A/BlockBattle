@@ -6,6 +6,10 @@ function tilt(api, scene, attacker, victim, xMul, yMul, kbTime) {
 }
 
 const neutralSpecial = () => {};
+
+export function NeutralPoke() {
+    
+}
 export default {
     handleAttack: (api, scene, attacker, victim) =>
         api.tryAttack(scene, attacker, victim, 'swordatk', 'swordatkthird'),

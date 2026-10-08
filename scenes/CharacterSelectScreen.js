@@ -1,6 +1,7 @@
 import { botMode } from "../main.js";
 import { preloadCharacterSelection } from "./GameScene/preload.js";
 import { getCharacterTexture } from "../characterTextures.js";
+import { fadeOutTo } from "./transitions.js";
 
 export var player1Character = '';
 export var player2Character = '';
@@ -12,6 +13,7 @@ export const CharacterSelectScene = {
 
     preload: preloadCharacterSelection,
     create: function () {
+        this.cameras.main.fadeIn(200, 0, 0, 0);
 
         // -----------------------------
         // DATA
@@ -674,8 +676,7 @@ export const CharacterSelectScene = {
         });
 
         playBox.on('pointerdown', () => {
-            this.cameras.main.fadeOut(200, 0, 0, 0);
-            this.time.delayedCall(200, () => {
+            fadeOutTo(this, () => {
                 this.scene.start('GameScene', {
                     player1Character: this.characters[this.p1Index].key,
                     player2Character: this.characters[this.p2Index].key,
@@ -708,10 +709,7 @@ export const CharacterSelectScene = {
         backBox.on('pointerout', () => backBox.setFillStyle(0x686868));
         backBox.on('pointerdown', () => {
             this.sound.play('hover');
-            this.cameras.main.fadeOut(200, 0, 0, 0);
-            this.time.delayedCall(200, () => {
-                this.scene.start('MapAndModifierSelectScene');
-            });
+            fadeOutTo(this, () => this.scene.start('MapAndModifierSelectScene'));
         });
 
         // -----------------------------

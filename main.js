@@ -4,6 +4,7 @@ import { MAX_WOOD_COUNT } from './playerAttackScripts/axeman.js';
 import { initiatePlayers, updateCombo } from './players.js';
 import { Commands, executeStateCommand} from './commands.js';
 import { MenuScene } from './scenes/MenuScene.js';
+import { fadeOutTo } from './scenes/transitions.js';
 import { player1Character, player2Character, player1Variant, player2Variant, CharacterSelectScene } from './scenes/CharacterSelectScreen.js';
 import { MapAndModifierSelectScene, selectedMapDefinition, resetMapAndModifierSelection } from './scenes/MapAndModifierSelect.js';
 import { preload } from './scenes/GameScene/preload.js';
@@ -175,7 +176,6 @@ var cursors;
 var wasd;
 var attackKey1;
 var attackKey2;
-var specialKey1;
 var chainsawModeKey1;
 var chainsawModeKey2;
 var winNumber = 3; //number of rounds needed to win as of now
@@ -571,8 +571,10 @@ function create() {
         });
         this.time.delayedCall(150, () => {
             restartBtn.setVisible(false);
-            this.sound.stopAll();
-            this.scene.restart();
+            fadeOutTo(this, () => {
+                this.sound.stopAll();
+                this.scene.restart();
+            });
         });
     });
 
@@ -599,9 +601,11 @@ function create() {
         });
         this.time.delayedCall(150, () => {
             homeBtn.setVisible(false);
-            this.sound.stopAll();
-            resetMapAndModifierSelection();
-            this.scene.start('MenuScene');
+            fadeOutTo(this, () => {
+                this.sound.stopAll();
+                resetMapAndModifierSelection();
+                this.scene.start('MenuScene');
+            });
         });
     });
 
@@ -822,14 +826,23 @@ function create() {
     //Allows holding for the keys too. Later this will be revamped to allow charge attacks
     attackKey1 = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.E);
     attackKey2 = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.SHIFT);
-    specialKey1 = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.R);
     chainsawModeKey1 = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.Q);
     chainsawModeKey2 = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.FORWARD_SLASH);
 
     cursors = this.input.keyboard.createCursorKeys();
     wasd = this.input.keyboard.addKeys({ up: 'W', left: 'A', down: 'S', right: 'D' });
+    this.p1LeftAltDown = false;
+    this.p1LeftAltPressed = false;
     this.p2RightAltDown = false;
     this.p2RightAltPressed = false;
+    this.onP1LeftAltDown = event => {
+        if (event.code !== 'AltLeft') return;
+        if (!this.p1LeftAltDown) this.p1LeftAltPressed = true;
+        this.p1LeftAltDown = true;
+    };
+    this.onP1LeftAltUp = event => {
+        if (event.code === 'AltLeft') this.p1LeftAltDown = false;
+    };
     this.onP2RightAltDown = event => {
         if (event.code !== 'AltRight') return;
         if (!this.p2RightAltDown) this.p2RightAltPressed = true;
@@ -838,9 +851,13 @@ function create() {
     this.onP2RightAltUp = event => {
         if (event.code === 'AltRight') this.p2RightAltDown = false;
     };
+    this.input.keyboard.on('keydown', this.onP1LeftAltDown);
+    this.input.keyboard.on('keyup', this.onP1LeftAltUp);
     this.input.keyboard.on('keydown', this.onP2RightAltDown);
     this.input.keyboard.on('keyup', this.onP2RightAltUp);
     this.events.once('shutdown', () => {
+        this.input.keyboard.off('keydown', this.onP1LeftAltDown);
+        this.input.keyboard.off('keyup', this.onP1LeftAltUp);
         this.input.keyboard.off('keydown', this.onP2RightAltDown);
         this.input.keyboard.off('keyup', this.onP2RightAltUp);
     });
@@ -960,9 +977,11 @@ function create() {
     });
     this.pauseResumeButton.on('pointerdown', () => this.resumeGame());
     this.pauseMenuButton.on('pointerdown', () => {
-        this.sound.stopAll();
-        resetMapAndModifierSelection();
-        this.scene.start('MenuScene');
+        fadeOutTo(this, () => {
+            this.sound.stopAll();
+            resetMapAndModifierSelection();
+            this.scene.start('MenuScene');
+        });
     });
 
 }
@@ -1162,6 +1181,8 @@ function updateKB(scene) {
 export var fiveframecount = 0;
 
 function update() {
+    const p1LeftAltPressed = this.p1LeftAltPressed;
+    this.p1LeftAltPressed = false;
     const p2RightAltPressed = this.p2RightAltPressed;
     this.p2RightAltPressed = false;
     if (this.gamePaused) return;
@@ -1456,8 +1477,8 @@ function update() {
     if (!p1.hitstun) {
         const p1LeftPressed = Phaser.Input.Keyboard.JustDown(wasd.left) || mobileControls.p1.leftPressed;
         const p1RightPressed = Phaser.Input.Keyboard.JustDown(wasd.right) || mobileControls.p1.rightPressed;
-        const p1SpecialPressed = Phaser.Input.Keyboard.JustDown(specialKey1) || mobileControls.p1.specialPressed;
-        const p1SpecialHeld = specialKey1.isDown || mobileControls.p1.special;
+        const p1SpecialPressed = p1LeftAltPressed || mobileControls.p1.specialPressed;
+        const p1SpecialHeld = this.p1LeftAltDown || mobileControls.p1.special;
         const p1SpecialDirection = wasd.left.isDown || mobileControls.p1.left
             ? 'left'
             : wasd.right.isDown || mobileControls.p1.right
