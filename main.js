@@ -1,5 +1,5 @@
 import Phaser from 'phaser';
-import {handleAttack, handleDirSpecial, handleDirSpecialAttack, handleHorizantalTilt, handleDownTilt, handleUpTilt, downslamAttack, updateScythemanGrass, updateChainsawWood, toggleChainsawMode, tryQuickslamJump, positionAttackSprite} from './attacks.js';
+import {handleAttack, handleDirSpecial, handleNeutralSpecial, handleDirSpecialAttack, handleHorizantalTilt, handleDownTilt, handleUpTilt, downslamAttack, updateScythemanGrass, updateChainsawWood, toggleChainsawMode, tryQuickslamJump, positionAttackSprite} from './attacks.js';
 import { MAX_WOOD_COUNT } from './playerAttackScripts/axeman.js';
 import { initiatePlayers, updateCombo } from './players.js';
 import { Commands, executeStateCommand} from './commands.js';
@@ -32,8 +32,7 @@ unmuteAudio();
 //NOTE: mohsina007 and arvin2a are the same person
 // its just that mohsina007 is the account that was hard-set as the account for VSCode, the application I used to make this game.
 // and the sound effects were taken from various games as listed in the preload function.
-//WASD controls the first player , arrow keys control the second player.
-//E is the player1 attack, SHIFT is the player2 attack.
+//WASD and arrow keys control the players; E/SHIFT attack and R/ALT use special.
 
 export var botMode = false; //Instead of a P2, you can fight an AI instead. (CPU)
 export function changeBotMode(newBotMode) {
@@ -176,6 +175,7 @@ var cursors;
 var wasd;
 var attackKey1;
 var attackKey2;
+var specialKey1;
 var chainsawModeKey1;
 var chainsawModeKey2;
 var winNumber = 3; //number of rounds needed to win as of now
@@ -198,7 +198,9 @@ var mobileControls = {
         down: false,
         downPressed: false,
         attack: false,
-        attackPressed: false
+        attackPressed: false,
+        special: false,
+        specialPressed: false
     },
     p2: {
         left: false,
@@ -210,7 +212,9 @@ var mobileControls = {
         down: false,
         downPressed: false,
         attack: false,
-        attackPressed: false
+        attackPressed: false,
+        special: false,
+        specialPressed: false
     }
 };
 
@@ -250,7 +254,13 @@ function createSpecialMeters(scene) {
         scene.hud.add(background);
         scene.hud.add(fill);
         scene.hud.add(status);
-        scene.specialMeters[meter.key] = { player: meter.player, fill, status, meterWidth };
+        scene.specialMeters[meter.key] = {
+            key: meter.key,
+            player: meter.player,
+            fill,
+            status,
+            meterWidth
+        };
     });
     meters.forEach(meter => {
         if (meter.player.name === 'AXEMAN' && meter.player.variant === 'CHAINSAW') {
@@ -282,7 +292,7 @@ function createSpecialMeters(scene) {
             specialMeter.woodMaxValue = MAX_WOOD_COUNT;
         }
     });
-    scene.specialPrompt = scene.add.text(500, 180, 'DOUBLE TAP LEFT OR RIGHT TO USE YOUR ABILITY', {
+    scene.specialPrompt = scene.add.text(500, 180, 'DOUBLE TAP OR SPECIAL + LEFT/RIGHT TO USE ABILITY', {
         fontFamily: 'GameFont',
         fontSize: '18px',
         fill: '#ffffff',
@@ -656,27 +666,30 @@ function create() {
                     inputMode.p2 = "touch";
                 }
                 btn.activePointerID = pointer.id;
+                btn.setFillStyle(0xFFFFFF, 0.5);
             });
 
             btn.on('pointerup', (pointer) => {
                 if (pointer.id === btn.activePointerID) {
                     keyRef.obj[keyRef.key] = false;
                     btn.activePointerID = null;
+                    btn.setFillStyle(0x000000, 0.5);
+
                 }
-                
             });
             btn.on('pointerout', (pointer) => {
                 if (pointer.id === btn.activePointerID) {
                     keyRef.obj[keyRef.key] = false;
                     btn.activePointerID = null;
+                    btn.setFillStyle(0x000000, 0.5);
                 }
-                
             });
 
             btn.on('pointerupoutside', (pointer) => {
                 if (pointer.id === btn.activePointerID) {
                     keyRef.obj[keyRef.key] = false;
                     btn.activePointerID = null;
+                    btn.setFillStyle(0x000000,0.5);
                 }
             });
 
@@ -694,7 +707,8 @@ function create() {
             [240, 420, '→', p1, 'right'],
             [150, 330, '↑', p1, 'up'],
             [150, 420, '↓', p1, 'down'],
-            [240, 330, 'A', p1, 'attack']
+            [240, 330, 'A', p1, 'attack'],
+            [60, 330, 'S', p1, 'special']
         ];
 
         //P2
@@ -703,7 +717,8 @@ function create() {
             [920, 420, '→', p2, 'right'],
             [830, 330, '↑', p2, 'up'],
             [830, 420, '↓', p2, 'down'],
-            [740, 330, 'A', p2, 'attack']
+            [740, 330, 'A', p2, 'attack'],
+            [920, 330, 'S', p2, 'special']
         ];
 
         p1Buttons.forEach(btn => {
@@ -737,12 +752,13 @@ function create() {
         for (const player of Object.values(this.gameState.players)) {
             if (player.name !== 'AXEMAN' || player.variant !== 'CHAINSAW') continue;
 
-            const x = player.id === 1 ? 330 : 670;
+            const x = player.id === 1 ? 330 : 650;
             const button = this.add.circle(x, 420, 34, 0x000000, 0.55)
                 .setScrollFactor(0)
                 .setDepth(999)
                 .setInteractive();
-            const label = this.add.text(x, 420, 'Q', {
+            const keyName = player === this.gameState.players.player2 ? '/' : 'Q'
+            const label = this.add.text(x, 420, keyName, {
                 fontSize: '36px',
                 color: '#ffffff',
                 fontFamily: 'VCROSD'
@@ -778,7 +794,7 @@ function create() {
         for (let j = i + 1; j < keys.length; j++) {
             const playerA = this.gameState.players[keys[i]];
             const playerB = this.gameState.players[keys[j]];
-            this.physics.add.collider(playerA, playerB);
+            this.playerCollisionCollider = this.physics.add.collider(playerA, playerB);
         }
     }
 
@@ -806,13 +822,28 @@ function create() {
     //Allows holding for the keys too. Later this will be revamped to allow charge attacks
     attackKey1 = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.E);
     attackKey2 = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.SHIFT);
+    specialKey1 = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.R);
     chainsawModeKey1 = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.Q);
-    chainsawModeKey2 = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.P);
-
-    
+    chainsawModeKey2 = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.FORWARD_SLASH);
 
     cursors = this.input.keyboard.createCursorKeys();
     wasd = this.input.keyboard.addKeys({ up: 'W', left: 'A', down: 'S', right: 'D' });
+    this.p2RightAltDown = false;
+    this.p2RightAltPressed = false;
+    this.onP2RightAltDown = event => {
+        if (event.code !== 'AltRight') return;
+        if (!this.p2RightAltDown) this.p2RightAltPressed = true;
+        this.p2RightAltDown = true;
+    };
+    this.onP2RightAltUp = event => {
+        if (event.code === 'AltRight') this.p2RightAltDown = false;
+    };
+    this.input.keyboard.on('keydown', this.onP2RightAltDown);
+    this.input.keyboard.on('keyup', this.onP2RightAltUp);
+    this.events.once('shutdown', () => {
+        this.input.keyboard.off('keydown', this.onP2RightAltDown);
+        this.input.keyboard.off('keyup', this.onP2RightAltUp);
+    });
 
     //3-2-1 COUNTDOWN
 
@@ -975,6 +1006,7 @@ function updateWins(scene) {
 
 }
 function teleportBackToArena(player) {
+    player.activeHookCleanup?.();
     player.setPosition(1000, 0);
     player.setVelocityY(0);
     player.setVelocityX(0);
@@ -1130,6 +1162,8 @@ function updateKB(scene) {
 export var fiveframecount = 0;
 
 function update() {
+    const p2RightAltPressed = this.p2RightAltPressed;
+    this.p2RightAltPressed = false;
     if (this.gamePaused) return;
 
     fiveframecount += 1;
@@ -1199,6 +1233,13 @@ function update() {
     if (Phaser.Input.Keyboard.JustDown(chainsawModeKey2)) {
         toggleChainsawMode(this, p2);
     }
+
+    p1.horizontalMovementActive = wasd.left.isDown || wasd.right.isDown ||
+        mobileControls.p1.left || mobileControls.p1.right;
+    p2.horizontalMovementActive = !botMode && (
+        cursors.left.isDown || cursors.right.isDown ||
+        mobileControls.p2.left || mobileControls.p2.right
+    );
     
     
     const p1Chainsaw = p1.name === 'AXEMAN' && p1.variant === 'CHAINSAW';
@@ -1413,7 +1454,17 @@ function update() {
 
     p1.hitstun = this.time.now < p1.hitstunUntil;
     if (!p1.hitstun) {
-        if (Phaser.Input.Keyboard.JustDown(wasd.left) || mobileControls.p1.leftPressed) {
+        const p1LeftPressed = Phaser.Input.Keyboard.JustDown(wasd.left) || mobileControls.p1.leftPressed;
+        const p1RightPressed = Phaser.Input.Keyboard.JustDown(wasd.right) || mobileControls.p1.rightPressed;
+        const p1SpecialPressed = Phaser.Input.Keyboard.JustDown(specialKey1) || mobileControls.p1.specialPressed;
+        const p1SpecialHeld = specialKey1.isDown || mobileControls.p1.special;
+        const p1SpecialDirection = wasd.left.isDown || mobileControls.p1.left
+            ? 'left'
+            : wasd.right.isDown || mobileControls.p1.right
+                ? 'right'
+                : null;
+
+        if (p1LeftPressed) {
             p1.lastInput.left = this.time.now;
             if (inputMode.p1 !== "keyboard" && !mobileControls.p1.leftPressed) {
             
@@ -1423,10 +1474,10 @@ function update() {
                 inputMode.p1 = "keyboard";
             }
             
-            handleDirSpecial(this, p1, 'left', this.time.now,p2);
+            handleDirSpecial(this, p1, 'left', this.time.now, p2, p1SpecialHeld || p1SpecialPressed);
             mobileControls.p1.leftPressed = false;
         }
-        if (Phaser.Input.Keyboard.JustDown(wasd.right) || mobileControls.p1.rightPressed) {
+        if (p1RightPressed) {
             p1.lastInput.right = this.time.now;
             if (inputMode.p1 !== "keyboard" && !mobileControls.p1.rightPressed) {
             
@@ -1435,8 +1486,20 @@ function update() {
                 });
                 inputMode.p1 = "keyboard";
             }
-            handleDirSpecial(this, p1, 'right', this.time.now,p2);
+            handleDirSpecial(this, p1, 'right', this.time.now, p2, p1SpecialHeld || p1SpecialPressed);
             mobileControls.p1.rightPressed = false;
+        }
+        if (p1SpecialPressed) {
+            if (inputMode.p1 !== "keyboard" && !mobileControls.p1.specialPressed) {
+                this.mobileButtons.p1.forEach(obj => obj.setAlpha(0.25));
+                inputMode.p1 = "keyboard";
+            }
+            if (p1SpecialDirection && !p1LeftPressed && !p1RightPressed) {
+                handleDirSpecial(this, p1, p1SpecialDirection, this.time.now, p2, true);
+            } else if (!p1SpecialDirection) {
+                handleNeutralSpecial(this, p1, p2);
+            }
+            mobileControls.p1.specialPressed = false;
         }
         if (!p1.hasHitSideSpecial && p1.isUsingSideSpecial && fiveframecount === 5) {
             handleDirSpecialAttack(this, p1, p2);
@@ -1532,7 +1595,17 @@ function update() {
     if (!p2.hitstun && !botMode) {
 
         // Player 2 controls
-        if (Phaser.Input.Keyboard.JustDown(cursors.left) || mobileControls.p2.leftPressed) {
+        const p2LeftPressed = Phaser.Input.Keyboard.JustDown(cursors.left) || mobileControls.p2.leftPressed;
+        const p2RightPressed = Phaser.Input.Keyboard.JustDown(cursors.right) || mobileControls.p2.rightPressed;
+        const p2SpecialPressed = p2RightAltPressed || mobileControls.p2.specialPressed;
+        const p2SpecialHeld = this.p2RightAltDown || mobileControls.p2.special;
+        const p2SpecialDirection = cursors.left.isDown || mobileControls.p2.left
+            ? 'left'
+            : cursors.right.isDown || mobileControls.p2.right
+                ? 'right'
+                : null;
+
+        if (p2LeftPressed) {
             p2.lastInput.left = this.time.now;
             if (inputMode.p2 !== "keyboard" && !mobileControls.p2.leftPressed) {
             
@@ -1542,11 +1615,11 @@ function update() {
                 inputMode.p2 = "keyboard"; 
             }
             
-            handleDirSpecial(this, p2, 'left', this.time.now, p1);
+            handleDirSpecial(this, p2, 'left', this.time.now, p1, p2SpecialHeld || p2SpecialPressed);
             mobileControls.p2.leftPressed = false;
         }
 
-        if (Phaser.Input.Keyboard.JustDown(cursors.right) || mobileControls.p2.rightPressed) {
+        if (p2RightPressed) {
             p2.lastInput.right = this.time.now;
             if (inputMode.p2 !== "keyboard" && !mobileControls.p2.rightPressed) {
             
@@ -1555,8 +1628,20 @@ function update() {
                 });
                 inputMode.p2 = "keyboard"; 
             }
-            handleDirSpecial(this, p2, 'right', this.time.now, p1);
+            handleDirSpecial(this, p2, 'right', this.time.now, p1, p2SpecialHeld || p2SpecialPressed);
             mobileControls.p2.rightPressed = false;
+        }
+        if (p2SpecialPressed) {
+            if (inputMode.p2 !== "keyboard" && !mobileControls.p2.specialPressed) {
+                this.mobileButtons.p2.forEach(obj => obj.setAlpha(0.25));
+                inputMode.p2 = "keyboard";
+            }
+            if (p2SpecialDirection && !p2LeftPressed && !p2RightPressed) {
+                handleDirSpecial(this, p2, p2SpecialDirection, this.time.now, p1, true);
+            } else if (!p2SpecialDirection) {
+                handleNeutralSpecial(this, p2, p1);
+            }
+            mobileControls.p2.specialPressed = false;
         }
 
         if (!p2.hasHitSideSpecial && p2.isUsingSideSpecial && fiveframecount === 5) {

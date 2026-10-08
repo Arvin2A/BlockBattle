@@ -5,11 +5,14 @@ function tilt(api, scene, attacker, victim, xMul, yMul, kbTime) {
     });
 }
 
+const neutralSpecial = () => {};
 export default {
     handleAttack: (api, scene, attacker, victim) =>
         api.tryAttack(scene, attacker, victim, 'swordatk', 'swordatkthird'),
     handleDirSpecial: (api, scene, attacker, direction, currentTime) =>
         api.tryLunge(scene, attacker, direction, currentTime),
+    handleNeutralSpecial: neutralSpecial,
+    variantNeutralSpecials: { LONGSWORD: neutralSpecial },
     handleDirSpecialAttack: (api, scene, attacker, victim) => {
         if (api.distanceBetween(attacker, victim) <= 150) {
             api.lungePush(scene, attacker, victim, 'swordatkthird');

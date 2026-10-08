@@ -497,6 +497,7 @@ export function preload() {
             frameHeight: 75
         }
     );
+    this.load.image('grenade', 'assets/sprites/gunman/grenade.png')
     
 
     // =====================================================

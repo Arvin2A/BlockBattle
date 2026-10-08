@@ -132,6 +132,14 @@ function destroyPlank(api, scene, plank) {
     plank.destroy();
 }
 
+export function damagePlank(api, scene, plank, damage = 0.02) {
+    if (!plank.active || !Number.isFinite(damage) || damage <= 0) return;
+
+    plank.health = Math.max(0, plank.health - damage);
+    plank.setAlpha(plank.health / plank.maxHealth);
+    if (plank.health <= 0) destroyPlank(api, scene, plank);
+}
+
 function breakPlanksWithChainsaw(api, scene, attacker) {
     const attackBounds = attacker.atk.getBounds();
     for (const plank of [...scene.planks.getChildren()]) {
@@ -151,7 +159,7 @@ function updateChainsaw(api, scene, attacker, victim, options = {}) {
     }
     api.positionAttackSprite(attacker, 'activechainsaw');
     breakPlanksWithChainsaw(api, scene, attacker);
-    if (!victim.active || api.distanceBetween(attacker.atk, victim) > (options.range ?? 75)) {
+    if (!victim.active || api.distanceBetween(attacker.atk, victim) > (options.range ?? 50)) {
         attacker.chainsawLastContactTime = 0;
         return;
     }
@@ -188,7 +196,8 @@ function updateChainsawWood(scene, attacker, victim) {
 
     const isRotated = attacker.lastDir.y === 0;
     const intendedX = attacker.x + attacker.lastDir.x * 200;
-    const intendedY = attacker.y + attacker.lastDir.y * 200 - 50;
+    let intendedY = attacker.y + attacker.lastDir.y * 200 - 50;
+    if (attacker.lastDir.y === 1) intendedY = attacker.y + attacker.lastDir.y * 100;
     attacker.plankGhost.setPosition(intendedX, intendedY);
     attacker.plankGhost.setAngle(isRotated ? 90 : 0);
     attacker.plankGhost.setVisible(!attacker.chainsawMode);
@@ -248,14 +257,19 @@ function updateChainsawWood(scene, attacker, victim) {
     }
 }
 
-function placePlank(api, scene, attacker) {
-    if (attacker.chainsawMode || attacker.hitstun || attacker.freeze ||
+function placePlank(
+    api,
+    scene,
+    attacker,
+    { x = attacker.plankGhost.x, y = attacker.plankGhost.y,
+        rotated = attacker.lastDir.y === 0, allowChainsawMode = false } = {}
+) {
+    if ((!allowChainsawMode && attacker.chainsawMode) || attacker.hitstun || attacker.freeze ||
         scene.finisherActive || attacker.woodCount < 15) return;
 
-    const rotated = attacker.lastDir.y === 0;
     const plank = scene.physics.add.image(
-        attacker.plankGhost.x,
-        attacker.plankGhost.y,
+        x,
+        y,
         'plank'
     );
     plank.setOrigin(0.5);
@@ -265,6 +279,8 @@ function placePlank(api, scene, attacker) {
     plank.setImmovable(true);
     plank.body.setSize(rotated ? 10 : 200, rotated ? 200 : 10);
     plank.body.setOffset(rotated ? 95 : 0, rotated ? 0 : 95);
+    plank.health = 0.10;
+    plank.maxHealth = plank.health;
     scene.objs.add(plank);
     scene.planks.add(plank);
 
@@ -275,6 +291,8 @@ function placePlank(api, scene, attacker) {
         destroyPlank(api, scene, plank);
     });
 }
+
+
 
 function setChainsawMode(scene, attacker, enabled) {
     if (!enabled) {
@@ -344,11 +362,32 @@ function handleDirSpecial(api, scene, attacker, direction, currentTime, victim) 
     }
     return api.tryCleave(scene, attacker, direction, currentTime);
 }
+function neutralPlaceAndHarvest(api, scene, attacker, victim) {
+    if (attacker.body.blocked.down || attacker.body.touching.down) {
+        attacker.lastDir = { x: 0, y: 1 };
+        if (!attacker.chainsawActive) activateChainsaw(api, scene, attacker, victim);
+        api.positionAttackSprite(attacker, 'activechainsaw');
+        return;
+    }
+
+    placePlank(api, scene, attacker, {
+        x: attacker.x,
+        y: attacker.y + 100,
+        rotated: false,
+        allowChainsawMode: true
+    });
+}
+const neutralSpecial = () => {};
 export default {
     handleAttack,
     updateChainsawWood,
     toggleChainsawMode,
     handleDirSpecial,
+    handleNeutralSpecial: neutralSpecial,
+    variantNeutralSpecials: {
+        LUMBERER: neutralSpecial,
+        CHAINSAW: neutralPlaceAndHarvest
+    },
     handleDirSpecialAttack: (api, scene, attacker, victim) => {
         if (attacker.variant === 'CHAINSAW') return;
         if (api.distanceBetween(attacker, victim) <= 150) {

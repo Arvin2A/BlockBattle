@@ -15,6 +15,21 @@ export function initiatePlayers(scene, p1Select = 'axeman', p2Select = 'swordman
     players.player2.id = 2;
     players.player.lastDir = { x: 1, y: 0 };
     players.player2.lastDir = { x: -1, y: 0 };
+    for (const player of Object.values(players)) {
+        const scaleX = Math.abs(player.scaleX) || 1;
+        const { sourceWidth, sourceHeight, offset } = player.body;
+        const offsetX = offset.x;
+        const offsetY = offset.y;
+        player.body.setSize(
+            sourceWidth + 10 / scaleX,
+            sourceHeight + 2 / Math.abs(player.scaleY),
+            false
+        );
+        player.body.setOffset(
+            offsetX - 5 / scaleX,
+            offsetY - 1 / Math.abs(player.scaleY)
+        );
+    }
     
     for (const key in players) {
         const p = players[key];
@@ -294,7 +309,7 @@ export function initiatePlayers(scene, p1Select = 'axeman', p2Select = 'swordman
     for (const key in players) {
         const player = players[key];
         if (player.name === 'AXEMAN' && player.variant === 'CHAINSAW') {
-            const switchKey = player.id === 1 ? 'Q' : 'P';
+            const switchKey = player.id === 1 ? 'Q' : '/';
             const isPlayerOne = player.id === 1;
             const iconX = isPlayerOne ? 34 : 966;
             const labelX = isPlayerOne ? 60 : 940;
