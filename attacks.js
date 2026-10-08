@@ -1,5 +1,7 @@
 const finalplungeMultiplier = 1.0;
+import { LEFT } from 'phaser';
 import { CHARACTER_ATTACK_SCRIPTS } from './playerAttackScripts/index.js';
+import { damagePlank as damageAxemanPlank } from './playerAttackScripts/axeman.js';
 
 // Shared damage scaling and grass effects.
 function startSideSpecialCooldown(player, currentTime, duration) {
@@ -17,6 +19,69 @@ function addSceneUpdateListener(scene, listener) {
     scene.events.on('update', listener);
     scene.events.once('shutdown', removeListener);
     return removeListener;
+}
+
+function damagePlanksInAttack(attacker) {
+    const scene = attacker.scene;
+    if (attacker.name === 'AXEMAN' || !scene?.planks || !attacker.atk?.active) return;
+
+    const attackSequence = attacker.attackSequence ?? 0;
+    if (attacker.lastPlankDamageSequence === attackSequence) return;
+    const attackBounds = attacker.atk.getBounds();
+    const intersectingPlanks = scene.planks.getChildren().filter(plank =>
+        plank.active && plank.body?.enable &&
+        Phaser.Geom.Intersects.RectangleToRectangle(attackBounds, plank.body)
+    );
+    if (intersectingPlanks.length === 0) return;
+
+    attacker.lastPlankDamageSequence = attackSequence;
+    intersectingPlanks.forEach(plank =>
+        damageAxemanPlank(sharedAttackHelpers, scene, plank)
+    );
+}
+
+function getMapPlatforms(scene) {
+    return [
+        ...scene.gameState.map.platforms.getChildren(),
+        ...scene.gameState.map.topPlatforms.getChildren()
+    ].filter(platform => platform.active && platform.body?.enable);
+}
+
+function getGroundedPlatform(scene, attacker, platforms = getMapPlatforms(scene)) {
+    const playerBody = attacker.body;
+
+    if (!playerBody?.blocked.down && !playerBody?.touching.down) return null;
+
+    return platforms
+        .filter(platform =>
+            playerBody.right > platform.body.left &&
+            playerBody.left < platform.body.right &&
+            Math.abs(playerBody.bottom - platform.body.top) <= 4
+        )
+        .sort((first, second) =>
+            Math.abs(playerBody.bottom - first.body.top) -
+            Math.abs(playerBody.bottom - second.body.top)
+        )[0];
+}
+
+function getProjectileBlockingPlatforms(scene, attacker) {
+    const platforms = getMapPlatforms(scene);
+    const supportingPlatform = getGroundedPlatform(scene, attacker, platforms);
+
+    if (!supportingPlatform) return platforms;
+    return platforms.filter(platform =>
+        platform.body.top >= supportingPlatform.body.top - 1
+    );
+}
+
+function addProjectilePlatformColliders(scene, projectile, attacker) {
+    const platforms = getMapPlatforms(scene);
+    if (!getGroundedPlatform(scene, attacker, platforms)) return () => { };
+
+    const colliders = getProjectileBlockingPlatforms(scene, attacker)
+        .map(platform => scene.physics.add.collider(projectile, platform));
+
+    return () => colliders.forEach(collider => collider.destroy());
 }
 
 function getAttackDamageScale(attacker) {
@@ -244,7 +309,10 @@ export function attackIsElligible(
     const eligible = (allowTargetBelow && isTargetBelow) ||
         dot > 0.7 || isFacingUp || isTargetAbove;
     if (eligible && !onlyOnCanAttack) attacker.attackBypassesHitstun = true;
-    if (eligible) cutGrassBeforeMaturity(attacker);
+    if (eligible) {
+        cutGrassBeforeMaturity(attacker);
+        damagePlanksInAttack(attacker);
+    }
     return eligible;
 }
 
@@ -306,9 +374,11 @@ export function positionAttackSprite(attacker, animKey = '') {
 }
 
 export function setAttackSprite(attacker, animKey) {
+    attacker.attackSequence = (attacker.attackSequence ?? 0) + 1;
     positionAttackSprite(attacker, animKey);
     attacker.atk.setFrame(0);
     attacker.isAttacking = true;
+    damagePlanksInAttack(attacker);
     attacker.atk.once(`animationcomplete-${animKey}`, () => {
         attacker.isAttacking = false;
         attacker.attackBypassesHitstun = false;
@@ -344,6 +414,9 @@ export function spawnExplosion(scene, victim, scale = 0.7) {
 const FINISHER_THRESHOLD = 1555;
 
 export function applyKnockback(scene, target, vx, vy, finishable = false) {
+    if (scene.gameState?.players &&
+        Object.values(scene.gameState.players).includes(target)) {
+    }
     const resistance = Number.isFinite(target.playerKBresistance) && target.playerKBresistance > 0
         ? target.playerKBresistance
         : 1;
@@ -353,6 +426,8 @@ export function applyKnockback(scene, target, vx, vy, finishable = false) {
 
     return Math.hypot(resistantVx, resistantVy);
 }
+
+
 export function attack(scene, attacker, target, animKey) {
     //the core attack function that is used as of now
     if (!attacker.canAttack || attacker.hitstun || scene.finisherActive) return;
@@ -698,7 +773,7 @@ export function thirdAttack(scene, attacker, target, animKey) {
         }
 
         // Get the direction of the attack
-        const dirX = attacker.lastDir.x;
+        let dirX = attacker.lastDir.x;
 
         let dirY = attacker.lastDir.y;
 
@@ -706,6 +781,9 @@ export function thirdAttack(scene, attacker, target, animKey) {
         // upward launch instead of completely horizontal knockback.
         if (dirY === 0) {
             dirY = -0.5;
+        } else if (dirY === 1) {
+            dirX = attacker.x <= target.x ? 0.75 : -0.75;
+            dirY = -1
         }
 
         // Third attack has stronger knockback than pushAttack
@@ -717,26 +795,15 @@ export function thirdAttack(scene, attacker, target, animKey) {
 
         // If the target is grounded and the attack is strongly downward,
         // launch them sideways instead.
-        if (target.body.touching.down && dirY > 0.7) {
-            const randDir = Math.random() < 0.5 ? -1 : 1;
 
-            applyKnockback(
-                scene,
-                target,
-                (400 * target.KBmultiplier) * randDir,
-                -200 * target.KBmultiplier
-            );
-        } else {
-            // Normal directional launch
-            applyKnockback(
-                scene,
-                target,
-                (500 * target.KBmultiplier *
-                    (getAttackDamageScale(attacker) + plungeMultiplier)) * dirX,
-                (500 * target.KBmultiplier) * dirY,
-                true
-            );
-        }
+        applyKnockback(
+            scene,
+            target,
+            (500 * target.KBmultiplier *
+                (getAttackDamageScale(attacker) + plungeMultiplier)) * dirX,
+            (500 * target.KBmultiplier) * dirY,
+            true
+        );
 
         attacker.combo = 0;
         attacker.comboTimer = 0;
@@ -840,19 +907,20 @@ export function slamThirdAttack(scene, attacker, target, animKey) {
         } else if (attacker.name == "SCYTHEMAN") {
             scene.sound.play('scythethirdhitsfx');
         }
-        const dirX = attacker.lastDir.x;
+        let dirX = attacker.lastDir.x;
 
         let dirY = attacker.lastDir.y;
-        if (dirY === 0) dirY = -0.5; //always launch upwards if on same level
+        if (dirY === 0) {
+            dirY = -0.5; //always launch upwards if on same level
+        } else if (dirY === 1) {
+            dirX = attacker.x <= target.x ? 0.75 : -0.75;
+            dirY = -1;
+        }
 
         //very stronk knockback
         //launch to the side if the target is pinned against the ground, otherwise launch in the direction of the attack
-        if (target.body.touching.down && dirY > 0.7) {
-            const randDir = Math.random() < 0.5 ? -1 : 1;
-            applyKnockback(scene, target, (400 * target.KBmultiplier) * randDir, -200 * target.KBmultiplier);
-        } else {
-            applyKnockback(scene, target, (350 * target.KBmultiplier * getAttackDamageScale(attacker)) * dirX, (700 * target.KBmultiplier) * dirY);
-        }
+
+        applyKnockback(scene, target, (350 * target.KBmultiplier * getAttackDamageScale(attacker)) * dirX, (700 * target.KBmultiplier) * dirY);
         attacker.combo = 0;
         attacker.comboTimer = 0;
     }
@@ -1083,7 +1151,7 @@ export function tryAttack(scene, attacker, target, animKey, thirdAnimKey) {
     if (attacker.combo >= 2) {
         thirdAttack(scene, attacker, target, thirdAnimKey);
     } else {
-        if (Math.abs(attacker.body.velocity.x) >= 200) {
+        if (attacker.horizontalMovementActive) {
             pushAttack(scene, attacker, target, animKey);
         } else {
             attack(scene, attacker, target, animKey);
@@ -1100,7 +1168,7 @@ export function tryAttack2(scene, attacker, target, animKey, thirdAnimKey) {
     if (attacker.combo >= 2) {
         slamThirdAttack(scene, attacker, target, thirdAnimKey);
     } else {
-        if (Math.abs(attacker.body.velocity.x) >= 200) {
+        if (attacker.horizontalMovementActive) {
             pushAttack(scene, attacker, target, animKey);
         } else {
             attack(scene, attacker, target, animKey);
@@ -1289,6 +1357,11 @@ function tryMowLegacy(scene, player, target, direction, currentTime) {
         //most w thing here
         fakescythe.body.allowGravity = false;
         scene.objs.add(fakescythe);
+        const removePlatformColliders = addProjectilePlatformColliders(
+            scene,
+            fakescythe,
+            player
+        );
 
         // spin
         const spinSpeed =
@@ -1369,6 +1442,7 @@ function tryMowLegacy(scene, player, target, direction, currentTime) {
                 if (dist < 60) {
 
                     removeScytheUpdate();
+                    removePlatformColliders();
 
                     fakescythe.destroy();
 
@@ -1388,6 +1462,7 @@ function tryMowLegacy(scene, player, target, direction, currentTime) {
             if (fakescythe.active) {
 
                 removeScytheUpdate();
+                removePlatformColliders();
 
                 fakescythe.destroy();
 
@@ -1861,6 +1936,7 @@ export function tryPull(scene, player, target, direction, currentTime) {
     if (currentTime < player.nextSideSpecialTime) return;
 
     if (currentTime - player.lastTap[direction] < dtapDelay || player.isBot) {
+        player.activeHookCleanup?.();
 
         player.isUsingSideSpecial = true;
         player.isAttacking = true;
@@ -1899,95 +1975,116 @@ export function tryPull(scene, player, target, direction, currentTime) {
 
         scene.sound.play('whoosh');
 
-        // collision
-        scene.physics.add.overlap(hook, target, () => {
-
-            if (player.hasHitSideSpecial) return;
-
-            player.hasHitSideSpecial = true;
-
-            console.log("hit!")
-            target.hitstunUntil = 550 + scene.time.now;
-
-            // pull target toward player
-            const dx = player.x - target.x;
-            const dy = player.y - target.y;
-
-            const dist = Math.hypot(dx, dy);
-
-            const pullStrength = 900;
-
-            applyKnockback(
-                scene,
-                target,
-                (dx / dist) * pullStrength,
-                (dy / dist) * pullStrength
-            );
-
-            scene.sound.play('anyhit');
-            target.KBmultiplier += 0.22 * getAttackDamageScale(player);
-
+        let cleanedUp = false;
+        let pullingToPlatform = false;
+        let removeRopeUpdate = () => {};
+        let timeoutEvent = null;
+        const colliders = [];
+        const cleanup = () => {
+            if (cleanedUp) return;
+            cleanedUp = true;
             removeRopeUpdate();
-
-            rope.destroy();
+            timeoutEvent?.remove(false);
+            colliders.forEach(collider => collider.destroy());
+            scene.events.off('shutdown', cleanup);
+            scene.physics.world.off('worldbounds', cleanupAtWorldBounds);
             hook.destroy();
+            rope.destroy();
+            if (player.activeHookCleanup === cleanup) {
+                player.activeHookCleanup = null;
+                player.isUsingSideSpecial = false;
+                player.isAttacking = false;
+            }
+        };
+        player.activeHookCleanup = cleanup;
+        scene.events.once('shutdown', cleanup);
+        hook.setCollideWorldBounds(true);
+        hook.body.onWorldBounds = true;
+        const cleanupAtWorldBounds = body => {
+            if (body === hook.body) cleanup();
+        };
+        scene.physics.world.on('worldbounds', cleanupAtWorldBounds);
 
-            player.isUsingSideSpecial = false;
-            player.isAttacking = false;
-            scene.time.delayedCall(550, () => {
-                target.hitstun = false;
-            });
-
-        });
-
-        // DRAW CURVED ROPE
-        const ropeUpdate = () => {
-
-            // prevent crashes after destroy
-            if (!hook.active || !hook.body || !rope.active) {
+        const latchToPlatform = () => {
+            if (cleanedUp || pullingToPlatform) return;
+            pullingToPlatform = true;
+            hook.setVelocity(0, 0);
+            hook.body.enable = false;
+        };
+        const pullPlayerToHook = () => {
+            if (cleanedUp || !pullingToPlatform) return;
+            if (!player.active) {
+                cleanup();
                 return;
             }
-
-            rope.clear();
-
-            rope.lineStyle(3, 0x8b5a2b);
-
-            const startX = player.x;
-            const startY = player.y;
-
-            const endX = hook.x;
-            const endY = hook.y;
-
-            rope.beginPath();
-
-            rope.moveTo(startX, startY);
-
-            // draw straight rope
-            rope.lineTo(endX, endY);
-
-            rope.strokePath();
-
-            // artificial drag
-            hook.body.velocity.x *= 0.985;
-            hook.body.velocity.y *= 0.992;
+            const dx = hook.x - player.x;
+            const dy = hook.y - player.y;
+            const distance = Math.hypot(dx, dy);
+            if (distance <= 50) {
+                cleanup();
+                return;
+            }
+            player.setVelocity((dx / distance) * 900, (dy / distance) * 900);
         };
 
-        const removeRopeUpdate = addSceneUpdateListener(scene, ropeUpdate);
+        colliders.push(
+            scene.physics.add.overlap(hook, target, () => {
+                if (cleanedUp || player.hasHitSideSpecial || pullingToPlatform) return;
+                player.hasHitSideSpecial = true;
 
-        // cleanup
-        scene.time.delayedCall(1000, () => {
-            if (!player.isUsingSideSpecial) {
-                return;
+                target.hitstunUntil = 550 + scene.time.now;
+
+                const dx = player.x - target.x;
+                const dy = player.y - target.y;
+
+                const dist = Math.hypot(dx, dy) || 1;
+
+                const pullStrength = 900;
+
+                applyKnockback(
+                    scene,
+                    target,
+                    (dx / dist) * pullStrength,
+                    (dy / dist) * pullStrength
+                );
+
+                scene.sound.play('anyhit');
+                target.KBmultiplier += 0.22 * getAttackDamageScale(player);
+                scene.time.delayedCall(550, () => {
+                    if (target.active) target.hitstun = false;
+                });
+                cleanup();
+            }),
+            scene.physics.add.overlap(
+                hook,
+                scene.gameState.map.platforms,
+                latchToPlatform
+            ),
+            scene.physics.add.overlap(
+                hook,
+                scene.gameState.map.topPlatforms,
+                latchToPlatform
+            ),
+            scene.physics.add.overlap(hook, scene.planks, latchToPlatform)
+        );
+
+        removeRopeUpdate = addSceneUpdateListener(scene, () => {
+            if (cleanedUp || !hook.active || !rope.active) return;
+            if (pullingToPlatform) pullPlayerToHook();
+
+            rope.clear();
+            rope.lineStyle(3, 0x8b5a2b);
+            rope.beginPath();
+            rope.moveTo(player.x, player.y);
+            rope.lineTo(hook.x, hook.y);
+            rope.strokePath();
+
+            if (hook.body?.enable) {
+                hook.body.velocity.x *= 0.985;
+                hook.body.velocity.y *= 0.992;
             }
-            removeRopeUpdate();
-
-            rope.destroy();
-            hook.destroy();
-
-            player.isUsingSideSpecial = false;
-            player.isAttacking = false;
-
         });
+        timeoutEvent = scene.time.delayedCall(3000, cleanup);
 
         startSideSpecialCooldown(player, currentTime, pullCD);
     }
@@ -1997,6 +2094,7 @@ export function tryPull(scene, player, target, direction, currentTime) {
 const sharedAttackHelpers = {
     applyKnockback,
     getAttackDamageScale,
+    getProjectileBlockingPlatforms,
     attackIsElligible,
     positionAttackSprite,
     setAttackSprite,
@@ -2006,6 +2104,8 @@ const sharedAttackHelpers = {
     spawnDirtBurst,
     spawnCrater,
     spawnExplosion,
+    damagePlank: (scene, plank, damage) =>
+        damageAxemanPlank(sharedAttackHelpers, scene, plank, damage),
     removeGrass,
     cutNearbyGrass,
     tryAttack,
@@ -2046,10 +2146,19 @@ export function toggleChainsawMode(scene, attacker) {
     return getCharacterScript(attacker)?.toggleChainsawMode?.(scene, attacker);
 }
 
-export function handleDirSpecial(scene, attacker, direction, currentTime, victim) {
-    return getCharacterScript(attacker)?.handleDirSpecial(
+export function handleDirSpecial(scene, attacker, direction, currentTime, victim, force = false) {
+    const characterScript = getCharacterScript(attacker);
+    if (force) attacker.lastTap[direction] = currentTime - 1;
+    return characterScript?.handleDirSpecial(
         sharedAttackHelpers, scene, attacker, direction, currentTime, victim
     );
+}
+
+export function handleNeutralSpecial(scene, attacker, victim) {
+    const characterScript = getCharacterScript(attacker);
+    const variantHandler = characterScript?.variantNeutralSpecials?.[attacker.variant];
+    const handler = variantHandler ?? characterScript?.handleNeutralSpecial;
+    return handler?.(sharedAttackHelpers, scene, attacker, victim);
 }
 
 export function handleDirSpecialAttack(scene, attacker, victim) {

@@ -42,12 +42,14 @@ export function executeStateCommand(scene, players, command) {
 
     switch (command.type) {
         case Commands.LEFT:
+            attacker.horizontalMovementActive = true;
             if (!attacker.isUsingSideSpecial) {
                 attacker.setVelocityX(Phaser.Math.Clamp(attacker.body.velocity.x - accelFactor, -attacker.movementSpeed, attacker.movementSpeed));
             }
             break;
 
         case Commands.RIGHT:
+            attacker.horizontalMovementActive = true;
             if (!attacker.isUsingSideSpecial) {
                 attacker.setVelocityX(Phaser.Math.Clamp(attacker.body.velocity.x + accelFactor, -attacker.movementSpeed, attacker.movementSpeed));
             }
@@ -71,6 +73,7 @@ export function executeStateCommand(scene, players, command) {
             attacker.setVelocityY(800);
             break;
         case Commands.NONE:
+            attacker.horizontalMovementActive = false;
             if (attacker.willDecelerate) {
                 decelerate(attacker);
             }
