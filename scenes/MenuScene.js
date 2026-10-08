@@ -1,5 +1,5 @@
 
-import { changeBotMode } from "../main.js";
+import { changeBotMode } from "../gameSettings.js";
 import { preloadMenu } from "./GameScene/preload.js";
 import { fadeOutTo } from "./transitions.js";
 

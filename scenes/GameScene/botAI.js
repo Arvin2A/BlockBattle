@@ -1,4 +1,3 @@
-import { fiveframecount } from "../../main.js";
 import { Commands } from "../../commands.js";
 import { executeStateCommand } from "../../commands.js";
 import { handleAttack } from "../../attacks.js";
@@ -23,7 +22,7 @@ function finishAirPlankSequence(scene, bot) {
     }
 }
 
-export function runBotAI(scene, bot, target) {
+export function runBotAI(scene, bot, target, fiveframecount) {
     //let the ai make the ai 🔥
     bot.horizontalMovementActive = false;
     const ground = scene.gameState.map.ground;
