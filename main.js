@@ -14,6 +14,7 @@ import { DEFAULT_MAP, Map, SNOWY_MAP } from './scenes/GameScene/Map.js';
 import { modifierOptions } from './scenes/MapAndModifierSelect.js';
 import UIPlugin from 'phaser4-rex-plugins/templates/ui/ui-plugin.js';
 import unmuteAudio from 'unmute-ios-audio';
+import { botMode, changeBotMode } from './gameSettings.js';
 
 window.Phaser = Phaser;
 unmuteAudio();
@@ -35,10 +36,6 @@ unmuteAudio();
 // and the sound effects were taken from various games as listed in the preload function.
 //WASD and arrow keys control the players; E/SHIFT attack and R/ALT use special.
 
-export var botMode = false; //Instead of a P2, you can fight an AI instead. (CPU)
-export function changeBotMode(newBotMode) {
-    botMode = newBotMode;
-}
 function sleep(ms) {
     return new Promise(resolve => setTimeout(resolve, ms));
     //was meant to be used, but was succeeded later after the discovery of scene.time.delayedCall
@@ -126,6 +123,266 @@ var GameScene = {
     create: create,
     update: update
 };
+
+const controllerAssignments = { p1: null, p2: null };
+const controllerInputs = {
+    p1: {},
+    p2: {}
+};
+const controllerPreviousInputs = {
+    p1: {},
+    p2: {}
+};
+const connectedControllers = new globalThis.Map();
+const pendingControllers = [];
+let firstControllerAssigned = false;
+
+function emptyControllerInput() {
+    return {
+        left: false,
+        right: false,
+        up: false,
+        down: false,
+        leftPressed: false,
+        rightPressed: false,
+        upPressed: false,
+        downPressed: false,
+        attack: false,
+        attackPressed: false,
+        special: false,
+        specialPressed: false,
+        miscPressed: false
+    };
+}
+
+function controllerButtonPressed(pad, index) {
+    const button = pad.buttons[index];
+    return Boolean(button && (button.pressed || button.value > 0.5));
+}
+
+function readControllerInput(pad, previous) {
+    const dpadLeft = controllerButtonPressed(pad, 14);
+    const dpadRight = controllerButtonPressed(pad, 15);
+    const dpadUp = controllerButtonPressed(pad, 12);
+    const dpadDown = controllerButtonPressed(pad, 13);
+    const left = dpadLeft || Math.round(pad.axes[0] ?? 0) < 0;
+    const right = dpadRight || Math.round(pad.axes[0] ?? 0) > 0;
+    const up = dpadUp || Math.round(pad.axes[1] ?? 0) < 0;
+    const down = dpadDown || Math.round(pad.axes[1] ?? 0) > 0;
+    const attack = controllerButtonPressed(pad, 0);
+    const special = controllerButtonPressed(pad, 1);
+    const misc = controllerButtonPressed(pad, 3);
+
+    return {
+        left,
+        right,
+        up,
+        down,
+        leftPressed: left && !previous.left,
+        rightPressed: right && !previous.right,
+        upPressed: up && !previous.up,
+        downPressed: down && !previous.down,
+        attack,
+        attackPressed: attack && !previous.attack,
+        special,
+        specialPressed: special && !previous.special,
+        miscPressed: misc && !previous.misc
+    };
+}
+
+function createControllerSetupScene() {
+    return {
+        key: 'ControllerSetupScene',
+
+        create() {
+            this.setupKeys = this.input.keyboard.addKeys({
+                assignP1: 'ONE',
+                assignP2: 'TWO',
+                fullscreen: 'F',
+                escape: 'ESC'
+            });
+            for (const method of [
+                'pollControllers',
+                'updateControllerInputs',
+                'showControllerPrompt',
+                'resolvePendingController',
+                'closeControllerPrompt'
+            ]) {
+                this[method] = ControllerSetupScene[method].bind(this);
+            }
+            this.pendingDevice = null;
+            this.setupUi = [];
+            this.pollTimer = 0;
+            this.fullscreenButton = null;
+            if (this.sys.game.device.input.touch) {
+                const button = this.add.circle(38, 38, 26, 0x000000, 0.55)
+                    .setScrollFactor(0)
+                    .setDepth(9000)
+                    .setStrokeStyle(2, 0xffffff)
+                    .setInteractive({ useHandCursor: true });
+                const label = this.add.text(38, 38, 'F', {
+                    fontFamily: 'GameFont',
+                    fontSize: '22px',
+                    fill: '#ffffff'
+                }).setOrigin(0.5).setScrollFactor(0).setDepth(9001);
+                button.on('pointerdown', () => this.scale.toggleFullscreen());
+                this.fullscreenButton = { button, label };
+            }
+            this.scene.launch('MenuScene');
+        },
+
+        update(_time, delta) {
+            this.pollTimer += delta;
+            if (this.pollTimer >= 1000 / 60) {
+                this.pollTimer = 0;
+                this.pollControllers();
+            }
+            this.updateControllerInputs();
+
+            if (this.fullscreenButton || this.pendingDevice) {
+                this.scene.bringToTop('ControllerSetupScene');
+            }
+            if (Phaser.Input.Keyboard.JustDown(this.setupKeys.fullscreen) &&
+                this.scale.fullscreen.available && !this.scale.isFullscreen) {
+                this.scale.startFullscreen();
+            }
+            if (Phaser.Input.Keyboard.JustDown(this.setupKeys.escape)) {
+                if (this.scale.isFullscreen) {
+                    this.scale.stopFullscreen();
+                } else if (this.pendingDevice) {
+                    this.resolvePendingController('reject');
+                }
+            }
+
+            if (!this.pendingDevice) return;
+            if (Phaser.Input.Keyboard.JustDown(this.setupKeys.assignP1)) {
+                this.resolvePendingController('p1');
+            } else if (Phaser.Input.Keyboard.JustDown(this.setupKeys.assignP2)) {
+                this.resolvePendingController('p2');
+            }
+        },
+
+        pollControllers() {
+            const pads = navigator.getGamepads?.() ?? [];
+            const seen = new Set();
+
+            for (const pad of pads) {
+                if (!pad) continue;
+                seen.add(pad.index);
+                if (connectedControllers.has(pad.index)) continue;
+
+                const device = { index: pad.index, id: pad.id };
+                connectedControllers.set(pad.index, device);
+                if (!firstControllerAssigned) {
+                    controllerAssignments.p1 = pad.index;
+                    firstControllerAssigned = true;
+                } else {
+                    pendingControllers.push(device);
+                }
+            }
+
+            for (const index of connectedControllers.keys()) {
+                if (seen.has(index)) continue;
+                connectedControllers.delete(index);
+                const pendingIndex = pendingControllers.findIndex(pending => pending.index === index);
+                if (pendingIndex !== -1) pendingControllers.splice(pendingIndex, 1);
+                if (controllerAssignments.p1 === index) controllerAssignments.p1 = null;
+                if (controllerAssignments.p2 === index) controllerAssignments.p2 = null;
+                if (this.pendingDevice?.index === index) this.closeControllerPrompt();
+            }
+
+            if (!this.pendingDevice && pendingControllers.length) {
+                this.showControllerPrompt(pendingControllers[0]);
+            }
+        },
+
+        updateControllerInputs() {
+            const pads = navigator.getGamepads?.() ?? [];
+            for (const playerKey of ['p1', 'p2']) {
+                const index = controllerAssignments[playerKey];
+                const pad = index === null ? null : pads[index];
+                const previous = controllerPreviousInputs[playerKey];
+                const next = pad ? readControllerInput(pad, previous) : emptyControllerInput();
+                controllerInputs[playerKey] = next;
+                controllerPreviousInputs[playerKey] = next;
+            }
+        },
+
+        showControllerPrompt(device) {
+            this.pendingDevice = device;
+            this.scene.bringToTop('ControllerSetupScene');
+
+            const backdrop = this.add.rectangle(500, 300, 1000, 600, 0x000000, 0.72)
+                .setScrollFactor(0)
+                .setDepth(10000)
+                .setInteractive();
+            const panel = this.add.rectangle(500, 300, 620, 260, 0x171717, 1)
+                .setScrollFactor(0)
+                .setDepth(10001)
+                .setStrokeStyle(4, 0xffffff);
+            const title = this.add.text(500, 218, 'CONTROLLER CONNECTED', {
+                fontFamily: 'VCROSD',
+                fontSize: '30px',
+                fill: '#ffffff',
+                align: 'center'
+            }).setOrigin(0.5).setScrollFactor(0).setDepth(10002);
+            const deviceName = this.add.text(500, 263, device.id, {
+                fontFamily: 'GameFont',
+                fontSize: '16px',
+                fill: '#cccccc',
+                align: 'center',
+                wordWrap: { width: 540 }
+            }).setOrigin(0.5).setScrollFactor(0).setDepth(10002);
+            const buttons = [
+                { x: 300, label: 'USE AS P1', action: 'p1', shortcut: '1' },
+                { x: 500, label: 'USE AS P2', action: 'p2', shortcut: '2' },
+                { x: 700, label: 'REJECT', action: 'reject', shortcut: 'ESC' }
+            ];
+
+            for (const button of buttons) {
+                const box = this.add.rectangle(button.x, 350, 170, 64, 0x333333, 1)
+                    .setScrollFactor(0)
+                    .setDepth(10002)
+                    .setStrokeStyle(2, 0xffffff)
+                    .setInteractive({ useHandCursor: true });
+                const label = this.add.text(button.x, 350, `${button.label}\n[${button.shortcut}]`, {
+                    fontFamily: 'GameFont',
+                    fontSize: '16px',
+                    fill: '#ffffff',
+                    align: 'center'
+                }).setOrigin(0.5).setScrollFactor(0).setDepth(10003);
+                box.on('pointerover', () => box.setFillStyle(0x555555));
+                box.on('pointerout', () => box.setFillStyle(0x333333));
+                box.on('pointerdown', () => this.resolvePendingController(button.action));
+                this.setupUi.push(box, label);
+            }
+            this.setupUi.push(backdrop, panel, title, deviceName);
+        },
+
+        resolvePendingController(action) {
+            const device = this.pendingDevice;
+            if (!device) return;
+            const pendingIndex = pendingControllers.findIndex(item => item.index === device.index);
+            if (pendingIndex !== -1) pendingControllers.splice(pendingIndex, 1);
+
+            if (action === 'p1' || action === 'p2') {
+                controllerAssignments[action] = device.index;
+                controllerInputs[action] = emptyControllerInput();
+                controllerPreviousInputs[action] = emptyControllerInput();
+            }
+            this.closeControllerPrompt();
+            if (pendingControllers.length) this.showControllerPrompt(pendingControllers[0]);
+        },
+
+        closeControllerPrompt() {
+            this.setupUi.forEach(object => object.destroy());
+            this.setupUi = [];
+            this.pendingDevice = null;
+        }
+    };
+}
+
+const ControllerSetupScene = createControllerSetupScene();
 if ('audioSession' in navigator) {
     navigator.audioSession.type = 'playback';
 }
@@ -158,7 +415,7 @@ export var config = {
         antialias: false,
         pixelArt: true
     },
-    scene: [MenuScene, MapAndModifierSelectScene, CharacterSelectScene, GameScene]
+    scene: [ControllerSetupScene, MenuScene, MapAndModifierSelectScene, CharacterSelectScene, GameScene]
 };
 
 var game;
@@ -1192,6 +1449,16 @@ function update() {
 
     const p1 = this.gameState.players.player;
     const p2 = this.gameState.players.player2;
+    const p1Controller = controllerInputs.p1;
+    const p2Controller = botMode ? emptyControllerInput() : controllerInputs.p2;
+    const p1LeftDown = wasd.left.isDown || mobileControls.p1.left || p1Controller.left;
+    const p1RightDown = wasd.right.isDown || mobileControls.p1.right || p1Controller.right;
+    const p1UpDown = wasd.up.isDown || mobileControls.p1.up || p1Controller.up;
+    const p1DownDown = wasd.down.isDown || mobileControls.p1.down || p1Controller.down;
+    const p2LeftDown = cursors.left.isDown || mobileControls.p2.left || p2Controller.left;
+    const p2RightDown = cursors.right.isDown || mobileControls.p2.right || p2Controller.right;
+    const p2UpDown = cursors.up.isDown || mobileControls.p2.up || p2Controller.up;
+    const p2DownDown = cursors.down.isDown || mobileControls.p2.down || p2Controller.down;
     updateSpecialMeters(this);
 
     var midX = (p1.x + p2.x) / 2;
@@ -1248,25 +1515,23 @@ function update() {
 
     p1.hitstun = this.time.now < p1.hitstunUntil;
     p2.hitstun = this.time.now < p2.hitstunUntil;
-    if (Phaser.Input.Keyboard.JustDown(chainsawModeKey1)) {
+    if (Phaser.Input.Keyboard.JustDown(chainsawModeKey1) || p1Controller.miscPressed) {
         toggleChainsawMode(this, p1);
     }
-    if (Phaser.Input.Keyboard.JustDown(chainsawModeKey2)) {
+    if (Phaser.Input.Keyboard.JustDown(chainsawModeKey2) || (!botMode && p2Controller.miscPressed)) {
         toggleChainsawMode(this, p2);
     }
 
-    p1.horizontalMovementActive = wasd.left.isDown || wasd.right.isDown ||
-        mobileControls.p1.left || mobileControls.p1.right;
+    p1.horizontalMovementActive = p1LeftDown || p1RightDown;
     p2.horizontalMovementActive = !botMode && (
-        cursors.left.isDown || cursors.right.isDown ||
-        mobileControls.p2.left || mobileControls.p2.right
+        p2LeftDown || p2RightDown
     );
     
     
     const p1Chainsaw = p1.name === 'AXEMAN' && p1.variant === 'CHAINSAW';
     const p1AttackPressed = p1Chainsaw
-        ? Phaser.Input.Keyboard.JustDown(attackKey1) || mobileControls.p1.attackPressed
-        : attackKey1.isDown || mobileControls.p1.attack;
+        ? Phaser.Input.Keyboard.JustDown(attackKey1) || mobileControls.p1.attackPressed || p1Controller.attackPressed
+        : attackKey1.isDown || mobileControls.p1.attack || p1Controller.attack;
     if (p1Chainsaw) mobileControls.p1.attackPressed = false;
     if (p1AttackPressed && (!p1.hitstun || p1.activeGrab)) {
         const now = this.time.now;
@@ -1296,8 +1561,8 @@ function update() {
     p2.hitstun = this.time.now < p2.hitstunUntil;
     const p2Chainsaw = p2.name === 'AXEMAN' && p2.variant === 'CHAINSAW';
     const p2AttackPressed = p2Chainsaw
-        ? Phaser.Input.Keyboard.JustDown(attackKey2) || mobileControls.p2.attackPressed
-        : attackKey2.isDown || mobileControls.p2.attack;
+        ? Phaser.Input.Keyboard.JustDown(attackKey2) || mobileControls.p2.attackPressed || p2Controller.attackPressed
+        : attackKey2.isDown || mobileControls.p2.attack || p2Controller.attack;
     if (p2Chainsaw) mobileControls.p2.attackPressed = false;
     if (p2AttackPressed && (!p2.hitstun || p2.activeGrab) && !botMode) {
         const now = this.time.now;
@@ -1369,18 +1634,18 @@ function update() {
     updateScythemanGrass(this, this.gameState.players);
     updateCombo(p1, this.game.loop.delta);
     updateCombo(p2, this.game.loop.delta);
-    if (wasd.left.isDown || mobileControls.p1.left) p1.lastDir = { x: -1, y: 0 };
-    else if (wasd.right.isDown || mobileControls.p1.right) p1.lastDir = { x: 1, y: 0 };
-    else if (wasd.up.isDown || mobileControls.p1.up) p1.lastDir = { x: 0, y: -1 };
-    else if (wasd.down.isDown || mobileControls.p1.down) p1.lastDir = { x: 0, y: 1 };
+    if (p1LeftDown) p1.lastDir = { x: -1, y: 0 };
+    else if (p1RightDown) p1.lastDir = { x: 1, y: 0 };
+    else if (p1UpDown) p1.lastDir = { x: 0, y: -1 };
+    else if (p1DownDown) p1.lastDir = { x: 0, y: 1 };
     if (p1.lastDir.y === 0) p1.atk.setAngle(0);
 
 
     // PLAYER 2 (arrows)
-    if (cursors.left.isDown || mobileControls.p2.left) p2.lastDir = { x: -1, y: 0 };
-    else if (cursors.right.isDown || mobileControls.p2.right) p2.lastDir = { x: 1, y: 0 };
-    else if (cursors.up.isDown || mobileControls.p2.up) p2.lastDir = { x: 0, y: -1 };
-    else if (cursors.down.isDown || mobileControls.p2.down) p2.lastDir = { x: 0, y: 1 };
+    if (p2LeftDown) p2.lastDir = { x: -1, y: 0 };
+    else if (p2RightDown) p2.lastDir = { x: 1, y: 0 };
+    else if (p2UpDown) p2.lastDir = { x: 0, y: -1 };
+    else if (p2DownDown) p2.lastDir = { x: 0, y: 1 };
     if (p2.lastDir.y === 0) p2.atk.setAngle(0);
     function decelerate(player) {
         if (player.isUsingSideSpecial) return;
@@ -1475,13 +1740,13 @@ function update() {
 
     p1.hitstun = this.time.now < p1.hitstunUntil;
     if (!p1.hitstun) {
-        const p1LeftPressed = Phaser.Input.Keyboard.JustDown(wasd.left) || mobileControls.p1.leftPressed;
-        const p1RightPressed = Phaser.Input.Keyboard.JustDown(wasd.right) || mobileControls.p1.rightPressed;
-        const p1SpecialPressed = p1LeftAltPressed || mobileControls.p1.specialPressed;
-        const p1SpecialHeld = this.p1LeftAltDown || mobileControls.p1.special;
-        const p1SpecialDirection = wasd.left.isDown || mobileControls.p1.left
+        const p1LeftPressed = Phaser.Input.Keyboard.JustDown(wasd.left) || mobileControls.p1.leftPressed || p1Controller.leftPressed;
+        const p1RightPressed = Phaser.Input.Keyboard.JustDown(wasd.right) || mobileControls.p1.rightPressed || p1Controller.rightPressed;
+        const p1SpecialPressed = p1LeftAltPressed || mobileControls.p1.specialPressed || p1Controller.specialPressed;
+        const p1SpecialHeld = this.p1LeftAltDown || mobileControls.p1.special || p1Controller.special;
+        const p1SpecialDirection = p1LeftDown
             ? 'left'
-            : wasd.right.isDown || mobileControls.p1.right
+            : p1RightDown
                 ? 'right'
                 : null;
 
@@ -1525,13 +1790,13 @@ function update() {
         if (!p1.hasHitSideSpecial && p1.isUsingSideSpecial && fiveframecount === 5) {
             handleDirSpecialAttack(this, p1, p2);
         }
-        if (wasd.left.isDown || mobileControls.p1.left) {
+        if (p1LeftDown) {
             //transplant successful!
             executeStateCommand(this, this.gameState.players, {
                 playerID: p1.id,
                 type: Commands.LEFT
             });
-        } else if (wasd.right.isDown || mobileControls.p1.right) {
+        } else if (p1RightDown) {
             executeStateCommand(this, this.gameState.players, {
                 playerID: p1.id,
                 type: Commands.RIGHT
@@ -1542,7 +1807,7 @@ function update() {
                 type: Commands.NONE
             });
         }
-        if ((wasd.up.isDown || mobileControls.p1.up) && p1.body.touching.down) {
+        if (p1UpDown && p1.body.touching.down) {
             executeStateCommand(this, this.gameState.players, {
                 playerID: p1.id,
                 type: Commands.UP
@@ -1555,7 +1820,7 @@ function update() {
             p1.afterimage = false;
         }
         
-        if ((Phaser.Input.Keyboard.JustDown(wasd.up) || mobileControls.p1.upPressed)) {
+        if ((Phaser.Input.Keyboard.JustDown(wasd.up) || mobileControls.p1.upPressed || p1Controller.upPressed)) {
             p1.lastInput.up = this.time.now;
             if (inputMode.p1 !== "keyboard" && !mobileControls.p1.upPressed) {
             
@@ -1575,7 +1840,7 @@ function update() {
             mobileControls.p1.upPressed = false;
             
         }
-        if (Phaser.Input.Keyboard.JustDown(wasd.down) || mobileControls.p1.downPressed) {
+        if (Phaser.Input.Keyboard.JustDown(wasd.down) || mobileControls.p1.downPressed || p1Controller.downPressed) {
             p1.lastInput.down = this.time.now;
             if (inputMode.p1 !== "keyboard" && !mobileControls.p1.downPressed) {
             
@@ -1590,10 +1855,7 @@ function update() {
         const usingMobile = this.sys.game.device.input.touch;
 
 
-        const jumpReleased =
-            inputMode.p1 === "touch"
-                ? !mobileControls.p1.up
-                : wasd.up.isUp;
+        const jumpReleased = !mobileControls.p1.up && wasd.up.isUp && !p1Controller.up;
 
         if (jumpReleased && p1.body.velocity.y < 0 && !p1.hasDoubleJumped) {
             executeStateCommand(this, this.gameState.players, {
@@ -1602,7 +1864,7 @@ function update() {
             });
         }
 
-        if ((wasd.down.isDown || mobileControls.p1.down) && p1.airTime >= 1000) {
+        if (p1DownDown && p1.airTime >= 1000) {
             executeStateCommand(this, this.gameState.players, {
                 playerID: p1.id,
                 type: Commands.DOWNSLAM
@@ -1616,13 +1878,13 @@ function update() {
     if (!p2.hitstun && !botMode) {
 
         // Player 2 controls
-        const p2LeftPressed = Phaser.Input.Keyboard.JustDown(cursors.left) || mobileControls.p2.leftPressed;
-        const p2RightPressed = Phaser.Input.Keyboard.JustDown(cursors.right) || mobileControls.p2.rightPressed;
-        const p2SpecialPressed = p2RightAltPressed || mobileControls.p2.specialPressed;
-        const p2SpecialHeld = this.p2RightAltDown || mobileControls.p2.special;
-        const p2SpecialDirection = cursors.left.isDown || mobileControls.p2.left
+        const p2LeftPressed = Phaser.Input.Keyboard.JustDown(cursors.left) || mobileControls.p2.leftPressed || p2Controller.leftPressed;
+        const p2RightPressed = Phaser.Input.Keyboard.JustDown(cursors.right) || mobileControls.p2.rightPressed || p2Controller.rightPressed;
+        const p2SpecialPressed = p2RightAltPressed || mobileControls.p2.specialPressed || p2Controller.specialPressed;
+        const p2SpecialHeld = this.p2RightAltDown || mobileControls.p2.special || p2Controller.special;
+        const p2SpecialDirection = p2LeftDown
             ? 'left'
-            : cursors.right.isDown || mobileControls.p2.right
+            : p2RightDown
                 ? 'right'
                 : null;
 
@@ -1669,7 +1931,7 @@ function update() {
             handleDirSpecialAttack(this, p2, p1);
         }
 
-        if (cursors.left.isDown || mobileControls.p2.left) {
+        if (p2LeftDown) {
             if (!p2.isUsingSideSpecial) {
                 executeStateCommand(this, this.gameState.players, {
                     playerID: p2.id,
@@ -1677,7 +1939,7 @@ function update() {
                 });
             }
         }
-        else if (cursors.right.isDown || mobileControls.p2.right) {
+        else if (p2RightDown) {
             if (!p2.isUsingSideSpecial) {
                 executeStateCommand(this, this.gameState.players, {
                     playerID: p2.id,
@@ -1692,7 +1954,7 @@ function update() {
             });
         }
 
-        if ((cursors.up.isDown || mobileControls.p2.up) && p2.body.touching.down) {
+        if (p2UpDown && p2.body.touching.down) {
             executeStateCommand(this, this.gameState.players, {
                 playerID: p2.id,
                 type: Commands.UP
@@ -1708,7 +1970,7 @@ function update() {
         }
 
         if (
-            (Phaser.Input.Keyboard.JustDown(cursors.up) || mobileControls.p2.upPressed)
+            (Phaser.Input.Keyboard.JustDown(cursors.up) || mobileControls.p2.upPressed || p2Controller.upPressed)
         ) {
             const quickslamJumped = tryQuickslamJump(this, p2, this.time.now);
             if (!quickslamJumped && !p2.body.touching.down && !p2.hasDoubleJumped) {
@@ -1727,7 +1989,7 @@ function update() {
             }
             mobileControls.p2.upPressed = false;
         }
-        if (Phaser.Input.Keyboard.JustDown(cursors.down) || mobileControls.p2.downPressed) {
+        if (Phaser.Input.Keyboard.JustDown(cursors.down) || mobileControls.p2.downPressed || p2Controller.downPressed) {
             p2.lastInput.down = this.time.now;
             if (inputMode.p2 !== "keyboard" && !mobileControls.p2.downPressed) {
             
@@ -1742,10 +2004,7 @@ function update() {
         const usingMobile = this.sys.game.device.input.touch;
 
 
-        const jumpReleased2 =
-            inputMode.p2 === "touch"
-                ? !mobileControls.p2.up
-                : cursors.up.isUp;
+        const jumpReleased2 = !mobileControls.p2.up && cursors.up.isUp && !p2Controller.up;
 
         if (jumpReleased2 && p2.body.velocity.y < 0 && !p2.hasDoubleJumped) {
             executeStateCommand(this, this.gameState.players, {
@@ -1753,7 +2012,7 @@ function update() {
                 type: Commands.UP_CANCEL
             });
         }
-        if ((cursors.down.isDown || mobileControls.p2.down) && p2.airTime >= 1000) {
+        if (p2DownDown && p2.airTime >= 1000) {
             executeStateCommand(this, this.gameState.players, {
                 playerID: p2.id,
                 type: Commands.DOWNSLAM
@@ -1839,7 +2098,7 @@ function update() {
     }
     updateKB(this);
     if (botMode) {
-        runBotAI(this, p2, p1);
+        runBotAI(this, p2, p1, fiveframecount);
     }
     updateWeatherHazard(this);
     if (fiveframecount >= 5) {

@@ -1,4 +1,4 @@
-import { botMode } from "../main.js";
+import { botMode } from "../gameSettings.js";
 import { preloadCharacterSelection } from "./GameScene/preload.js";
 import { getCharacterTexture } from "../characterTextures.js";
 import { fadeOutTo } from "./transitions.js";

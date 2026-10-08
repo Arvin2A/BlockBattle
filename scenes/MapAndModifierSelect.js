@@ -1,6 +1,5 @@
 import { DEFAULT_MAP, SNOWY_MAP } from './GameScene/MapDefinitions.js';
 import { preloadMapSelection } from './GameScene/preload.js';
-import { config } from '../main.js';
 import { fadeOutTo } from './transitions.js';
 
 export let selectedMapDefinition = DEFAULT_MAP;
