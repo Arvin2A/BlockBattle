@@ -21,11 +21,11 @@ export const MenuScene = {
         this.add.text(40, 135, 'CHANGELOG UPDATE!', {
             fontFamily: 'VCROSD',
             fontSize: '24px',
-            fill: '#9757ffc2',
+            fill: '#ff57abc2',
             stroke: '#000000',
             strokeThickness: 5
         });
-        const changelogText = 'Axeman\'s CHAINSAW variant is complete, including wood gathering and plank building.\n\nGunman\'s special ability has been revamped.';
+        const changelogText = 'The fisherman\'s hook lag has been patched and its able to grapple on platforms. Neutral specials will be added for every character, So far, gunman has a grenade throw, and chainsaw has a quick build if airborne.';
         this.add.text(40, 180, changelogText, {
             fontFamily: 'VCROSD',
             fontSize: '18px',
