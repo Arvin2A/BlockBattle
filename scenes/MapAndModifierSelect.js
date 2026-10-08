@@ -1,6 +1,7 @@
 import { DEFAULT_MAP, SNOWY_MAP } from './GameScene/MapDefinitions.js';
 import { preloadMapSelection } from './GameScene/preload.js';
 import { config } from '../main.js';
+import { fadeOutTo } from './transitions.js';
 
 export let selectedMapDefinition = DEFAULT_MAP;
 export const modifierOptions = {
@@ -58,6 +59,7 @@ export const MapAndModifierSelectScene = {
 	key: 'MapAndModifierSelectScene',
 	preload: preloadMapSelection,
 	create: function () {
+		this.cameras.main.fadeIn(200, 0, 0, 0);
 		const randInt = Math.round(Math.random());
 		const randomDef = randInt === 0 ? DEFAULT_MAP : SNOWY_MAP
 		const maps = [
@@ -307,7 +309,9 @@ export const MapAndModifierSelectScene = {
 		}).setOrigin(0.5);
 		playButton.on('pointerover', () => playButton.setFillStyle(0x2ecc71));
 		playButton.on('pointerout', () => playButton.setFillStyle(0x228b22));
-		playButton.on('pointerdown', () => this.scene.start('CharacterSelectScene'));
+		playButton.on('pointerdown', () => {
+			fadeOutTo(this, () => this.scene.start('CharacterSelectScene'));
+		});
 
 		const backButton = this.add.rectangle(300, 555, 220, 45, 0x686868)
 			.setStrokeStyle(3, 0xffffff)
@@ -319,6 +323,8 @@ export const MapAndModifierSelectScene = {
 		}).setOrigin(0.5);
 		backButton.on('pointerover', () => backButton.setFillStyle(0x888888));
 		backButton.on('pointerout', () => backButton.setFillStyle(0x686868));
-		backButton.on('pointerdown', () => this.scene.start('MenuScene'));
+		backButton.on('pointerdown', () => {
+			fadeOutTo(this, () => this.scene.start('MenuScene'));
+		});
 	}
 };

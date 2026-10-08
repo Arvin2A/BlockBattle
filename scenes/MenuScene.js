@@ -1,6 +1,7 @@
 
 import { changeBotMode } from "../main.js";
 import { preloadMenu } from "./GameScene/preload.js";
+import { fadeOutTo } from "./transitions.js";
 
 export const MenuScene = {
     //load the menu scene which is just a cool background image we made
@@ -8,6 +9,7 @@ export const MenuScene = {
     key: 'MenuScene',
     preload: preloadMenu,
     create: function () {
+        this.cameras.main.fadeIn(200, 0, 0, 0);
         const bg = this.add.image(500, 300, 'menuBackground');
         bg.setDisplaySize(this.scale.width, this.scale.height);
         // Create menu UI elements here
@@ -60,7 +62,7 @@ export const MenuScene = {
             if ('audioSession' in navigator) {
                 navigator.audioSession.type = 'playback';
             }
-            this.scene.start('MapAndModifierSelectScene');
+            fadeOutTo(this, () => this.scene.start('MapAndModifierSelectScene'));
         }, this);
         const botBox = this.add.rectangle(
             875,
@@ -86,7 +88,7 @@ export const MenuScene = {
         botText.setInteractive();
         botText.on('pointerdown', function () {
             changeBotMode(true);
-            this.scene.start('MapAndModifierSelectScene');
+            fadeOutTo(this, () => this.scene.start('MapAndModifierSelectScene'));
         }, this);
         botText.on('pointerover', function () {
             botBox.setFillStyle(0xffffff);
