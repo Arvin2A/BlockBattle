@@ -365,6 +365,7 @@ function handleDirSpecial(api, scene, attacker, direction, currentTime, victim) 
 function neutralPlaceAndHarvest(api, scene, attacker, victim) {
     if (attacker.body.blocked.down || attacker.body.touching.down) {
         attacker.lastDir = { x: 0, y: 1 };
+        if (!attacker.chainsawMode) toggleChainsawMode(scene, attacker);
         if (!attacker.chainsawActive) activateChainsaw(api, scene, attacker, victim);
         api.positionAttackSprite(attacker, 'activechainsaw');
         return;

@@ -32,6 +32,7 @@ export function initiatePlayers(scene, p1Select = 'axeman', p2Select = 'swordman
     }
     
     for (const key in players) {
+        //PLAYER VARIABLES.
         const p = players[key];
         p.setDepth(5);
         // Attack availability and combo state.
@@ -95,6 +96,7 @@ export function initiatePlayers(scene, p1Select = 'axeman', p2Select = 'swordman
             hasHitSideSpecial: false,
             hasDoubleJumped: false
         });
+        p.currentPlatform = null;
         p.doubleJumpEffect = scene.add.image(
             p.x,
             p.y + 40, 'doublejump');
@@ -156,9 +158,9 @@ export function initiatePlayers(scene, p1Select = 'axeman', p2Select = 'swordman
         });
         const selectedCharacter = p.id === 1 ? p1Select : p2Select;
         if (selectedCharacter.toUpperCase() === 'GUNMAN') {
-            p.dirSpecialCooldown = 10000;
-        } else if (selectedCharacter.toUpperCase() === 'AXEMAN' && p.variant === "CHAINSAW") {
             p.dirSpecialCooldown = 4000;
+        } else if (selectedCharacter.toUpperCase() === 'AXEMAN' && p.variant === "CHAINSAW") {
+            p.dirSpecialCooldown = 3000;
         }
         if (modifierOptions.SLUGGISH.enabled) {
             p.baseMovementSpeed -= 150;
