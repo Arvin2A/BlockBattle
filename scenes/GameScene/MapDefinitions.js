@@ -59,7 +59,7 @@ export const SNOWY_MAP = {
         },
         {
             x: 1300,
-            y: 660,
+            y: 640,
             texture: 'groundhitbox',
             width: 520,
             height: 0
@@ -67,7 +67,7 @@ export const SNOWY_MAP = {
     ],
     platformVisuals: [
         { x: 1000, y: 555, texture: 'snowplatform1', scale: 0.75 },
-        { x: 1300, y: 575, texture: 'snowplatform2', scale: 0.75 }
+        { x: 1300, y: 555, texture: 'snowplatform2', scale: 0.75 }
     ],
 
     playerSpawns: [
