@@ -274,8 +274,8 @@ function handleGunmanSpecial(api, scene, attacker, direction, currentTime, victi
             if (!attacker.active || !victim.active) return;
             handleShot(api, scene, attacker, victim, {
                 damageIncrement: 0.007,
-                hitstunDuration: 100,
-                freezeDuration: 50,
+                hitstunDuration: 200,
+                freezeDuration: 200,
                 ignoreCooldown: true,
                 ignoreCombo: true,
                 sprite: specialSprite,
