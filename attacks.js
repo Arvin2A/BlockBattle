@@ -46,6 +46,11 @@ function getMapPlatforms(scene) {
         ...scene.gameState.map.topPlatforms.getChildren()
     ].filter(platform => platform.active && platform.body?.enable);
 }
+function platformsWithoutStandingPlatform(scene, player) {
+    const platforms = getMapPlatforms(scene);
+
+    return platforms.filter(platform => platform !== player.currentPlatform);
+}
 
 function getGroundedPlatform(scene, attacker, platforms = getMapPlatforms(scene)) {
     const playerBody = attacker.body;
@@ -2055,14 +2060,10 @@ export function tryPull(scene, player, target, direction, currentTime) {
                 });
                 cleanup();
             }),
+
             scene.physics.add.overlap(
                 hook,
-                scene.gameState.map.platforms,
-                latchToPlatform
-            ),
-            scene.physics.add.overlap(
-                hook,
-                scene.gameState.map.topPlatforms,
+                platformsWithoutStandingPlatform(scene, player),
                 latchToPlatform
             ),
             scene.physics.add.overlap(hook, scene.planks, latchToPlatform)

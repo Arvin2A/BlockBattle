@@ -273,7 +273,7 @@ function handleGunmanSpecial(api, scene, attacker, direction, currentTime, victi
         const fireBullet = () => {
             if (!attacker.active || !victim.active) return;
             handleShot(api, scene, attacker, victim, {
-                damageIncrement: 0.015,
+                damageIncrement: 0.01,
                 hitstunDuration: 100,
                 freezeDuration: 50,
                 ignoreCooldown: true,

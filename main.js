@@ -1435,6 +1435,22 @@ function updateKB(scene) {
         }
     }
 }
+
+function getMapPlatforms(scene) {
+    return [
+        ...scene.gameState.map.platforms.getChildren(),
+        ...scene.gameState.map.topPlatforms.getChildren()
+    ].filter(platform => platform.active && platform.body?.enable);
+}
+function processPlatformCollide(player, platform) {
+  return true;
+}
+
+function handlePlatformCollide(player, platform) {
+  if (player.body.touching.down && platform.body.touching.up) {    
+    player.currentPlatform = platform;
+  }
+}
 export var fiveframecount = 0;
 
 function update() {
@@ -1630,6 +1646,11 @@ function update() {
         player.chopped = this.time.now < player.choppedUntil;
         //player.canAttack =
             //this.time.now < player.canAttackUntil;
+
+        const platforms = getMapPlatforms(this);
+        platforms.forEach(platform => {
+            handlePlatformCollide(player, platform);
+        });
     };
     updateScythemanGrass(this, this.gameState.players);
     updateCombo(p1, this.game.loop.delta);
