@@ -329,7 +329,7 @@ function chuck(api, scene, attacker, victim) {
 
         if (hitVictim && victim.active && !scene.finisherActive) {
             const damageScale = api.getAttackDamageScale(attacker);
-            victim.KBmultiplier += 0.18 * damageScale;
+            victim.KBmultiplier += 0.08 * damageScale;
             victim.willDecelerate = false;
             const knockback = 400 * victim.KBmultiplier * damageScale;
             const verticalKick = direction.y === 0
