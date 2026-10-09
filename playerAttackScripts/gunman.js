@@ -273,7 +273,7 @@ function handleGunmanSpecial(api, scene, attacker, direction, currentTime, victi
         const fireBullet = () => {
             if (!attacker.active || !victim.active) return;
             handleShot(api, scene, attacker, victim, {
-                damageIncrement: 0.01,
+                damageIncrement: 0.007,
                 hitstunDuration: 100,
                 freezeDuration: 50,
                 ignoreCooldown: true,
@@ -293,12 +293,6 @@ function handleGunmanSpecial(api, scene, attacker, direction, currentTime, victi
             specialSprite.destroy();
             attacker.gunmanSpecialActive = false;
             if (!attacker.active) return;
-            const reloadCooldown = 2000;
-            attacker.canAttack = false;
-            attacker.nextAttackTime = scene.time.now + reloadCooldown;
-            scene.time.delayedCall(reloadCooldown, () => {
-                if (attacker.active) attacker.canAttack = true;
-            });
         });
     }
     attacker.lastTap[direction] = currentTime;
