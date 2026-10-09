@@ -1974,7 +1974,7 @@ export function tryPull(scene, player, target, direction, currentTime) {
 
         // initial launch speed
         hook.setVelocity(
-            player.lastDir.x * 1000,
+            player.lastDir.x * 2000,
             -250
         );
 
@@ -2085,7 +2085,7 @@ export function tryPull(scene, player, target, direction, currentTime) {
                 hook.body.velocity.y *= 0.992;
             }
         });
-        timeoutEvent = scene.time.delayedCall(3000, cleanup);
+        timeoutEvent = scene.time.delayedCall(4000, cleanup);
 
         startSideSpecialCooldown(player, currentTime, pullCD);
     }
