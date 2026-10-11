@@ -2,7 +2,13 @@
 import { changeBotMode } from "../gameSettings.js";
 import { preloadMenu } from "./GameScene/preload.js";
 import { fadeOutTo } from "./transitions.js";
-
+import { getNavigationBounds, wrapIndex, moveSelection, createNavigationBox, moveNavigationBox, getConnectedControllers, getMenuGamepadInput} from "../navigation.js"
+var currentControllers = [];
+var primaryController = null;
+var navBox = null;
+var layout = []
+var selectedIndex = 0;
+var previousInput = {};
 export const MenuScene = {
     //load the menu scene which is just a cool background image we made
     //its also has the start button, initiating the game when clicked
@@ -17,7 +23,13 @@ export const MenuScene = {
         fade.setDisplaySize(this.scale.width, this.scale.height);
         const changelogBox = this.add.rectangle(190, 300, 340, 450, 0x111111, 0.78);
         changelogBox.setStrokeStyle(3, 0x000000, 0.9);
+        currentControllers = getConnectedControllers(this);
+        primaryController = currentControllers[0] ?? null;
 
+        navBox = null;
+        layout = [];
+        selectedIndex = 0;
+        previousInput = {};
         this.add.text(40, 135, 'CHANGELOG UPDATE!', {
             fontFamily: 'VCROSD',
             fontSize: '24px',
@@ -86,6 +98,7 @@ export const MenuScene = {
             }
         ).setOrigin(0.5);
         botText.setInteractive();
+
         botText.on('pointerdown', function () {
             changeBotMode(true);
             fadeOutTo(this, () => this.scene.start('MapAndModifierSelectScene'));
@@ -99,5 +112,79 @@ export const MenuScene = {
             botBox.setFillStyle(0x111111);
             botBox.setStrokeStyle(4, 0x000000);
         });
+        layout.push({button: botBox, action: () => {
+            changeBotMode(true);
+            fadeOutTo(this, () => this.scene.start('MapAndModifierSelectScene'));
+        }}); 
+        layout.push({button: startBox, action: () => {
+            changeBotMode(false);
+            if ('audioSession' in navigator) {
+                navigator.audioSession.type = 'playback';
+            }
+            fadeOutTo(this, () => this.scene.start('MapAndModifierSelectScene'));
+        }}); 
+    },
+    update: function () {
+        currentControllers = getConnectedControllers(this);
+        primaryController = currentControllers[0] ?? null;
+
+        if (!primaryController) {
+            return;
+        }
+
+        if (!navBox) {
+            navBox = createNavigationBox(this, {
+                color: 0xffffff,
+                lineWidth: 3,
+                padding: 8,
+                duration: 150,
+                depth: 1000
+            });
+
+            if (layout.length > 0) {
+                moveNavigationBox(
+                    this,
+                    navBox,
+                    layout[selectedIndex].button
+                );
+            }
+        }
+
+        if (!layout.length) return;
+
+        const input = getMenuGamepadInput(primaryController);
+
+        const justPressed = key =>
+            input[key] && !previousInput[key];
+
+        let direction = 0;
+
+        if (justPressed("up") || justPressed("left")) {
+            direction = -1;
+        } else if (justPressed("down") || justPressed("right")) {
+            direction = 1;
+        }
+
+        if (direction !== 0) {
+            selectedIndex = moveSelection(
+                selectedIndex,
+                direction,
+                layout.length
+            );
+
+            moveNavigationBox(
+                this,
+                navBox,
+                layout[selectedIndex].button
+            );
+        }
+
+        if (justPressed("a")) {
+            layout[selectedIndex].action();
+        }
+
+        previousInput = { ...input};
     }
+
+    
 };

@@ -151,7 +151,9 @@ function emptyControllerInput() {
         attackPressed: false,
         special: false,
         specialPressed: false,
-        miscPressed: false
+        misc: false,
+        miscPressed: false,
+        pausePressed: false
     };
 }
 
@@ -167,11 +169,12 @@ function readControllerInput(pad, previous) {
     const dpadDown = controllerButtonPressed(pad, 13);
     const left = dpadLeft || Math.round(pad.axes[0] ?? 0) < 0;
     const right = dpadRight || Math.round(pad.axes[0] ?? 0) > 0;
-    const up = dpadUp || Math.round(pad.axes[1] ?? 0) < 0;
+    const up = dpadUp || controllerButtonPressed(pad, 3);;
     const down = dpadDown || Math.round(pad.axes[1] ?? 0) > 0;
     const attack = controllerButtonPressed(pad, 0);
     const special = controllerButtonPressed(pad, 1);
-    const misc = controllerButtonPressed(pad, 3);
+    const misc = controllerButtonPressed(pad, 2);
+    const pause = controllerButtonPressed(pad, 9);
 
     return {
         left,
@@ -186,6 +189,7 @@ function readControllerInput(pad, previous) {
         attackPressed: attack && !previous.attack,
         special,
         specialPressed: special && !previous.special,
+        misc,
         miscPressed: misc && !previous.misc
     };
 }

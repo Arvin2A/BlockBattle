@@ -1,6 +1,8 @@
 import { DEFAULT_MAP, SNOWY_MAP } from './GameScene/MapDefinitions.js';
 import { preloadMapSelection } from './GameScene/preload.js';
 import { fadeOutTo } from './transitions.js';
+import { getNavigationBounds, wrapIndex, moveSelection, createNavigationBox, moveNavigationBox, getConnectedControllers, getMenuGamepadInput} from "../navigation.js"
+
 
 export let selectedMapDefinition = DEFAULT_MAP;
 export const modifierOptions = {
@@ -53,7 +55,13 @@ export function resetMapAndModifierSelection() {
 		modifier.enabled = false;
 	});
 }
-
+var currentControllers = [];
+var primaryController = null;
+var navBox = null;
+var layout = []
+var selectedIndex = 0;
+var previousInput = {};
+var panel;
 export const MapAndModifierSelectScene = {
 	key: 'MapAndModifierSelectScene',
 	preload: preloadMapSelection,
@@ -66,7 +74,13 @@ export const MapAndModifierSelectScene = {
 			{ definition: SNOWY_MAP, preview: 'snowypreview', name: 'SNOWY ARENA' },
 			{ definition: randomDef, preview: 'randompreview', name: 'RANDOM' }
 		];
+		currentControllers = getConnectedControllers(this);
+		primaryController = currentControllers[0] ?? null;
 
+		navBox = null;
+		layout = [];
+		selectedIndex = 0;
+		previousInput = {};
 
 		this.cameras.main.setBackgroundColor('#1b1b1b');
 		this.add.text(500, 50, 'SELECT MAP', {
@@ -93,7 +107,7 @@ export const MapAndModifierSelectScene = {
 			}
 		});
 
-		const panel = this.rexUI.add.scrollablePanel({
+		panel = this.rexUI.add.scrollablePanel({
 			x: 820,
 			y: 380,
 			width: 300,
@@ -325,5 +339,109 @@ export const MapAndModifierSelectScene = {
 		backButton.on('pointerdown', () => {
 			fadeOutTo(this, () => this.scene.start('MenuScene'));
 		});
+		layout = [
+			...this.mapCards.map((mapCard, index) => ({
+				button: mapCard.card,
+				type: "map",
+				index,
+				action: () => {
+					selectedMapDefinition = maps[index].definition;
+					this.selectedMapIndex = index;
+					this.updateMapSelection(true);
+					this.sound.play("hover");
+				}
+			})),
+
+			...this.modifierCards.map((modifierCard, index) => ({
+				button: modifierCard.card,
+				type: "modifier",
+				index,
+				action: () => {
+					modifierOptions[modifierCard.modifierKey].enabled =
+						!modifierOptions[modifierCard.modifierKey].enabled;
+
+					this.updateModifierSelection();
+					this.sound.play("hover");
+				}
+			})),
+
+			{
+				button: backButton,
+				type: "button",
+				action: () => {
+					fadeOutTo(this, () => this.scene.start("MenuScene"));
+				}
+			},
+
+			{
+				button: playButton,
+				type: "button",
+				action: () => {
+					fadeOutTo(this, () => this.scene.start("CharacterSelectScene"));
+				}
+			}
+		];
+	},
+	update: function () {
+		currentControllers = getConnectedControllers(this);
+		primaryController = currentControllers[0] ?? null;
+
+		if (!primaryController || !layout.length) return;
+
+		if (!navBox) {
+			navBox = createNavigationBox(this, {
+				color: 0xffffff,
+				lineWidth: 3,
+				padding: 8,
+				duration: 150,
+				depth: 1000
+			});
+
+			moveNavigationBox(
+				this,
+				navBox,
+				layout[selectedIndex].button
+			);
+		}
+
+		const input = getMenuGamepadInput(primaryController);
+
+		const justPressed = key =>
+			input[key] && !previousInput[key];
+
+		let direction = 0;
+
+		if (justPressed("left") || justPressed("up")) {
+			direction = -1;
+		} else if (justPressed("right") || justPressed("down")) {
+			direction = 1;
+		}
+
+		if (direction !== 0) {
+			selectedIndex = moveSelection(
+				selectedIndex,
+				direction,
+				layout.length
+			);
+
+			const selected = layout[selectedIndex];
+
+			if (selected.type === "modifier") {
+				const modifierCard = this.modifierCards[selected.index];
+				panel.scrollToChild(modifierCard.card);
+			}
+
+			moveNavigationBox(
+				this,
+				navBox,
+				selected.button
+			);
+		}
+
+		if (justPressed("a")) {
+			layout[selectedIndex].action();
+		}
+
+		previousInput = { ...input };
 	}
 };
