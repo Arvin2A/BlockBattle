@@ -2,6 +2,10 @@ import { botMode } from "../gameSettings.js";
 import { preloadCharacterSelection } from "./GameScene/preload.js";
 import { getCharacterTexture } from "../characterTextures.js";
 import { fadeOutTo } from "./transitions.js";
+import {
+    getConnectedControllers,
+    getMenuGamepadInput
+} from "../navigation.js";
 
 export var player1Character = '';
 export var player2Character = '';
@@ -141,6 +145,8 @@ export const CharacterSelectScene = {
 
         this.p1IsReady = false;
         this.p2IsReady = false;
+
+        this.controllerPreviousInput = [{}, {}];
 
         // -----------------------------
         // TITLE
@@ -345,7 +351,10 @@ export const CharacterSelectScene = {
         let previousP2Index = null;
         this.lastSelectedIconPlayer = 2;
 
-        this.updateCharacterDescriptions = function () {
+        this.updateCharacterDescriptions = function (
+            p1Direction = 0,
+            p2Direction = 0
+        ) {
             const p1 = this.characterData[this.p1Index];
             const p2 = this.characterData[this.p2Index];
 
@@ -445,22 +454,136 @@ export const CharacterSelectScene = {
             }
 
             if (this.mobileWheels) {
-                this.mobileWheels.p1.refresh(this.p1Index);
-                this.mobileWheels.p2.refresh(this.p2Index);
+                this.mobileWheels.p1.refresh(this.p1Index, p1Direction);
+                this.mobileWheels.p2.refresh(this.p2Index, p2Direction);
             }
         };
 
+        
+        
         const createCharacterWheel = (x, player, color) => {
-            const wheelIcons = [-1, 0, 1].map(offset => this.add.image(
-                x,
-                320 + offset * 65,
-                this.characters[0].key
-            ).setScale(0.65));
+            const wheelIcons = [-1, 0, 1].map(offset =>
+                this.add.image(
+                    x,
+                    320 + offset * 65,
+                    this.characters[0].key
+                ).setScale(offset === 0 ? 1 : 0.65)
+            );
 
-            const createWheelButton = (y, label, callback) => {
+            let isAnimating = false;
+
+            const getIndex = () =>
+                player === 1 ? this.p1Index : this.p2Index;
+
+            const getVariantIndex = () =>
+                player === 1 ? this.p1VariantIndex : this.p2VariantIndex;
+
+            const selectedOverlay = player === 1
+                ? p1BoxSelectedOverlay
+                : p2BoxSelectedOverlay;
+
+            const drawIcons = index => {
+                [-1, 0, 1].forEach((offset, i) => {
+                    const characterIndex =
+                        (index + offset + this.characters.length) %
+                        this.characters.length;
+
+                    wheelIcons[i].setTexture(
+                        getCharacterIcon(
+                            characterIndex,
+                            offset === 0 ? getVariantIndex() : 0
+                        )
+                    );
+
+                    wheelIcons[i]
+                        .setPosition(x, 320 + offset * 65)
+                        .setAlpha(offset === 0 ? 1 : 0.45)
+                        .setScale(offset === 0 ? 1 : 0.65);
+                });
+
+                selectedOverlay.setPosition(x, 320);
+            };
+
+            const refresh = (index, direction = 0) => {
+                if (isAnimating) return;
+
+                if (direction === 0) {
+                    drawIcons(index);
+                    return;
+                }
+
+                isAnimating = true;
+
+                const oldTextures = wheelIcons.map(icon => icon.texture.key);
+                const oldAlphas = wheelIcons.map(icon => icon.alpha);
+                const oldScales = wheelIcons.map(icon => icon.scaleX);
+
+                const newIcons = [-1, 0, 1].map(offset => {
+                    const characterIndex =
+                        (index + offset + this.characters.length) %
+                        this.characters.length;
+
+                    const icon = this.add.image(
+                        x,
+                        320 + offset * 65 + direction * 65,
+                        getCharacterIcon(
+                            characterIndex,
+                            offset === 0 ? getVariantIndex() : 0
+                        )
+                    );
+
+                    return icon
+                        .setScale(offset === 0 ? 1 : 0.65)
+                        .setAlpha(0);
+                });
+
+                // Keep the old icons intact while they slide away.
+                wheelIcons.forEach((icon, i) => {
+                    this.tweens.add({
+                        targets: icon,
+                        y: icon.y - direction * 65,
+                        alpha: 0,
+                        duration: 300,
+                        ease: 'Sine.easeInOut'
+                    });
+                });
+
+                // Slide the new icons into the wheel.
+                newIcons.forEach((icon, i) => {
+                    const offset = i - 1;
+
+                    this.tweens.add({
+                        targets: icon,
+                        y: 320 + offset * 65,
+                        alpha: offset === 0 ? 1 : 0.45,
+                        duration: 300,
+                        ease: 'Sine.easeInOut'
+                    });
+                });
+
+                this.tweens.add({
+                    targets: selectedOverlay,
+                    x,
+                    y: 320,
+                    duration: 300,
+                    ease: 'Sine.easeInOut'
+                });
+
+                this.time.delayedCall(120, () => {
+                    wheelIcons.forEach(icon => icon.destroy());
+                    newIcons.forEach((icon, i) => {
+                        wheelIcons[i] = icon;
+                    });
+
+                    isAnimating = false;
+                });
+            };
+
+            const createWheelButton = (y, label, direction) => {
                 const button = this.add.rectangle(x, y, 70, 45, color)
                     .setStrokeStyle(3, 0xffffff)
                     .setInteractive({ useHandCursor: true });
+
                 this.add.text(x, y, label, {
                     fontFamily: 'VCROSD',
                     fontSize: '30px',
@@ -469,52 +592,40 @@ export const CharacterSelectScene = {
 
                 button.on('pointerover', () => button.setAlpha(0.8));
                 button.on('pointerout', () => button.setAlpha(1));
+
                 button.on('pointerdown', () => {
+                    if (isAnimating) return;
                     if (player === 1 && this.p1IsReady) return;
                     if (player === 2 && this.p2IsReady) return;
+
                     this.sound.play('hover');
-                    callback();
-                    this.updateCharacterDescriptions();
+
+                    if (player === 1) {
+                        this.p1Index = (
+                            this.p1Index + direction + this.characters.length
+                        ) % this.characters.length;
+                    } else {
+                        this.p2Index = (
+                            this.p2Index + direction + this.characters.length
+                        ) % this.characters.length;
+                    }
+
+                    this.updateCharacterDescriptions(
+                        player === 1 ? direction : 0,
+                        player === 2 ? direction : 0
+                    );
                 });
             };
 
-            createWheelButton(200, '^', () => {
-                if (player === 1) {
-                    this.p1Index = (this.p1Index - 1 + this.characters.length) % this.characters.length;
-                } else {
-                    this.p2Index = (this.p2Index - 1 + this.characters.length) % this.characters.length;
-                }
-            });
-            createWheelButton(440, 'v', () => {
-                if (player === 1) {
-                    this.p1Index = (this.p1Index + 1) % this.characters.length;
-                } else {
-                    this.p2Index = (this.p2Index + 1) % this.characters.length;
-                }
-            });
+            createWheelButton(200, '^', -1);
+            createWheelButton(440, 'v', 1);
 
+            drawIcons(getIndex());
 
-            return {
-                refresh: index => {
-                    [-1, 0, 1].forEach((offset, iconIndex) => {
-                        const characterIndex = (index + offset + this.characters.length) % this.characters.length;
-                        const variantIndex = offset === 0
-                            ? player === 1 ? this.p1VariantIndex : this.p2VariantIndex
-                            : 0;
-                        wheelIcons[iconIndex].setTexture(
-                            getCharacterIcon(characterIndex, variantIndex)
-                        );
-                        wheelIcons[iconIndex].setAlpha(offset === 0 ? 1 : 0.45);
-                        wheelIcons[iconIndex].setScale(offset === 0 ? 1 : 0.65);
-                    });
-                    const selectedOverlay = player === 1
-                        ? p1BoxSelectedOverlay
-                        : p2BoxSelectedOverlay;
-                    selectedOverlay.setPosition(wheelIcons[1].x, wheelIcons[1].y);
-                
-                }
-            };
+            return { refresh };
         };
+
+
 
         this.mobileWheels = isTouchDevice
             ? {
@@ -870,8 +981,65 @@ export const CharacterSelectScene = {
                 this.updateCharacterDescriptions();
             }
         }
-        // -----------------------------
-        // UPDATE CURSOR POSITIONS
-        // -----------------------------
+        const controllers = getConnectedControllers(this);
+
+        for (let slot = 0; slot < 2; slot++) {
+            const pad = controllers[slot];
+            const previous = this.controllerPreviousInput[slot];
+
+            if (!pad) {
+                this.controllerPreviousInput[slot] = {};
+                continue;
+            }
+
+            const input = getMenuGamepadInput(pad);
+
+            const justPressed = key =>
+                input[key] && !previous[key];
+
+            // Save the current state for edge detection.
+            this.controllerPreviousInput[slot] = { ...input };
+
+            // Controller 1 = Player 1; Controller 2 = Player 2.
+            const player = slot + 1;
+
+            if (player === 1 && this.p1IsReady) continue;
+            if (player === 2 && this.p2IsReady) continue;
+
+            let delta = 0;
+
+            if (justPressed("left")) {
+                delta = -1;
+            } else if (justPressed("right")) {
+                delta = 1;
+            } else if (justPressed("up")) {
+                delta = -4;
+            } else if (justPressed("down")) {
+                delta = 4;
+            }
+
+            if (delta === 0) continue;
+
+            const length = this.characters.length;
+
+            if (player === 1) {
+                this.p1Index =
+                    (this.p1Index + delta + length) % length;
+            } else {
+                this.p2Index =
+                    (this.p2Index + delta + length) % length;
+            }
+
+            this.sound.play("hover");
+
+            // Animate the mobile wheel in the same direction.
+            const wheelDirection = Math.sign(delta);
+
+            this.updateCharacterDescriptions(
+                player === 1 ? wheelDirection : 0,
+                player === 2 ? wheelDirection : 0
+            );
+        }
+
     }
 };
