@@ -11,13 +11,13 @@ export function moveSelection(currentIndex, direction, length) {
 
     return wrapIndex(currentIndex + direction, length);
 }
-export function getConnectedControllers(scene) {
-    const gamepads = scene.input.gamepad?.gamepads ?? [];
 
-    return gamepads.filter(
-        gamepad => gamepad && gamepad.connected
-    );
+export function getConnectedControllers(scene) {
+    return Array.from(navigator.getGamepads?.() ?? [])
+        .filter(gamepad => gamepad && gamepad.connected);
 }
+
+
 export function getMenuGamepadInput(pad) {
     if (!pad) {
         return {
@@ -34,16 +34,14 @@ export function getMenuGamepadInput(pad) {
         return Boolean(button && (button.pressed || button.value > 0.5));
     };
 
-    const DEADZONE = 0.5;
-
     const x = pad.axes[0] ?? 0;
     const y = pad.axes[1] ?? 0;
 
     return {
-        left: pressed(14) || x < -DEADZONE,
-        right: pressed(15) || x > DEADZONE,
-        up: pressed(12) || y < -DEADZONE,
-        down: pressed(13) || y > DEADZONE,
+        left: pressed(14) || Math.round(x) < 0,
+        right: pressed(15) || Math.round(x) > 0,
+        up: pressed(12) || pressed(3),
+        down: pressed(13) || Math.round(y) > 0,
         a: pressed(0)
     };
 }
