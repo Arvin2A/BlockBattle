@@ -490,9 +490,10 @@ function createSpecialMeters(scene) {
     scene.specialMeters = {};
     const meterWidth = 160;
     const meterHeight = 18;
+    const p2MeterColor = scene.botMode ? 0x808080 : 0x00aaff;
     const meters = [
         { key: 'p1', player: scene.gameState.players.player, x: 205, color: 0xf54242, label: 'P1 ABILITY' },
-        { key: 'p2', player: scene.gameState.players.player2, x: 795, color: 0x00aaff, label: 'P2 ABILITY' }
+        { key: 'p2', player: scene.gameState.players.player2, x: 795, color: p2MeterColor, label: 'P2 ABILITY' }
     ];
 
     meters.forEach(meter => {
@@ -875,7 +876,8 @@ function create() {
 
     const plr1StatImage = this.add.image(300, 65, 'redstat');
     plr1StatImage.setScale(0.65);
-    const plr2StatImage = this.add.image(700, 65, 'bluestat');
+    const plr2StatID  = botMode ? 'botstat' : 'bluestat';
+    const plr2StatImage = this.add.image(700, 65, plr2StatID);
     plr2StatImage.setScale(0.65);
     this.hud.add(plr1StatImage);
     this.hud.add(plr2StatImage);
@@ -1083,8 +1085,6 @@ function create() {
     this.hud.add(this.gameState.players.player2.KBFlashText);
     
 
-    //---CONTROLS---\\
-    //Allows holding for the keys too. Later this will be revamped to allow charge attacks
     attackKey1 = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.E);
     attackKey2 = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.SHIFT);
     chainsawModeKey1 = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.Q);
@@ -1124,7 +1124,6 @@ function create() {
     });
 
     //3-2-1 COUNTDOWN
-
     
 
     this.time.delayedCall(50, () => {
@@ -1416,12 +1415,21 @@ function updateKB(scene) {
 
             if (player.name === "SLATEMAN") {
                 if (player.KBmultiplier < 1.50) player.setTexture('slateman');
-                if (player.KBmultiplier >= 1.50) player.setTexture('slatemanphase1');
-                if (player.KBmultiplier >= 2.00) player.setTexture('slatemanphase2');
-                if (player.KBmultiplier >= 2.50) player.setTexture('slatemanphase3');
+                if (player.KBmultiplier >= 1.50) {
+                    player.setTexture('slatemanphase1');
+                    player.playerKBresistance = 1.5
+                }
+                if (player.KBmultiplier >= 2.00) {
+                    player.setTexture('slatemanphase2');
+                    player.playerKBresistance = 1
+                }
+                if (player.KBmultiplier >= 2.50) {
+                    player.setTexture('slatemanphase3');
+                    player.playerKBresistance = 0.5
+                };
 
                 player.playerSpeedScaling =
-                    (250 + ((player.KBmultiplier - 1) * 150)) / 300;
+                    (150 + ((player.KBmultiplier - 1) * 150)) / 300;
 
                 player.baseDamageScale =
                     1 - ((player.KBmultiplier - 1) * 0.35);
@@ -2060,10 +2068,31 @@ function update() {
                 player.freezeGravity = player.body.allowGravity;
             }
             player.body.allowGravity = false;
-            player.setVelocity(0, 0);
+            player.setVelocity(0, -1);
         } else if (player.freezeGravity !== null) {
             player.body.allowGravity = player.freezeGravity;
             player.freezeGravity = null;
+        }
+        if (player.platformHook) {
+            const hook = player.platformHook;
+
+            if (!hook.platform.active || !hook.platform.body?.enable) {
+                player.platformHook = null;
+                player.body.moves = hook.moves;
+                player.body.allowGravity = hook.gravity;
+                player.canAttack = true;
+            } else {
+                player.setPosition(hook.x, hook.y);
+                player.setVelocity(0, 0);
+                player.setAcceleration(0, 0);
+
+                player.body.allowGravity = false;
+                player.body.moves = false;
+
+                player.atk.stop();
+                player.atk.setFrame(6);
+                player.atk.setVisible(true);
+            }
         }
     }
 

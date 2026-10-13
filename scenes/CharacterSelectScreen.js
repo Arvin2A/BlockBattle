@@ -36,11 +36,18 @@ export const CharacterSelectScene = {
 
         this.characterData = [
             {
-                name: 'SWORDMAN', variants: [{
-                    name: 'LONGSWORD',
-                    desc: 'Beware of the slashing sword. \n\nDIR SPECIAL: LUNGE \n\n Mediocre knockback on hit, however it has insane clutch potential.',
-                    color: '#0080ff'
-                }]
+                name: 'SWORDMAN', variants: [
+                    {
+                        name: 'LONGSWORD',
+                        desc: 'Beware of the slashing sword. \n\nDIR SPECIAL: LUNGE \n\n Mediocre knockback on hit, however it has insane clutch potential.',
+                        color: '#0080ff'
+                    },
+                    {
+                        name: 'DAGGER',
+                        desc: 'wow you can stab faster now isn\'t that cool. \n\nDIR SPECIAL: QUICKSTEP \n\n Use it to teleport behind your foe',
+                        color: '#004b95'
+                    },
+                ]
             },
             {
                 name: 'AXEMAN', variants: [
@@ -311,7 +318,7 @@ export const CharacterSelectScene = {
 
                 
 
-                this.sound.play('hover');
+                this.sound.play('hover2');
                 this.updateCharacterDescriptions();
             });
 
@@ -707,7 +714,7 @@ export const CharacterSelectScene = {
         ).setOrigin(0.5);
 
         p1ReadyButton.on('pointerdown', () => {
-            this.sound.play('hover');
+            this.sound.play('hover2');
             p1ReadyButton.setFillStyle(0x686868);
             p1ReadyButton.disableInteractive();
             DESCOVERLAY1.setAlpha(0.5);
@@ -748,7 +755,7 @@ export const CharacterSelectScene = {
         ).setOrigin(0.5);
 
         p2ReadyButton.on('pointerdown', () => {
-            this.sound.play('hover');
+            this.sound.play('hover2');
             p2ReadyButton.setFillStyle(0x686868);
             p2ReadyButton.disableInteractive();
             p2BoxSelectedOverlay.setAlpha(1);
@@ -819,7 +826,6 @@ export const CharacterSelectScene = {
         backBox.on('pointerover', () => backBox.setFillStyle(0x888888));
         backBox.on('pointerout', () => backBox.setFillStyle(0x686868));
         backBox.on('pointerdown', () => {
-            this.sound.play('hover');
             fadeOutTo(this, () => this.scene.start('MapAndModifierSelectScene'));
         });
 

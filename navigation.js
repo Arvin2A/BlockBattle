@@ -95,6 +95,7 @@ export function getNavigationBounds(target, padding = 0) {
 
 
 
+
 export function moveNavigationBox(scene, box, target, options = {}) {
     if (!box || !target) return;
 
@@ -116,12 +117,12 @@ export function moveNavigationBox(scene, box, target, options = {}) {
 
     scene.tweens.killTweensOf(box);
 
+    box.setSize(bounds.width, bounds.height);
+
     scene.tweens.add({
         targets: box,
         x: bounds.x,
         y: bounds.y,
-        width: bounds.width,
-        height: bounds.height,
         duration: settings.duration ?? 150,
         ease: settings.ease ?? "Sine.easeOut"
     });

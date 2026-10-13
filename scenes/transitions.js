@@ -8,4 +8,6 @@ export function fadeOutTo(scene, transition, duration = 200) {
         transition();
     });
     camera.fadeOut(duration, 0, 0, 0);
+    scene.sound.play('hover2');
+
 }

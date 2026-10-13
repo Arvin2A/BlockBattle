@@ -19,6 +19,12 @@ export function createGameAnimations(scene) {
         repeat: 0
     });
     scene.anims.create({
+        key: 'daggeratk',
+        frames: scene.anims.generateFrameNumbers('daggeratk', { start: 0, end: 2 }),
+        frameRate: 32,
+        repeat: 0
+    });
+    scene.anims.create({
         key: 'swordatkthird',
         frames: scene.anims.generateFrameNumbers('swordatkthird', { start: 0, end: 3 }),
         frameRate: 32,
@@ -181,5 +187,17 @@ export function createGameAnimations(scene) {
         frames: scene.anims.generateFrameNumbers('woodcollect', { start: 0, end: 7 }),
         frameRate: 35,
         repeat: -1
-    })
+    });
+    scene.anims.create({
+        key: 'impact1',
+        frames: scene.anims.generateFrameNumbers('impact1', { start: 0, end: 3 }),
+        frameRate: 48,
+        repeat: 0
+    });
+    scene.anims.create({
+        key: 'impact2',
+        frames: scene.anims.generateFrameNumbers('impact2', { start: 0, end: 4 }),
+        frameRate: 48,
+        repeat: 0
+    });
 }

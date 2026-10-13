@@ -10,11 +10,25 @@ const neutralSpecial = () => {};
 export function NeutralPoke() {
     
 }
+
+function attack(api, scene, attacker, victim) {
+    const animKey = attacker.variant === 'DAGGER' ? 'daggeratk' : 'swordatk';
+    if (animKey == 'daggeratk') {
+        api.tryDaggerAttack(scene, attacker, victim, animKey, animKey);
+    } else {
+        api.tryAttack(scene, attacker, victim, animKey, 'swordatkthird');
+    }
+}
 export default {
     handleAttack: (api, scene, attacker, victim) =>
-        api.tryAttack(scene, attacker, victim, 'swordatk', 'swordatkthird'),
-    handleDirSpecial: (api, scene, attacker, direction, currentTime) =>
-        api.tryLunge(scene, attacker, direction, currentTime),
+        attack(api, scene, attacker, victim),
+    handleDirSpecial: (api, scene, attacker, direction, currentTime, victim) => {
+        if (attacker.variant === 'DAGGER') {
+            api.tryQuickstep(scene, attacker, direction, victim, currentTime);
+        } else {
+            api.tryLunge(scene, attacker, direction, currentTime);
+        }
+    },
     handleNeutralSpecial: neutralSpecial,
     variantNeutralSpecials: { LONGSWORD: neutralSpecial },
     handleDirSpecialAttack: (api, scene, attacker, victim) => {

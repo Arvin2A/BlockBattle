@@ -36,6 +36,22 @@ function decelerate(player) {
         player.setVelocityX(0);
     }
 }
+function releasePlatformHook(attacker) {
+    if (!attacker.platformHook) return false;
+
+    const hook = attacker.platformHook;
+
+    attacker.platformHook = null;
+
+    attacker.body.moves = hook.moves;
+    attacker.body.allowGravity = hook.gravity;
+
+    attacker.setVelocity(0, -400);
+    attacker.canAttack = true;
+    attacker.atk.setVisible(false);
+
+    return true;
+}
 export function executeStateCommand(scene, players, command) {
     const attacker = getPlayer(players, command.playerID);
     const victim = getOpponent(players, command.playerID);
@@ -56,19 +72,22 @@ export function executeStateCommand(scene, players, command) {
             break;
 
         case Commands.UP:
+            if (releasePlatformHook(attacker)) break;
             attacker.setVelocityY(-400);
+            
             break;
 
         case Commands.DOUBLE_UP:
+            if (releasePlatformHook(attacker)) break;
             attacker.setVelocityY(-400);
             attacker.doubleJumpEffect.setAlpha(1);
             attacker.hasDoubleJumped = true;
             scene.tweens.add({targets: attacker.doubleJumpEffect,alpha: 0,duration: 200,ease: 'Cubic.easeOut'});
+            
             break;
 
         case Commands.DOWNSLAM:
             attacker.downslamming = true;
-            attacker.isAttacking = true;
             attacker.afterimage = true;
             attacker.setVelocityY(800);
             break;
@@ -79,7 +98,9 @@ export function executeStateCommand(scene, players, command) {
             }
             break;
         case Commands.UP_CANCEL:
+            if (releasePlatformHook(attacker)) break;
             attacker.setVelocityY(attacker.body.velocity.y / 2);
+           
             break;
     }
 }

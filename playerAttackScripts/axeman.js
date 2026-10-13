@@ -130,27 +130,59 @@ function destroyPlank(api, scene, plank) {
         false
     );
     plank.destroy();
+    scene.sound.play('plankbreak');
 }
 
 export function damagePlank(api, scene, plank, damage = 0.02) {
     if (!plank.active || !Number.isFinite(damage) || damage <= 0) return;
 
     plank.health = Math.max(0, plank.health - damage);
-    plank.setAlpha(plank.health / plank.maxHealth);
+
+    const healthRatio = plank.health / plank.maxHealth;
+
+    if (healthRatio > 0.75) {
+        plank.setAlpha(1);
+    } else if (healthRatio > 0.50) {
+        plank.setAlpha(0.75);
+    } else if (healthRatio > 0.25) {
+        plank.setAlpha(0.5);
+    } else {
+        plank.setAlpha(0.25);
+    }
+
+    scene.sound.play('axeslash1');
+
     if (plank.health <= 0) destroyPlank(api, scene, plank);
 }
 
 function breakPlanksWithChainsaw(api, scene, attacker) {
     const attackBounds = attacker.atk.getBounds();
+
     for (const plank of [...scene.planks.getChildren()]) {
-        if (plank.active && Phaser.Geom.Intersects.RectangleToRectangle(
-            attackBounds,
-            plank.body
-        )) {
+        if (
+            !plank.active ||
+            !plank.body?.enable ||
+            !Phaser.Geom.Intersects.RectangleToRectangle(
+                attackBounds,
+                plank.body
+            )
+        ) {
+            continue;
+        }
+
+        // Steel planks resist chainsaws.
+        if (
+            plank.texture.key === 'strongsteel' ||
+            plank.texture.key === 'lightsteel'
+        ) {
+            damagePlank(api, scene, plank, 0.01);
+        } else {
+            // Regular wooden planks are destroyed instantly.
             destroyPlank(api, scene, plank);
         }
     }
 }
+
 
 function updateChainsaw(api, scene, attacker, victim, options = {}) {
     if (!attacker.active || attacker.hitstun || attacker.freeze || scene.finisherActive) {
@@ -272,6 +304,7 @@ function placePlank(
         y,
         'plank'
     );
+    scene.sound.play('placeplank');
     plank.setOrigin(0.5);
     plank.setAngle(rotated ? 90 : 0);
     plank.setDepth(3);
@@ -286,7 +319,6 @@ function placePlank(
 
     attacker.woodCount -= 15;
     attacker.woodText.setText(`Wood: ${attacker.woodCount} ft³`);
-    scene.sound.play('axeslash1');
     plank.expireEvent = scene.time.delayedCall(10000, () => {
         destroyPlank(api, scene, plank);
     });
@@ -370,6 +402,8 @@ function neutralPlaceAndHarvest(api, scene, attacker, victim) {
         api.positionAttackSprite(attacker, 'activechainsaw');
         return;
     }
+
+    if (attacker.chainsawActive) deactivateChainsaw(scene, attacker);
 
     placePlank(api, scene, attacker, {
         x: attacker.x,

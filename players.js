@@ -53,6 +53,7 @@ export function initiatePlayers(scene, p1Select = 'axeman', p2Select = 'swordman
             revokeVictimStun: null,
             revokeMowStun: null,
             activeGrab: null,
+            platformHook: null,
             grabbedBy: null,
             stunToken: 0,
             mowStunToken: 0,
@@ -157,11 +158,7 @@ export function initiatePlayers(scene, p1Select = 'axeman', p2Select = 'swordman
             dirSpecialCooldown: 3500
         });
         const selectedCharacter = p.id === 1 ? p1Select : p2Select;
-        if (selectedCharacter.toUpperCase() === 'GUNMAN') {
-            p.dirSpecialCooldown = 4000;
-        } else if (selectedCharacter.toUpperCase() === 'AXEMAN' && p.variant === "CHAINSAW") {
-            p.dirSpecialCooldown = 3000;
-        }
+
         if (modifierOptions.SLUGGISH.enabled) {
             p.baseMovementSpeed -= 150;
         } 
@@ -270,7 +267,6 @@ export function initiatePlayers(scene, p1Select = 'axeman', p2Select = 'swordman
                 p.y + (p.lastDir.y * 50),
                 'slateatk'
             );
-            p.KBmultiplier = 0.70;
         } else if (p.name === "CROWBARMAN") {
             p.atk = scene.add.sprite(
                 p.x + (p.lastDir.x * 50),
