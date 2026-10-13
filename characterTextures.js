@@ -3,6 +3,10 @@ export const CHARACTER_VARIANT_TEXTURES = {
         LUMBERER: 'axeman',
         CHAINSAW: 'chainsawman'
     },
+    swordman: {
+        LONGSWORD: 'swordman',
+        DAGGER: 'daggerman'
+    },
     hammerman: {
         MALLET: 'hammerman',
         SLEDGEHAMMER: 'sledgehammerman'

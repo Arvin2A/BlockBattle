@@ -4,10 +4,10 @@ export const DEFAULT_MAP = {
     groundVisualPosition: { x: 1000, y: 1385 },
     mainGround: {
         x: 1000,
-        y: 875,
+        y: 880,
         texture: 'thickgroundhitbox',
         width: 1000,
-        height: 5,
+        height: 10,
         visible: false
     },
     platforms: [
@@ -31,8 +31,8 @@ export const DEFAULT_MAP = {
         { x: 775, y: 725, texture: 'platform', scale: 0.5 }
     ],
     playerSpawns: [
-        { x: 550, y: 845 },
-        { x: 1300, y: 740 }
+        { x: 550, y: 855 },
+        { x: 1300, y: 750 }
     ],
     tint: '#8d5c00'
 };
@@ -52,27 +52,27 @@ export const SNOWY_MAP = {
     platforms: [
         {
             x: 1000,
-            y: 530,
+            y: 550,
             texture: 'groundhitbox',
             width: 520,
             height: 0
         },
         {
             x: 1300,
-            y: 640,
+            y: 660,
             texture: 'groundhitbox',
             width: 520,
             height: 0
         }
     ],
     platformVisuals: [
-        { x: 1000, y: 555, texture: 'snowplatform1', scale: 0.75 },
-        { x: 1300, y: 555, texture: 'snowplatform2', scale: 0.75 }
+        { x: 1000, y: 575, texture: 'snowplatform1', scale: 0.75 },
+        { x: 1300, y: 575, texture: 'snowplatform2', scale: 0.75 }
     ],
 
     playerSpawns: [
-        { x: 550, y: 760},
-        { x: 1300, y: 760 }
+        { x: 550, y: 788},
+        { x: 1300, y: 788}
     ],
     tint: '#2b4363'
 };

@@ -30,10 +30,10 @@ function playShotAnimation(
     else play();
 }
 
-function createBeam(api, scene, attacker, victim, sprite = attacker.atk) {
-    const aimLength = Math.hypot(attacker.lastDir.x, attacker.lastDir.y) || 1;
-    const directionX = attacker.lastDir.x / aimLength;
-    const directionY = attacker.lastDir.y / aimLength;
+function createBeam(api, scene, attacker, victim, sprite = attacker.atk, shotDir) {
+    const aimLength = Math.hypot(shotDir.x, shotDir.y) || 1;
+    const directionX = shotDir.x / aimLength;
+    const directionY = shotDir.y / aimLength;
     const rayOriginX = attacker.x;
     const rayOriginY = attacker.y;
     const visualOffsetX = sprite.x - rayOriginX;
@@ -170,6 +170,12 @@ function handleShot(api, scene, attacker, victim, options = {}) {
     if ((!options.ignoreCooldown &&
         (scene.time.now < attacker.nextAttackTime || !attacker.canAttack)) || attacker.hitstun) return;
     if (!options.isSpecial && attacker.gunmanSpecialActive) return;
+    const shotDir = options.isSpecial
+    ? {
+        x: victim.x >= attacker.x ? 1 : -1,
+        y: 0
+    }
+    : attacker.lastDir;
     const isExplosion = options.damageIncrement === undefined && attacker.combo >= 4;
     if (options.isSpecial) {
         playShotAnimation(
@@ -186,9 +192,21 @@ function handleShot(api, scene, attacker, victim, options = {}) {
     if (!options.isSpecial && options.delayedSprite) {
         playShotAnimation(scene, attacker, options.delayedSprite, options.animationDelay);
     }
-    const beams = [createBeam(api, scene, attacker, victim, options.sprite)];
+    const beams = [createBeam(
+        api,
+        scene,
+        attacker,
+        victim,
+        options.sprite,
+        shotDir
+    )];
     beams.forEach(beam => {
-        if (beam.blockedPlank) api.damagePlank(scene, beam.blockedPlank);
+        if (beam.blockedPlank && options.isSpecial) {
+            api.damagePlank(scene, beam.blockedPlank, 0.005);
+            
+        } else if (beam.blockedPlank && !options.isSpecial) {
+            api.damagePlank(scene, beam.blockedPlank);
+        }
     });
     scene.sound.play('gunshot');
     if (isExplosion) scene.sound.play('reload');
@@ -200,19 +218,24 @@ function handleShot(api, scene, attacker, victim, options = {}) {
         victim.flash();
         const damageScale = api.getAttackDamageScale(attacker);
         victim.KBmultiplier += (options.damageIncrement ?? (isExplosion ? 0.10 : 0.02)) * damageScale * hitCount;
-        const hitstunDuration = options.hitstunDuration ?? (isExplosion ? 750 : -1);
+        const hitstunDuration = options.hitstunDuration ?? (isExplosion ? 300 : -1);
         victim.hitstunUntil = scene.time.now + hitstunDuration * victim.KBmultiplier;
         if (options.freezeDuration !== undefined) {
             victim.freezeUntil = scene.time.now + options.freezeDuration;
         }
-        victim.willDecelerate = false;
         const knockback = (isExplosion ? 600 : 0) * victim.KBmultiplier * damageScale;
-        const verticalKick = attacker.lastDir.y === 0
+        const verticalKick = shotDir.y === 0
             ? (isExplosion ? -220 : 0)
-            : attacker.lastDir.y * knockback;
-        api.applyKnockback(scene, victim, attacker.lastDir.x * knockback, verticalKick);
+            : shotDir.y * knockback;
+
+        api.applyKnockback(
+            scene,
+            victim,
+            shotDir.x * knockback,
+            verticalKick
+        );
         if (isExplosion) scene.sound.play('explosion');
-        scene.time.delayedCall(isExplosion ? 550 : 350, () => {
+        scene.time.delayedCall(isExplosion ? 800 : 0, () => {
             if (victim.active) victim.willDecelerate = true;
         });
 
@@ -272,6 +295,13 @@ function handleGunmanSpecial(api, scene, attacker, direction, currentTime, victi
 
         const fireBullet = () => {
             if (!attacker.active || !victim.active) return;
+
+            if (attacker.lastDir.y === 0) {
+                attacker.lastDir.x = victim.x >= attacker.x ? 1 : -1;
+            }
+
+            attacker.lastDir.y = 0;
+
             handleShot(api, scene, attacker, victim, {
                 damageIncrement: 0.007,
                 hitstunDuration: 100,

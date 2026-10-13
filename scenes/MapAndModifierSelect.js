@@ -185,7 +185,7 @@ export const MapAndModifierSelectScene = {
 				selectedMapDefinition = map.definition;
 				this.selectedMapIndex = index;
 				this.updateMapSelection(true);
-				this.sound.play('hover');
+				this.sound.play('revolveselect');
 			};
 
 
@@ -348,7 +348,7 @@ export const MapAndModifierSelectScene = {
 					selectedMapDefinition = maps[index].definition;
 					this.selectedMapIndex = index;
 					this.updateMapSelection(true);
-					this.sound.play("hover");
+					this.sound.play("revolveselect");
 				}
 			})),
 
@@ -370,6 +370,7 @@ export const MapAndModifierSelectScene = {
 				type: "button",
 				action: () => {
 					fadeOutTo(this, () => this.scene.start("MenuScene"));
+					this.sound.play("hover2");
 				}
 			},
 
@@ -378,6 +379,7 @@ export const MapAndModifierSelectScene = {
 				type: "button",
 				action: () => {
 					fadeOutTo(this, () => this.scene.start("CharacterSelectScene"));
+					this.sound.play("hover2");
 				}
 			}
 		];

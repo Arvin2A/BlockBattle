@@ -3,6 +3,7 @@ export function preloadMenu() {
     this.load.image('uifade', 'assets/uifade.png');
     this.load.audio('hover', 'audio/hover.wav');
     this.load.audio('deny', 'audio/deny.wav');
+    this.load.audio('hover2', 'audio/hover2.wav');
 }
 
 export function preloadMapSelection() {
@@ -10,6 +11,8 @@ export function preloadMapSelection() {
     this.load.image('snowypreview', 'assets/snowy_preview.png');
     this.load.image('randompreview', 'assets/random_preview.png');
     this.load.audio('hover', 'audio/hover.wav');
+    this.load.audio('hover2', 'audio/hover2.wav');
+    this.load.audio('revolveselect', 'audio/revolveselect.wav');
 }
 
 export function preloadCharacterSelection() {
@@ -18,11 +21,14 @@ export function preloadCharacterSelection() {
     this.load.image('ready', 'assets/READY.png');
     this.load.audio('hover', 'audio/hover.wav');
     this.load.audio('deny', 'audio/deny.wav');
+    this.load.audio('hover2', 'audio/hover2.wav');
+
 
     const characterTextures = [
         ['axeman', 'assets/sprites/axeman/axeman-default.png'],
         ['chainsawman', 'assets/sprites/axeman/axeman-chainsaw.png'],
         ['swordman', 'assets/sprites/swordman/swordman-default.png'],
+        ['daggerman', 'assets/sprites/swordman/swordman-dagger.png'],
         ['fisherman', 'assets/sprites/fisherman/fisherman-default.png'],
         ['scytheman', 'assets/sprites/scytheman/scytheman-default.png'],
         ['hammerman', 'assets/sprites/hammerman/hammerman-default.png'],
@@ -96,6 +102,8 @@ export function preload() {
 
     this.load.image('redstat', 'assets/KBstatBG1.png');
     this.load.image('bluestat', 'assets/KBstatBG2.png');
+    this.load.image('botstat', 'assets/KBstatBGBOT.png');
+
 
     this.load.image('p1guide', 'assets/p1guide.png');
     this.load.image('p2guide', 'assets/p2guide.png');
@@ -180,6 +188,9 @@ export function preload() {
         'assets/sprites/swordman/swordman-default.png'
     );
 
+    
+    
+
     this.load.spritesheet(
         'swordatk',
         'assets/sprites/swordman/swordatk1.png',
@@ -203,6 +214,23 @@ export function preload() {
         'assets/sprites/swordman/swordatk3.png',
         {
             frameWidth: 100,
+            frameHeight: 50
+        }
+        
+    );
+    // =====================================================
+    // SWORDMAN - DAGGER
+    // =====================================================
+
+    this.load.image(
+        'daggerman',
+        'assets/sprites/swordman/swordman-dagger.png'
+    );
+    this.load.spritesheet(
+        'daggeratk',
+        'assets/sprites/swordman/daggeratk.png',
+        {
+            frameWidth: 75,
             frameHeight: 50
         }
     );
@@ -323,6 +351,16 @@ export function preload() {
         'hammerman',
         'assets/sprites/hammerman/hammerman-default.png'
     );
+    this.load.image(
+        'lightsteel',
+        'assets/sprites/hammerman/steelplank.png'
+    );
+
+    this.load.image(
+        'strongsteel',
+        'assets/sprites/hammerman/thicksteelplank.png'
+    );
+
 
     this.load.spritesheet(
         'hammeratk',
@@ -522,6 +560,24 @@ export function preload() {
     );
     this.load.image('impactcrater', 'assets/impactcrater.png');
 
+    this.load.spritesheet(
+        'impact1',
+        'assets/impact1.png',
+        {
+            frameWidth: 50,
+            frameHeight: 50
+        }
+    );
+    this.load.spritesheet(
+        'impact2',
+        'assets/impact2.png',
+        {
+            frameWidth: 50,
+            frameHeight: 50
+        }
+    );
+
+
 
     // =====================================================
     // AUDIO - GLOBAL
@@ -547,6 +603,7 @@ export function preload() {
     this.load.audio('swordslash1', 'audio/swordslash1.wav');
     this.load.audio('swordslash2', 'audio/swordslash2.wav');
 
+    this.load.audio('teleport', 'audio/teleport.wav');
 
 
     // =====================================================
@@ -561,6 +618,8 @@ export function preload() {
     this.load.audio('chainsaw', 'audio/chainsaw.wav');
     this.load.audio('deactivatechainsaw', 'audio/deactivatechainsaw.wav');
     this.load.audio('collectwood', 'audio/collectwood.wav');
+    this.load.audio('plankbreak', 'audio/plankbreak.wav');
+    this.load.audio('placeplank','audio/placeplank.wav');
 
     // =====================================================
     // AUDIO - FISHERMAN
@@ -589,6 +648,9 @@ export function preload() {
     this.load.audio('sledgehammerhit', 'audio/sledgehammerhit.wav');
     this.load.audio('sledgewhoosh', 'audio/sledgewhoosh.wav');
     this.load.audio('sledgehammerquickslam', 'audio/quickslamgrounded.wav');
+    this.load.audio('steelplank', 'audio/steelplank.wav');
+    this.load.audio('thicksteelplank', 'audio/steelplank2.wav');
+
 
     // =====================================================
     // AUDIO - SLATEMAN
@@ -598,6 +660,7 @@ export function preload() {
     this.load.audio('plunge', 'audio/plunge.ogg');
     this.load.audio('slatelight1', 'audio/slatelight1.wav');
     this.load.audio('slatelight2', 'audio/slatelight2.wav');
+    this.load.audio('rockbreak', 'audio/rockbreak.wav')
 
     // =====================================================
     // AUDIO - CROWBARMAN

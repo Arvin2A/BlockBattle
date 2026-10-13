@@ -21,9 +21,17 @@ function addSceneUpdateListener(scene, listener) {
     return removeListener;
 }
 
-function damagePlanksInAttack(attacker) {
+function damagePlanksInAttack(attacker, pardamage = 0.05) {
     const scene = attacker.scene;
-    if (attacker.name === 'AXEMAN' || !scene?.planks || !attacker.atk?.active) return;
+    if (!scene?.planks || !attacker.atk?.active) return;
+    var damage = pardamage
+    console.log(pardamage);
+    if (attacker.name === "AXEMAN") {
+        damage = 0.15
+    }
+    if (attacker.name == "SWORDMAN" && attacker.variant == "DAGGER") {
+        damage = 0.02
+    }
 
     const attackSequence = attacker.attackSequence ?? 0;
     if (attacker.lastPlankDamageSequence === attackSequence) return;
@@ -36,7 +44,7 @@ function damagePlanksInAttack(attacker) {
 
     attacker.lastPlankDamageSequence = attackSequence;
     intersectingPlanks.forEach(plank =>
-        damageAxemanPlank(sharedAttackHelpers, scene, plank)
+        damageAxemanPlank(sharedAttackHelpers, scene, plank, damage)
     );
 }
 
@@ -316,7 +324,7 @@ export function attackIsElligible(
     if (eligible && !onlyOnCanAttack) attacker.attackBypassesHitstun = true;
     if (eligible) {
         cutGrassBeforeMaturity(attacker);
-        damagePlanksInAttack(attacker);
+        //damagePlanksInAttack(attacker);
     }
     return eligible;
 }
@@ -489,6 +497,8 @@ export function attack(scene, attacker, target, animKey) {
             scene.sound.play('anyhit');
         }
         target.KBmultiplier += 0.03 * getAttackDamageScale(attacker); // Increase KB multiplier for third hit
+        damagePlanksInAttack(attacker, 0.03 * getAttackDamageScale(attacker));
+
 
     } else {
         attacker.combo = 0;
@@ -507,6 +517,80 @@ export function attack(scene, attacker, target, animKey) {
     queueStunRelease(scene, attacker, target, 400, 650);
     return hit;
 }
+export function daggerattack(scene, attacker, target, animKey) {
+    //the core attack function that is used as of now
+    if (!attacker.canAttack || attacker.hitstun || scene.finisherActive) return;
+
+    setAttackSprite(attacker, animKey);
+
+    let hit = false;
+
+
+    if (attackIsElligible(attacker, target, 85)) {
+        hit = true;
+
+        target.hitstunUntil = 350 + scene.time.now;;
+        target.freezeUntil = 350 + scene.time.now;;
+        attacker.freezeUntil = 200 + scene.time.now;;
+        attacker.willDecelerate = false;
+        attacker.comboTimer = 600;
+
+        const dirX = attacker.lastDir.x;
+        const dirY = attacker.lastDir.y;
+        scene.time.delayedCall(50, () => {
+            applyKnockback(scene, target, 10 * dirX, 100 * dirY);
+        });
+
+    }
+
+    if (hit) {
+        attacker.combo = (attacker.combo || 0) + 1;
+        applyKnockback(scene, target, 0, 0);
+        attacker.setVelocityX(0);
+        attacker.setVelocityY(0);
+        // Attack sound
+        if (attacker.name === "SWORDMAN") {
+            const randomNumber = Math.round(Math.random());
+            const soundID = randomNumber === 0 ? 'swordslash1' : 'swordslash2';
+            scene.sound.play(soundID);
+        } else if (attacker.name === "AXEMAN") {
+            const randomNumber = Math.round(Math.random());
+            const soundID = randomNumber === 0 ? 'axeslash1' : 'axeslash2';
+            scene.sound.play(soundID);
+        } else if (attacker.name === "SLATEMAN") {
+            const randomNumber = Math.round(Math.random());
+            const soundID = randomNumber === 0 ? 'slatelight1' : 'slatelight2';
+            scene.sound.play(soundID);
+        } else if (attacker.name === "SCYTHEMAN") {
+            const randomNumber = Math.round(Math.random());
+            const soundID = randomNumber === 0 ? 'axeslash1' : 'axeslash2';
+            scene.sound.play(soundID);
+        } else if (attacker.name === "CROWBARMAN") {
+            const randomNumber = Math.round(Math.random());
+            const soundID = randomNumber === 0 ? 'crowbarclang1' : 'crowbarclang2';
+            scene.sound.play(soundID);
+        } else {
+            scene.sound.play('anyhit');
+        }
+        target.KBmultiplier += 0.02 * getAttackDamageScale(attacker); // Increase KB multiplier for third hit
+        damagePlanksInAttack(attacker, 0.02 * getAttackDamageScale(attacker));
+
+
+    } else {
+        attacker.combo = 0;
+        scene.sound.play('miss');
+    }
+
+    if (attacker.combo >= 6) {
+        attacker.combo = 0;
+    }
+
+    scene.time.delayedCall(50, () => {
+        hideAttackSprite(attacker);
+    });
+    queueStunRelease(scene, attacker, target, 0, 350);
+    return hit;
+}
 // Shared attack types and character-exclusive move mechanics.
 export function superSwing(scene, attacker, target, animKey) {
 
@@ -523,6 +607,7 @@ export function superSwing(scene, attacker, target, animKey) {
         attacker.comboTimer = 600;
         target.choppedUntil = scene.time.now + 3000;
         target.KBmultiplier += 0.34 * getAttackDamageScale(attacker);
+        damagePlanksInAttack(attacker, 0.34 * getAttackDamageScale(attacker));
         hitFreeze(scene, 50);
         scene.sound.play('axecleavesfx');
         const dirX = attacker.lastDir.x;
@@ -536,7 +621,7 @@ export function superSwing(scene, attacker, target, animKey) {
             const randDir = Math.random() < 0.5 ? -1 : 1;
             applyKnockback(scene, target, (800 * getAttackDamageScale(attacker)) * randDir, -200 * target.KBmultiplier);
         } else {
-            applyKnockback(scene, target, (800 * getAttackDamageScale(attacker)) * dirX, (500 * target.KBmultiplier) * dirY);
+            applyKnockback(scene, target, (800 * getAttackDamageScale(attacker)) * dirX, (500) * dirY);
         }
         attacker.combo = 0;
         attacker.comboTimer = 0;
@@ -574,6 +659,7 @@ export function pushAttack(scene, attacker, target, animKey) {
         attacker.willDecelerate = true;
         attacker.comboTimer = 600;
         target.KBmultiplier += 0.05 * getAttackDamageScale(attacker);
+        damagePlanksInAttack(attacker, 0.03 * getAttackDamageScale(attacker));
         hitFreeze(scene, 50);
         if (attacker.name === "HAMMERMAN") {
             scene.sound.play('hammerhit');
@@ -648,6 +734,8 @@ export function hardSwing(scene, attacker, target, animKey) {
         attacker.willDecelerate = true;
         attacker.comboTimer = 600;
         target.KBmultiplier += 0.13 * getAttackDamageScale(attacker);
+        damagePlanksInAttack(attacker, 0.5 * getAttackDamageScale(attacker));
+
         hitFreeze(scene, 100);
         if (attacker.name === "HAMMERMAN") {
             scene.sound.play('hammerhit');
@@ -665,7 +753,7 @@ export function hardSwing(scene, attacker, target, animKey) {
             const randDir = Math.random() < 0.5 ? -1 : 1;
             applyKnockback(scene, target, (375 * target.KBmultiplier) * randDir, -200 * target.KBmultiplier);
         } else {
-            applyKnockback(scene, target, (350 * target.KBmultiplier * getAttackDamageScale(attacker)) * dirX, (500 * target.KBmultiplier) * dirY);
+            applyKnockback(scene, target, (400 * target.KBmultiplier * getAttackDamageScale(attacker)) * dirX, (300 * target.KBmultiplier) * dirY);
         }
         attacker.combo = 0;
         attacker.comboTimer = 0;
@@ -696,6 +784,7 @@ export function veryhardSwing(scene, attacker, target, animKey) {
     scene.time.delayedCall(800, () => {
         //the delay makes slegdehammer man telegraphable and punishable, but also makes it feel like a big swing.
         if (attackIsElligible(attacker, target, 150) && !scene.finisherActive && attacker.variant === "SLEDGEHAMMER") {
+            damagePlanksInAttack(attacker, 0.30);
             target.hitstunUntil = 400 * target.KBmultiplier + scene.time.now;
             target.willDecelerate = false;
             target.freezeUntil = scene.time.now - 1;
@@ -763,6 +852,7 @@ export function thirdAttack(scene, attacker, target, animKey) {
         attacker.comboTimer = 600;
 
         target.KBmultiplier += 0.07 * getAttackDamageScale(attacker);
+        damagePlanksInAttack(attacker, 0.10 * getAttackDamageScale(attacker));
 
         // Attack sound
         if (attacker.name === "SWORDMAN") {
@@ -855,6 +945,7 @@ export function lungePush(scene, attacker, target, animKey) {
         attacker.willDecelerate = true;
         attacker.comboTimer = 600;
         target.KBmultiplier += 0.30 * getAttackDamageScale(attacker);
+        damagePlanksInAttack(attacker, 0.3 * getAttackDamageScale(attacker));
         hitFreeze(scene);
         scene.sound.play('swordslash1');
         const dirX = attacker.lastDir.x;
@@ -891,7 +982,83 @@ export function lungePush(scene, attacker, target, animKey) {
     });
 
 }
+export function quickstepAttack(scene, attacker, target, teleportDirection, animKey) {
+    setAttackSprite(attacker, animKey);
 
+    const attackDirX = teleportDirection === 'right' ? -1 : 1;
+
+    const originalDirX = attacker.lastDir.x;
+    attacker.lastDir.x = attackDirX;
+
+    const eligible = attackIsElligible(attacker, target, 200, false);
+
+    attacker.lastDir.x = originalDirX;
+
+    if (eligible && !scene.finisherActive) {
+        target.hitstunUntil = 300 * target.KBmultiplier + scene.time.now;
+        target.willDecelerate = false;
+        target.freezeUntil = scene.time.now - 1;
+        attacker.freezeUntil = scene.time.now - 1;
+
+        attacker.hasHitSideSpecial = true;
+        attacker.willDecelerate = true;
+        attacker.comboTimer = 600;
+
+        target.KBmultiplier += 0.15 * getAttackDamageScale(attacker);
+        damagePlanksInAttack(attacker, 0.15 * getAttackDamageScale(attacker));
+
+        hitFreeze(scene);
+        scene.sound.play('swordslash1');
+
+        let dirY = attacker.lastDir.y;
+        if (dirY === 0) dirY = -0.5;
+
+        if (target.body.touching.down && dirY > 0.7) {
+            const randDir = Math.random() < 0.5 ? -1 : 1;
+            applyKnockback(
+                scene,
+                target,
+                137.5 * target.KBmultiplier * getAttackDamageScale(attacker) * randDir,
+                -200 * target.KBmultiplier
+            );
+        } else {
+            applyKnockback(
+                scene,
+                target,
+                125 * target.KBmultiplier * getAttackDamageScale(attacker) * attackDirX,
+                200 * target.KBmultiplier * dirY
+            );
+        }
+
+        attacker.combo = 0;
+        attacker.comboTimer = 0;
+    }
+
+    attacker.canAttack = false;
+
+    scene.time.delayedCall(250, () => {
+        hideAttackSprite(attacker);
+    });
+
+    scene.time.delayedCall(400, () => {
+        attacker.canAttack = true;
+    });
+
+    if (attacker.revokeAggressorStun) {
+        scene.time.removeEvent(attacker.revokeAggressorStun);
+    }
+    if (target.revokeVictimStun) {
+        scene.time.removeEvent(target.revokeVictimStun);
+    }
+
+    scene.time.delayedCall(300 * target.KBmultiplier, () => {
+        target.hitstun = false;
+    });
+
+    scene.time.delayedCall(1000, () => {
+        if (!scene.finisherActive) target.willDecelerate = true;
+    });
+}
 export function slamThirdAttack(scene, attacker, target, animKey) {
     //The third attack launching the target away
     setAttackSprite(attacker, animKey);
@@ -903,6 +1070,7 @@ export function slamThirdAttack(scene, attacker, target, animKey) {
         attacker.willDecelerate = true;
         attacker.comboTimer = 600;
         target.KBmultiplier += 0.07 * getAttackDamageScale(attacker);
+        damagePlanksInAttack(attacker, 0.10 * getAttackDamageScale(attacker));
         if (attacker.name == "SWORDMAN") {
             scene.sound.play('swordthirdhitsfx');
         } else if (attacker.name == "AXEMAN") {
@@ -946,6 +1114,83 @@ export function slamThirdAttack(scene, attacker, target, animKey) {
     });
 
 }
+function tryHookPlatform(scene, attacker) {
+    const attackBounds = attacker.atk.getBounds();
+
+    const hookTolerance = 55;
+
+    const expandedBounds = new Phaser.Geom.Rectangle(
+        attackBounds.x - hookTolerance,
+        attackBounds.y - hookTolerance,
+        attackBounds.width + hookTolerance * 2,
+        attackBounds.height + hookTolerance * 2
+    );
+
+    const platforms = [
+        ...(scene.gameState?.map?.platforms?.getChildren() ?? []),
+        ...(scene.gameState?.map?.topPlatforms?.getChildren() ?? []),
+        ...(scene.planks?.getChildren() ?? [])
+    ];
+    var angle;
+
+    const platform = platforms.find(p => {
+        if (!p.active || !p.body?.enable) return false;
+
+        const bounds = p.getBounds();
+
+        const hookX = Phaser.Math.Clamp(
+            attacker.x + (attacker.atk.x - attacker.x),
+            bounds.left,
+            bounds.right
+        );
+
+        const hookY = Phaser.Math.Clamp(
+            attacker.y + (attacker.atk.y - attacker.y),
+            bounds.top,
+            bounds.bottom
+        );
+
+            angle = Phaser.Math.RadToDeg(
+            Phaser.Math.Angle.Between(
+                attacker.atk.x,
+                attacker.atk.y,
+                hookX,
+                hookY
+            )
+        );
+
+        return Phaser.Geom.Intersects.RectangleToRectangle(
+            expandedBounds,
+            bounds
+        );
+    });
+
+    if (!platform) return false;
+
+    attacker.platformHook = {
+        platform,
+        gravity: attacker.body.allowGravity,
+        moves: attacker.body.moves,
+        x: attacker.x,
+        y: attacker.y
+    };
+
+    attacker.setVelocity(0, 0);
+    attacker.setAcceleration(0, 0);
+
+    attacker.body.allowGravity = false;
+    attacker.body.moves = false;
+
+    attacker.canAttack = false;
+
+    attacker.atk.stop();
+    attacker.atk.setFrame(6);
+    attacker.atk.setAngle(angle);
+    attacker.atk.setVisible(true);
+
+    return true;    return true;
+
+}
 export function tryGrab(scene, attacker, target, direction, currentTime, animKey = 'crowbargrab') {
     //Exclusive to the crowbarman, this attack initiates a grab on the target
     //When the target is grabbed, they are unable to move or attack, they will be hooked on the crowbar for 3 seconds before released
@@ -959,6 +1204,7 @@ export function tryGrab(scene, attacker, target, direction, currentTime, animKey
     if (currentTime - attacker.lastTap[direction] < dtapDelay || attacker.isBot) {
 
         setAttackSprite(attacker, animKey);
+        attacker.platformHook = null;
         attacker.isUsingSideSpecial = true
         attacker.isUsingSideSpecial = false;
 
@@ -975,7 +1221,8 @@ export function tryGrab(scene, attacker, target, direction, currentTime, animKey
             attacker.freezeUntil = scene.time.now - 1;
             attacker.willDecelerate = true;
             attacker.comboTimer = 600;
-            target.KBmultiplier += 0.01 * getAttackDamageScale(attacker);
+            target.KBmultiplier += 0.03 * getAttackDamageScale(attacker);
+            damagePlanksInAttack(attacker, 0.03 * getAttackDamageScale(attacker));
             //weak damage, but the target is grabbed and unable to move or attack for 3 seconds
             scene.sound.play('grab');
             target.body.allowGravity = false;
@@ -1018,9 +1265,15 @@ export function tryGrab(scene, attacker, target, direction, currentTime, animKey
             attacker.combo = 0;
             attacker.comboTimer = 0;
         } else {
-            scene.sound.play('miss');
-            scene.time.delayedCall(300, () => {
-                hideAttackSprite(attacker);
+            attacker.atk.once(`animationcomplete-${animKey}`, () => {
+                const hooked = tryHookPlatform(scene, attacker);
+
+                if (!hooked) {
+                    scene.sound.play('miss');
+                    scene.time.delayedCall(300, () => {
+                        hideAttackSprite(attacker);
+                    });
+                }
             });
         }
         startSideSpecialCooldown(attacker, currentTime, grabCD);
@@ -1079,7 +1332,7 @@ export function tiltAttack(scene, attacker, target, {
     kb = 0.1,
     xMul = 1,
     yMul = 0,
-    range = 100,
+    range = 120,
     freeze = 80,
     sfx = 'anyhit',
     kbTime = 200,
@@ -1094,13 +1347,14 @@ export function tiltAttack(scene, attacker, target, {
         onUse(scene);
     }
     if (attackIsElligible(attacker, target, range) && !scene.finisherActive) {
-        target.hitstunUntil = kbTime + scene.time.now;
+        target.hitstunUntil = kbTime + 300 + scene.time.now;
         target.willDecelerate = false;
         target.freezeUntil = scene.time.now - 1;
         attacker.freeze = scene.time.now - 1;
         attacker.willDecelerate = true;
         attacker.comboTimer = 600;
         target.KBmultiplier += kb * getAttackDamageScale(attacker);
+        damagePlanksInAttack(attacker, kb * getAttackDamageScale(attacker));
         if (onHit) {
             onHit(scene);
         }
@@ -1118,7 +1372,7 @@ export function tiltAttack(scene, attacker, target, {
             const randDir = Math.random() < 0.5 ? -1 : 1;
             applyKnockback(scene, target, 325 * (target.KBmultiplier / 2 * (getAttackDamageScale(attacker) + plungeMultiplier)) * randDir, -200 * (target.KBmultiplier / 2));
         } else {
-            applyKnockback(scene, target, (400 * xMul * (getAttackDamageScale(attacker) + plungeMultiplier)) * dirX, (500 * yMul) * dirY);
+            applyKnockback(scene, target, (500 * xMul * (getAttackDamageScale(attacker) + plungeMultiplier)) * dirX, (500 * yMul) * dirY);
         }
         attacker.combo = 0;
         attacker.comboTimer = 0;
@@ -1164,6 +1418,24 @@ export function tryAttack(scene, attacker, target, animKey, thirdAnimKey) {
     }
     attacker.nextAttackTime = scene.time.now + 400; // Attack cooldown
 }
+export function tryDaggerAttack(scene, attacker, target, animKey, thirdAnimKey) {
+    //handles some other stuff before calling either attack functions
+    //such as checking if the attack is on cooldown, and whether to use the third attack or not
+    if (scene.time.now < attacker.nextAttackTime) return;
+    if (!attacker.canAttack || attacker.hitstun) return;
+
+    if (attacker.combo >= 5) {
+        //three more hits for dagger
+        thirdAttack(scene, attacker, target, thirdAnimKey);
+    } else {
+        if (attacker.horizontalMovementActive) {
+            pushAttack(scene, attacker, target, animKey);
+        } else {
+            daggerattack(scene, attacker, target, animKey);
+        }
+    }
+    attacker.nextAttackTime = scene.time.now + 100; // Attack cooldown
+}
 export function tryAttack2(scene, attacker, target, animKey, thirdAnimKey) {
     //handles some other stuff before calling either attack functions
     //such as checking if the attack is on cooldown, and whether to use the third attack or not
@@ -1196,10 +1468,56 @@ export function tryAttack3(scene, attacker, target, animKey, thirdAnimKey) {
 
     attacker.nextAttackTime = scene.time.now + 400; // Attack cooldown
 }
+
+export function tryQuickstep(scene, player, direction, target, currentTime) {
+    // QUICKSTEP: DAGGER-exclusive double-tap teleport.
+
+    const dtapDelay = 250;
+    const quickstepCd = player.dirSpecialCooldown;
+
+    if (player.hitstun || player.freeze) return;
+    if (currentTime < player.nextSideSpecialTime) return;
+    if (direction !== 'left' && direction !== 'right') return;
+
+    if (
+        currentTime - player.lastTap[direction] < dtapDelay ||
+        player.isBot
+    ) {
+        const distance = 200;
+        const dirX = direction === 'left' ? -1 : 1;
+
+        player.setVelocityX(0);
+        player.setVelocityY(0);
+
+        player.setX(player.x + dirX * distance);
+
+        player.setVelocityX(0);
+        player.setVelocityY(0);
+
+        startSideSpecialCooldown(
+            player,
+            currentTime,
+            quickstepCd
+        );
+
+        scene.sound.play('teleport');
+
+        quickstepAttack(
+            scene,
+            player,
+            target,
+            direction,
+            'daggeratk'
+        );
+    }
+
+    player.lastTap[direction] = currentTime;
+}
+
 export function tryLunge(scene, player, direction, currentTime, animKey = 'swordatk') {
     //LUNGE: exclusive for the swordsman, this is performed by double tapping left or right
     // It launches the player forward in the direction they are lunging in
-    //Why do this? Using arrow keys and right shift is harder than using WASD and E
+    //Why do this? Using arrow keys and right shift is harder than using WASD and E, back when swordman and axeman's player was hardcoded.
     //Basically it balances out the controls.
     const dtapDelay = 250;
     const lungecd = player.dirSpecialCooldown;
@@ -1304,6 +1622,7 @@ export function tryMow(scene, player, target, direction, currentTime) {
             target.willDecelerate = false;
             target.freezeUntil = scene.time.now - 1;
             target.KBmultiplier += 0.15 * knockbackScale * getAttackDamageScale(player);
+            damagePlanksInAttack(player, 0.15 * getAttackDamageScale(player));
             applyKnockback(scene, target, 850 * knockbackScale * player.lastDir.x, -150 * knockbackScale);
             hitFreeze(scene, 70);
             scene.sound.play('slice');
@@ -1576,6 +1895,7 @@ export function markPlunge(scene, attacker, target, dir) {
         attacker.willDecelerate = true;
         attacker.comboTimer = 600;
         target.KBmultiplier += 0.075 * getAttackDamageScale(attacker);
+        damagePlanksInAttack(attacker, 0.08 * getAttackDamageScale(attacker));
         target.plunged = true;
         hitFreeze(scene, 50);
         scene.sound.play('plunge');
@@ -1631,6 +1951,7 @@ export function quickslam1(scene, attacker, target, animKey = 'sledgehammerquick
         attacker.freezeUntil = scene.time.now - 1;
         attacker.comboTimer = 600;
         target.KBmultiplier += 0.25 * getAttackDamageScale(attacker);
+        damagePlanksInAttack(attacker, 0.25 * getAttackDamageScale(attacker));
         hitFreeze(scene, 100);
         const dirX = attacker.lastDir.x;
 
@@ -1761,6 +2082,7 @@ export function quickslam2(scene, attacker, target, animKey = 'sledgehammerquick
             attacker.willDecelerate = true;
             attacker.comboTimer = 600;
             target.KBmultiplier += 0.25 * getAttackDamageScale(attacker);
+            damagePlanksInAttack(attacker, 0.25 * getAttackDamageScale(attacker));
             scene.sound.play('sledgehammerquickslam');
             scene.sound.play('damn', { volume: 2 });
             hitFreeze(scene, 100);
@@ -1849,6 +2171,8 @@ export function tryPlunge(scene, player, target, direction, currentTime) {
         return;
     }
 
+    const currentSpeed = player.baseMovementSpeed;
+    player.baseMovementSpeed = currentSpeed*2;
     startSideSpecialCooldown(player, currentTime, pullCD);
     player.attackBypassesHitstun = false;
     player.isAttacking = true;
@@ -1907,10 +2231,8 @@ export function tryPlunge(scene, player, target, direction, currentTime) {
     dagger.on('animationupdate', (animation, frame) => {
         const currentFrame = frame.index;
 
-        // Active frames
         attackActive = currentFrame >= 6 && currentFrame <= 10;
 
-        // Miss sound once when active window ends
         if (
             currentFrame > 10 &&
             !plungeCanceled &&
@@ -1927,6 +2249,8 @@ export function tryPlunge(scene, player, target, direction, currentTime) {
         player.afterimage = false;
         player.isAttacking = false;
         player.attackBypassesHitstun = false;
+        player.baseMovementSpeed = currentSpeed;
+
 
         dagger.destroy();
     });
@@ -2097,8 +2421,8 @@ const sharedAttackHelpers = {
     getAttackDamageScale,
     getProjectileBlockingPlatforms,
     attackIsElligible,
-    positionAttackSprite,
     setAttackSprite,
+    positionAttackSprite,
     hideAttackSprite,
     hitFreeze,
     startSideSpecialCooldown,
@@ -2112,7 +2436,9 @@ const sharedAttackHelpers = {
     tryAttack,
     tryAttack2,
     tryAttack3,
+    tryDaggerAttack,
     tryLunge,
+    tryQuickstep,
     tryCleave,
     tryPull,
     tryMow,

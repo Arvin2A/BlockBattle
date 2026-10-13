@@ -9,6 +9,8 @@ var navBox = null;
 var layout = []
 var selectedIndex = 0;
 var previousInput = {};
+const CHANGELOG_VERSION = "2026-10-12-2";
+const CHANGELOG_STORAGE_KEY = "blockBattleSeenChangelog";
 export const MenuScene = {
     //load the menu scene which is just a cool background image we made
     //its also has the start button, initiating the game when clicked
@@ -21,32 +23,350 @@ export const MenuScene = {
         // Create menu UI elements here
         const fade = this.add.image(500, 300, 'uifade');
         fade.setDisplaySize(this.scale.width, this.scale.height);
-        const changelogBox = this.add.rectangle(190, 300, 340, 450, 0x111111, 0.78);
-        changelogBox.setStrokeStyle(3, 0x000000, 0.9);
         currentControllers = getConnectedControllers(this);
         primaryController = currentControllers[0] ?? null;
+
 
         navBox = null;
         layout = [];
         selectedIndex = 0;
         previousInput = {};
-        this.add.text(40, 135, 'CHANGELOG UPDATE!', {
-            fontFamily: 'VCROSD',
-            fontSize: '24px',
-            fill: '#ff57abc2',
-            stroke: '#000000',
-            strokeThickness: 5
+        this.input.topOnly = false;
+
+        const changelogEntries = [
+            {
+                title: "DAGGER SWORDMAN",
+                body: "The DAGGER variant of SWORDMAN has been added to the game."
+            },
+            {
+                title: "MALLET AND SLEDGEHAMMER WALL",
+                body: "Pressing the SPECIAL key (ALT for keyboard) for hammerman can now place strong vertical walls. "
+            },
+            {
+                title: "CROWBARMAN's GRAB",
+                body: "CROWBARMAN can now grab onto planks/walls."
+            },
+            {
+                title: "SFX",
+                body: "UI selection SFX and plank placement SFX has been revamped."
+            },
+            {
+                title: "LIGHT HITS",
+                body: "If you've NEVER noticed, you can perform light hits by moving a bit then attacking in quick sucession.\n This form of attack has been buffed, and now stuns for longer meaning they are ACTUALLY GOOD NOW?"
+            },
+            {
+                title: "OTHER",
+                body: "PLEASE contact me at zamanarvin@sewanhakschools.org or zamanarvin711@gmail.com for suggestions, I really need to get things going now. And bugs too."
+            }
+        ];
+
+        const changelogBox = this.add.rectangle(
+            190, 300, 340, 450, 0x111111, 0.88
+        ).setStrokeStyle(3, 0x686868);
+
+        const compactTitle = this.add.text(
+            40, 135, "LATEST UPDATE", {
+                fontFamily: "VCROSD",
+                fontSize: "24px",
+                fill: "#ff57ab",
+                stroke: "#000000",
+                strokeThickness: 5
+            }
+        );
+
+        const compactText = this.add.text(
+            40, 180,
+            "The Fisherman's hook can now grapple onto platforms.\n\nNeutral specials are being added, including Gunman's grenade and the Chainsaw's airborne building ability.",
+            {
+                fontFamily: "VCROSD",
+                fontSize: "16px",
+                fill: "#ffffff",
+                stroke: "#000000",
+                strokeThickness: 3,
+                lineSpacing: 8,
+                wordWrap: { width: 300 }
+            }
+        );
+
+        const openChangelogText = this.add.text(
+            190, 505, "[ VIEW FULL CHANGELOG ]", {
+                fontFamily: "VCROSD",
+                fontSize: "13px",
+                fill: "#aaaaaa"
+            }
+        ).setOrigin(0.5).setInteractive({ useHandCursor: true });
+
+        let changelogOpen = false;
+        let changelogModalObjects = [];
+        let changelogPanel = null;
+
+        const openChangelog = () => {
+            if (changelogOpen) return;
+            changelogOpen = true;
+
+            const dim = this.add.rectangle(
+                500, 300, 2000, 1200, 0x000000, 0.78
+            ).setDepth(2000).setInteractive();
+
+            const modalBackground = this.add.rectangle(
+                500, 300, 850, 520, 0x151515, 1
+            ).setStrokeStyle(4, 0x686868).setDepth(2001);
+
+            const modalTitle = this.add.text(
+                500, 65, "BLOCK BATTLE!! -- CHANGELOG", {
+                    fontFamily: "VCROSD",
+                    fontSize: "30px",
+                    fill: "#ffffff",
+                    stroke: "#000000",
+                    strokeThickness: 5
+                }
+            ).setOrigin(0.5).setDepth(2002);
+
+            const modalSubtitle = this.add.text(
+                500, 100, "WHAT'S NEW?", {
+                    fontFamily: "VCROSD",
+                    fontSize: "16px",
+                    fill: "#ff57ab"
+                }
+            ).setOrigin(0.5).setDepth(2002);
+
+            // Scrollable content, using the same Rex UI pattern
+            // as MapAndModifierSelectScene.
+            
+                        
+            const content = this.rexUI.add.sizer({
+                orientation: "y",
+                width: 740,
+                space: {
+                    item: 20
+                }
+            });
+
+            for (const entry of changelogEntries) {
+                const card = this.rexUI.add.sizer({
+                    orientation: "y",
+                    width: 720,
+                    height: 110,
+                    space: {
+                        left: 10,
+                        right: 10,
+                        top: 5,
+                        bottom: 5,
+                        item: 8
+                    }
+                });
+
+                const title = this.add.text(0, 0, entry.title, {
+                    fontFamily: "VCROSD",
+                    fontSize: "22px",
+                    fill: "#ff57ab",
+                    stroke: "#000000",
+                    strokeThickness: 3
+                }).setDepth(5000);
+
+                const body = this.add.text(0, 0, entry.body, {
+                    fontFamily: "VCROSD",
+                    fontSize: "16px",
+                    fill: "#ffffff",
+                    lineSpacing: 8,
+                    wordWrap: { width: 690 }
+                }).setDepth(5000);
+
+                card.add(title, {
+                    proportion: 0,
+                    align: "left"
+                });
+
+                card.add(body, {
+                    proportion: 1,
+                    expand: true,
+                    align: "left"
+                });
+
+
+                card.layout();
+
+                content.add(card, {
+                    expand: true
+                });
+                console.log(
+                    entry.title,
+                    "card:", card.width, card.height,
+                    "title:", title.width, title.height,
+                    "body:", body.width, body.height
+                );
+
+            }
+
+            // IMPORTANT: Finish laying out the content BEFORE
+            // giving it to the scrollable panel.
+            content.layout();
+
+            changelogPanel = this.rexUI.add.scrollablePanel({
+                x: 500,
+                y: 315,
+                width: 790,
+                height: 350,
+
+                scrollMode: 0,
+                scrollDetectionMode: 1,
+
+                background: this.add.rectangle(
+                    0, 0, 790, 350, 0x202020
+                ).setStrokeStyle(2, 0x444444),
+
+                panel: {
+                    child: content,
+                    mask: { padding: 0 }
+                },
+
+                sliderY: {
+                    track: this.add.rectangle(
+                        0, 0, 12, 0, 0x444444
+                    ),
+                    thumb: this.add.rectangle(
+                        0, 0, 12, 55, 0xaaaaaa
+                    )
+                },
+
+                scroller: {
+                    rectBoundsInteractive: true,
+                    threshold: 5,
+                    slidingDeceleration: 5000,
+                    backDeceleration: 2000
+                },
+
+                space: {
+                    left: 10,
+                    right: 10,
+                    top: 10,
+                    bottom: 10,
+                    panel: 10
+                },
+
+                mouseWheelScroller: {
+                    focus: 2,
+                    speed: 0.1
+                }
+            });
+
+            changelogPanel.layout();
+            changelogPanel.setDepth(2002);
+            
+
+
+            const closeBox = this.add.rectangle(
+                900, 65, 55, 45, 0x771c1c
+            ).setStrokeStyle(2, 0xffffff)
+                .setDepth(2004)
+                .setInteractive({ useHandCursor: true });
+
+            const closeText = this.add.text(
+                900, 65, "X", {
+                    fontFamily: "VCROSD",
+                    fontSize: "26px",
+                    fill: "#ffffff"
+                }
+            ).setOrigin(0.5).setDepth(2005)
+                .setInteractive({ useHandCursor: true });
+
+            closeBox.on("pointerover", () => {
+                closeBox.setFillStyle(0xc0392b);
+            });
+
+            closeBox.on("pointerout", () => {
+                closeBox.setFillStyle(0x771c1c);
+            });
+
+            const modalObjects = [
+                dim,
+                modalBackground,
+                modalTitle,
+                modalSubtitle,
+                closeBox,
+                closeText
+            ];
+
+            changelogModalObjects = modalObjects;
+
+            const closeChangelog = () => {
+                if (!changelogOpen) return;
+
+                changelogOpen = false;
+                console.log("Content size:", content.width, content.height);
+                console.log("Panel size:", changelogPanel.width, changelogPanel.height);
+                console.log("Entry count:", changelogEntries.length);
+                
+
+                this.sound.play('hover2');
+                // Remember that this browser has seen this version.
+                try {
+                    localStorage.setItem(
+                        CHANGELOG_STORAGE_KEY,
+                        CHANGELOG_VERSION
+                    );
+                } catch (error) {
+                    console.warn(
+                        "Could not save changelog version:",
+                        error
+                    );
+                }
+
+                changelogPanel?.destroy();
+                changelogPanel = null;
+
+                modalObjects.forEach(object => object.destroy());
+                changelogModalObjects = [];
+                const index = layout.indexOf(closeLayoutEntry);
+
+                if (index !== -1) {
+                    layout.splice(index, 1);
+
+                    if (selectedIndex >= layout.length) {
+                        selectedIndex = Math.max(0, layout.length - 1);
+                    }
+                }
+            };
+
+            
+            closeBox.on("pointerdown", closeChangelog);
+            closeText.on("pointerdown", closeChangelog);
+
+            const closeLayoutEntry = {
+                button: closeBox,
+                action: closeChangelog
+            };
+
+            layout.push(closeLayoutEntry);
+
+            this.closeChangelog = closeChangelog;
+        };
+
+        openChangelogText.on("pointerover", () => {
+            openChangelogText.setColor("#ffffff");
         });
-        const changelogText = 'The fisherman\'s hook lag has been patched and its able to grapple on platforms. Neutral specials will be added for every character, So far, gunman has a grenade throw, and chainsaw has a quick build if airborne.';
-        this.add.text(40, 180, changelogText, {
-            fontFamily: 'VCROSD',
-            fontSize: '18px',
-            fill: '#FFFFFF',
-            stroke: '#000000',
-            strokeThickness: 3,
-            lineSpacing: 8,
-            wordWrap: { width: 300 }
+
+        openChangelogText.on("pointerout", () => {
+            openChangelogText.setColor("#aaaaaa");
         });
+
+        openChangelogText.on("pointerdown", openChangelog);
+
+        let shouldShowChangelog = true;
+
+        try {
+            shouldShowChangelog =
+                localStorage.getItem(CHANGELOG_STORAGE_KEY)
+                !== CHANGELOG_VERSION;
+        } catch (error) {
+            // If storage is unavailable, show the changelog normally.
+            console.warn("Could not read changelog version:", error);
+        }
+
+        if (shouldShowChangelog) {
+            openChangelog();
+        }
+
 
         const startBox = this.add.rectangle(
             850,
