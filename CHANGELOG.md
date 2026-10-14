@@ -1,5 +1,11 @@
 # Changelog
 
+## 2026-10-14
+
+### Changed
+- ONLINE lobby now lists open matches (host name, fighter, map, 1/2) instead of a blind queue. Host a match on your map or JOIN one from the list.
+- Changing your online name now uses a proper text box instead of a browser popup.
+
 ## 2026-10-13
 
 ### Added

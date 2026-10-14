@@ -195,7 +195,7 @@ server.listen(PORT, HOST, () => {
     }
     if (ALLOWED_ORIGINS.length) console.log(`  Websites allowed to connect: ${ALLOWED_ORIGINS.join(', ')}`);
     console.log('');
-    console.log('  Everyone opens that address, clicks ONLINE, then FIND MATCH.');
+    console.log('  Everyone opens that address, clicks ONLINE, then hosts or joins a match.');
     console.log('  If others can\'t connect, allow Node.js through this computer\'s firewall.');
     console.log('  Press Ctrl+C to stop.');
     console.log('');
