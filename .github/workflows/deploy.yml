@@ -21,8 +21,10 @@ jobs:
     env:
       # Online server address, e.g. wss://play.example.com/mp. Set it in the repo under
       # Settings > Secrets and variables > Actions > Variables > MP_SERVER_URL.
-      # While it's unset, the ONLINE button stays hidden on GitHub Pages and InfinityFree.
+      # While it's unset, the ONLINE button shows as NOT AVAILABLE on GitHub Pages and InfinityFree.
       VITE_MP_SERVER: ${{ vars.MP_SERVER_URL }}
+      # Name players see for that server, e.g. NEW YORK (repo variable MP_SERVER_NAME).
+      VITE_MP_SERVER_NAME: ${{ vars.MP_SERVER_NAME }}
 
     steps:
       - name: Check out repository

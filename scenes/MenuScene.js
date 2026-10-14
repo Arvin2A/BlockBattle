@@ -2,7 +2,7 @@
 import { changeBotMode } from "../gameSettings.js";
 import { preloadMenu } from "./GameScene/preload.js";
 import { fadeOutTo } from "./transitions.js";
-import { checkServerOnline, usesRemoteServer } from "../mp/serverConfig.js";
+import { fetchServerStatus, getServerName, isOnlineConfigured } from "../mp/serverConfig.js";
 import { getNavigationBounds, wrapIndex, moveSelection, createNavigationBox, moveNavigationBox, getConnectedControllers, getMenuGamepadInput} from "../navigation.js"
 var currentControllers = [];
 var primaryController = null;
@@ -434,57 +434,81 @@ export const MenuScene = {
             botBox.setStrokeStyle(4, 0x000000);
         });
 
-        // Only offer ONLINE when the server actually answers (see mp/serverConfig.js).
-        // The check takes a moment, so the button fades in once the server replies.
-        const menuVisit = this.menuVisit = (this.menuVisit ?? 0) + 1;
-        checkServerOnline().then(online => {
-            if (!online || menuVisit !== this.menuVisit || !this.sys.isActive()) return;
-            const onlineBox = this.add.rectangle(
-                875,
-                340,
-                200,
-                70,
-                0x111111
-            );
-            onlineBox.setStrokeStyle(4, 0x000000);
+        // ONLINE is always shown. The line under it says whether the server can be
+        // played on right now (see mp/serverConfig.js).
+        const onlineBox = this.add.rectangle(
+            875,
+            340,
+            200,
+            70,
+            0x111111
+        );
+        onlineBox.setStrokeStyle(4, 0x000000);
 
-            const onlineText = this.add.text(
-                875,
-                332,
-                'ONLINE',
-                {
-                    fontFamily: 'VCROSD',
-                    fontSize: '28px',
-                    fill: '#FFFFFF',
-                    stroke: '#000000',
-                    strokeThickness: 6
-                }
-            ).setOrigin(0.5);
-            const onlineSubtext = this.add.text(875, 360, usesRemoteServer() ? '(BETA)' : '(LAN ONLY)', {
-                fontFamily: 'GameFont',
-                fontSize: '11px',
-                fill: '#ffd34d',
+        const onlineText = this.add.text(
+            875,
+            330,
+            'ONLINE',
+            {
+                fontFamily: 'VCROSD',
+                fontSize: '28px',
+                fill: '#FFFFFF',
                 stroke: '#000000',
-                strokeThickness: 3
-            }).setOrigin(0.5);
-            onlineBox.setInteractive({ useHandCursor: true });
+                strokeThickness: 6
+            }
+        ).setOrigin(0.5);
+        const onlineStatus = this.add.text(875, 359, '', {
+            fontFamily: 'GameFont',
+            fontSize: '11px',
+            fill: '#bbbbbb',
+            stroke: '#000000',
+            strokeThickness: 3
+        }).setOrigin(0.5);
+        onlineBox.setInteractive({ useHandCursor: true });
 
-            const openOnline = () => {
-                changeBotMode(false);
-                fadeOutTo(this, () => this.scene.start('OnlineLobbyScene'));
-            };
-            onlineBox.on('pointerdown', openOnline);
-            onlineBox.on('pointerover', function () {
-                onlineBox.setFillStyle(0xffffff);
-                onlineBox.setStrokeStyle(4, 0xbbbbbb);
-            });
-            onlineBox.on('pointerout', function () {
-                onlineBox.setFillStyle(0x111111);
-                onlineBox.setStrokeStyle(4, 0x000000);
-            });
-            layout.push({button: onlineBox, action: openOnline});
-            this.tweens.add({ targets: [onlineBox, onlineText, onlineSubtext], alpha: { from: 0, to: 1 }, duration: 250 });
+        let onlineReady = false;
+        const setOnlineState = (ready, label, color) => {
+            onlineReady = ready;
+            onlineStatus.setText(label).setColor(color);
+            onlineText.setAlpha(ready ? 1 : 0.4);
+            onlineBox.setAlpha(ready ? 1 : 0.6);
+            onlineBox.input.cursor = ready ? 'pointer' : 'default';
+        };
+
+        const openOnline = () => {
+            if (!onlineReady) {
+                this.sound.play('deny');
+                return;
+            }
+            changeBotMode(false);
+            fadeOutTo(this, () => this.scene.start('OnlineLobbyScene'));
+        };
+        onlineBox.on('pointerdown', openOnline);
+        onlineBox.on('pointerover', function () {
+            if (!onlineReady) return;
+            onlineBox.setFillStyle(0xffffff);
+            onlineBox.setStrokeStyle(4, 0xbbbbbb);
         });
+        onlineBox.on('pointerout', function () {
+            onlineBox.setFillStyle(0x111111);
+            onlineBox.setStrokeStyle(4, 0x000000);
+        });
+        layout.push({button: onlineBox, action: openOnline});
+
+        if (!isOnlineConfigured()) {
+            setOnlineState(false, 'NOT AVAILABLE', '#999999');
+        } else {
+            setOnlineState(false, 'CHECKING...', '#bbbbbb');
+            const menuVisit = this.menuVisit = (this.menuVisit ?? 0) + 1;
+            fetchServerStatus().then(status => {
+                if (menuVisit !== this.menuVisit || !this.sys.isActive()) return;
+                if (!status) {
+                    setOnlineState(false, 'SERVER OFFLINE', '#ff6b6b');
+                    return;
+                }
+                setOnlineState(true, `${getServerName()} - ${status.online} ONLINE`, '#7dff8a');
+            });
+        }
         layout.push({button: botBox, action: () => {
             changeBotMode(true);
             fadeOutTo(this, () => this.scene.start('MapAndModifierSelectScene'));
