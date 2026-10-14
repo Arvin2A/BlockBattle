@@ -10,8 +10,19 @@ var navBox = null;
 var layout = []
 var selectedIndex = 0;
 var previousInput = {};
-const CHANGELOG_VERSION = "2026-10-12-2";
-const CHANGELOG_STORAGE_KEY = "blockBattleSeenChangelog";
+const CHANGELOG_VERSION = "2026-10-14-3";
+
+function getVersionColor(version) {
+    let hash = 0;
+
+    for (let i = 0; i < version.length; i++) {
+        hash = (hash * 31 + version.charCodeAt(i)) | 0;
+    }
+
+    return `#${(hash & 0xFFFFFF).toString(16).padStart(6, "0")}`;
+}
+
+const changelogColor = getVersionColor(CHANGELOG_VERSION);const CHANGELOG_STORAGE_KEY = "blockBattleSeenChangelog";
 export const MenuScene = {
     //load the menu scene which is just a cool background image we made
     //its also has the start button, initiating the game when clicked
@@ -35,6 +46,10 @@ export const MenuScene = {
         this.input.topOnly = false;
 
         const changelogEntries = [
+            {
+                title: "MUTLIPLAYER",
+                body: "YOU CAN FINALLY PLAY ONLINE???? Yes and a server has been made in NY, and if you're willing to make one for your own better connectivity, read SERVER_SETUP.md in https://github.com/Arvin2A/BlockBattle/blob/main/SERVER_SETUP.md."
+            },
             {
                 title: "DAGGER SWORDMAN",
                 body: "The DAGGER variant of SWORDMAN has been added to the game."
@@ -69,7 +84,7 @@ export const MenuScene = {
             40, 135, "LATEST UPDATE", {
                 fontFamily: "VCROSD",
                 fontSize: "24px",
-                fill: "#ff57ab",
+                fill: changelogColor,
                 stroke: "#000000",
                 strokeThickness: 5
             }
@@ -77,7 +92,7 @@ export const MenuScene = {
 
         const compactText = this.add.text(
             40, 180,
-            "The Fisherman's hook can now grapple onto platforms.\n\nNeutral specials are being added, including Gunman's grenade and the Chainsaw's airborne building ability.",
+            "Multiplayer and DAGGER variant of SWORDMAN has been realeased.",
             {
                 fontFamily: "VCROSD",
                 fontSize: "16px",
@@ -127,7 +142,7 @@ export const MenuScene = {
                 500, 100, "WHAT'S NEW?", {
                     fontFamily: "VCROSD",
                     fontSize: "16px",
-                    fill: "#ff57ab"
+                    fill: changelogColor
                 }
             ).setOrigin(0.5).setDepth(2002);
 
@@ -160,7 +175,7 @@ export const MenuScene = {
                 const title = this.add.text(0, 0, entry.title, {
                     fontFamily: "VCROSD",
                     fontSize: "22px",
-                    fill: "#ff57ab",
+                    fill: changelogColor,
                     stroke: "#000000",
                     strokeThickness: 3
                 }).setDepth(5000);
