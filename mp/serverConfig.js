@@ -25,6 +25,24 @@ export function isOnlineAvailable() {
     return Boolean(CONFIGURED_SERVER) || servedByBlockBattleServer() || import.meta.env.DEV;
 }
 
+// Asks the server if it's up (its /mp/status page). Resolves true/false, never throws.
+export async function checkServerOnline(timeoutMs = 4000) {
+    if (!isOnlineAvailable()) return false;
+    const url = new URL(getOnlineServerUrl());
+    url.protocol = url.protocol === 'wss:' ? 'https:' : 'http:';
+    url.pathname = `${url.pathname.replace(/\/$/, '')}/status`;
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), timeoutMs);
+    try {
+        const response = await fetch(url, { signal: controller.signal, cache: 'no-store' });
+        return response.ok;
+    } catch {
+        return false;
+    } finally {
+        clearTimeout(timer);
+    }
+}
+
 // True when playing through a public server rather than a LAN one.
 export function usesRemoteServer() {
     return Boolean(CONFIGURED_SERVER);

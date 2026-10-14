@@ -87,7 +87,11 @@ const lobby = new Lobby({
 const serveStatic = createStaticHandler(path.join(ROOT, 'dist'), BASE_PATH);
 const server = http.createServer((request, response) => {
     if (request.url === `${MP_PATH}/status`) {
-        response.writeHead(200, { 'Content-Type': 'application/json' });
+        const headers = { 'Content-Type': 'application/json', 'Cache-Control': 'no-store', Vary: 'Origin' };
+        // Lets your websites ask "is the server up?" before showing the ONLINE button.
+        const origin = request.headers.origin;
+        if (origin && originAllowed(request)) headers['Access-Control-Allow-Origin'] = origin;
+        response.writeHead(200, headers);
         response.end(JSON.stringify(lobby.getStatus()));
         return;
     }

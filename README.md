@@ -33,7 +33,7 @@ Settings, as environment variables: `PORT` (default 8080), `BB_MAX_MATCHES` (def
 
 ### Online on GitHub Pages / InfinityFree
 Those sites only serve files and can't run the server, so the ONLINE button is **hidden there** until a server is configured.
-To get online on them, run the server on a 24/7 machine with HTTPS (see **[SERVER_SETUP.md](SERVER_SETUP.md)**) and set the `MP_SERVER_URL` repository variable (e.g. `wss://play.example.com/mp`). The deploy workflow builds it into both sites and the button appears.
+To get online on them, run the server on a 24/7 machine with HTTPS (see **[SERVER_SETUP.md](SERVER_SETUP.md)**) and set the `MP_SERVER_URL` repository variable (e.g. `wss://play.example.com/mp`). The deploy workflow builds it into both sites, and the button appears whenever that server is up and answering.
 
 ### Developing online features
 Run `npm run server` in one terminal and `npm run dev` in another. Vite forwards `/mp` to the server. To make the hidden match tabs use your dev build too, start the server with `BB_GAME_URL=http://127.0.0.1:5173/BlockBattle/ npm run server`.
