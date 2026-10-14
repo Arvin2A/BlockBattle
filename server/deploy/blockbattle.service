@@ -1,4 +1,5 @@
 # systemd service for the BlockBattle online server. See SERVER_SETUP.md.
+# Edit User / WorkingDirectory / BB_ALLOWED_ORIGINS for your machine first.
 # Install:  sudo cp server/deploy/blockbattle.service /etc/systemd/system/
 #           sudo systemctl daemon-reload && sudo systemctl enable --now blockbattle
 
@@ -18,8 +19,8 @@ RestartSec=5
 Environment=HOST=127.0.0.1
 Environment=PORT=8080
 Environment=BB_MAX_MATCHES=6
-# The websites allowed to connect. Use the exact addresses from the browser's address bar.
-Environment=BB_ALLOWED_ORIGINS=https://arvin2a.github.io,https://YOUR-INFINITYFREE-SITE
+# Websites allowed to connect: https:// + domain only, no path, comma-separated, no quotes.
+Environment=BB_ALLOWED_ORIGINS=https://YOUR-USERNAME.github.io
 
 # Basic hardening: the server can't touch the rest of the system.
 NoNewPrivileges=true
