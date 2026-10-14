@@ -53,7 +53,6 @@ export function initiatePlayers(scene, p1Select = 'axeman', p2Select = 'swordman
             revokeVictimStun: null,
             revokeMowStun: null,
             activeGrab: null,
-            platformHook: null,
             grabbedBy: null,
             stunToken: 0,
             mowStunToken: 0,

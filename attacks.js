@@ -1115,83 +1115,6 @@ export function slamThirdAttack(scene, attacker, target, animKey) {
     });
 
 }
-function tryHookPlatform(scene, attacker) {
-    const attackBounds = attacker.atk.getBounds();
-
-    const hookTolerance = 55;
-
-    const expandedBounds = new Phaser.Geom.Rectangle(
-        attackBounds.x - hookTolerance,
-        attackBounds.y - hookTolerance,
-        attackBounds.width + hookTolerance * 2,
-        attackBounds.height + hookTolerance * 2
-    );
-
-    const platforms = [
-        ...(scene.gameState?.map?.platforms?.getChildren() ?? []),
-        ...(scene.gameState?.map?.topPlatforms?.getChildren() ?? []),
-        ...(scene.planks?.getChildren() ?? [])
-    ];
-    var angle;
-
-    const platform = platforms.find(p => {
-        if (!p.active || !p.body?.enable) return false;
-
-        const bounds = p.getBounds();
-
-        const hookX = Phaser.Math.Clamp(
-            attacker.x + (attacker.atk.x - attacker.x),
-            bounds.left,
-            bounds.right
-        );
-
-        const hookY = Phaser.Math.Clamp(
-            attacker.y + (attacker.atk.y - attacker.y),
-            bounds.top,
-            bounds.bottom
-        );
-
-            angle = Phaser.Math.RadToDeg(
-            Phaser.Math.Angle.Between(
-                attacker.atk.x,
-                attacker.atk.y,
-                hookX,
-                hookY
-            )
-        );
-
-        return Phaser.Geom.Intersects.RectangleToRectangle(
-            expandedBounds,
-            bounds
-        );
-    });
-
-    if (!platform) return false;
-
-    attacker.platformHook = {
-        platform,
-        gravity: attacker.body.allowGravity,
-        moves: attacker.body.moves,
-        x: attacker.x,
-        y: attacker.y
-    };
-
-    attacker.setVelocity(0, 0);
-    attacker.setAcceleration(0, 0);
-
-    attacker.body.allowGravity = false;
-    attacker.body.moves = false;
-
-    attacker.canAttack = false;
-
-    attacker.atk.stop();
-    attacker.atk.setFrame(6);
-    attacker.atk.setAngle(angle);
-    attacker.atk.setVisible(true);
-
-    return true;    return true;
-
-}
 export function tryGrab(scene, attacker, target, direction, currentTime, animKey = 'crowbargrab') {
     //Exclusive to the crowbarman, this attack initiates a grab on the target
     //When the target is grabbed, they are unable to move or attack, they will be hooked on the crowbar for 3 seconds before released
@@ -1205,7 +1128,6 @@ export function tryGrab(scene, attacker, target, direction, currentTime, animKey
     if (currentTime - attacker.lastTap[direction] < dtapDelay || attacker.isBot) {
 
         setAttackSprite(attacker, animKey);
-        attacker.platformHook = null;
         attacker.isUsingSideSpecial = true
         attacker.isUsingSideSpecial = false;
 
@@ -1267,14 +1189,10 @@ export function tryGrab(scene, attacker, target, direction, currentTime, animKey
             attacker.comboTimer = 0;
         } else {
             attacker.atk.once(`animationcomplete-${animKey}`, () => {
-                const hooked = tryHookPlatform(scene, attacker);
-
-                if (!hooked) {
-                    scene.sound.play('miss');
-                    scene.time.delayedCall(300, () => {
-                        hideAttackSprite(attacker);
-                    });
-                }
+                scene.sound.play('miss');
+                scene.time.delayedCall(300, () => {
+                    hideAttackSprite(attacker);
+                });
             });
         }
         startSideSpecialCooldown(attacker, currentTime, grabCD);
