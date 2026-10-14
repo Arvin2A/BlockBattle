@@ -3,7 +3,7 @@
 // two players it sends "matchFound" and we move to OnlineGameScene.
 
 import Phaser from 'phaser';
-import { preloadMenu, preloadCharacterSelection } from './GameScene/preload.js';
+import { preload as preloadMatch, preloadMenu, preloadCharacterSelection } from './GameScene/preload.js';
 import { fadeOutTo } from './transitions.js';
 import { CHARACTER_ROSTER } from '../characterRoster.js';
 import { getCharacterTexture } from '../characterTextures.js';
@@ -143,6 +143,17 @@ export class OnlineLobbyScene extends Phaser.Scene {
     preload() {
         preloadMenu.call(this);
         preloadCharacterSelection.call(this);
+        // Download the match files here, before anyone can host or join, so a slow
+        // connection can't make the match time out on the server while it loads.
+        // Already-loaded files are skipped, so this is instant after the first time.
+        preloadMatch.call(this);
+        const loadingText = this.add.text(500, 300, 'LOADING GAME FILES... 0%', {
+            fontFamily: 'GameFont',
+            fontSize: '20px',
+            fill: '#ffffff'
+        }).setOrigin(0.5);
+        this.load.on('progress', value => loadingText.setText(`LOADING GAME FILES... ${Math.floor(value * 100)}%`));
+        this.load.once('complete', () => loadingText.destroy());
     }
 
     init(data) {
