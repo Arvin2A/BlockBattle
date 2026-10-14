@@ -2,7 +2,7 @@
 import { changeBotMode } from "../gameSettings.js";
 import { preloadMenu } from "./GameScene/preload.js";
 import { fadeOutTo } from "./transitions.js";
-import { isOnlineAvailable, usesRemoteServer } from "../mp/serverConfig.js";
+import { checkServerOnline, usesRemoteServer } from "../mp/serverConfig.js";
 import { getNavigationBounds, wrapIndex, moveSelection, createNavigationBox, moveNavigationBox, getConnectedControllers, getMenuGamepadInput} from "../navigation.js"
 var currentControllers = [];
 var primaryController = null;
@@ -434,8 +434,11 @@ export const MenuScene = {
             botBox.setStrokeStyle(4, 0x000000);
         });
 
-        // Only offer ONLINE where there's a server to play on (see mp/serverConfig.js).
-        if (isOnlineAvailable()) {
+        // Only offer ONLINE when the server actually answers (see mp/serverConfig.js).
+        // The check takes a moment, so the button fades in once the server replies.
+        const menuVisit = this.menuVisit = (this.menuVisit ?? 0) + 1;
+        checkServerOnline().then(online => {
+            if (!online || menuVisit !== this.menuVisit || !this.sys.isActive()) return;
             const onlineBox = this.add.rectangle(
                 875,
                 340,
@@ -445,7 +448,7 @@ export const MenuScene = {
             );
             onlineBox.setStrokeStyle(4, 0x000000);
 
-            this.add.text(
+            const onlineText = this.add.text(
                 875,
                 332,
                 'ONLINE',
@@ -457,7 +460,7 @@ export const MenuScene = {
                     strokeThickness: 6
                 }
             ).setOrigin(0.5);
-            this.add.text(875, 360, usesRemoteServer() ? '(BETA)' : '(LAN ONLY)', {
+            const onlineSubtext = this.add.text(875, 360, usesRemoteServer() ? '(BETA)' : '(LAN ONLY)', {
                 fontFamily: 'GameFont',
                 fontSize: '11px',
                 fill: '#ffd34d',
@@ -480,7 +483,8 @@ export const MenuScene = {
                 onlineBox.setStrokeStyle(4, 0x000000);
             });
             layout.push({button: onlineBox, action: openOnline});
-        }
+            this.tweens.add({ targets: [onlineBox, onlineText, onlineSubtext], alpha: { from: 0, to: 1 }, duration: 250 });
+        });
         layout.push({button: botBox, action: () => {
             changeBotMode(true);
             fadeOutTo(this, () => this.scene.start('MapAndModifierSelectScene'));
