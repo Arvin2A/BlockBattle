@@ -982,15 +982,16 @@ export function lungePush(scene, attacker, target, animKey) {
     });
 
 }
-export function quickstepAttack(scene, attacker, target, teleportDirection, animKey) {
+export function quickstepAttack(scene, attacker, target, animKey) {
+    // Hits in the direction of the dash.
     setAttackSprite(attacker, animKey);
 
-    const attackDirX = teleportDirection === 'right' ? -1 : 1;
+    const attackDirX = Math.sign(attacker.body.velocity.x) || attacker.lastDir.x || 1;
 
     const originalDirX = attacker.lastDir.x;
     attacker.lastDir.x = attackDirX;
 
-    const eligible = attackIsElligible(attacker, target, 200, false);
+    const eligible = attackIsElligible(attacker, target, 150, false);
 
     attacker.lastDir.x = originalDirX;
 
@@ -1470,7 +1471,8 @@ export function tryAttack3(scene, attacker, target, animKey, thirdAnimKey) {
 }
 
 export function tryQuickstep(scene, player, direction, target, currentTime) {
-    // QUICKSTEP: DAGGER-exclusive double-tap teleport.
+    // QUICKSTEP: DAGGER-exclusive double-tap dash. A shorter LUNGE that passes
+    // straight through the other player (see clipThroughPlayers in main.js).
 
     const dtapDelay = 250;
     const quickstepCd = player.dirSpecialCooldown;
@@ -1483,32 +1485,30 @@ export function tryQuickstep(scene, player, direction, target, currentTime) {
         currentTime - player.lastTap[direction] < dtapDelay ||
         player.isBot
     ) {
-        const distance = 200;
-        const dirX = direction === 'left' ? -1 : 1;
+        setAttackSprite(player, 'daggeratk');
+        player.atk.y = player.y + player.lastDir.y * 50;
+        player.atk.setAngle(0);
+        player.isUsingSideSpecial = true;
+        player.afterimage = true;
+        player.hasHitSideSpecial = false;
+        player.clipThroughPlayers = true;
 
-        player.setVelocityX(0);
-        player.setVelocityY(0);
+        // Same speed as LUNGE for half as long.
+        const qspeed = 1200;
+        player.setVelocityX(direction === 'left' ? -qspeed : qspeed);
 
-        player.setX(player.x + dirX * distance);
-
-        player.setVelocityX(0);
-        player.setVelocityY(0);
-
-        startSideSpecialCooldown(
-            player,
-            currentTime,
-            quickstepCd
-        );
-
+        startSideSpecialCooldown(player, currentTime, quickstepCd);
         scene.sound.play('teleport');
 
-        quickstepAttack(
-            scene,
-            player,
-            target,
-            direction,
-            'daggeratk'
-        );
+        scene.time.delayedCall(150, () => {
+            player.isUsingSideSpecial = false;
+            player.afterimage = false;
+            player.clipThroughPlayers = false;
+        });
+
+        scene.time.delayedCall(250, () => {
+            hideAttackSprite(player);
+        });
     }
 
     player.lastTap[direction] = currentTime;
@@ -2439,6 +2439,7 @@ const sharedAttackHelpers = {
     tryDaggerAttack,
     tryLunge,
     tryQuickstep,
+    quickstepAttack,
     tryCleave,
     tryPull,
     tryMow,

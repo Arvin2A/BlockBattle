@@ -32,7 +32,10 @@ export default {
     handleNeutralSpecial: neutralSpecial,
     variantNeutralSpecials: { LONGSWORD: neutralSpecial },
     handleDirSpecialAttack: (api, scene, attacker, victim) => {
-        if (api.distanceBetween(attacker, victim) <= 150) {
+        if (api.distanceBetween(attacker, victim) > 150) return;
+        if (attacker.variant === 'DAGGER') {
+            api.quickstepAttack(scene, attacker, victim, 'daggeratk');
+        } else {
             api.lungePush(scene, attacker, victim, 'swordatkthird');
         }
     },
