@@ -2075,27 +2075,6 @@ function update() {
             player.body.allowGravity = player.freezeGravity;
             player.freezeGravity = null;
         }
-        if (player.platformHook) {
-            const hook = player.platformHook;
-
-            if (!hook.platform.active || !hook.platform.body?.enable) {
-                player.platformHook = null;
-                player.body.moves = hook.moves;
-                player.body.allowGravity = hook.gravity;
-                player.canAttack = true;
-            } else {
-                player.setPosition(hook.x, hook.y);
-                player.setVelocity(0, 0);
-                player.setAcceleration(0, 0);
-
-                player.body.allowGravity = false;
-                player.body.moves = false;
-
-                player.atk.stop();
-                player.atk.setFrame(6);
-                player.atk.setVisible(true);
-            }
-        }
     }
 
     updateSledgehammerAnimation(p1);

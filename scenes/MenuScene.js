@@ -60,7 +60,7 @@ export const MenuScene = {
             },
             {
                 title: "CROWBARMAN's GRAB",
-                body: "CROWBARMAN can now grab onto planks/walls."
+                body: "CROWBARMAN can NO LONGER GRAB ON OBJECTS."
             },
             {
                 title: "SFX",
