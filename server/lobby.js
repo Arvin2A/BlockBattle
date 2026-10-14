@@ -1,9 +1,13 @@
-// The 1v1 queue and every running match.
+// The open-match list and every running match.
 //
-// A match goes:  queue -> matchFound -> authority tab boots + both players load
+// A player hosts an open match (their fighter + map), everyone in the lobby sees it
+// listed as 1/2, and anyone can join it. That way nobody has to guess what map
+// the other players picked.
+//
+// A match goes:  host -> join -> matchFound -> authority tab boots + both players load
 //                -> start -> (inputs in, mirror frames out) -> end
 //
-// Players only ever send: who they are, queue/leave, button states, forfeit.
+// Players only ever send: who they are, host/join/leave, button states, forfeit.
 // All game results come from the authority tab, never from a player.
 
 import crypto from 'node:crypto';
@@ -16,6 +20,8 @@ const BOOT_TIMEOUT_MS = 45000;
 const END_LINGER_MS = 4000;
 const MAX_MESSAGES_PER_SECOND = 300;
 const MAX_PLAYER_MESSAGE_BYTES = 2048;
+// Only this many open matches are sent to each player.
+const MAX_LISTED_ROOMS = 50;
 
 const randomId = (bytes = 6) => crypto.randomBytes(bytes).toString('hex');
 
@@ -23,10 +29,10 @@ function sendJson(ws, message) {
     if (ws?.readyState === WebSocket.OPEN) ws.send(JSON.stringify(message));
 }
 
-function pickMap(a, b) {
-    const options = [a, b].filter(choice => choice !== 'RANDOM');
-    if (!options.length) return Math.random() < 0.5 ? 'DESERT' : 'SNOWY';
-    return options[Math.floor(Math.random() * options.length)];
+function resolveMap(choice) {
+    if (choice !== 'RANDOM') return choice;
+    const maps = MAP_CHOICES.filter(map => map !== 'RANDOM');
+    return maps[Math.floor(Math.random() * maps.length)];
 }
 
 export class Lobby {
@@ -51,7 +57,7 @@ export class Lobby {
             greeted: false,
             name: 'Player',
             choice: null,
-            state: 'idle', // idle | queued | match
+            state: 'idle', // idle | queued (hosting an open match) | match
             match: null,
             // The match that just ended, still shown behind the results screen.
             watching: null,
@@ -103,6 +109,7 @@ export class Lobby {
             client.greeted = true;
             sendJson(client.ws, { t: 'welcome', id: client.id });
             this.sendStatus(client);
+            this.sendRooms(client);
             return;
         }
 
@@ -113,6 +120,10 @@ export class Lobby {
             case 'queue':
                 client.watching = null;
                 this.enqueue(client, message);
+                break;
+            case 'join':
+                client.watching = null;
+                this.join(client, message);
                 break;
             case 'leave':
                 client.watching = null;
@@ -139,15 +150,16 @@ export class Lobby {
         this.broadcastStatus();
     }
 
-    // ---- queue ----
+    // ---- open matches ----
+    // this.queue holds the players hosting an open match; the match's id is the host's id.
 
-    enqueue(client, message) {
-        if (client.state !== 'idle') return;
+    // Reads the player's name and fighter from a host/join message. False if it's invalid.
+    readChoice(client, message) {
         const character = String(message.character ?? '');
         const variant = String(message.variant ?? '');
         if (!isValidSelection(character, variant)) {
             sendJson(client.ws, { t: 'error', msg: 'That fighter does not exist on this server. Refresh the page.' });
-            return;
+            return false;
         }
         client.name = cleanName(message.name);
         client.choice = {
@@ -155,11 +167,36 @@ export class Lobby {
             variant,
             map: MAP_CHOICES.includes(message.map) ? message.map : 'RANDOM'
         };
+        return true;
+    }
+
+    enqueue(client, message) {
+        if (client.state !== 'idle') return;
+        if (!this.readChoice(client, message)) return;
         client.state = 'queued';
         this.queue.push(client);
-        this.log(`${client.name} (${character} ${variant}) joined the queue`);
-        this.matchmake();
-        this.sendQueuePositions();
+        this.log(`${client.name} (${client.choice.character} ${client.choice.variant}) is hosting on ${client.choice.map}`);
+        sendJson(client.ws, { t: 'queued', room: client.id });
+        this.roomsChanged();
+    }
+
+    join(client, message) {
+        if (client.state === 'match') return;
+        const host = this.queue.find(other => other.id === message.room);
+        if (!host || host === client) {
+            sendJson(client.ws, { t: 'joinFailed', msg: 'That match is no longer open.' });
+            return;
+        }
+        if (this.matches.size >= this.maxMatches) {
+            sendJson(client.ws, { t: 'joinFailed', msg: 'All arenas on this server are busy, try again in a moment.' });
+            return;
+        }
+        if (!this.readChoice(client, message)) return;
+        // Joining someone else closes your own open match.
+        this.dequeue(client);
+        this.queue.splice(this.queue.indexOf(host), 1);
+        this.createMatch(host, client);
+        this.roomsChanged();
     }
 
     dequeue(client) {
@@ -167,27 +204,31 @@ export class Lobby {
         if (index === -1) return;
         this.queue.splice(index, 1);
         client.state = 'idle';
-        this.sendQueuePositions();
+        this.roomsChanged();
     }
 
-    sendQueuePositions() {
-        this.queue.forEach((client, index) => {
-            sendJson(client.ws, { t: 'queued', pos: index + 1, size: this.queue.length });
-        });
+    getRooms() {
+        return this.queue.slice(0, MAX_LISTED_ROOMS).map(host => ({
+            id: host.id,
+            name: host.name,
+            character: host.choice.character,
+            variant: host.choice.variant,
+            map: host.choice.map,
+            players: 1,
+            max: 2
+        }));
+    }
+
+    sendRooms(client) {
+        sendJson(client.ws, { t: 'rooms', rooms: this.getRooms() });
+    }
+
+    roomsChanged() {
+        const message = { t: 'rooms', rooms: this.getRooms() };
+        for (const client of this.clients.values()) {
+            if (client.greeted && client.state !== 'match') sendJson(client.ws, message);
+        }
         this.broadcastStatus();
-    }
-
-    matchmake() {
-        while (this.queue.length >= 2 && this.matches.size < this.maxMatches) {
-            const p1 = this.queue.shift();
-            const p2 = this.queue.shift();
-            this.createMatch(p1, p2);
-        }
-        if (this.queue.length >= 2) {
-            for (const client of this.queue) {
-                sendJson(client.ws, { t: 'error', msg: 'All arenas on this server are busy, you will be matched when one frees up.' });
-            }
-        }
     }
 
     // ---- matches ----
@@ -197,7 +238,8 @@ export class Lobby {
             id: randomId(),
             key: randomId(16),
             players: { p1, p2 },
-            map: pickMap(p1.choice.map, p2.choice.map),
+            // The host's map; whoever joins agreed to it from the list.
+            map: resolveMap(p1.choice.map),
             state: 'booting', // booting | running | ended
             authority: null,
             authorityReady: false,
@@ -344,6 +386,7 @@ export class Lobby {
             client.match = null;
             client.slot = null;
             client.state = 'idle';
+            this.sendRooms(client);
         }
 
         // Keep the arena up a moment after a KO so the final frames reach players.
@@ -352,7 +395,6 @@ export class Lobby {
             this.matches.delete(match.id);
             match.authority?.close();
             this.closeAuthority(match);
-            this.matchmake();
             this.broadcastStatus();
         }, linger);
     }
