@@ -351,6 +351,9 @@ export class OnlineOverlayScene extends Phaser.Scene {
 
     createTouchControls() {
         const touch = this.gameScene.touchInput;
+        // Phaser only tracks one finger by default; allow multi-touch like the local game does.
+        const extraPointers = 6 - this.input.manager.pointersTotal;
+        if (extraPointers > 0) this.input.addPointer(extraPointers);
         const layout = [
             [60, 420, '←', 'left'],
             [240, 420, '→', 'right'],
