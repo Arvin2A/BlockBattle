@@ -2,6 +2,7 @@ import { botMode } from "../gameSettings.js";
 import { preloadCharacterSelection } from "./GameScene/preload.js";
 import { getCharacterTexture } from "../characterTextures.js";
 import { fadeOutTo } from "./transitions.js";
+import { CHARACTER_ROSTER } from "../characterRoster.js";
 import {
     getConnectedControllers,
     getMenuGamepadInput
@@ -11,6 +12,15 @@ export var player1Character = '';
 export var player2Character = '';
 export var player1Variant = '';
 export var player2Variant = '';
+
+// Online matches pick characters in the lobby instead of on this screen.
+export function setSelectedCharacters(p1Character, p1Variant, p2Character, p2Variant) {
+    player1Character = p1Character;
+    player1Variant = p1Variant;
+    player2Character = p2Character;
+    player2Variant = p2Variant;
+}
+
 export const CharacterSelectScene = {
 
     key: 'CharacterSelectScene',
@@ -23,104 +33,8 @@ export const CharacterSelectScene = {
         // DATA
         // -----------------------------
 
-        this.characters = [
-            { key: 'swordman' },
-            { key: 'axeman' },
-            { key: 'fisherman' },
-            { key: 'scytheman' },
-            { key: 'hammerman' },
-            { key: 'slateman' },
-            { key: 'crowbarman' },
-            { key: 'gunman' }
-        ];
-
-        this.characterData = [
-            {
-                name: 'SWORDMAN', variants: [
-                    {
-                        name: 'LONGSWORD',
-                        desc: 'Beware of the slashing sword. \n\nDIR SPECIAL: LUNGE \n\n Mediocre knockback on hit, however it has insane clutch potential.',
-                        color: '#0080ff'
-                    },
-                    {
-                        name: 'DAGGER',
-                        desc: 'wow you can stab faster now isn\'t that cool. \n\nDIR SPECIAL: QUICKSTEP \n\n Use it to teleport behind your foe',
-                        color: '#004b95'
-                    },
-                ]
-            },
-            {
-                name: 'AXEMAN', variants: [
-                    {
-                        name: 'LUMBERER',
-                        desc: 'Beware of the chopping axe. \n\nDIR SPECIAL: POWER SWING \n\n Deal a 34% KB medium knockback strike, weakens your opponent for a bit!',
-                        color: '#ff4444'
-                    },
-                    {
-                        name: 'CHAINSAW',
-                        desc: 'Whats better than brutally grinding down your opponent? Building. Press Q to switch between build and chainsaw mode. Gain wood by digging down. \n\n DIR SPECIAL: RAMPAGE \n\n Doubles your damage output for 1 second.',
-                        color: '#ffae00',
-                        fontSize: 17
-                    }
-                ]
-            },
-            {
-                name: 'FISHERMAN', variants: [{
-                    name: 'ANGLER',
-                    desc: 'Using a fishing rod as a whip?? \n\nDIR SPECIAL: GRAPPLE \n\n Throw your hook far for the chance to reel your opponent in.',
-                    color: '#00318d'
-                }]
-            },
-            {
-                name: 'SCYTHEMAN', variants: [
-                    {
-                        name: 'LANDSCAPER',
-                        desc: 'Built for my exact purpose, cutting them grass, each cut adds to the damage. \n\nDIR SPECIAL: MOW \n\n A quick grass cutting swipe that deals moderate damage. 2x more power when inside a grass patch.',
-                        color: '#686868'
-                    }
-                ]
-            },
-            {
-                name: 'HAMMERMAN', variants: [
-                    {
-                        name: 'MALLET',
-                        desc: 'EVERY hit is a knockback attack. \n\nDIR SPECIAL: SIPHONING REPAIR \n\n Let out a flurry of 3 strikes that siphon KB from your foe!.',
-                        color: '#3da115'
-                    },
-                    {
-                        name: 'SLEDGEHAMMER',
-                            desc: "Now its hammer is REALLY heavy, KILLER damage ouput, at the cost of speed and attack speed. \n\nDIR SPECIAL: QUICKSLAM \n\n A powerful slam attack that sends the opponent flying up. Jumping immediately after will perform a follow-up attack.",
-                        color: '#a5a5a5',
-                        fontSize: 16
-                    }
-                ]
-            },
-            {
-                name: 'SLATEMAN', variants: [
-                    {
-                        name: 'METAMORPHIC',
-                        desc: 'Start with extra resistance to attacks. The more damage you take the faster you get, but deal less damage. \n\nDIR SPECIAL: PLUNGE \n\n Apply PLUNGED to your opponent, which makes the foe take 100% more knockback for the next hits within 2.5 seconds!',
-                        color: '#ffffff',
-                        fontSize: 17
-                    }
-                ]
-
-            },
-            {
-                name: 'CROWBARMAN', variants: [{
-                    name: 'HOOKER',
-                    desc: 'Not for cutting weeds bro. \n\nDIR SPECIAL: GRAB \n\n Grab your opponent and hold them in place for 3 seconds. Press attack again to fling them away. Has a stupidly long range.',
-                    color: '#68b96b'
-                }]
-            },
-            {
-                name: 'GUNMAN', variants: [{
-                    name: 'GRUNT',
-                    desc: 'Modern conflicts need modern solutions, just use a gun! \n\n DIR SPECIAL: MINI \n\n This absolute beast shreds down your opponents at the cost of a 10 second cooldown.',
-                    color: '#e2c542'
-                }]
-            }
-        ];
+        this.characters = CHARACTER_ROSTER.map(({ key }) => ({ key }));
+        this.characterData = CHARACTER_ROSTER;
 
         const getCharacterIcon = (characterIndex, variantIndex = 0) => {
             const character = this.characters[characterIndex];

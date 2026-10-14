@@ -49,6 +49,10 @@ export const modifierOptions = {
 
 };
 
+export function setSelectedMap(definition) {
+	selectedMapDefinition = definition;
+}
+
 export function resetMapAndModifierSelection() {
 	selectedMapDefinition = DEFAULT_MAP;
 	Object.values(modifierOptions).forEach(modifier => {

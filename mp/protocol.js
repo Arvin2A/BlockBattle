@@ -1,0 +1,40 @@
+// mp/protocol.js
+// Things the browser game and the LAN server (server/index.js) have to agree on.
+// Plain JS with no Phaser imports so Node can load it too.
+
+// Bump this whenever messages change so old tabs get a clear "refresh" error.
+export const PROTOCOL_VERSION = 1;
+
+export const MP_PATH = '/mp';
+export const DEFAULT_PORT = 8080;
+
+export const MAP_CHOICES = ['DESERT', 'SNOWY', 'RANDOM'];
+
+export const MAX_NAME_LENGTH = 16;
+
+export function cleanName(name) {
+    const cleaned = String(name ?? '')
+        .replace(/[^\p{L}\p{N} _\-.!?']/gu, '')
+        .replace(/\s+/g, ' ')
+        .trim()
+        .slice(0, MAX_NAME_LENGTH);
+    return cleaned || 'Player';
+}
+
+// Why a match ended, shown to players.
+export const END_REASONS = {
+    KO: 'ko',
+    FORFEIT: 'forfeit',
+    DISCONNECT: 'disconnect',
+    SERVER_ERROR: 'server_error'
+};
+
+// ws://host/mp on the same server that served the page.
+export function getServerSocketUrl(location = globalThis.location) {
+    const protocol = location.protocol === 'https:' ? 'wss:' : 'ws:';
+    return `${protocol}//${location.host}${MP_PATH}`;
+}
+
+// The BlockBattle server adds this tag to the page it serves (server/static.js),
+// which is how a page knows a server is right there.
+export const SERVER_PAGE_MARKER = '<meta name="blockbattle-server" content="1">';

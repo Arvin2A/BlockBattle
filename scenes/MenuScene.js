@@ -2,6 +2,7 @@
 import { changeBotMode } from "../gameSettings.js";
 import { preloadMenu } from "./GameScene/preload.js";
 import { fadeOutTo } from "./transitions.js";
+import { isOnlineAvailable, usesRemoteServer } from "../mp/serverConfig.js";
 import { getNavigationBounds, wrapIndex, moveSelection, createNavigationBox, moveNavigationBox, getConnectedControllers, getMenuGamepadInput} from "../navigation.js"
 var currentControllers = [];
 var primaryController = null;
@@ -432,6 +433,54 @@ export const MenuScene = {
             botBox.setFillStyle(0x111111);
             botBox.setStrokeStyle(4, 0x000000);
         });
+
+        // Only offer ONLINE where there's a server to play on (see mp/serverConfig.js).
+        if (isOnlineAvailable()) {
+            const onlineBox = this.add.rectangle(
+                875,
+                340,
+                200,
+                70,
+                0x111111
+            );
+            onlineBox.setStrokeStyle(4, 0x000000);
+
+            this.add.text(
+                875,
+                332,
+                'ONLINE',
+                {
+                    fontFamily: 'VCROSD',
+                    fontSize: '28px',
+                    fill: '#FFFFFF',
+                    stroke: '#000000',
+                    strokeThickness: 6
+                }
+            ).setOrigin(0.5);
+            this.add.text(875, 360, usesRemoteServer() ? '(BETA)' : '(LAN ONLY)', {
+                fontFamily: 'GameFont',
+                fontSize: '11px',
+                fill: '#ffd34d',
+                stroke: '#000000',
+                strokeThickness: 3
+            }).setOrigin(0.5);
+            onlineBox.setInteractive({ useHandCursor: true });
+
+            const openOnline = () => {
+                changeBotMode(false);
+                fadeOutTo(this, () => this.scene.start('OnlineLobbyScene'));
+            };
+            onlineBox.on('pointerdown', openOnline);
+            onlineBox.on('pointerover', function () {
+                onlineBox.setFillStyle(0xffffff);
+                onlineBox.setStrokeStyle(4, 0xbbbbbb);
+            });
+            onlineBox.on('pointerout', function () {
+                onlineBox.setFillStyle(0x111111);
+                onlineBox.setStrokeStyle(4, 0x000000);
+            });
+            layout.push({button: onlineBox, action: openOnline});
+        }
         layout.push({button: botBox, action: () => {
             changeBotMode(true);
             fadeOutTo(this, () => this.scene.start('MapAndModifierSelectScene'));

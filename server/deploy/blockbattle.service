@@ -1,0 +1,30 @@
+# systemd service for the BlockBattle online server. See SERVER_SETUP.md.
+# Install:  sudo cp server/deploy/blockbattle.service /etc/systemd/system/
+#           sudo systemctl daemon-reload && sudo systemctl enable --now blockbattle
+
+[Unit]
+Description=BlockBattle online server
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+User=blockbattle
+WorkingDirectory=/home/blockbattle/BlockBattle
+ExecStart=/usr/bin/node server/index.js
+Restart=always
+RestartSec=5
+
+# Only reachable through the tunnel / Caddy running on this same machine.
+Environment=HOST=127.0.0.1
+Environment=PORT=8080
+Environment=BB_MAX_MATCHES=6
+# The websites allowed to connect. Use the exact addresses from the browser's address bar.
+Environment=BB_ALLOWED_ORIGINS=https://arvin2a.github.io,https://YOUR-INFINITYFREE-SITE
+
+# Basic hardening: the server can't touch the rest of the system.
+NoNewPrivileges=true
+ProtectSystem=full
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target
