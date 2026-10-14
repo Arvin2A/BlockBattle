@@ -245,6 +245,7 @@ export class Lobby {
             authorityReady: false,
             tab: null,
             loaded: new Set(),
+            createdAt: Date.now(),
             bootTimer: null
         };
         this.matches.set(match.id, match);
@@ -266,7 +267,14 @@ export class Lobby {
 
         match.bootTimer = setTimeout(() => {
             if (match.state === 'booting') {
-                this.log(`Match ${match.id} took too long to start`);
+                // Say who we were still waiting on, so it's clear what to fix.
+                const waitingOn = [];
+                if (!match.authority) waitingOn.push('the game host never connected (hidden Chrome tab)');
+                else if (!match.authorityReady) waitingOn.push('the game host connected but never got ready');
+                for (const [slot, client] of Object.entries(match.players)) {
+                    if (!match.loaded.has(slot)) waitingOn.push(`${client.name} (${slot}) was still loading`);
+                }
+                this.log(`Match ${match.id} took too long to start: ${waitingOn.join(', ')}`);
                 this.endMatch(match, null, END_REASONS.SERVER_ERROR);
             }
         }, BOOT_TIMEOUT_MS);
@@ -323,6 +331,7 @@ export class Lobby {
                 });
             } else if (message.t === 'ready') {
                 match.authorityReady = true;
+                this.log(`Match ${match.id}: game host ready after ${this.secondsSince(match)}s`);
                 this.tryStart(match);
             } else if (message.t === 'end' && (message.winner === 'p1' || message.winner === 'p2')) {
                 this.endMatch(match, message.winner, END_REASONS.KO);
@@ -338,8 +347,14 @@ export class Lobby {
     }
 
     markLoaded(match, client) {
+        if (match.loaded.has(client.slot)) return;
         match.loaded.add(client.slot);
+        this.log(`Match ${match.id}: ${client.name} loaded after ${this.secondsSince(match)}s`);
         this.tryStart(match);
+    }
+
+    secondsSince(match) {
+        return ((Date.now() - match.createdAt) / 1000).toFixed(1);
     }
 
     tryStart(match) {
