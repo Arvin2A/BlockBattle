@@ -10,7 +10,7 @@ import { getCharacterTexture } from '../characterTextures.js';
 import { getConnectedControllers, getMenuGamepadInput } from '../navigation.js';
 import { net } from '../mp/client.js';
 import { cleanName, MAP_CHOICES, MAX_NAME_LENGTH } from '../mp/protocol.js';
-import { getOnlineServerHost, isOnlineAvailable, usesRemoteServer } from '../mp/serverConfig.js';
+import { getOnlineServerHost, getServerName, isOnlineConfigured, usesRemoteServer } from '../mp/serverConfig.js';
 
 const SETTINGS_KEY = 'blockBattleOnline';
 const MAP_LABELS = { DESERT: 'DESERT', SNOWY: 'SNOWY', RANDOM: 'RANDOM' };
@@ -93,7 +93,7 @@ export class OnlineLobbyScene extends Phaser.Scene {
             stroke: '#000000',
             strokeThickness: 6
         }).setOrigin(0.5);
-        this.add.text(500, 92, usesRemoteServer() ? `SERVER: ${getOnlineServerHost()}` : 'LOCAL NETWORK (LAN) ONLY, FOR NOW', {
+        this.add.text(500, 92, usesRemoteServer() ? `SERVER: ${getServerName()}` : 'LOCAL NETWORK (LAN)', {
             fontFamily: 'GameFont',
             fontSize: '14px',
             fill: '#ffd34d'
@@ -115,7 +115,7 @@ export class OnlineLobbyScene extends Phaser.Scene {
             this.cleanups = [];
         });
 
-        if (!isOnlineAvailable()) {
+        if (!isOnlineConfigured()) {
             this.showHostingHelp();
             return;
         }

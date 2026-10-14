@@ -136,8 +136,10 @@ variable**
 - Value: your server address from step 5, e.g. `wss://play.YOURDOMAIN.com/mp`
 
 Then re-run the deploy workflow (Actions tab > "Deploy to GitHub Pages and InfinityFree" >
-Run workflow). After it finishes, the ONLINE button appears on both sites whenever your
-server is running (the menu checks first, so it hides itself while the server is off). Delete the
+Run workflow). Optionally add a second variable `MP_SERVER_NAME` = `NEW YORK` for the name
+players see. After the deploy finishes, the ONLINE button on both sites shows
+`NEW YORK - 3 ONLINE` while your server is up, and greys out with `SERVER OFFLINE` while
+it's down. Delete the
 variable and redeploy to hide it again. People can also play directly at
 `https://play.YOURDOMAIN.com/BlockBattle/`.
 
@@ -157,7 +159,8 @@ Restarting ends any matches in progress, so do it when nobody is playing.
 
 | Problem | Check |
 |---|---|
-| ONLINE button missing on the website | The button only shows while the server answers. Is it running? `MP_SERVER_URL` set and deploy re-run? Site listed in `BB_ALLOWED_ORIGINS`? |
+| Button says NOT AVAILABLE | `MP_SERVER_URL` isn't set, or the deploy wasn't re-run after setting it |
+| Button says SERVER OFFLINE | Server or tunnel not running (`systemctl status blockbattle`), or the site isn't in `BB_ALLOWED_ORIGINS` |
 | Lobby says "Could not reach the online server" | `systemctl status blockbattle`, tunnel/Caddy running, the address ends in `/mp` |
 | Connects from one site but not the other | Its exact address (`https://...`, no trailing `/`) is in `BB_ALLOWED_ORIGINS` |
 | "Match crashed on the server" | `journalctl -u blockbattle -n 100`: is Chrome installed? Out of memory? |
