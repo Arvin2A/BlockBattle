@@ -17,7 +17,8 @@
 ### Added
 - Axeman's CHAINSAW variant has a special now, and build mode.
 - Special ability is revamped for gunman.
+- DAGGER for Swordman.
 
 ### Planned
 - LAWNMOWER for scytheman
-- DAGGER for swordman
+

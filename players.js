@@ -95,6 +95,8 @@ export function initiatePlayers(scene, p1Select = 'axeman', p2Select = 'swordman
             lastTap: { left: 0, right: 0 },
             isUsingSideSpecial: false,
             hasHitSideSpecial: false,
+            // True while dashing through the other player (DAGGER's QUICKSTEP).
+            clipThroughPlayers: false,
             hasDoubleJumped: false
         });
         p.currentPlatform = null;

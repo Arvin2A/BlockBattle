@@ -13,7 +13,7 @@ export const CHARACTER_ROSTER = [
             },
             {
                 name: 'DAGGER',
-                desc: 'wow you can stab faster now isn\'t that cool. \n\nDIR SPECIAL: QUICKSTEP \n\n Use it to teleport behind your foe',
+                desc: 'Wow, you can stab faster now isn\'t that cool. \n\nDIR SPECIAL: QUICKSTEP \n\n Use it to phase through your opponent',
                 color: '#004b95'
             },
         ]

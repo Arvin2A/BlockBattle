@@ -1081,7 +1081,9 @@ function create() {
         for (let j = i + 1; j < keys.length; j++) {
             const playerA = this.gameState.players[keys[i]];
             const playerB = this.gameState.players[keys[j]];
-            this.playerCollisionCollider = this.physics.add.collider(playerA, playerB);
+            // Players block each other unless one is dashing through (QUICKSTEP).
+            this.playerCollisionCollider = this.physics.add.collider(playerA, playerB, null,
+                (a, b) => !a.clipThroughPlayers && !b.clipThroughPlayers);
         }
     }
 
