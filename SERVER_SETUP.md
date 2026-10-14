@@ -224,7 +224,7 @@ Actions > Variables > New repository variable** and add:
 | `MP_SERVER_NAME` | *(optional)* name players see, e.g. `US EAST` or the city it's in |
 
 Then re-run the workflow (Actions tab > the deploy workflow > Run workflow). The values are
-built into the site, so changing them always needs a redeploy.
+built into the site, so changing them ALWAYS needs a redeploy.
 
 Building some other way? Set the same values as environment variables while building:
 `VITE_MP_SERVER=wss://... VITE_MP_SERVER_NAME="US EAST" npm run build`.
