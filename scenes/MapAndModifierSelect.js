@@ -1,10 +1,11 @@
-import { DEFAULT_MAP, SNOWY_MAP } from './GameScene/MapDefinitions.js';
+import { DEFAULT_MAP, MAP_LIST, getRandomMap } from './GameScene/MapDefinitions.js';
 import { preloadMapSelection } from './GameScene/preload.js';
 import { fadeOutTo } from './transitions.js';
 import { getNavigationBounds, wrapIndex, moveSelection, createNavigationBox, moveNavigationBox, getConnectedControllers, getMenuGamepadInput} from "../navigation.js"
 
 
 export let selectedMapDefinition = DEFAULT_MAP;
+export let selectedMapIsRandom = false;
 export const modifierOptions = {
     SUDDEN_DEATH: {
         name: 'SUDDEN DEATH',
@@ -51,10 +52,16 @@ export const modifierOptions = {
 
 export function setSelectedMap(definition) {
 	selectedMapDefinition = definition;
+	selectedMapIsRandom = false;
+}
+
+export function getMatchMapDefinition() {
+	return selectedMapIsRandom ? getRandomMap() : selectedMapDefinition;
 }
 
 export function resetMapAndModifierSelection() {
 	selectedMapDefinition = DEFAULT_MAP;
+	selectedMapIsRandom = false;
 	Object.values(modifierOptions).forEach(modifier => {
 		modifier.enabled = false;
 	});
@@ -71,13 +78,21 @@ export const MapAndModifierSelectScene = {
 	preload: preloadMapSelection,
 	create: function () {
 		this.cameras.main.fadeIn(200, 0, 0, 0);
-		const randInt = Math.round(Math.random());
-		const randomDef = randInt === 0 ? DEFAULT_MAP : SNOWY_MAP
 		const maps = [
-			{ definition: DEFAULT_MAP, preview: 'desertpreview', name: 'DESERT ARENA' },
-			{ definition: SNOWY_MAP, preview: 'snowypreview', name: 'SNOWY ARENA' },
-			{ definition: randomDef, preview: 'randompreview', name: 'RANDOM' }
+			...MAP_LIST.map(definition => ({ definition, preview: definition.preview, name: definition.name })),
+			{ definition: null, random: true, preview: 'randompreview', name: 'RANDOM' }
 		];
+		const selectMap = index => {
+			if (maps[index].random) {
+				selectedMapIsRandom = true;
+			} else {
+				selectedMapIsRandom = false;
+				selectedMapDefinition = maps[index].definition;
+			}
+			this.selectedMapIndex = index;
+			this.updateMapSelection(true);
+			this.sound.play('revolveselect');
+		};
 		currentControllers = getConnectedControllers(this);
 		primaryController = currentControllers[0] ?? null;
 
@@ -185,12 +200,7 @@ export const MapAndModifierSelectScene = {
 				fill: '#ffffff'
 			}).setOrigin(0.5);
 
-			const select = () => {
-				selectedMapDefinition = map.definition;
-				this.selectedMapIndex = index;
-				this.updateMapSelection(true);
-				this.sound.play('revolveselect');
-			};
+			const select = () => selectMap(index);
 
 
 			preview.on('pointerdown', select);
@@ -259,16 +269,25 @@ export const MapAndModifierSelectScene = {
 
 		panel.layout();
 
-		this.selectedMapIndex = maps.findIndex(map => map.definition === selectedMapDefinition);
-		if (this.selectedMapIndex < 0) this.selectedMapIndex = 0;
-		selectedMapDefinition = maps[this.selectedMapIndex].definition;
+		this.selectedMapIndex = selectedMapIsRandom
+			? maps.findIndex(map => map.random)
+			: maps.findIndex(map => map.definition === selectedMapDefinition);
+		if (this.selectedMapIndex < 0) {
+			this.selectedMapIndex = 0;
+			selectedMapIsRandom = false;
+			selectedMapDefinition = maps[0].definition;
+		}
 
 		this.updateMapSelection = (animate = false) => {
+			const count = this.mapCards.length;
 			this.mapCards.forEach((mapCard, index) => {
-				const selected = index === this.selectedMapIndex;
-				const previous = (index - this.selectedMapIndex + this.mapCards.length) % this.mapCards.length === this.mapCards.length - 1;
-				const targetX = selected ? 350 : previous ? 175 : 525;
-				const scale = selected ? 1 : 0.82;
+				let offset = (index - this.selectedMapIndex + count) % count;
+				if (offset > count / 2 || (count === 2 && offset === 1)) offset -= count;
+				const selected = offset === 0;
+				const shown = Math.abs(offset) <= 1;
+				const targetX = shown ? 350 + offset * 175 : 350 + Math.sign(offset) * 300;
+				const scale = selected ? 1 : shown ? 0.82 : 0.6;
+				const alpha = shown ? 1 : 0;
 				const objects = [
 					{
 						gameObject: mapCard.preview,
@@ -280,11 +299,16 @@ export const MapAndModifierSelectScene = {
 					{ gameObject: mapCard.name, y: 510, scaleX: scale, scaleY: scale }
 				];
 
+				objects[0].alpha = selected ? 1 : shown ? 0.65 : 0;
+				objects[1].alpha = alpha;
+				objects[2].alpha = alpha;
+
 				mapCard.card.setStrokeStyle(4, selected ? 0xffffff : 0x686868);
-				mapCard.preview.setAlpha(selected ? 1 : 0.65);
 				mapCard.name.setColor(selected ? '#ffffff' : '#888888');
-				objects.forEach(({ gameObject, y, scaleX, scaleY }) => {
-					gameObject.setDepth(selected ? 2 : 1);
+				mapCard.card.input.enabled = shown;
+				mapCard.preview.input.enabled = shown;
+				objects.forEach(({ gameObject, y, scaleX, scaleY, alpha }) => {
+					gameObject.setDepth(selected ? 2 : shown ? 1 : 0);
 					this.tweens.killTweensOf(gameObject);
 					if (animate) {
 						this.tweens.add({
@@ -293,11 +317,12 @@ export const MapAndModifierSelectScene = {
 							y,
 							scaleX,
 							scaleY,
+							alpha,
 							duration: 280,
 							ease: 'Cubic.Out'
 						});
 					} else {
-						gameObject.setPosition(targetX, y).setScale(scaleX, scaleY);
+						gameObject.setPosition(targetX, y).setScale(scaleX, scaleY).setAlpha(alpha);
 					}
 				});
 			});
@@ -348,12 +373,7 @@ export const MapAndModifierSelectScene = {
 				button: mapCard.card,
 				type: "map",
 				index,
-				action: () => {
-					selectedMapDefinition = maps[index].definition;
-					this.selectedMapIndex = index;
-					this.updateMapSelection(true);
-					this.sound.play("revolveselect");
-				}
+				action: () => selectMap(index)
 			})),
 
 			...this.modifierCards.map((modifierCard, index) => ({
@@ -387,6 +407,7 @@ export const MapAndModifierSelectScene = {
 				}
 			}
 		];
+		selectedIndex = this.selectedMapIndex;
 	},
 	update: function () {
 		currentControllers = getConnectedControllers(this);
@@ -437,11 +458,16 @@ export const MapAndModifierSelectScene = {
 				panel.scrollToChild(modifierCard.card);
 			}
 
-			moveNavigationBox(
-				this,
-				navBox,
-				selected.button
-			);
+			if (selected.type === "map") {
+				if (selected.index !== this.selectedMapIndex) selected.action();
+				moveNavigationBox(this, navBox, { x: 350, y: 320, width: 250, height: 320 });
+			} else {
+				moveNavigationBox(
+					this,
+					navBox,
+					selected.button
+				);
+			}
 		}
 
 		if (justPressed("a")) {

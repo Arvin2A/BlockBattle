@@ -10,7 +10,7 @@ import { getServerSocketUrl, PROTOCOL_VERSION } from './protocol.js';
 import { decodeButtons, INPUT_BUTTONS } from '../input.js';
 import { setSelectedCharacters } from '../scenes/CharacterSelectScreen.js';
 import { resetMapAndModifierSelection, setSelectedMap } from '../scenes/MapAndModifierSelect.js';
-import { DEFAULT_MAP, SNOWY_MAP } from '../scenes/GameScene/Map.js';
+import { getMap } from '../scenes/GameScene/MapDefinitions.js';
 import { changeBotMode } from '../gameSettings.js';
 
 function readAuthorityParams() {
@@ -97,7 +97,7 @@ function createAuthorityBootScene(preload) {
                         matchConfig = message;
                         changeBotMode(false);
                         resetMapAndModifierSelection();
-                        setSelectedMap(message.map === 'SNOWY' ? SNOWY_MAP : DEFAULT_MAP);
+                        setSelectedMap(getMap(message.map));
                         setSelectedCharacters(
                             message.p1.character, message.p1.variant,
                             message.p2.character, message.p2.variant
@@ -119,10 +119,15 @@ function createAuthorityBootScene(preload) {
     };
 }
 
-// Hooks the mirror into a freshly created GameScene.
-export function attachAuthority(scene) {
+// Starts recording at the top of GameScene.create(), so sounds made while
+// the scene is being built (like the chainsaw loop) reach the players too.
+export function beginAuthorityCapture(scene) {
     endReported = false;
     capture = new MirrorCapture(scene);
+}
+
+// Hooks the mirror into a freshly created GameScene.
+export function attachAuthority(scene) {
     const players = scene.gameState.players;
     const camera = scene.cameras.main;
 

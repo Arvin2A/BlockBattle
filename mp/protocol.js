@@ -2,13 +2,15 @@
 // Things the browser game and the LAN server (server/index.js) have to agree on.
 // Plain JS with no Phaser imports so Node can load it too.
 
+import { MAPS } from '../scenes/GameScene/MapDefinitions.js';
+
 // Bump this whenever messages change so old tabs get a clear "refresh" error.
 export const PROTOCOL_VERSION = 2;
 
 export const MP_PATH = '/mp';
 export const DEFAULT_PORT = 8080;
 
-export const MAP_CHOICES = ['DESERT', 'SNOWY', 'RANDOM'];
+export const MAP_CHOICES = [...Object.keys(MAPS), 'RANDOM'];
 
 export const MAX_NAME_LENGTH = 16;
 

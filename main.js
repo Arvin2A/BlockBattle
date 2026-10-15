@@ -6,17 +6,17 @@ import { Commands, executeStateCommand} from './commands.js';
 import { MenuScene } from './scenes/MenuScene.js';
 import { fadeOutTo } from './scenes/transitions.js';
 import { player1Character, player2Character, player1Variant, player2Variant, CharacterSelectScene } from './scenes/CharacterSelectScreen.js';
-import { MapAndModifierSelectScene, selectedMapDefinition, resetMapAndModifierSelection } from './scenes/MapAndModifierSelect.js';
+import { MapAndModifierSelectScene, getMatchMapDefinition, resetMapAndModifierSelection } from './scenes/MapAndModifierSelect.js';
 import { preload } from './scenes/GameScene/preload.js';
 import { createGameAnimations } from './scenes/GameScene/animations.js';
 import { runBotAI } from './scenes/GameScene/botAI.js';
-import { DEFAULT_MAP, Map, SNOWY_MAP } from './scenes/GameScene/Map.js';
+import { Map } from './scenes/GameScene/Map.js';
 import { modifierOptions } from './scenes/MapAndModifierSelect.js';
 import UIPlugin from 'phaser4-rex-plugins/templates/ui/ui-plugin.js';
 import unmuteAudio from 'unmute-ios-audio';
 import { botMode, changeBotMode } from './gameSettings.js';
 import { createInputState, applyInputFrame, consumePress, emptyControllerInput, readControllerInput } from './input.js';
-import { isAuthority, attachAuthority, createAuthorityGame, getOnlinePlayerNames, pollNetworkInput, reportMatchEnd } from './mp/authority.js';
+import { isAuthority, beginAuthorityCapture, attachAuthority, createAuthorityGame, getOnlinePlayerNames, pollNetworkInput, reportMatchEnd } from './mp/authority.js';
 import { OnlineLobbyScene } from './scenes/OnlineLobbyScene.js';
 import { OnlineGameScene, OnlineOverlayScene } from './scenes/OnlineGameScene.js';
 
@@ -38,7 +38,7 @@ unmuteAudio();
 //NOTE: mohsina007 and arvin2a are the same person
 // its just that mohsina007 is the account that was hard-set as the account for VSCode, the application I used to make this game.
 // and the sound effects were taken from various games as listed in the preload function.
-//WASD and arrow keys control the players; E/SHIFT attack and LEFT ALT/ RIGHT ALT use special.
+//WASD and arrow keys control the players; E/SHIFT attack, Q / FORWARD SLASH use special and LEFT ALT / RIGHT ALT switch chainsaw mode.
 
 function sleep(ms) {
     return new Promise(resolve => setTimeout(resolve, ms));
@@ -601,44 +601,6 @@ function updateSpecialMeters(scene) {
     }
 }
 
-function applyWeatherDamage(scene, amount) {
-    Object.values(scene.gameState.players).forEach(player => {
-        player.KBmultiplier += amount;
-        player.flash();
-    });
-}
-
-function startWeatherHazard(scene, type) {
-    const key = type === 'blizzard' ? 'blizzard' : 'sandstorm';
-    const sprite = scene.add.sprite(500, 300, key)
-        .setDisplaySize(1000, 600)
-        .setDepth(10000)
-        .setAlpha(0.72);
-    scene.hud.add(sprite);
-    sprite.play(key);
-
-    scene.weatherHazard = {
-        type,
-        sprite,
-        endsAt: scene.time.now + 5000,
-        nextDamageAt: scene.time.now + 1000,
-        sound: scene.sound.add('storm', { volume: 0.80, loop: true })
-    };
-    scene.weatherHazard.sound.play();
-
-    if (type === 'blizzard') {
-        Object.values(scene.gameState.players).forEach(player => {
-            player.weatherOriginalBaseMovementSpeed = player.baseMovementSpeed;
-            player.baseMovementSpeed *= 0.5;
-        });
-        applyWeatherDamage(scene, 0.35);
-    }
-}
-
-function isResistingSandstorm(scene, player) {
-    return scene.playerInputs[player.id === 1 ? 'p1' : 'p2'].right;
-}
-
 // Reads this computer's keyboard, touch buttons and controller for one player.
 // Online, the authority uses pollNetworkInput instead (see readPlayerInputs).
 function pollLocalInput(scene, slot) {
@@ -668,8 +630,8 @@ function pollLocalInput(scene, slot) {
             up: keys.up.isDown || mobile.up || pad.up,
             down: keys.down.isDown || mobile.down || pad.down,
             attack: attackKey.isDown || mobile.attack || pad.attack,
-            special: altDown || mobile.special || pad.special,
-            misc: modeKey.isDown || pad.misc
+            special: modeKey.isDown || mobile.special || pad.special,
+            misc: altDown || pad.misc
         },
         pressed: {
             left: JustDown(keys.left) || touch.left || pad.leftPressed,
@@ -677,8 +639,8 @@ function pollLocalInput(scene, slot) {
             up: JustDown(keys.up) || touch.up || pad.upPressed,
             down: JustDown(keys.down) || touch.down || pad.downPressed,
             attack: JustDown(attackKey) || touch.attack || pad.attackPressed,
-            special: altPressed || touch.special || pad.specialPressed,
-            misc: JustDown(modeKey) || pad.miscPressed
+            special: JustDown(modeKey) || touch.special || pad.specialPressed,
+            misc: altPressed || pad.miscPressed
         },
         touch
     };
@@ -695,43 +657,30 @@ function readPlayerInputs(scene) {
     scene.p2RightAltPressed = false;
 }
 
-function updateWeatherHazard(scene) {
-    if (!scene.blizzardEnabled && !scene.sandstormEnabled) return;
+function updateMapHazard(scene) {
+    const hazard = scene.mapHazard;
+    if (!hazard) return;
 
     const now = scene.time.now;
-    const hazard = scene.weatherHazard;
+    const active = scene.activeHazard;
 
-    if (hazard) {
-        if (now >= hazard.endsAt) {
-            hazard.sprite.destroy();
-            if (hazard.type === 'blizzard') {
-                Object.values(scene.gameState.players).forEach(player => {
-                    player.baseMovementSpeed = player.weatherOriginalBaseMovementSpeed;
-                    player.weatherOriginalBaseMovementSpeed = undefined;
-                });
-            }
-            hazard.sound.stop();
-            scene.weatherHazard = null;
+    if (active) {
+        if (now >= active.endsAt) {
+            hazard.end?.(scene, active.state);
+            scene.activeHazard = null;
         } else {
-            Object.values(scene.gameState.players).forEach(player => {
-                if (hazard.type === 'sandstorm') {
-                    const pushStrength = isResistingSandstorm(scene, player) ? 3 : 8;
-                    player.setVelocityX(player.body.velocity.x - pushStrength);
-                }
-            });
-
-            if (hazard.type === 'sandstorm' && now >= hazard.nextDamageAt) {
-                applyWeatherDamage(scene, 0.10);
-                hazard.nextDamageAt += 1000;
-            }
+            hazard.update?.(scene, active.state, now);
         }
         return;
     }
 
     if (scene.matchStartTime !== null && now >= scene.nextHazardCheckAt) {
-        scene.nextHazardCheckAt = now + 5000;
-        if (Math.random() < 0.5) {
-            startWeatherHazard(scene, scene.sandstormEnabled ? 'sandstorm' : 'blizzard');
+        scene.nextHazardCheckAt = now + (hazard.checkInterval ?? 5000);
+        if (Math.random() < (hazard.chance ?? 0.5)) {
+            scene.activeHazard = {
+                state: hazard.start?.(scene) ?? {},
+                endsAt: now + (hazard.duration ?? 5000)
+            };
         }
     }
 }
@@ -739,6 +688,7 @@ function updateWeatherHazard(scene) {
 function create() {
     // online = this scene is the authority for a LAN match (inputs come from the network).
     this.online = isAuthority();
+    if (this.online) beginAuthorityCapture(this);
     this.playerInputs = { p1: createInputState(), p2: createInputState() };
     this.gamePaused = false;
     this.time.paused = false;
@@ -769,9 +719,8 @@ function create() {
     this.winCooldown = false;
     this.finisherActive = false;
     this.matchStartTime = null;
-    this.blizzardEnabled = false;
-    this.sandstormEnabled = false;
-    this.weatherHazard = null;
+    this.mapHazard = null;
+    this.activeHazard = null;
     this.nextHazardCheckAt = 0;
 
 
@@ -798,13 +747,10 @@ function create() {
         p1: [],
         p2: []
     }
-    this.gameState.map = new Map(this, selectedMapDefinition);
+    const mapDefinition = getMatchMapDefinition();
+    this.gameState.map = new Map(this, mapDefinition);
     if (modifierOptions.MAP_HAZARDS.enabled) {
-        if (selectedMapDefinition == SNOWY_MAP) {
-            this.blizzardEnabled = true;
-        } else if (selectedMapDefinition == DEFAULT_MAP) {
-            this.sandstormEnabled = true;
-        }
+        this.mapHazard = mapDefinition.hazard ?? null;
     }
     this.nextHazardCheckAt = this.time.now + 5000;
     //Making the map, platforms, and the KB stat display
@@ -1036,9 +982,8 @@ function create() {
                 .setScrollFactor(0)
                 .setDepth(999)
                 .setInteractive();
-            const keyName = player === this.gameState.players.player2 ? '/' : 'Q'
-            const label = this.add.text(x, 420, keyName, {
-                fontSize: '36px',
+            const label = this.add.text(x, 420, 'ALT', {
+                fontSize: '24px',
                 color: '#ffffff',
                 fontFamily: 'VCROSD'
             }).setOrigin(0.5).setScrollFactor(0).setDepth(1000);
@@ -1322,7 +1267,6 @@ const accelFactor = 20;
 const baseZoom = 1;
 const minZoom = 0.6;
 const defaultMaxZoom = 1.4;
-const snowyMaxZoom = 0.8;
 
 const tiltThreshold = 150;
 
@@ -1542,9 +1486,7 @@ function update() {
 
     let zoom = this.baseZoom - (distance / 2000);
 
-    const maxZoom = this.gameState.map.definition === SNOWY_MAP
-        ? snowyMaxZoom
-        : defaultMaxZoom;
+    const maxZoom = this.gameState.map.definition.maxZoom ?? defaultMaxZoom;
     zoom = Phaser.Math.Clamp(zoom, minZoom, maxZoom);
 
     this.cameras.main.scrollX += (
@@ -2140,7 +2082,7 @@ function update() {
     if (botMode) {
         runBotAI(this, p2, p1, fiveframecount);
     }
-    updateWeatherHazard(this);
+    updateMapHazard(this);
     if (fiveframecount >= 5) {
         fiveframecount = 0;
     }

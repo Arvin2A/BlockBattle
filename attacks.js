@@ -257,7 +257,7 @@ export function updateScythemanGrass(scene, players) {
         player.inGrass = scene.scytheGrass.some(grass =>
             grass.active && grass.getBounds().contains(player.x, player.y + 20)
         );
-        if (player.inGrass && player.name !== 'SCYTHEMAN' &&
+        if (player.inGrass && player.name !== 'SCYTHEMAN' && !isInvincible(player) &&
             scene.time.now >= player.nextGrassDamageTime) {
             player.KBmultiplier += 0.025;
             player.nextGrassDamageTime = scene.time.now + 450;
@@ -299,6 +299,10 @@ export function updateScythemanGrass(scene, players) {
     }
 }
 
+export function isInvincible(player) {
+    return player.scene.time.now < (player.invincibleUntil ?? 0);
+}
+
 export function attackIsElligible(
     attacker,
     target,
@@ -307,6 +311,7 @@ export function attackIsElligible(
     allowTargetBelow = false
 ) {
     if (onlyOnCanAttack && (!attacker.canAttack || attacker.hitstun)) return false;
+    if (isInvincible(target)) return false;
     const dx = target.x - attacker.x;
     const dy = target.y - attacker.y;
     const distance = Math.hypot(dx, dy);
@@ -1410,6 +1415,7 @@ export function tryQuickstep(scene, player, direction, target, currentTime) {
         player.afterimage = true;
         player.hasHitSideSpecial = false;
         player.clipThroughPlayers = true;
+        player.invincibleUntil = currentTime + 425;
 
         // Same speed as LUNGE for half as long.
         const qspeed = 1200;
@@ -2054,7 +2060,7 @@ export function downslamAttack(scene, attacker, target) {
 
     const dx = target.x - attacker.x;
     const dy = target.y - attacker.y;
-    if (Math.hypot(dx, dy) > 125 || scene.finisherActive) return false;
+    if (Math.hypot(dx, dy) > 125 || scene.finisherActive || isInvincible(target)) return false;
 
     target.hitstunUntil = scene.time.now + 500;
     target.willDecelerate = false;
@@ -2276,7 +2282,7 @@ export function tryPull(scene, player, target, direction, currentTime) {
 
         colliders.push(
             scene.physics.add.overlap(hook, target, () => {
-                if (cleanedUp || player.hasHitSideSpecial || pullingToPlatform) return;
+                if (cleanedUp || player.hasHitSideSpecial || pullingToPlatform || isInvincible(target)) return;
                 player.hasHitSideSpecial = true;
 
                 target.hitstunUntil = 550 + scene.time.now;
@@ -2339,6 +2345,7 @@ const sharedAttackHelpers = {
     getAttackDamageScale,
     getProjectileBlockingPlatforms,
     attackIsElligible,
+    isInvincible,
     setAttackSprite,
     positionAttackSprite,
     hideAttackSprite,

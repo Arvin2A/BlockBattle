@@ -5,6 +5,8 @@ it says mohsina007 for the edits, but its just me, idk how to change it anymore.
 EDIT: This game while originally for a class project, is now developing as a passion project. 
 100% OPEN SOURCE GAME IN DEVELOPMENT!
 
+CLAUDE was only used for serious changes (like multiplayer in the span of one day) and bug fixes. Character scripts, maps, and assets made by me hand drawn.
+
 ## Online multiplayer
 
 Two players on the **same network** (same Wi-Fi/router) can fight each other from their own devices.

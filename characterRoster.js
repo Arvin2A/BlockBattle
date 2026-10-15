@@ -29,7 +29,7 @@ export const CHARACTER_ROSTER = [
             },
             {
                 name: 'CHAINSAW',
-                desc: 'Whats better than brutally grinding down your opponent? Building. Press Q to switch between build and chainsaw mode. Gain wood by digging down. \n\n DIR SPECIAL: RAMPAGE \n\n Doubles your damage output for 1 second.',
+                desc: 'Whats better than brutally grinding down your opponent? Building. Press ALT to switch between build and chainsaw mode. Gain wood by digging down. \n\n DIR SPECIAL: RAMPAGE \n\n Doubles your damage output for 1 second.',
                 color: '#ffae00',
                 fontSize: 17
             }

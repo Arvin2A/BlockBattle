@@ -211,7 +211,7 @@ function handleShot(api, scene, attacker, victim, options = {}) {
     scene.sound.play('gunshot');
     if (isExplosion) scene.sound.play('reload');
 
-    const hitCount = scene.finisherActive
+    const hitCount = scene.finisherActive || api.isInvincible(victim)
         ? 0
         : beams.filter(beam => beam.hit).length;
     if (hitCount > 0) {
@@ -357,7 +357,7 @@ function chuck(api, scene, attacker, victim) {
         if (detonated || !grenade.active) return;
         detonated = true;
 
-        if (hitVictim && victim.active && !scene.finisherActive) {
+        if (hitVictim && victim.active && !scene.finisherActive && !api.isInvincible(victim)) {
             const damageScale = api.getAttackDamageScale(attacker);
             victim.KBmultiplier += 0.08 * damageScale;
             victim.willDecelerate = false;
