@@ -10,6 +10,7 @@ export function preloadMapSelection() {
     this.load.image('desertpreview', 'assets/arenapreview.png');
     this.load.image('snowypreview', 'assets/snowy_preview.png');
     this.load.image('randompreview', 'assets/random_preview.png');
+    this.load.image('jungle_preview', 'assets/jungle_preview.png');
     this.load.audio('hover', 'audio/hover.wav');
     this.load.audio('hover2', 'audio/hover2.wav');
     this.load.audio('revolveselect', 'audio/revolveselect.wav');
@@ -94,6 +95,14 @@ export function preload() {
     
     this.load.image('snowplatform1', 'assets/snowplatform1.png');
     this.load.image('snowplatform2', 'assets/snowplatform2.png');
+
+    this.load.image('jungle_background', 'assets/jungle_background.png');
+    this.load.image('jungle_betterground', 'assets/jungle_betterground.png');
+    this.load.image('jungle_platform', 'assets/jungle_platform.png');
+
+    this.load.image('jungle_preview', 'assets/jungle_preview.png');
+
+    
 
 
     // =====================================================

@@ -13,7 +13,7 @@ import { cleanName, MAP_CHOICES, MAX_NAME_LENGTH } from '../mp/protocol.js';
 import { getOnlineServerHost, getServerName, isOnlineConfigured, usesRemoteServer } from '../mp/serverConfig.js';
 
 const SETTINGS_KEY = 'blockBattleOnline';
-const MAP_LABELS = { DESERT: 'DESERT', SNOWY: 'SNOWY', RANDOM: 'RANDOM' };
+const MAP_LABELS = { RANDOM: 'RANDOM' };
 const ROOMS_PER_PAGE = 4;
 
 function loadSettings() {
@@ -248,28 +248,37 @@ export class OnlineLobbyScene extends Phaser.Scene {
     }
 
     buildFighterPanel() {
-        this.add.rectangle(290, 330, 340, 330, 0x171717, 0.92).setStrokeStyle(3, 0xffffff);
-        this.add.text(290, 185, 'YOUR FIGHTER', {
+        this.add.rectangle(250, 330, 460, 330, 0x171717, 0.92).setStrokeStyle(3, 0xffffff);
+        this.add.text(140, 185, 'YOUR FIGHTER', {
             fontFamily: 'GameFont',
             fontSize: '18px',
             fill: '#ffffff'
         }).setOrigin(0.5);
 
-        this.fighterIcon = this.add.image(290, 275, 'axeman').setDisplaySize(130, 130);
-        makeArrow(this, 165, 275, '<', () => this.changeCharacter(-1));
-        makeArrow(this, 415, 275, '>', () => this.changeCharacter(1));
+        this.fighterIcon = this.add.image(140, 275, 'axeman').setDisplaySize(120, 120);
+        makeArrow(this, 50, 275, '<', () => this.changeCharacter(-1));
+        makeArrow(this, 230, 275, '>', () => this.changeCharacter(1));
 
-        this.fighterName = this.add.text(290, 370, '', {
+        this.fighterName = this.add.text(140, 370, '', {
             fontFamily: 'GameFont',
-            fontSize: '26px',
+            fontSize: '24px',
             fill: '#ffffff'
         }).setOrigin(0.5);
-        this.variantText = this.add.text(290, 402, '', {
+        this.variantText = this.add.text(140, 402, '', {
             fontFamily: 'VCROSD',
             fontSize: '20px',
             fill: '#ffffff'
         }).setOrigin(0.5);
-        this.variantButton = makeButton(this, 290, 450, 220, 36, 'SWITCH VARIANT', () => this.changeVariant(1), 18);
+        this.variantButton = makeButton(this, 140, 450, 190, 36, 'SWITCH VARIANT', () => this.changeVariant(1), 18);
+
+        this.add.rectangle(265, 330, 2, 290, 0x686868);
+        this.fighterDesc = this.add.text(372, 330, '', {
+            fontFamily: 'VCROSD',
+            fontSize: '15px',
+            fill: '#ffffff',
+            align: 'center',
+            wordWrap: { width: 190 }
+        }).setOrigin(0.5);
     }
 
     buildMatchPanel() {
@@ -561,14 +570,18 @@ export class OnlineLobbyScene extends Phaser.Scene {
 
     refreshSelection() {
         const { character, variant, map } = this.getChoice();
-        this.fighterIcon.setTexture(getCharacterTexture(character.key, variant.name)).setDisplaySize(130, 130);
+        this.fighterIcon.setTexture(getCharacterTexture(character.key, variant.name)).setDisplaySize(120, 120);
         this.fighterName.setText(character.name);
         this.variantText.setText(variant.name).setColor(variant.color ?? '#ffffff');
+        this.fighterDesc.setFontSize(15).setText(variant.desc ?? '');
+        for (let size = 14; size >= 10 && this.fighterDesc.height > 280; size--) {
+            this.fighterDesc.setFontSize(size);
+        }
         const hasVariants = character.variants.length > 1;
         this.variantButton.box.setVisible(hasVariants);
         this.variantButton.text.setVisible(hasVariants);
         this.nameButton.text.setText(`NAME: ${this.selection.name}   (CHANGE)`);
-        this.mapText.setText(MAP_LABELS[map]);
+        this.mapText.setText(MAP_LABELS[map] ?? map);
         saveSettings({
             character: character.key,
             variant: variant.name,
@@ -623,7 +636,9 @@ export class OnlineLobbyScene extends Phaser.Scene {
         this.queueText.setText(`VS ${match.opponent.name}  (${match.opponent.character.toUpperCase()})`);
         this.sound.play('hover2');
         this.time.delayedCall(600, () => {
-            this.scene.start('OnlineGameScene', { match });
+            const { character, variant } = this.getChoice();
+            const self = { character: character.key, variant: variant.name };
+            this.scene.start('OnlineGameScene', { match: { ...match, self } });
         });
     }
 

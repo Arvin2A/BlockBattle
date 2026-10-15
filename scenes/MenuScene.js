@@ -47,6 +47,14 @@ export const MenuScene = {
 
         const changelogEntries = [
             {
+                title: "KEYBINDS HAVE BEEN CHANGED!",
+                body: "THE SPECIAL KEY IS NO LONGER RIGHT/LEFT ALT, IT IS NOW Q and /, CHAINSAW'S BUILDMODE IS NOW USING ALT INSTEAD."
+            },
+            {
+                title: "THE JUNGLE",
+                body: "The jungle map has finally released! First one with 3 platforms"
+            },
+            {
                 title: "MUTLIPLAYER",
                 body: "YOU CAN FINALLY PLAY ONLINE???? Yes and a server has been made in NY, and if you're willing to make one for your own better connectivity, read SERVER_SETUP.md in https://github.com/Arvin2A/BlockBattle/blob/main/SERVER_SETUP.md."
             },
@@ -56,7 +64,7 @@ export const MenuScene = {
             },
             {
                 title: "MALLET AND SLEDGEHAMMER WALL",
-                body: "Pressing the SPECIAL key (ALT for keyboard) for hammerman can now place strong vertical walls. "
+                body: "Pressing the SPECIAL key (Q / '/' for keyboard) for hammerman can now place strong vertical walls. "
             },
             {
                 title: "CROWBARMAN's GRAB",

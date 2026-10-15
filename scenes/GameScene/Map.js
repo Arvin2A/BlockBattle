@@ -1,9 +1,7 @@
-import { DEFAULT_MAP, SNOWY_MAP } from './MapDefinitions.js';
-
-export { DEFAULT_MAP, SNOWY_MAP };
+import { DEFAULT_MAP } from './MapDefinitions.js';
 
 export class Map {
-    constructor(scene, definition = SNOWY_MAP) {
+    constructor(scene, definition = DEFAULT_MAP) {
         this.scene = scene;
         this.definition = definition;
         this.platforms = scene.physics.add.staticGroup();
@@ -27,8 +25,6 @@ export class Map {
             definition.groundVisual
         );
         groundVisual.setDisplaySize(groundVisual.width, 1200);
-        groundVisual.setDepth(1);
-        scene.objs.add(groundVisual);
 
         this.ground = this.platforms.create(
             definition.mainGround.x,
@@ -40,15 +36,18 @@ export class Map {
         this.ground.refreshBody();
         scene.objs.add(this.ground);
 
-        definition.platformVisuals.forEach(platformDefinition => {
+        const visuals = { main: groundVisual };
+        definition.platformVisuals.forEach((platformDefinition, index) => {
             const platform = scene.add.image(
                 platformDefinition.x,
                 platformDefinition.y,
                 platformDefinition.texture
             );
             platform.setScale(platformDefinition.scale);
-            scene.objs.add(platform);
+            visuals[index] = platform;
+            if (platformDefinition.name) visuals[platformDefinition.name] = platform;
         });
+        this.addVisualsInDepthOrder(visuals);
 
         definition.platforms.forEach((platformDefinition, index) => {
             const platform = this.topPlatforms.create(
@@ -64,6 +63,18 @@ export class Map {
             platform.body.checkCollision.right = false;
             scene.objs.add(platform);
             this[`platform${index + 1}`] = platform;
+        });
+    }
+
+    addVisualsInDepthOrder(visuals) {
+        const all = [...new Set(Object.values(visuals))];
+        const ordered = [...new Set((this.definition.platformDepthOrder ?? [])
+            .map(key => visuals[key])
+            .filter(Boolean))];
+        const remaining = all.filter(visual => !ordered.includes(visual));
+        [...ordered, ...remaining].forEach((visual, index) => {
+            visual.setDepth(index + 1);
+            this.scene.objs.add(visual);
         });
     }
 
