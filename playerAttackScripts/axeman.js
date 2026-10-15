@@ -83,7 +83,7 @@ function startRampage(api, scene, attacker, victim) {
 }
 
 function explodeChainsaw(api, scene, attacker, victim, options = {}) {
-    if (attacker.chainsawHasExploded || !victim.active || scene.finisherActive) return;
+    if (attacker.chainsawHasExploded || !victim.active || scene.finisherActive || api.isInvincible(victim)) return;
 
     attacker.chainsawHasExploded = true;
     attacker.chainsawCooldownUntil = scene.time.now + 5000;
@@ -191,7 +191,7 @@ function updateChainsaw(api, scene, attacker, victim, options = {}) {
     }
     api.positionAttackSprite(attacker, 'activechainsaw');
     breakPlanksWithChainsaw(api, scene, attacker);
-    if (!victim.active || api.distanceBetween(attacker.atk, victim) > (options.range ?? 50)) {
+    if (!victim.active || api.isInvincible(victim) || api.distanceBetween(attacker.atk, victim) > (options.range ?? 50)) {
         attacker.chainsawLastContactTime = 0;
         return;
     }

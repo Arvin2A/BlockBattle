@@ -19,6 +19,12 @@
 - Special ability is revamped for gunman.
 - DAGGER for Swordman.
 
+## 2026-10-15
+- The jungle map + Keybind switch
+
+### Added 
+
 ### Planned
 - LAWNMOWER for scytheman
+- TRAPPER fisherman
 

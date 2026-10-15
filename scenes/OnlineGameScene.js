@@ -18,8 +18,8 @@ const KEY_BINDINGS = {
     KeyW: 'up', ArrowUp: 'up',
     KeyS: 'down', ArrowDown: 'down',
     KeyE: 'attack', ShiftLeft: 'attack', ShiftRight: 'attack',
-    AltLeft: 'special', AltRight: 'special',
-    KeyQ: 'misc', Slash: 'misc'
+    KeyQ: 'special', Slash: 'special',
+    AltLeft: 'misc', AltRight: 'misc'
 };
 const CAPTURED_KEYS = 'W,A,S,D,UP,DOWN,LEFT,RIGHT,E,SHIFT,ALT,Q,FORWARD_SLASH';
 
@@ -253,7 +253,7 @@ export class OnlineOverlayScene extends Phaser.Scene {
             strokeThickness: 6,
             align: 'center'
         }).setOrigin(0.5).setAlpha(0);
-        this.controlsHint = this.add.text(500, 525, 'MOVE: WASD / ARROWS    ATTACK: E / SHIFT    SPECIAL: ALT    LEAVE: ESC', {
+        this.controlsHint = this.add.text(500, 525, 'MOVE: WASD / ARROWS    ATTACK: E / SHIFT    SPECIAL: Q / '/'    LEAVE: ESC', {
             fontFamily: 'GameFont',
             fontSize: '14px',
             fill: '#ffffff',
@@ -360,13 +360,16 @@ export class OnlineOverlayScene extends Phaser.Scene {
             [150, 330, '↑', 'up'],
             [150, 420, '↓', 'down'],
             [850, 420, 'A', 'attack'],
-            [940, 330, 'S', 'special'],
-            [760, 420, 'Q', 'misc']
+            [940, 330, 'S', 'special']
         ];
+        const self = this.match.self;
+        if (self?.character === 'axeman' && self.variant === 'CHAINSAW') {
+            layout.push([760, 420, 'ALT', 'misc']);
+        }
         for (const [x, y, label, button] of layout) {
             const circle = this.add.circle(x, y, 45, 0x000000, 0.45).setInteractive();
             this.add.text(x, y, label, {
-                fontSize: '44px',
+                fontSize: label.length > 1 ? '26px' : '44px',
                 color: '#ffffff',
                 fontFamily: 'Arial'
             }).setOrigin(0.5).setAlpha(0.6);
