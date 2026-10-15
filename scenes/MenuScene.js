@@ -10,7 +10,7 @@ var navBox = null;
 var layout = []
 var selectedIndex = 0;
 var previousInput = {};
-const CHANGELOG_VERSION = "2026-10-14-3";
+const CHANGELOG_VERSION = "2026-10-15-1";
 
 function getVersionColor(version) {
     let hash = 0;
