@@ -5,8 +5,21 @@
     <title>BLOCK BATTLE!!</title>
     <link rel="icon" type="image/x-icon" href="width_512.ico">
     <style type="text/css">
-        body {
+        html, body {
             margin: 0;
+            padding: 0;
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            background: #000;
+        }
+        #game {
+            width: 100vw;
+            height: 100vh;
+            height: 100dvh;
+        }
+        #game canvas {
+            display: block;
         }
     </style>
     <meta property="og:title" content="BLOCK BATTLE!!" />
@@ -20,6 +33,7 @@
     <meta name="theme-color" content="#FF5733" />
 </head>
 <body>
+<div id="game"></div>
 <script type="module" src="./main.js"></script>
 
 </body>
