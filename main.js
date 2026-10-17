@@ -1,5 +1,5 @@
 import Phaser from 'phaser';
-import {handleAttack, handleDirSpecial, handleNeutralSpecial, handleDirSpecialAttack, handleHorizantalTilt, handleDownTilt, handleUpTilt, downslamAttack, updateScythemanGrass, updateChainsawWood, toggleChainsawMode, tryQuickslamJump, positionAttackSprite} from './attacks.js';
+import {handleAttack, handleDirSpecial, handleNeutralSpecial, handleDirSpecialAttack, handleHorizantalTilt, handleDownTilt, handleUpTilt, downslamAttack, updateScythemanGrass, updateChainsawWood, toggleChainsawMode, tryQuickslamJump, positionAttackSprite, hasIdleAttackSprite, getAttackSpriteOffset} from './attacks.js';
 import { MAX_WOOD_COUNT } from './playerAttackScripts/axeman.js';
 import { initiatePlayers, updateCombo } from './players.js';
 import { Commands, executeStateCommand} from './commands.js';
@@ -997,6 +997,7 @@ function create() {
         }
     }
     createSpecialMeters(this);
+    startCharacterIntros(this);
 
     if (this.online) {
         const names = getOnlinePlayerNames();
@@ -1142,6 +1143,7 @@ function create() {
                     this.gameState.players.player2.freezeUntil = 0;
                     this.gameState.players.player.hitstunUntil = 0;
                     this.gameState.players.player2.hitstunUntil = 0;
+                    endCharacterIntros(this);
                     this.matchStartTime = this.time.now;
 
                 });   
@@ -1292,6 +1294,82 @@ function spawnAfterimage(scene, player) {
         duration: 100,
         onComplete: () => ghost.destroy()
     });
+}
+
+const SWORD_THIRD_HOLD_MS = 250;
+
+// Intro frames draw the fighter themselves, off-centre so the weapon has
+// room: this shifts the frame so the fighter sits on the player's position.
+const INTRO_OFFSET = { x: 31, y: 0 };
+
+// A fighter whose texture has a `<texture>intro` animation (only LONGSWORD
+// SWORDMAN for now) plays it in place of their weapon sprite during the countdown.
+// It isn't looped, so it stays on its last frame until endCharacterIntros.
+function startCharacterIntros(scene) {
+    for (const player of Object.values(scene.gameState.players)) {
+        const key = `${player.texture.key}intro`;
+        if (!scene.anims.exists(key)) continue;
+        const intro = scene.add.sprite(player.x, player.y, key)
+            .setDepth(player.depth)
+            .setFlipX(player.lastDir.x < 0);
+        scene.objs.add(intro);
+        intro.play(key);
+        player.introSprite = intro;
+        player.atk.setVisible(false);
+        updateCharacterIntro(player);
+    }
+}
+
+function updateCharacterIntro(player) {
+    const intro = player.introSprite;
+    if (!intro) return;
+    const facing = player.lastDir.x < 0 ? -1 : 1;
+    intro.setPosition(player.x + INTRO_OFFSET.x * facing, player.y + INTRO_OFFSET.y);
+    // The idle weapon pose is re-shown every frame; keep it hidden under the intro.
+    player.atk.setVisible(false);
+}
+
+function endCharacterIntros(scene) {
+    for (const player of Object.values(scene.gameState.players)) {
+        if (!player.introSprite) continue;
+        player.introSprite.destroy();
+        player.introSprite = null;
+        player.atk.setVisible(hasIdleAttackSprite(player));
+    }
+}
+
+// LONGSWORD SWORDMAN holds his sword out on the first frame of swordatk
+// whenever he isn't attacking, so his arms stay visible.
+function updateSwordmanIdle(player) {
+    if (player.name !== 'SWORDMAN' || !hasIdleAttackSprite(player)) return;
+    if (player.isAttacking || player.activeGrab) return;
+    const sprite = player.atk;
+
+    if (sprite.anims.isPlaying) sprite.stop();
+    // Hold the last frame of the previous swing instead of snapping back to
+    // the idle pose: combo swings hold until the combo timer runs out, the
+    // finishing swing holds for SWORD_THIRD_HOLD_MS after it ends.
+    const lastAnim = player.lastAttackAnim;
+    const holdCombo = player.combo > 0 &&
+        (lastAnim === 'swordatk' || lastAnim === 'swordatksecond');
+    const holdThird = lastAnim === 'swordatkthird' &&
+        sprite.scene.time.now < (player.lastAttackEndTime ?? 0) + SWORD_THIRD_HOLD_MS;
+    const holdAnim = holdCombo || holdThird ? sprite.scene.anims.get(lastAnim) : null;
+    if (holdAnim) {
+        const last = holdAnim.getLastFrame();
+        if (sprite.texture.key !== last.textureKey) sprite.setTexture(last.textureKey);
+        sprite.setFrame(last.textureFrame);
+    } else {
+        if (sprite.texture.key !== 'swordatk') sprite.setTexture('swordatk');
+        sprite.setFrame(0);
+    }
+    sprite.setVisible(true);
+    // Position comes from the per-frame atk placement in update(), so the
+    // idle pose lines up with where attacks are drawn.
+    sprite.setFlipX(-player.lastDir.x < 0);
+    if (player.lastDir.y < 0) sprite.setAngle(90);
+    else if (player.lastDir.y > 0) sprite.setAngle(-90);
+    else sprite.setAngle(0);
 }
 
 function updateSledgehammerAnimation(player) {
@@ -1656,13 +1734,15 @@ function update() {
         }
     }
     if (!p1.activeGrab) {
-        p1.atk.x = p1.x + (p1.lastDir.x * p1.atkXOffset);
-        p1.atk.y = p1.y + (p1.lastDir.y * p1.atkYOffset) - 15;
+        const p1AtkOffset = getAttackSpriteOffset(p1);
+        p1.atk.x = p1.x + (p1.lastDir.x * p1.atkXOffset) + p1AtkOffset.x;
+        p1.atk.y = p1.y + (p1.lastDir.y * p1.atkYOffset) - 15 + p1AtkOffset.y;
     }
 
     if (!p2.activeGrab) {
-        p2.atk.x = p2.x + (p2.lastDir.x * p2.atkXOffset);
-        p2.atk.y = p2.y + (p2.lastDir.y * p2.atkYOffset) - 15;
+        const p2AtkOffset = getAttackSpriteOffset(p2);
+        p2.atk.x = p2.x + (p2.lastDir.x * p2.atkXOffset) + p2AtkOffset.x;
+        p2.atk.y = p2.y + (p2.lastDir.y * p2.atkYOffset) - 15 + p2AtkOffset.y;
     }
 
     if (p1.name === 'AXEMAN' && p1.variant === 'CHAINSAW') {
@@ -2021,6 +2101,10 @@ function update() {
 
     updateSledgehammerAnimation(p1);
     updateSledgehammerAnimation(p2);
+    updateSwordmanIdle(p1);
+    updateSwordmanIdle(p2);
+    updateCharacterIntro(p1);
+    updateCharacterIntro(p2);
 
     //WIN CONDITION -- DETECT IF PLAYER IS LAUNCHED FAR OFF SCREEN
 

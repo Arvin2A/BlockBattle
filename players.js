@@ -1,5 +1,6 @@
 import { modifierOptions } from './scenes/MapAndModifierSelect.js';
 import { getCharacterTexture } from './characterTextures.js';
+import { hasIdleAttackSprite } from './attacks.js';
 export function initiatePlayers(scene, p1Select = 'axeman', p2Select = 'swordman', p1Variant = '', p2Variant = '') {
     const players = {
         player: null,
@@ -297,11 +298,11 @@ export function initiatePlayers(scene, p1Select = 'axeman', p2Select = 'swordman
     scene.objs.add(players.player2.header);
 
     players.player.atk.setVisible(
-        players.player.variant === 'SLEDGEHAMMER' ||
+        hasIdleAttackSprite(players.player) ||
         (players.player.name === 'AXEMAN' && players.player.variant === 'CHAINSAW')
     );
     players.player2.atk.setVisible(
-        players.player2.variant === 'SLEDGEHAMMER' ||
+        hasIdleAttackSprite(players.player2) ||
         (players.player2.name === 'AXEMAN' && players.player2.variant === 'CHAINSAW')
     );
 

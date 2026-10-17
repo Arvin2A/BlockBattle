@@ -5,7 +5,7 @@
 import { MAPS } from '../scenes/GameScene/MapDefinitions.js';
 
 // Bump this whenever messages change so old tabs get a clear "refresh" error.
-export const PROTOCOL_VERSION = 2;
+export const PROTOCOL_VERSION = 3;
 
 export const MP_PATH = '/mp';
 export const DEFAULT_PORT = 8080;
