@@ -202,18 +202,36 @@ export function preload() {
 
     this.load.spritesheet(
         'swordatk',
-        'assets/sprites/swordman/swordatk1.png',
+        'assets/sprites/swordman/swordatk1.1.png',
         {
-            frameWidth: 50,
+            frameWidth: 130,
             frameHeight: 50
         }
     );
 
     this.load.spritesheet(
-        'swordatkthird',
-        'assets/sprites/swordman/swordatk2.png',
+        'swordatksecond',
+        'assets/sprites/swordman/swordatk1.2.png',
         {
-            frameWidth: 50,
+            frameWidth: 130,
+            frameHeight: 50
+        }
+    );
+
+    this.load.spritesheet(
+        'swordmanintro',
+        'assets/sprites/swordman/intro.png',
+        {
+            frameWidth: 130,
+            frameHeight: 200
+        }
+    );
+
+    this.load.spritesheet(
+        'swordatkthird',
+        'assets/sprites/swordman/swordatk1.3.png',
+        {
+            frameWidth: 130,
             frameHeight: 50
         }
     );

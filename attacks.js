@@ -206,10 +206,16 @@ function spawnCrater(scene, x, y, duration) {
     });
 }
 
+// Fighters whose weapon stays on screen between attacks.
+export function hasIdleAttackSprite(player) {
+    return player.variant === 'SLEDGEHAMMER' ||
+        (player.name === 'SWORDMAN' && player.variant !== 'DAGGER');
+}
+
 function hideAttackSprite(attacker) {
     if (attacker.isAttacking) return;
     attacker.atk.stop();
-    attacker.atk.setVisible(attacker.variant === 'SLEDGEHAMMER');
+    attacker.atk.setVisible(hasIdleAttackSprite(attacker));
 }
 
 function removeGrass(scene, grass, cutter) {
@@ -348,6 +354,15 @@ function hitFreeze(scene, ms = 50) {
     });
 }
 
+function missCombo(attacker) {
+    if (attacker.name === 'SWORDMAN') {
+        attacker.combo = (attacker.combo || 0) + 1;
+        attacker.comboTimer = 600;
+    } else {
+        attacker.combo = 0;
+    }
+}
+
 function clearQueuedStunTimers(scene, attacker, target) {
     if (attacker.revokeAggressorStun) {
         scene.time.removeEvent(attacker.revokeAggressorStun);
@@ -381,8 +396,9 @@ function queueStunRelease(scene, attacker, target, attackerDelay = 400, victimDe
 export function positionAttackSprite(attacker, animKey = '') {
     attacker.attackBypassesHitstun = false;
     attacker.atk.setVisible(true);
-    attacker.atk.x = attacker.x + attacker.lastDir.x * 50;
-    attacker.atk.y = attacker.y + attacker.lastDir.y * 50 - 20;
+    const offset = getAttackSpriteOffset(attacker);
+    attacker.atk.x = attacker.x + attacker.lastDir.x * 50 + offset.x;
+    attacker.atk.y = attacker.y + attacker.lastDir.y * 50 - 20 + offset.y;
     attacker.atk.setFlipX(animKey === 'scytheatktilt'
         ? attacker.lastDir.x < 0
         : -attacker.lastDir.x < 0);
@@ -396,12 +412,14 @@ export function setAttackSprite(attacker, animKey) {
     positionAttackSprite(attacker, animKey);
     attacker.atk.setFrame(0);
     attacker.isAttacking = true;
+    attacker.lastAttackAnim = animKey;
     damagePlanksInAttack(attacker);
     attacker.atk.once(`animationcomplete-${animKey}`, () => {
+        attacker.lastAttackEndTime = attacker.scene.time.now;
         attacker.isAttacking = false;
         attacker.attackBypassesHitstun = false;
         if (!attacker.activeGrab) {
-            attacker.atk.setVisible(attacker.variant === 'SLEDGEHAMMER');
+            attacker.atk.setVisible(hasIdleAttackSprite(attacker));
         }
     });
     attacker.atk.play(animKey, true);
@@ -506,7 +524,7 @@ export function attack(scene, attacker, target, animKey) {
 
 
     } else {
-        attacker.combo = 0;
+        missCombo(attacker);
         scene.sound.play('miss');
     }
 
@@ -708,7 +726,7 @@ export function pushAttack(scene, attacker, target, animKey) {
         attacker.combo = 0;
         attacker.comboTimer = 0;
     } else {
-        attacker.combo = 0;
+        missCombo(attacker);
         scene.sound.play('miss');
     }
     attacker.canAttack = false;
@@ -892,6 +910,7 @@ export function thirdAttack(scene, attacker, target, animKey) {
             : 0;
 
         hitFreeze(scene, 100, false);
+        if (attacker.name === 'SWORDMAN') scene.anims.get(animKey)?.resume();
 
         // If the target is grounded and the attack is strongly downward,
         // launch them sideways instead.
@@ -905,6 +924,10 @@ export function thirdAttack(scene, attacker, target, animKey) {
             true
         );
 
+        attacker.combo = 0;
+        attacker.comboTimer = 0;
+    } else if (attacker.name === 'SWORDMAN') {
+        scene.sound.play('swordthirdhitsfx');
         attacker.combo = 0;
         attacker.comboTimer = 0;
     }
@@ -1287,16 +1310,15 @@ export function tiltAttack(scene, attacker, target, {
         const dirX = attacker.lastDir.x;
 
         let dirY = attacker.lastDir.y;
-        if (dirY === 0) dirY = -0.5; //always launch upwards if on same level
+        if (dirY === 0) dirY = -0.5; //always launch upwards if same level
 
-        //very stronk knockback
-        //launch to the side if the target is pinned against the ground, otherwise launch in the direction of the attack
         const plungeMultiplier = target.plunged ? finalplungeMultiplier : 0;
+        const damageScale = getAttackDamageScale(attacker) > 2 ? 2 : getAttackDamageScale(attacker);
         if (target.body.touching.down && dirY > 0.7) {
             const randDir = Math.random() < 0.5 ? -1 : 1;
-            applyKnockback(scene, target, 325 * (target.KBmultiplier / 2 * (getAttackDamageScale(attacker) + plungeMultiplier)) * randDir, -200 * (target.KBmultiplier / 2));
+            applyKnockback(scene, target, 325 * ((getAttackDamageScale(attacker) + plungeMultiplier)) * randDir, -200 * (target.KBmultiplier / 2));
         } else {
-            applyKnockback(scene, target, (500 * xMul * (getAttackDamageScale(attacker) + plungeMultiplier)) * dirX, (500 * yMul) * dirY);
+            applyKnockback(scene, target, (500 * xMul * (damageScale*2 + plungeMultiplier)) * dirX, (500 * yMul) * dirY);
         }
         attacker.combo = 0;
         attacker.comboTimer = 0;
@@ -1451,7 +1473,7 @@ export function tryLunge(scene, player, direction, currentTime, animKey = 'sword
 
     if (currentTime - player.lastTap[direction] < dtapDelay || player.isBot) {
         setAttackSprite(player, animKey);
-        player.atk.y = player.y + player.lastDir.y * 50;
+        player.atk.y = player.y + player.lastDir.y * 50 + getAttackSpriteOffset(player).y;
         player.isUsingSideSpecial = true;
         player.afterimage = true;
         player.hasHitSideSpecial = false;
@@ -2384,6 +2406,19 @@ const sharedAttackHelpers = {
 
 function getCharacterScript(attacker) {
     return CHARACTER_ATTACK_SCRIPTS[attacker.name];
+}
+
+// Extra nudge for a fighter's attack sprite, set in their attack script with
+// attackSpriteOffset (or variantAttackSpriteOffsets per variant).
+// x pushes along the facing direction, y pushes down the screen.
+export function getAttackSpriteOffset(player) {
+    const script = getCharacterScript(player);
+    const offset = script?.variantAttackSpriteOffsets?.[player.variant] ??
+        script?.attackSpriteOffset;
+    return {
+        x: (offset?.x ?? 0) * player.lastDir.x,
+        y: offset?.y ?? 0
+    };
 }
 
 // Public input handlers delegate character choices to their own scripts.

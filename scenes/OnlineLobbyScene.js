@@ -10,11 +10,15 @@ import { getCharacterTexture } from '../characterTextures.js';
 import { getConnectedControllers, getMenuGamepadInput } from '../navigation.js';
 import { net } from '../mp/client.js';
 import { cleanName, MAP_CHOICES, MAX_NAME_LENGTH } from '../mp/protocol.js';
+import { createNameFilter } from '../mp/nameFilter.js';
+import inappropriateWords from '../assets/inappropriate_words?raw';
 import { getOnlineServerHost, getServerName, isOnlineConfigured, usesRemoteServer } from '../mp/serverConfig.js';
 
 const SETTINGS_KEY = 'blockBattleOnline';
 const MAP_LABELS = { RANDOM: 'RANDOM' };
 const ROOMS_PER_PAGE = 4;
+const isNameBlocked = createNameFilter(inappropriateWords);
+const randomPlayerName = () => `Player${Math.floor(Math.random() * 900 + 100)}`;
 
 function loadSettings() {
     try {
@@ -205,8 +209,9 @@ export class OnlineLobbyScene extends Phaser.Scene {
             characterIndex,
             variantIndex: Math.max(0, CHARACTER_ROSTER[characterIndex].variants.findIndex(v => v.name === saved.variant)),
             mapIndex: Math.max(0, MAP_CHOICES.indexOf(saved.map)),
-            name: cleanName(saved.name ?? `Player${Math.floor(Math.random() * 900 + 100)}`)
+            name: cleanName(saved.name ?? randomPlayerName())
         };
+        if (isNameBlocked(this.selection.name)) this.selection.name = randomPlayerName();
         this.queueState = 'idle';
         this.queueStartedAt = 0;
         this.myRoomId = null;
@@ -504,7 +509,12 @@ export class OnlineLobbyScene extends Phaser.Scene {
             if (!this.sys.isActive()) return;
             this.input.keyboard.enabled = true;
             if (entered === null) return;
-            this.selection.name = cleanName(entered);
+            const name = cleanName(entered);
+            if (isNameBlocked(name)) {
+                this.setStatus('That name is not allowed. Pick a different one.', '#ff6b6b');
+                return;
+            }
+            this.selection.name = name;
             this.refreshSelection();
         });
     }

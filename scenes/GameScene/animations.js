@@ -14,7 +14,7 @@ export function createGameAnimations(scene) {
     });
     scene.anims.create({
         key: 'swordatk',
-        frames: scene.anims.generateFrameNumbers('swordatk', { start: 0, end: 3 }),
+        frames: scene.anims.generateFrameNumbers('swordatk', { start: 0, end: 7 }),
         frameRate: 32,
         repeat: 0
     });
@@ -25,9 +25,22 @@ export function createGameAnimations(scene) {
         repeat: 0
     });
     scene.anims.create({
+        key: 'swordatksecond',
+        frames: scene.anims.generateFrameNumbers('swordatksecond', { start: 0, end: 4 }),
+        frameRate: 24,
+        repeat: 0
+    });
+    scene.anims.create({
         key: 'swordatkthird',
-        frames: scene.anims.generateFrameNumbers('swordatkthird', { start: 0, end: 3 }),
+        frames: scene.anims.generateFrameNumbers('swordatkthird', { start: 0, end: 5 }),
         frameRate: 32,
+        repeat: 0
+    });
+    // Match intros are keyed `<character texture>intro` (see startCharacterIntros).
+    scene.anims.create({
+        key: 'swordmanintro',
+        frames: scene.anims.generateFrameNumbers('swordmanintro', { start: 0, end: 30 }),
+        frameRate: 12,
         repeat: 0
     });
     scene.anims.create({
