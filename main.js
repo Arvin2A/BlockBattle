@@ -341,6 +341,7 @@ export var config = {
     type: Phaser.AUTO,
     width: 1000,
     height: 600,
+    parent: 'game',
     scale: {
         //essential for making the game fit for all screens
         mode: Phaser.Scale.FIT,
