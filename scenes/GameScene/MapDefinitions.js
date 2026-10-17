@@ -196,16 +196,34 @@ const JUNGLE_MAP = {
             texture: 'groundhitbox',
             width: 360,
             height: 0
+        },
+        // Smaller middle platform over the main ground. The visual's surface
+        // sits 585px above its centre at scale 1, so that offset scales too.
+        {
+            x: 1000,
+            y: 670,
+            texture: 'groundhitbox',
+            width: 216,
+            height: 0
+        },
+        {
+            x: 1000,
+            y: 525,
+            texture: 'groundhitbox',
+            width: 216,
+            height: 0
         }
     ],
     platformVisuals: [
         { x: 500, y: 1275, texture: 'jungle_platform', scale: 1 },
         { x: 1375, y: 1075, texture: 'jungle_platform', scale: 1 },
-        { x: 600, y: 955, texture: 'jungle_platform', scale: 1 }
+        { x: 600, y: 955, texture: 'jungle_platform', scale: 1 },
+        { x: 1000, y: 670 + 585 * 0.6, texture: 'jungle_platform', scale: 0.6 },
+        { x: 1000, y: 525 + 585 * 0.6, texture: 'jungle_platform', scale: 0.6 }
 
     ],
 
-    platformDepthOrder: [2,1, 0, 'main'],
+    platformDepthOrder: [4, 3, 2, 1, 0, 'main'],
     playerSpawns: [
         { x: 750, y: 792},
         { x: 1300, y: 460}

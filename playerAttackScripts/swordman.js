@@ -16,10 +16,14 @@ function attack(api, scene, attacker, victim) {
     if (animKey == 'daggeratk') {
         api.tryDaggerAttack(scene, attacker, victim, animKey, animKey);
     } else {
-        api.tryAttack(scene, attacker, victim, animKey, 'swordatkthird');
+        // Second hit of the combo swings back with swordatksecond.
+        const comboAnimKey = attacker.combo === 1 ? 'swordatksecond' : animKey;
+        api.tryAttack(scene, attacker, victim, comboAnimKey, 'swordatkthird');
     }
 }
 export default {
+    // Nudges the attack sprite: x along the facing direction, y down the screen.
+    variantAttackSpriteOffsets: { LONGSWORD: { x: 0, y: 8 } },
     handleAttack: (api, scene, attacker, victim) =>
         attack(api, scene, attacker, victim),
     handleDirSpecial: (api, scene, attacker, direction, currentTime, victim) => {

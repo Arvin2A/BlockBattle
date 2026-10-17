@@ -11,10 +11,15 @@
 // All game results come from the authority tab, never from a player.
 
 import crypto from 'node:crypto';
+import fs from 'node:fs';
 import { WebSocket } from 'ws';
+import { createNameFilter } from '../mp/nameFilter.js';
 import { ALL_BUTTONS_MASK } from '../input.js';
 import { isValidSelection } from '../characterRoster.js';
 import { cleanName, END_REASONS, MAP_CHOICES, PROTOCOL_VERSION } from '../mp/protocol.js';
+import { QUICK_CHAT_PHRASES, QuickChatLimiter } from '../mp/quickChat.js';
+
+const CHAT_LATENCY_SLACK_MS = 300;
 
 const BOOT_TIMEOUT_MS = 45000;
 const END_LINGER_MS = 4000;
@@ -22,6 +27,16 @@ const MAX_MESSAGES_PER_SECOND = 300;
 const MAX_PLAYER_MESSAGE_BYTES = 2048;
 // Only this many open matches are sent to each player.
 const MAX_LISTED_ROOMS = 50;
+
+function loadNameFilter() {
+    try {
+        return createNameFilter(fs.readFileSync(new URL('../assets/inappropriate_words', import.meta.url), 'utf8'));
+    } catch (error) {
+        console.warn(`Name filter disabled, could not read assets/inappropriate_words: ${error.message}`);
+        return () => false;
+    }
+}
+const isNameBlocked = loadNameFilter();
 
 const randomId = (bytes = 6) => crypto.randomBytes(bytes).toString('hex');
 
@@ -63,7 +78,8 @@ export class Lobby {
             watching: null,
             slot: null,
             messageCount: 0,
-            messageWindow: Date.now()
+            messageWindow: Date.now(),
+            chatLimiter: new QuickChatLimiter(CHAT_LATENCY_SLACK_MS)
         };
         this.clients.set(client.id, client);
 
@@ -136,6 +152,9 @@ export class Lobby {
             case 'in':
                 this.forwardInput(client, message);
                 break;
+            case 'chat':
+                this.forwardChat(client, message);
+                break;
             case 'forfeit':
                 client.watching = null;
                 if (client.match) this.forfeit(client.match, client.slot, END_REASONS.FORFEIT);
@@ -161,7 +180,12 @@ export class Lobby {
             sendJson(client.ws, { t: 'error', msg: 'That fighter does not exist on this server. Refresh the page.' });
             return false;
         }
-        client.name = cleanName(message.name);
+        const name = cleanName(message.name);
+        if (isNameBlocked(name)) {
+            sendJson(client.ws, { t: 'error', msg: 'That name is not allowed. Pick a different one.' });
+            return false;
+        }
+        client.name = name;
         client.choice = {
             character,
             variant,
@@ -380,6 +404,20 @@ export class Lobby {
             h: held & ALL_BUTTONS_MASK,
             p: pressed & ALL_BUTTONS_MASK
         });
+    }
+
+    forwardChat(client, message) {
+        const match = client.match ?? client.watching;
+        if (!match) return;
+        const slot = Object.keys(match.players).find(key => match.players[key] === client);
+        const phrase = String(message.m ?? '');
+        if (!slot || !QUICK_CHAT_PHRASES.has(phrase)) return;
+        if (!client.chatLimiter.tryUse(Date.now())) return;
+        for (const player of Object.values(match.players)) {
+            if (player.match === match || player.watching === match) {
+                sendJson(player.ws, { t: 'chat', s: slot, m: phrase });
+            }
+        }
     }
 
     forfeit(match, leavingSlot, reason) {

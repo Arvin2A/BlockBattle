@@ -10,6 +10,7 @@ import { MirrorView } from '../mp/mirror.js';
 import { net } from '../mp/client.js';
 import { END_REASONS } from '../mp/protocol.js';
 import { encodeButtons, readControllerInput, INPUT_BUTTONS } from '../input.js';
+import { QuickChat } from './OnlineQuickChat.js';
 
 // Online you control one fighter, so both keyboard layouts work.
 const KEY_BINDINGS = {
@@ -75,7 +76,11 @@ export class OnlineGameScene extends Phaser.Scene {
     }
 
     getOwnPlayerObject() {
-        const id = this.playerIds?.[this.match.slot];
+        return this.getPlayerObject(this.match.slot);
+    }
+
+    getPlayerObject(slot) {
+        const id = this.playerIds?.[slot];
         return id ? this.mirror.get(id) : null;
     }
 
@@ -231,6 +236,11 @@ export class OnlineOverlayScene extends Phaser.Scene {
         }).setOrigin(0.5);
 
         const game = this.gameScene;
+        this.quickChat = new QuickChat(this, {
+            slotColors: SLOT_COLORS,
+            getPlayerObject: slot => game.getPlayerObject(slot),
+            worldToScreen: (x, y) => this.worldToScreen(x, y)
+        });
         game.events.on('online-start', this.onStart, this);
         game.events.on('online-end', this.onEnd, this);
         game.events.on('online-escape', this.onEscape, this);
@@ -238,6 +248,7 @@ export class OnlineOverlayScene extends Phaser.Scene {
             game.events.off('online-start', this.onStart, this);
             game.events.off('online-end', this.onEnd, this);
             game.events.off('online-escape', this.onEscape, this);
+            this.quickChat.destroy();
         });
 
         if (this.sys.game.device.input.touch) this.createTouchControls();
@@ -278,6 +289,10 @@ export class OnlineOverlayScene extends Phaser.Scene {
     }
 
     onEscape() {
+        if (this.quickChat.isOpen) {
+            this.quickChat.close();
+            return;
+        }
         if (this.gameScene.matchOver) return;
         if (this.time.now < this.escapeArmedUntil) {
             this.gameScene.leaveTo('OnlineLobbyScene');
@@ -312,14 +327,14 @@ export class OnlineOverlayScene extends Phaser.Scene {
         this.waitingText.setVisible(false);
         this.youMarker.setVisible(false);
         this.add.rectangle(500, 300, 1000, 600, 0x000000, 0.55);
-        this.add.rectangle(500, 300, 560, 250, 0x171717, 0.95).setStrokeStyle(3, 0xffffff);
+        this.add.rectangle(500, 300, 560, 250, 0x171717, 0.95).setStrokeStyle(3, 0xffffff).setDepth(5000);
         this.add.text(500, 225, title, {
             fontFamily: 'VCROSD',
             fontSize: title.length > 12 ? '26px' : '44px',
             fill: won ? '#ffd34d' : '#ffffff',
             align: 'center',
             wordWrap: { width: 520 }
-        }).setOrigin(0.5);
+        }).setOrigin(0.5).setDepth(5003);
 
         const buttons = canRequeue
             ? [
@@ -331,12 +346,13 @@ export class OnlineOverlayScene extends Phaser.Scene {
         for (const button of buttons) {
             const box = this.add.rectangle(button.x, 330, 200, 60, 0x333333)
                 .setStrokeStyle(3, 0xffffff)
-                .setInteractive({ useHandCursor: true });
+                .setInteractive({ useHandCursor: true })
+                .setDepth(5001);
             this.add.text(button.x, 330, button.label, {
                 fontFamily: 'VCROSD',
                 fontSize: '26px',
                 fill: '#ffffff'
-            }).setOrigin(0.5);
+            }).setOrigin(0.5).setDepth(5002);
             box.on('pointerover', () => box.setFillStyle(0x555555));
             box.on('pointerout', () => box.setFillStyle(0x333333));
             box.on('pointerdown', button.action);
@@ -346,7 +362,7 @@ export class OnlineOverlayScene extends Phaser.Scene {
             fontFamily: 'GameFont',
             fontSize: '12px',
             fill: '#999999'
-        }).setOrigin(0.5);
+        }).setOrigin(0.5).setDepth(5004);
     }
 
     createTouchControls() {
@@ -396,6 +412,7 @@ export class OnlineOverlayScene extends Phaser.Scene {
 
     update() {
         this.pingText.setText(net.ping === null ? 'LAN' : `LAN  ${net.ping} ms`);
+        this.quickChat.update();
 
         // Little arrow over your own fighter so you never lose track of yourself.
         const player = this.gameScene.getOwnPlayerObject();
@@ -403,9 +420,15 @@ export class OnlineOverlayScene extends Phaser.Scene {
             this.youMarker.setVisible(false);
             return;
         }
+        const point = this.worldToScreen(player.x, player.y - 70);
+        this.youMarker.setPosition(point.x, point.y).setVisible(player.visible);
+    }
+
+    worldToScreen(x, y) {
         const camera = this.gameScene.cameras.main;
-        const screenX = (player.x - camera.scrollX - camera.width * 0.5) * camera.zoom + camera.width * 0.5;
-        const screenY = (player.y - 70 - camera.scrollY - camera.height * 0.5) * camera.zoom + camera.height * 0.5;
-        this.youMarker.setPosition(screenX, screenY).setVisible(player.visible);
+        return {
+            x: (x - camera.scrollX - camera.width * 0.5) * camera.zoom + camera.width * 0.5,
+            y: (y - camera.scrollY - camera.height * 0.5) * camera.zoom + camera.height * 0.5
+        };
     }
 }
