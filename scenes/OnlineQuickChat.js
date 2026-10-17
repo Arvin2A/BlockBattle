@@ -148,7 +148,7 @@ export class QuickChat {
 
     update() {
         const wait = this.limiter.waitFor(Date.now());
-        this.toggleRow.label.setText(wait > 0 ? `chat  ${Math.ceil(wait / 1000)}s` : 'chat  t');
+        this.toggleRow.label.setText(wait > 0 ? `open chat -  ${Math.ceil(wait / 1000)}s` : 'open chat - t');
         const alpha = wait > 0 ? 0.4 : 1;
         for (const row of this.phraseRows) row.label.setAlpha(alpha);
 
