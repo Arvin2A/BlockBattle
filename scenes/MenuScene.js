@@ -47,6 +47,14 @@ export const MenuScene = {
 
         const changelogEntries = [
             {
+                title: "QUICK CHAT + NAME FILTER",
+                body: "Limited selection of messages are now present when playing online multiplayer, inappropriate usernames have been filtered."
+            },
+            {
+                title: "SWORDMAN REDESIGN!",
+                body: "Later, all characters will recieve a redesign, right now swordman has more detailed animations and an intro animation."
+            },
+            {
                 title: "KEYBINDS HAVE BEEN CHANGED!",
                 body: "THE SPECIAL KEY IS NO LONGER RIGHT/LEFT ALT, IT IS NOW Q and /, CHAINSAW'S BUILDMODE IS NOW USING ALT INSTEAD."
             },
