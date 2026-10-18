@@ -392,7 +392,7 @@ function handleDirSpecial(api, scene, attacker, direction, currentTime, victim) 
         startRampage(api, scene, attacker, victim);
         return;
     }
-    return api.tryCleave(scene, attacker, direction, currentTime);
+    return tryCleave(api, scene, attacker, direction, currentTime);
 }
 function neutralPlaceAndHarvest(api, scene, attacker, victim) {
     if (attacker.body.blocked.down || attacker.body.touching.down) {
@@ -413,6 +413,101 @@ function neutralPlaceAndHarvest(api, scene, attacker, victim) {
     });
 }
 const neutralSpecial = () => {};
+function superSwing(api, scene, attacker, target, animKey) {
+
+    let hit = false;
+    if (api.attackIsElligible(attacker, target, 150) && !scene.finisherActive) {
+        api.setAttackSprite(attacker, animKey);
+        hit = true;
+
+        target.hitstunUntil = 500 + scene.time.now;;
+        target.willDecelerate = false;
+        target.freezeUntil = scene.time.now - 1;
+        attacker.freezeUntil = scene.time.now - 1;
+        attacker.willDecelerate = true;
+        attacker.comboTimer = 600;
+        target.choppedUntil = scene.time.now + 3000;
+        target.KBmultiplier += 0.34 * api.getAttackDamageScale(attacker);
+        api.damagePlanksInAttack(attacker, 0.34 * api.getAttackDamageScale(attacker));
+        api.hitFreeze(scene, 50);
+        scene.sound.play('axecleavesfx');
+        const dirX = attacker.lastDir.x;
+
+        let dirY = attacker.lastDir.y;
+        if (dirY === 0) dirY = -0.5; //always launch upwards if on same level
+
+        //very stronk knockback
+        //launch to the side if the target is pinned against the ground, otherwise launch in the direction of the attack
+        if (target.body.touching.down && dirY > 0.7) {
+            const randDir = Math.random() < 0.5 ? -1 : 1;
+            api.applyKnockback(scene, target, (800 * api.getAttackDamageScale(attacker)) * randDir, -200 * target.KBmultiplier);
+        } else {
+            api.applyKnockback(scene, target, (800 * api.getAttackDamageScale(attacker)) * dirX, (500) * dirY);
+        }
+        attacker.combo = 0;
+        attacker.comboTimer = 0;
+
+    }
+    attacker.canAttack = false;
+    scene.time.delayedCall(400, () => {
+        api.hideAttackSprite(attacker);
+        attacker.canAttack = true;
+        console.log(target.choppedUntil);
+        console.log(target.chopped);
+    });
+
+    if (attacker.revokeAggressorStun) scene.time.removeEvent(attacker.revokeAggressorStun);
+    if (target.revokeVictimStun) scene.time.removeEvent(target.revokeVictimStun);
+    scene.time.delayedCall(1000, () => {
+        target.hitstun = false;
+    });
+    scene.time.delayedCall(800, () => {
+        if (!scene.finisherActive) target.willDecelerate = true;
+    });
+
+}
+function tryCleave(api, scene, player, direction, currentTime) {
+    const dtapDelay = 250;
+    const cleaveCD = player.dirSpecialCooldown;
+
+    if (player.hitstun || player.freeze) return;
+    if (currentTime < player.nextSideSpecialTime) return;
+
+    if (currentTime - player.lastTap[direction] < dtapDelay || player.isBot) {
+
+        player.isUsingSideSpecial = true;
+        player.isAttacking = true;
+        player.hasHitSideSpecial = false;
+
+        const speed = 800;
+        player.afterimage = true;
+
+
+        if (direction === 'left') {
+            player.setVelocityX(-speed);
+            player.lastDir = { x: -1, y: 0 };
+        } else {
+            player.setVelocityX(speed);
+            player.lastDir = { x: 1, y: 0 };
+        }
+
+        // Use third attack animation (hard to hit, so discarded)
+        //api.thirdAttack(scene, player, players.player2, 'axeatkthird');
+
+        scene.time.delayedCall(140, () => {
+            scene.time.delayedCall(350, () => {
+                player.isUsingSideSpecial = false;
+            });
+            player.setVelocityX(player.body.velocity.x / 5);
+            player.afterimage = false;
+        });
+
+        api.startSideSpecialCooldown(player, currentTime, cleaveCD);
+    }
+
+    player.lastTap[direction] = currentTime;
+}
+
 export default {
     handleAttack,
     updateChainsawWood,
@@ -426,7 +521,7 @@ export default {
     handleDirSpecialAttack: (api, scene, attacker, victim) => {
         if (attacker.variant === 'CHAINSAW') return;
         if (api.distanceBetween(attacker, victim) <= 150) {
-            api.superSwing(scene, attacker, victim, 'axeatkthird');
+            superSwing(api, scene, attacker, victim, 'axeatkthird');
         }
     },
     handleHorizantalTilt: (api, scene, attacker, victim) => {

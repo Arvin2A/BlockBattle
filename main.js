@@ -1,5 +1,5 @@
 import Phaser from 'phaser';
-import {handleAttack, handleDirSpecial, handleNeutralSpecial, handleDirSpecialAttack, handleHorizantalTilt, handleDownTilt, handleUpTilt, downslamAttack, updateScythemanGrass, updateChainsawWood, toggleChainsawMode, tryQuickslamJump, positionAttackSprite, hasIdleAttackSprite, getAttackSpriteOffset} from './attacks.js';
+import {handleAttack, handleDirSpecial, handleNeutralSpecial, handleDirSpecialAttack, handleHorizantalTilt, handleDownTilt, handleUpTilt, downslamAttack, updateScythemanGrass, updateChainsawWood, toggleChainsawMode, tryQuickslamJump, positionAttackSprite, hasIdleAttackSprite, getAttackSpriteOffset, getAttackSpriteFlipX} from './attacks.js';
 import { MAX_WOOD_COUNT } from './playerAttackScripts/axeman.js';
 import { initiatePlayers, updateCombo } from './players.js';
 import { Commands, executeStateCommand} from './commands.js';
@@ -1299,12 +1299,21 @@ function spawnAfterimage(scene, player) {
 
 const SWORD_THIRD_HOLD_MS = 250;
 
-// Intro frames draw the fighter themselves, off-centre so the weapon has
-// room: this shifts the frame so the fighter sits on the player's position.
-const INTRO_OFFSET = { x: 31, y: 0 };
+// Shifts each intro frame (drawn facing right) so it lines up with the player.
+// The swordman intro draws the fighter off-centre so the weapon has room; the
+// mallet intro only draws the mallet, matched to where the idle mallet sits.
+const INTRO_OFFSETS = {
+    swordman: { x: 31, y: 0 },
+    hammerman: { x: 20, y: -2 }
+};
 
-// A fighter whose texture has a `<texture>intro` animation (only LONGSWORD
-// SWORDMAN for now) plays it in place of their weapon sprite during the countdown.
+// Sounds played when an intro reaches a given sheet frame (0-based).
+const INTRO_SOUNDS = {
+    hammerman: { frame: 11, key: 'glassbreak' }
+};
+
+// A fighter whose texture has a `<texture>intro` animation (LONGSWORD SWORDMAN
+// and MALLET HAMMERMAN) plays it in place of their weapon sprite during the countdown.
 // It isn't looped, so it stays on its last frame until endCharacterIntros.
 function startCharacterIntros(scene) {
     for (const player of Object.values(scene.gameState.players)) {
@@ -1314,6 +1323,12 @@ function startCharacterIntros(scene) {
             .setDepth(player.depth)
             .setFlipX(player.lastDir.x < 0);
         scene.objs.add(intro);
+        const introSound = INTRO_SOUNDS[player.texture.key];
+        if (introSound) {
+            intro.on('animationupdate', (anim, frame) => {
+                if (frame.textureFrame === introSound.frame) scene.sound.play(introSound.key);
+            });
+        }
         intro.play(key);
         player.introSprite = intro;
         player.atk.setVisible(false);
@@ -1325,7 +1340,8 @@ function updateCharacterIntro(player) {
     const intro = player.introSprite;
     if (!intro) return;
     const facing = player.lastDir.x < 0 ? -1 : 1;
-    intro.setPosition(player.x + INTRO_OFFSET.x * facing, player.y + INTRO_OFFSET.y);
+    const offset = INTRO_OFFSETS[player.texture.key] ?? { x: 0, y: 0 };
+    intro.setPosition(player.x + offset.x * facing, player.y + offset.y);
     // The idle weapon pose is re-shown every frame; keep it hidden under the intro.
     player.atk.setVisible(false);
 }
@@ -1368,6 +1384,28 @@ function updateSwordmanIdle(player) {
     // Position comes from the per-frame atk placement in update(), so the
     // idle pose lines up with where attacks are drawn.
     sprite.setFlipX(-player.lastDir.x < 0);
+    if (player.lastDir.y < 0) sprite.setAngle(90);
+    else if (player.lastDir.y > 0) sprite.setAngle(-90);
+    else sprite.setAngle(0);
+}
+
+// MALLET HAMMERMAN holds his mallet out on the first frame of hammeratk
+// whenever he isn't attacking, like the LONGSWORD idle above.
+function updateMalletIdle(player) {
+    if (player.variant !== 'MALLET' || player.isAttacking || player.activeGrab) return;
+    const sprite = player.atk;
+
+    if (sprite.anims.isPlaying) sprite.stop();
+    if (sprite.texture.key !== 'hammeratk') sprite.setTexture('hammeratk');
+    sprite.setFrame(0);
+    sprite.setVisible(true);
+    // Re-placed here since update() placed it using the texture it had then.
+    const offset = getAttackSpriteOffset(player, 'hammeratk');
+    sprite.setPosition(
+        player.x + player.lastDir.x * player.atkXOffset + offset.x,
+        player.y + player.lastDir.y * player.atkYOffset - 15 + offset.y
+    );
+    sprite.setFlipX(getAttackSpriteFlipX(player, 'hammeratk'));
     if (player.lastDir.y < 0) sprite.setAngle(90);
     else if (player.lastDir.y > 0) sprite.setAngle(-90);
     else sprite.setAngle(0);
@@ -2104,6 +2142,8 @@ function update() {
     updateSledgehammerAnimation(p2);
     updateSwordmanIdle(p1);
     updateSwordmanIdle(p2);
+    updateMalletIdle(p1);
+    updateMalletIdle(p2);
     updateCharacterIntro(p1);
     updateCharacterIntro(p2);
 

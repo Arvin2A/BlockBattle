@@ -40,7 +40,14 @@ export function createGameAnimations(scene) {
     scene.anims.create({
         key: 'swordmanintro',
         frames: scene.anims.generateFrameNumbers('swordmanintro', { start: 0, end: 30 }),
-        frameRate: 12,
+        frameRate: 20,
+        repeat: 0
+    });
+    // Frame 41 of the 42-frame sheet is blank, so stop on 40 to keep the mallet shown.
+    scene.anims.create({
+        key: 'hammermanintro',
+        frames: scene.anims.generateFrameNumbers('hammermanintro', { start: 0, end: 40 }),
+        frameRate: 20,
         repeat: 0
     });
     scene.anims.create({
@@ -87,7 +94,13 @@ export function createGameAnimations(scene) {
     });
     scene.anims.create({
         key: 'hammeratk',
-        frames: scene.anims.generateFrameNumbers('hammeratk', { start: 0, end: 3 }),
+        frames: scene.anims.generateFrameNumbers('hammeratk', { start: 0, end: 8 }),
+        frameRate: 32,
+        repeat: 0
+    });
+    scene.anims.create({
+        key: 'hammeratkheal',
+        frames: scene.anims.generateFrameNumbers('hammeratkheal', { start: 0, end: 32 }),
         frameRate: 32,
         repeat: 0
     });

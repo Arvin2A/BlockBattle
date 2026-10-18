@@ -391,10 +391,26 @@ export function preload() {
 
     this.load.spritesheet(
         'hammeratk',
-        'assets/sprites/hammerman/malletswing.png',
+        'assets/sprites/hammerman/malletswing1.1.png',
         {
-            frameWidth: 50,
-            frameHeight: 50
+            frameWidth: 200,
+            frameHeight: 100
+        }
+    );
+    this.load.spritesheet(
+        'hammermanintro',
+        'assets/sprites/hammerman/malletintro.png',
+        {
+            frameWidth: 200,
+            frameHeight: 100
+        }
+    );
+    this.load.spritesheet(
+        'hammeratkheal',
+        'assets/sprites/hammerman/malletswing1.2.png',
+        {
+            frameWidth: 130,
+            frameHeight: 75
         }
     );
 
@@ -715,5 +731,6 @@ export function preload() {
     this.load.audio('bamboo', 'audio/snd_spearrise.wav');
     this.load.audio('harvest', 'audio/harvest.wav');
     this.load.audio('damn', 'audio/daaaaaamn.wav');
+    this.load.audio('glassbreak', 'audio/glassbreak.wav');
 
 }
