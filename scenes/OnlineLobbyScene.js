@@ -116,7 +116,7 @@ function makeButton(scene, x, y, width, height, label, onClick, fontSize = 24) {
     box.on('pointerover', () => box.setFillStyle(0x444444));
     box.on('pointerout', () => box.setFillStyle(0x171717));
     box.on('pointerdown', () => {
-        scene.sound.play('hover');
+        scene.sound.play('hover2');
         onClick();
     });
     return { box, text };
@@ -133,7 +133,7 @@ function makeArrow(scene, x, y, label, onClick) {
     arrow.on('pointerover', () => arrow.setColor('#ffd34d'));
     arrow.on('pointerout', () => arrow.setColor('#ffffff'));
     arrow.on('pointerdown', () => {
-        scene.sound.play('hover');
+        scene.sound.play('hover2');
         onClick();
     });
     return arrow;
