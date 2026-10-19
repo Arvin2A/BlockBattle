@@ -21,6 +21,8 @@ Environment=PORT=8080
 Environment=BB_MAX_MATCHES=6
 # Websites allowed to connect: https:// + domain only, no path, comma-separated, no quotes.
 Environment=BB_ALLOWED_ORIGINS=https://YOUR-USERNAME.github.io
+# Connection-only: visiting the server's address doesn't show the game (true = it does).
+Environment=BB_SERVE_GAME=false
 
 # Basic hardening: the server can't touch the rest of the system.
 NoNewPrivileges=true

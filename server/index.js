@@ -17,6 +17,8 @@
 //                        (empty = anyone; pages served by this server are always allowed)
 //   BB_MAX_PER_IP=8      connections allowed from one IP address
 //   BB_MAX_MATCHES=4     matches that can run at the same time
+//   BB_SERVE_GAME=true   false = connection-only: the game page is only served to the
+//                        hidden tabs on this computer, visitors just see a plain notice
 //   CHROME_PATH=...      Chrome/Chromium/Edge to use if it isn't found automatically
 //   BB_GAME_URL=...      page the hidden tabs load (e.g. a Vite dev server, see README)
 //   BB_AUTHORITY=manual  don't start Chrome; print each match's URL to open yourself
@@ -43,6 +45,7 @@ const MAX_PER_IP = Math.max(1, Number(process.env.BB_MAX_PER_IP) || 8);
 const MAX_MATCHES = Math.max(1, Number(process.env.BB_MAX_MATCHES) || 4);
 const GAME_URL = process.env.BB_GAME_URL || `http://127.0.0.1:${PORT}${BASE_PATH}`;
 const MANUAL_AUTHORITY = process.env.BB_AUTHORITY === 'manual';
+const SERVE_GAME = !['false', '0', 'no', 'off'].includes((process.env.BB_SERVE_GAME ?? '').trim().toLowerCase());
 
 const log = message => console.log(`[${new Date().toLocaleTimeString()}] ${message}`);
 
@@ -95,8 +98,27 @@ const server = http.createServer((request, response) => {
         response.end(JSON.stringify(lobby.getStatus()));
         return;
     }
-    serveStatic(request, response);
+    if (SERVE_GAME || isLocalRequest(request)) {
+        serveStatic(request, response);
+        return;
+    }
+    serveConnectionOnly(request, response);
 });
+
+const isLocalRequest = request => isLoopback(request.socket.remoteAddress) && !isProxied(request);
+
+// What visitors see in connection-only mode: no game, and search engines are told to stay out.
+function serveConnectionOnly(request, response) {
+    const headers = { 'Content-Type': 'text/plain; charset=utf-8', 'X-Robots-Tag': 'noindex, nofollow' };
+    const { pathname } = new URL(request.url, 'http://localhost');
+    if (pathname === '/robots.txt') {
+        response.writeHead(200, headers).end('User-agent: *\nDisallow: /\n');
+    } else if (pathname === '/') {
+        response.writeHead(200, headers).end('Server online.\n');
+    } else {
+        response.writeHead(404, headers).end('Not found\n');
+    }
+}
 
 const isLoopback = address => ['127.0.0.1', '::1', '::ffff:127.0.0.1'].includes(address);
 
@@ -194,6 +216,7 @@ server.listen(PORT, HOST, () => {
         console.log('  (No network connection found, only this computer can join.)');
     }
     if (ALLOWED_ORIGINS.length) console.log(`  Websites allowed to connect: ${ALLOWED_ORIGINS.join(', ')}`);
+    if (!SERVE_GAME) console.log('  Connection-only: the game page is not served to visitors (BB_SERVE_GAME=false).');
     console.log('');
     console.log('  Everyone opens that address, clicks ONLINE, then hosts or joins a match.');
     console.log('  If others can\'t connect, allow Node.js through this computer\'s firewall.');

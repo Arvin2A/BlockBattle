@@ -4,7 +4,8 @@ This guide turns a Linux machine into a BlockBattle online server: the matchmaki
 plus a hidden Chrome tab that runs each match. It works for:
 
 - **Your own copy of the game** (a fork) hosted on GitHub Pages or any other static site, or
-- **Just the server**: players open the game straight from it, with no website needed.
+- **Just the server**: players open the game straight from it, with no website needed
+  (set `BB_SERVE_GAME=true`, see the settings table in step 4).
 
 Any always-on Linux machine works: a spare PC, a home server, or a cloud VPS. The commands
 are written for Debian/Ubuntu (`apt`); other distros work the same with their own package
@@ -125,6 +126,7 @@ around values.
 |---|---|---|
 | `BB_ALLOWED_ORIGINS` | *(anyone)* | Comma-separated websites allowed to use your server (see below) |
 | `BB_MAX_MATCHES` | `4` | Matches that can run at the same time |
+| `BB_SERVE_GAME` | `true` | `false` = connection-only: visitors to the server's address see a plain "Server online." notice instead of the game, and search engines are told not to list it. The included service file sets this to `false` |
 | `BB_MAX_PER_IP` | `8` | Connections allowed from one IP address |
 | `HOST` | `0.0.0.0` | `127.0.0.1` when using a tunnel/Caddy (step 5), so only they can reach it |
 | `PORT` | `8080` | Port the server listens on |
@@ -212,7 +214,8 @@ reachable through the tunnel or Caddy.
 ## 6. Connect your website to the server
 
 Skip this if players will only open the game from the server itself
-(`https://<your-server-address>/BlockBattle/`), which works without a website.
+(`https://<your-server-address>/BlockBattle/`, needs `BB_SERVE_GAME=true`), which works
+without a website.
 
 If your copy of the game is deployed by this repo's GitHub Actions workflow
 (`.github/workflows/deploy.yml`), go to **your repo > Settings > Secrets and variables >
