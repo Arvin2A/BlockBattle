@@ -10,16 +10,31 @@ var navBox = null;
 var layout = []
 var selectedIndex = 0;
 var previousInput = {};
-const CHANGELOG_VERSION = "2026-10-16-2";
+const CHANGELOG_VERSION = "2026-10-19-1";
 
 function getVersionColor(version) {
-    let hash = 0;
+    const [year, month, day, update] = version.split("-").map(Number);
 
-    for (let i = 0; i < version.length; i++) {
-        hash = (hash * 31 + version.charCodeAt(i)) | 0;
-    }
+    const hash =
+        day * 73856093 ^
+        update * 19349663 ^
+        month * 83492791 ^
+        year * 2654435761;
 
-    return `#${(hash & 0xFFFFFF).toString(16).padStart(6, "0")}`;
+    // Mix the hash into RGB channels.
+    let h = hash >>> 0;
+
+    h = Math.imul(h ^ (h >>> 16), 0x45d9f3b);
+    h = Math.imul(h ^ (h >>> 16), 0x45d9f3b);
+    h = (h ^ (h >>> 16)) >>> 0;
+
+    const r = (h >>> 16) & 0xFF;
+    const g = (h >>> 8) & 0xFF;
+    const b = h & 0xFF;
+
+    return `#${[r, g, b]
+        .map(v => v.toString(16).padStart(2, "0"))
+        .join("")}`;
 }
 
 const changelogColor = getVersionColor(CHANGELOG_VERSION);const CHANGELOG_STORAGE_KEY = "blockBattleSeenChangelog";
@@ -46,6 +61,10 @@ export const MenuScene = {
         this.input.topOnly = false;
 
         const changelogEntries = [
+            {
+                title: "HAMMERMAN REDESIGN!",
+                body: "MALLET HAMMERMAN has been redesigned with more detailed animations and an intro animation, just like swordman."
+            },
             {
                 title: "QUICK CHAT + NAME FILTER",
                 body: "Limited selection of messages are now present when playing online multiplayer, inappropriate usernames have been filtered."
@@ -92,6 +111,29 @@ export const MenuScene = {
             }
         ];
 
+        const upcomingEntries = [
+            {
+                title: "FISHERMAN REDESIGN",
+                body: "Fisherman is next in line for the redesign treatment: more detailed animations and an intro animation."
+            },
+            {
+                title: "MOBILE THUMBSTICK FOR MULTIPLAYER",
+                body: "A thumbstick for mobile players in online multiplayer."
+            },
+            {
+                title: "TRAPPER FISHERMAN",
+                body: "The TRAPPER variant of FISHERMAN."
+            },
+            {
+                title: "SLATEMAN REWORK",
+                body: "Slateman will be reworked."
+            },
+            {
+                title: "LAWNMOWER SCYTHEMAN",
+                body: "The LAWNMOWER variant of SCYTHEMAN."
+            }
+        ];
+
         const changelogBox = this.add.rectangle(
             190, 300, 340, 450, 0x111111, 0.88
         ).setStrokeStyle(3, 0x686868);
@@ -108,7 +150,7 @@ export const MenuScene = {
 
         const compactText = this.add.text(
             40, 180,
-            "Multiplayer and DAGGER variant of SWORDMAN has been realeased.",
+            "HAMMERMAN and SWORDMAN has been redesigned, quick chat has been added to the game as well as small UI tweaks and audio changes.",
             {
                 fontFamily: "VCROSD",
                 fontSize: "16px",
@@ -154,136 +196,174 @@ export const MenuScene = {
                 }
             ).setOrigin(0.5).setDepth(2002);
 
-            const modalSubtitle = this.add.text(
-                500, 100, "WHAT'S NEW?", {
-                    fontFamily: "VCROSD",
-                    fontSize: "16px",
-                    fill: changelogColor
-                }
-            ).setOrigin(0.5).setDepth(2002);
+            const tabs = [
+                { label: "LATEST UPDATE", entries: changelogEntries, x: 395 },
+                { label: "UPCOMING", entries: upcomingEntries, x: 605 }
+            ];
 
-            // Scrollable content, using the same Rex UI pattern
-            // as MapAndModifierSelectScene.
-            
-                        
-            const content = this.rexUI.add.sizer({
-                orientation: "y",
-                width: 740,
-                space: {
-                    item: 20
-                }
+            const tabObjects = tabs.map(tab => {
+                const box = this.add.rectangle(
+                    tab.x, 100, 190, 34, 0x202020
+                ).setStrokeStyle(2, 0x444444)
+                    .setDepth(2002)
+                    .setInteractive({ useHandCursor: true });
+
+                const text = this.add.text(
+                    tab.x, 100, tab.label, {
+                        fontFamily: "VCROSD",
+                        fontSize: "16px",
+                        fill: "#aaaaaa"
+                    }
+                ).setOrigin(0.5).setDepth(2003);
+
+                return { tab, box, text };
             });
 
-            for (const entry of changelogEntries) {
-                const card = this.rexUI.add.sizer({
+            let activeTab = null;
+
+            const buildPanel = (entries) => {
+                const content = this.rexUI.add.sizer({
                     orientation: "y",
-                    width: 720,
-                    height: 110,
+                    width: 740,
                     space: {
-                        left: 10,
-                        right: 10,
-                        top: 5,
-                        bottom: 5,
-                        item: 8
+                        item: 20
                     }
                 });
 
-                const title = this.add.text(0, 0, entry.title, {
-                    fontFamily: "VCROSD",
-                    fontSize: "22px",
-                    fill: changelogColor,
-                    stroke: "#000000",
-                    strokeThickness: 3
-                }).setDepth(5000);
+                for (const entry of entries) {
+                    const card = this.rexUI.add.sizer({
+                        orientation: "y",
+                        width: 720,
+                        height: 110,
+                        space: {
+                            left: 10,
+                            right: 10,
+                            top: 5,
+                            bottom: 5,
+                            item: 8
+                        }
+                    });
 
-                const body = this.add.text(0, 0, entry.body, {
-                    fontFamily: "VCROSD",
-                    fontSize: "16px",
-                    fill: "#ffffff",
-                    lineSpacing: 8,
-                    wordWrap: { width: 690 }
-                }).setDepth(5000);
+                    const title = this.add.text(0, 0, entry.title, {
+                        fontFamily: "VCROSD",
+                        fontSize: "22px",
+                        fill: changelogColor,
+                        stroke: "#000000",
+                        strokeThickness: 3
+                    }).setDepth(5000);
 
-                card.add(title, {
-                    proportion: 0,
-                    align: "left"
-                });
+                    const body = this.add.text(0, 0, entry.body, {
+                        fontFamily: "VCROSD",
+                        fontSize: "16px",
+                        fill: "#ffffff",
+                        lineSpacing: 8,
+                        wordWrap: { width: 690 }
+                    }).setDepth(5000);
 
-                card.add(body, {
-                    proportion: 1,
-                    expand: true,
-                    align: "left"
-                });
+                    card.add(title, {
+                        proportion: 0,
+                        align: "left"
+                    });
+
+                    card.add(body, {
+                        proportion: 1,
+                        expand: true,
+                        align: "left"
+                    });
 
 
-                card.layout();
+                    card.layout();
 
-                content.add(card, {
-                    expand: true
-                });
-                console.log(
-                    entry.title,
-                    "card:", card.width, card.height,
-                    "title:", title.width, title.height,
-                    "body:", body.width, body.height
-                );
+                    content.add(card, {
+                        expand: true
+                    });
+                    console.log(
+                        entry.title,
+                        "card:", card.width, card.height,
+                        "title:", title.width, title.height,
+                        "body:", body.width, body.height
+                    );
 
-            }
-
-            // IMPORTANT: Finish laying out the content BEFORE
-            // giving it to the scrollable panel.
-            content.layout();
-
-            changelogPanel = this.rexUI.add.scrollablePanel({
-                x: 500,
-                y: 315,
-                width: 790,
-                height: 350,
-
-                scrollMode: 0,
-                scrollDetectionMode: 1,
-
-                background: this.add.rectangle(
-                    0, 0, 790, 350, 0x202020
-                ).setStrokeStyle(2, 0x444444),
-
-                panel: {
-                    child: content,
-                    mask: { padding: 0 }
-                },
-
-                sliderY: {
-                    track: this.add.rectangle(
-                        0, 0, 12, 0, 0x444444
-                    ),
-                    thumb: this.add.rectangle(
-                        0, 0, 12, 55, 0xaaaaaa
-                    )
-                },
-
-                scroller: {
-                    rectBoundsInteractive: true,
-                    threshold: 5,
-                    slidingDeceleration: 5000,
-                    backDeceleration: 2000
-                },
-
-                space: {
-                    left: 10,
-                    right: 10,
-                    top: 10,
-                    bottom: 10,
-                    panel: 10
-                },
-
-                mouseWheelScroller: {
-                    focus: 2,
-                    speed: 0.1
                 }
+
+
+                content.layout();
+
+                changelogPanel = this.rexUI.add.scrollablePanel({
+                    x: 500,
+                    y: 315,
+                    width: 790,
+                    height: 350,
+
+                    scrollMode: 0,
+                    scrollDetectionMode: 1,
+
+                    background: this.add.rectangle(
+                        0, 0, 790, 350, 0x202020
+                    ).setStrokeStyle(2, 0x444444),
+
+                    panel: {
+                        child: content,
+                        mask: { padding: 0 }
+                    },
+
+                    sliderY: {
+                        track: this.add.rectangle(
+                            0, 0, 12, 0, 0x444444
+                        ),
+                        thumb: this.add.rectangle(
+                            0, 0, 12, 55, 0xaaaaaa
+                        )
+                    },
+
+                    scroller: {
+                        rectBoundsInteractive: true,
+                        threshold: 5,
+                        slidingDeceleration: 5000,
+                        backDeceleration: 2000
+                    },
+
+                    space: {
+                        left: 10,
+                        right: 10,
+                        top: 10,
+                        bottom: 10,
+                        panel: 10
+                    },
+
+                    mouseWheelScroller: {
+                        focus: 2,
+                        speed: 0.1
+                    }
+                });
+
+                changelogPanel.layout();
+                changelogPanel.setDepth(2002);
+            };
+
+            const selectTab = (index) => {
+                if (activeTab === index) return;
+                activeTab = index;
+
+                tabObjects.forEach((tabObject, i) => {
+                    const active = i === index;
+                    tabObject.box.setFillStyle(active ? 0x333333 : 0x202020);
+                    tabObject.box.setStrokeStyle(2, active ? 0xaaaaaa : 0x444444);
+                    tabObject.text.setColor(active ? changelogColor : "#aaaaaa");
+                });
+
+                changelogPanel?.destroy();
+                buildPanel(tabs[index].entries);
+            };
+
+            tabObjects.forEach((tabObject, i) => {
+                tabObject.box.on("pointerdown", () => {
+                    if (activeTab !== i) this.sound.play('hover2');
+                    selectTab(i);
+                });
             });
 
-            changelogPanel.layout();
-            changelogPanel.setDepth(2002);
+            selectTab(0);
             
 
 
@@ -314,7 +394,7 @@ export const MenuScene = {
                 dim,
                 modalBackground,
                 modalTitle,
-                modalSubtitle,
+                ...tabObjects.flatMap(tabObject => [tabObject.box, tabObject.text]),
                 closeBox,
                 closeText
             ];
@@ -325,7 +405,6 @@ export const MenuScene = {
                 if (!changelogOpen) return;
 
                 changelogOpen = false;
-                console.log("Content size:", content.width, content.height);
                 console.log("Panel size:", changelogPanel.width, changelogPanel.height);
                 console.log("Entry count:", changelogEntries.length);
                 
@@ -349,14 +428,13 @@ export const MenuScene = {
 
                 modalObjects.forEach(object => object.destroy());
                 changelogModalObjects = [];
-                const index = layout.indexOf(closeLayoutEntry);
+                for (const entry of modalLayoutEntries) {
+                    const index = layout.indexOf(entry);
+                    if (index !== -1) layout.splice(index, 1);
+                }
 
-                if (index !== -1) {
-                    layout.splice(index, 1);
-
-                    if (selectedIndex >= layout.length) {
-                        selectedIndex = Math.max(0, layout.length - 1);
-                    }
+                if (selectedIndex >= layout.length) {
+                    selectedIndex = Math.max(0, layout.length - 1);
                 }
             };
 
@@ -369,7 +447,15 @@ export const MenuScene = {
                 action: closeChangelog
             };
 
-            layout.push(closeLayoutEntry);
+            const modalLayoutEntries = [
+                closeLayoutEntry,
+                ...tabObjects.map((tabObject, i) => ({
+                    button: tabObject.box,
+                    action: () => selectTab(i)
+                }))
+            ];
+
+            layout.push(...modalLayoutEntries);
 
             this.closeChangelog = closeChangelog;
         };
