@@ -108,6 +108,10 @@ export const CharacterSelectScene = {
 
         this.characterIcons = [];
         const isTouchDevice = this.sys.game.device.input.touch;
+        // Touch devices show a one-column wheel instead of the grid, so up/down
+        // (from a keyboard or controller) step one character instead of a row.
+        this.verticalStep = isTouchDevice ? 1 : 4;
+        this.input.mouse?.disableContextMenu();
 
         const spacingX = 75;
         const spacingY = 75;
@@ -135,6 +139,16 @@ export const CharacterSelectScene = {
                 .setInteractive({ useHandCursor: true });
 
             icon.characterIndex = i;
+            // Left click picks for P1, right click for P2.
+            icon.on('pointerdown', pointer => {
+                const player = pointer.rightButtonDown() ? 2 : 1;
+                if (player === 1 && this.p1IsReady) return;
+                if (player === 2 && this.p2IsReady) return;
+                this.sound.play('hover');
+                if (player === 1) this.p1Index = i;
+                else this.p2Index = i;
+                this.updateCharacterDescriptions();
+            });
 
             this.characterIcons.push(icon);
         }
@@ -747,6 +761,27 @@ export const CharacterSelectScene = {
         // INPUT
         // -----------------------------
 
+        this.moveSelection = (player, delta) => {
+            if (delta === 0) return;
+
+            const length = this.characters.length;
+
+            if (player === 1) {
+                this.p1Index = (this.p1Index + delta + length) % length;
+            } else {
+                this.p2Index = (this.p2Index + delta + length) % length;
+            }
+
+            this.sound.play("hover");
+
+            const wheelDirection = Math.sign(delta);
+
+            this.updateCharacterDescriptions(
+                player === 1 ? wheelDirection : 0,
+                player === 2 ? wheelDirection : 0
+            );
+        };
+
         this.keys = this.input.keyboard.addKeys({
 
             w: Phaser.Input.Keyboard.KeyCodes.W,
@@ -799,108 +834,22 @@ export const CharacterSelectScene = {
 
     update: function () {
 
-        // -----------------------------
-        // P1 CONTROLS
-        // -----------------------------
-        if (!this.p1IsReady) {
-            if (Phaser.Input.Keyboard.JustDown(this.keys.a)) {
-                this.sound.play('hover');
-                this.p1Index--;
+        const justDown = key => Phaser.Input.Keyboard.JustDown(this.keys[key]);
+        const keyboardDelta = (left, right, up, down) => {
+            if (justDown(left)) return -1;
+            if (justDown(right)) return 1;
+            if (justDown(up)) return -this.verticalStep;
+            if (justDown(down)) return this.verticalStep;
+            return 0;
+        };
 
-                if (this.p1Index < 0) {
-                    this.p1Index = this.characters.length - 1;
-                }
-                this.updateCharacterDescriptions();
-            }
+        // P1 uses WASD, P2 uses the arrow keys. Both are polled every frame
+        // so a key pressed while ready isn't remembered for later.
+        const p1KeyDelta = keyboardDelta('a', 'd', 'w', 's');
+        const p2KeyDelta = keyboardDelta('left', 'right', 'up', 'down');
+        if (!this.p1IsReady) this.moveSelection(1, p1KeyDelta);
+        if (!this.p2IsReady) this.moveSelection(2, p2KeyDelta);
 
-            if (Phaser.Input.Keyboard.JustDown(this.keys.d)) {
-                this.sound.play('hover');
-
-                this.p1Index++;
-
-                if (this.p1Index >= this.characters.length) {
-                    this.p1Index = 0;
-                }
-                this.updateCharacterDescriptions();
-            }
-            if (Phaser.Input.Keyboard.JustDown(this.keys.s)) {
-                this.sound.play('hover');
-
-                this.p1Index = this.p1Index + 4;
-
-                if (this.p1Index >= this.characters.length) {
-                    this.p1Index = 0;
-                }
-                if (this.p1Index < 0) {
-                    this.p1Index = this.characters.length - 1;
-                }
-                this.updateCharacterDescriptions();
-            }
-            if (Phaser.Input.Keyboard.JustDown(this.keys.w)) {
-                this.sound.play('hover');
-
-                this.p1Index = this.p1Index - 4;
-
-                if (this.p1Index >= this.characters.length) {
-                    this.p1Index = 0;
-                }
-                if (this.p1Index < 0) {
-                    this.p1Index = this.characters.length - 1;
-                }
-                this.updateCharacterDescriptions();
-            }
-        }
-
-        // -----------------------------
-        // P2 CONTROLS
-        // -----------------------------
-        if (!this.p2IsReady) {
-            if (Phaser.Input.Keyboard.JustDown(this.keys.left)) {
-                this.sound.play('hover');
-                this.p2Index--;
-
-                if (this.p2Index < 0) {
-                    this.p2Index = this.characters.length - 1;
-                }
-                this.updateCharacterDescriptions();
-            }
-
-            if (Phaser.Input.Keyboard.JustDown(this.keys.right)) {
-                this.sound.play('hover');
-                this.p2Index++;
-
-                if (this.p2Index >= this.characters.length) {
-                    this.p2Index = 0;
-                }
-                this.updateCharacterDescriptions();
-            }
-            if (Phaser.Input.Keyboard.JustDown(this.keys.down)) {
-                this.sound.play('hover');
-
-                this.p2Index = this.p2Index + 4;
-
-                if (this.p2Index >= this.characters.length) {
-                    this.p2Index = 0;
-                }
-                if (this.p2Index < 0) {
-                    this.p2Index = this.characters.length - 1;
-                }
-                this.updateCharacterDescriptions();
-            }
-            if (Phaser.Input.Keyboard.JustDown(this.keys.up)) {
-                this.sound.play('hover');
-
-                this.p2Index = this.p2Index - 4;
-
-                if (this.p2Index >= this.characters.length) {
-                    this.p2Index = 0;
-                }
-                if (this.p2Index < 0) {
-                    this.p2Index = this.characters.length - 1;
-                }
-                this.updateCharacterDescriptions();
-            }
-        }
         const controllers = getConnectedControllers(this);
 
         for (let slot = 0; slot < 2; slot++) {
@@ -933,32 +882,12 @@ export const CharacterSelectScene = {
             } else if (justPressed("right")) {
                 delta = 1;
             } else if (justPressed("up")) {
-                delta = -4;
+                delta = -this.verticalStep;
             } else if (justPressed("down")) {
-                delta = 4;
+                delta = this.verticalStep;
             }
 
-            if (delta === 0) continue;
-
-            const length = this.characters.length;
-
-            if (player === 1) {
-                this.p1Index =
-                    (this.p1Index + delta + length) % length;
-            } else {
-                this.p2Index =
-                    (this.p2Index + delta + length) % length;
-            }
-
-            this.sound.play("hover");
-
-            // Animate the mobile wheel in the same direction.
-            const wheelDirection = Math.sign(delta);
-
-            this.updateCharacterDescriptions(
-                player === 1 ? wheelDirection : 0,
-                player === 2 ? wheelDirection : 0
-            );
+            this.moveSelection(player, delta);
         }
 
     }

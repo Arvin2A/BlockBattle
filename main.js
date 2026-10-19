@@ -377,7 +377,22 @@ loadFont().then(() => {
     game = isAuthority()
         ? createAuthorityGame(Phaser, config, GameScene)
         : new Phaser.Game(config);
+    if (!isAuthority()) game.events.once('ready', () => addButtonHoverSounds(game));
 });
+
+// Every interactive object in these scenes is UI, so hovering any of them plays
+// buttonhover. A scene's input listeners are cleared on shutdown, so this is
+// re-added each time the scene is created.
+function addButtonHoverSounds(game) {
+    const listen = scene => scene.input.on('gameobjectover', () => {
+        if (scene.cache.audio.exists('buttonhover')) scene.sound.play('buttonhover');
+    });
+    for (const scene of game.scene.scenes) {
+        // The first scene may already be created by the time the game is ready.
+        if (scene.sys.settings.status === Phaser.Scenes.RUNNING) listen(scene);
+        scene.events.on('create', () => listen(scene));
+    }
+}
 
 //important game variables, including player objects and controls
 var players;
