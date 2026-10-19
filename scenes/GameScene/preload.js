@@ -2,6 +2,7 @@ export function preloadMenu() {
     this.load.image('menuBackground', 'assets/Homescreen.png');
     this.load.image('uifade', 'assets/uifade.png');
     this.load.audio('hover', 'audio/hover.wav');
+    this.load.audio('buttonhover', 'audio/buttonhover.wav');
     this.load.audio('deny', 'audio/deny.wav');
     this.load.audio('hover2', 'audio/hover2.wav');
 }
@@ -12,6 +13,7 @@ export function preloadMapSelection() {
     this.load.image('randompreview', 'assets/random_preview.png');
     this.load.image('jungle_preview', 'assets/jungle_preview.png');
     this.load.audio('hover', 'audio/hover.wav');
+    this.load.audio('buttonhover', 'audio/buttonhover.wav');
     this.load.audio('hover2', 'audio/hover2.wav');
     this.load.audio('revolveselect', 'audio/revolveselect.wav');
 }
@@ -21,6 +23,7 @@ export function preloadCharacterSelection() {
     this.load.image('selectedoverlay', 'assets/selectedOverlay.png');
     this.load.image('ready', 'assets/READY.png');
     this.load.audio('hover', 'audio/hover.wav');
+    this.load.audio('buttonhover', 'audio/buttonhover.wav');
     this.load.audio('deny', 'audio/deny.wav');
     this.load.audio('hover2', 'audio/hover2.wav');
 
@@ -68,6 +71,7 @@ export function preload() {
     this.load.image('uifade', 'assets/uifade.png');
     
     this.load.audio('hover', 'audio/hover.wav');
+    this.load.audio('buttonhover', 'audio/buttonhover.wav');
     this.load.audio('deny', 'audio/deny.wav');
 
     //map preview images

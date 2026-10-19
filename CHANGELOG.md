@@ -1,5 +1,11 @@
 # Changelog
 
+## 2026-10-18
+
+### Changed
+- MALLET HAMMERMAN has been redesigned: more detailed animations and an intro animation.
+- LONGSWORD SWORDMAN has been redesigned: more detailed animations and an intro animation.
+
 ## 2026-10-14
 
 ### Changed
@@ -24,7 +30,10 @@
 
 ### Added 
 
-### Planned
-- LAWNMOWER for scytheman
+### Planned (most to least priority)
+- FISHERMAN redesign
+- Mobile thumbstick for multiplayer
 - TRAPPER fisherman
+- SLATEMAN rework
+- LAWNMOWER for scytheman
 
