@@ -105,6 +105,21 @@ export function initiatePlayers(scene, p1Select = 'axeman', p2Select = 'swordman
             p.y + 40, 'doublejump');
         scene.objs.add(p.doubleJumpEffect);
         p.doubleJumpEffect.setAlpha(0);
+        if (scene.gameState.map.definition.id === 'SNOWY') {
+            const w = p.displayWidth;
+            const h = 8;
+            const skew = 6;
+            p.shadow = scene.add.graphics();
+            p.shadow.fillStyle(0x000000, 0.4);
+            p.shadow.fillPoints([
+                { x: -w / 2 + skew, y: -h / 2 },
+                { x: w / 2 + skew, y: -h / 2 },
+                { x: w / 2 - skew, y: h / 2 },
+                { x: -w / 2 - skew, y: h / 2 }
+            ], true);
+            p.shadow.setPosition(p.x, p.y + p.displayHeight / 2);
+            scene.objs.add(p.shadow);
+        }
         scene.objs.add(p);
         p.setDepth(2);
         if (p.variant === 'SLEDGEHAMMER') {
@@ -218,6 +233,24 @@ export function initiatePlayers(scene, p1Select = 'axeman', p2Select = 'swordman
     for (const player of Object.values(players)) {
         if (player.name === 'SLATEMAN') {
             player.playerKBresistance = 2;
+            player.slateTrail = scene.add.particles(player.x, player.y, '__WHITE', {
+                // Spawn spread out, get flung upward, then gravity pulls them
+                // back down so each particle traces a parabola.
+                x: { min: -12, max: 12 },
+                y: { min: -8, max: 8 },
+                speed: { min: 80, max: 160 },
+                angle: { min: 235, max: 305 },
+                gravityY: 600,
+                scale: { start: 1.5, end: 0 },
+                alpha: { start: 0.8, end: 0 },
+                tint: 0x8a8a8a,
+                lifespan: 700,
+                frequency: 40,
+                quantity: 1,
+                emitting: false
+            });
+            // Inserted below the player so the trail renders behind them.
+            scene.objs.addAt(player.slateTrail, scene.objs.getIndex(player));
         } else if (player.name === 'HAMMERMAN' && player.variant === 'SLEDGEHAMMER') {
             player.playerKBresistance = 1.5;
         }

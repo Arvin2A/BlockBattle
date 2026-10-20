@@ -1549,12 +1549,43 @@ function updateKB(scene) {
         }
         player.plungeAura.setPosition(player.x, player.y);
         player.choppedMark.setPosition(player.x, player.y);
+        if (player.shadow) updateGroundShadow(scene, player);
+
+        if (player.slateTrail) {
+            const { x: vx, y: vy } = player.body.velocity;
+            const speed = Math.hypot(vx, vy);
+            if (speed > 20) {
+                player.slateTrail.setPosition(player.x - (vx / speed) * 20, player.y - (vy / speed) * 20 + 25);
+                // setFrequency resets the emit timer, so only call it when plunge state flips.
+                const plunging = Boolean(player.isPlunging);
+                if (player.slateTrailPlunging !== plunging) {
+                    player.slateTrailPlunging = plunging;
+                    player.slateTrail.setFrequency(plunging ? 15 : 40, plunging ? 4 : 1);
+                }
+                if (!player.slateTrail.emitting) player.slateTrail.start();
+            } else if (player.slateTrail.emitting) {
+                player.slateTrail.stop();
+            }
+        }
 
         player.lastKBmultiplier = player.KBmultiplier;
         if (scene.time.now > player.nextSideSpecialTime && scene.time.now - player.nextSideSpecialTime < 100) {
             spawnBox();
         }
     }
+}
+
+// Puts the shadow on the highest ground/platform under the player's feet, hidden when there is none.
+function updateGroundShadow(scene, player) {
+    const feetY = player.body.bottom;
+    let groundY = null;
+    for (const platform of getMapPlatforms(scene)) {
+        const { left, right, top } = platform.body;
+        if (player.x < left || player.x > right || top < feetY - 2) continue;
+        if (groundY === null || top < groundY) groundY = top;
+    }
+    player.shadow.setVisible(groundY !== null);
+    if (groundY !== null) player.shadow.setPosition(player.x, groundY);
 }
 
 function getMapPlatforms(scene) {

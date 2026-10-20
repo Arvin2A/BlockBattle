@@ -166,7 +166,18 @@ function hardSwing(api, scene, attacker, target, animKey) {
 function veryhardSwing(api, scene, attacker, target, animKey) {
     //Hardest swing, only used for the sledgehammer variant of hammerman.
     api.setAttackSprite(attacker, animKey);
+    //getting hit during the windup resets the swing animation, so the swing has to be cancelled too
+    //otherwise it lands invisibly if the hitstun ends before the windup does.
+    let interrupted = false;
+    const removeInterruptCheck = api.addSceneUpdateListener(scene, () => {
+        if (attacker.hitstun) interrupted = true;
+    });
     scene.time.delayedCall(800, () => {
+        removeInterruptCheck();
+        if (interrupted) {
+            attacker.combo = 0;
+            return;
+        }
         //the delay makes slegdehammer man telegraphable and punishable, but also makes it feel like a big swing.
         if (api.attackIsElligible(attacker, target, 150) && !scene.finisherActive && attacker.variant === "SLEDGEHAMMER") {
             api.damagePlanksInAttack(attacker, 0.30);
@@ -217,7 +228,7 @@ function veryhardSwing(api, scene, attacker, target, animKey) {
         attacker.canAttack = true;
     });
     scene.time.delayedCall(750, () => {
-        if (attacker.canAttack) {
+        if (attacker.canAttack && !interrupted) {
             scene.sound.play('sledgewhoosh');
         }
     });
@@ -382,14 +393,6 @@ function quickslam1(api, scene, attacker, target, animKey = 'sledgehammerquicksl
             1500,
             true
         );
-        if (attacker.body.touching.down) {
-            api.spawnCrater(
-                scene,
-                attacker.x + (attacker.lastDir.x * 150),
-                attacker.y + 23,
-                1000
-            );
-        }
         scene.sound.play('sledgehammerquickslam');
     });
 
