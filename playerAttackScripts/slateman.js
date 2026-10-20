@@ -127,6 +127,7 @@ function tryPlunge(api, scene, player, target, direction, currentTime) {
 
     dagger.play('slateplunge');
     player.afterimage = true;
+    player.isPlunging = true;
 
 
     dagger.on('animationupdate', (animation, frame) => {
@@ -148,6 +149,7 @@ function tryPlunge(api, scene, player, target, direction, currentTime) {
         removeDaggerTrack();
         removePlungeUpdate();
         player.afterimage = false;
+        player.isPlunging = false;
         player.isAttacking = false;
         player.attackBypassesHitstun = false;
         player.baseMovementSpeed = currentSpeed;
