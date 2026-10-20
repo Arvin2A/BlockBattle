@@ -8,7 +8,8 @@
 const ROOT = 0;
 
 const SUPPORTED_TYPES = new Set([
-    'Image', 'Sprite', 'Text', 'Rectangle', 'Arc', 'Ellipse', 'Graphics', 'Container'
+    'Image', 'Sprite', 'Text', 'Rectangle', 'Arc', 'Ellipse', 'Graphics', 'Container',
+    'ParticleEmitter'
 ]);
 
 const round = (value, places) => {
@@ -114,6 +115,15 @@ function serialize(obj) {
             break;
         case 'Graphics':
             state.cb = JSON.stringify(obj.commandBuffer);
+            break;
+        // Particles are cosmetic, so players run their own emitter from the
+        // same config and only follow its position and on/off/rate.
+        case 'ParticleEmitter':
+            state.k = obj.texture?.key;
+            state.pc = JSON.stringify(obj.config);
+            state.em = obj.emitting ? 1 : 0;
+            state.fq = obj.frequency;
+            state.qt = obj.quantity;
             break;
     }
     return state;
@@ -401,6 +411,8 @@ export class MirrorView {
                 return add.graphics();
             case 'Container':
                 return add.container(0, 0);
+            case 'ParticleEmitter':
+                return add.particles(0, 0, this.textureKey(state.k), JSON.parse(state.pc));
             default:
                 return null;
         }
@@ -476,6 +488,12 @@ export class MirrorView {
         }
 
         if ('cb' in s) obj.commandBuffer = JSON.parse(s.cb);
+
+        if ('fq' in s || 'qt' in s) obj.setFrequency(s.fq ?? obj.frequency, s.qt ?? obj.quantity);
+        if ('em' in s) {
+            if (s.em) obj.start();
+            else obj.stop();
+        }
 
         // Setting the origin last keeps text/frame size changes from shifting it.
         if ('ox' in s || 'oy' in s) {
