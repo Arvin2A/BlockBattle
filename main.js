@@ -701,6 +701,14 @@ function updateMapHazard(scene) {
     }
 }
 
+function releaseMobileControls() {
+    for (const controls of Object.values(mobileControls)) {
+        for (const key of Object.keys(controls)) {
+            controls[key] = false;
+        }
+    }
+}
+
 function create() {
     // online = this scene is the authority for a LAN match (inputs come from the network).
     this.online = isAuthority();
@@ -713,22 +721,20 @@ function create() {
     this.anims.resumeAll();
     this.sound.resumeAll();
     fiveframecount = 0;
-    for (const controls of Object.values(mobileControls)) {
-        for (const key of Object.keys(controls)) {
-            controls[key] = false;
-        }
-    }
+    releaseMobileControls();
     inputMode.p1 = 'touch';
     inputMode.p2 = 'touch';
 
+    // iOS can swallow a touch's end (system gesture, notification, app switch),
+    // which would leave an on-screen button held forever.
+    this.game.events.on('blur', releaseMobileControls);
+    this.game.events.on('hidden', releaseMobileControls);
     this.events.once('shutdown', () => {
         this.gamePaused = false;
         fiveframecount = 0;
-        for (const controls of Object.values(mobileControls)) {
-            for (const key of Object.keys(controls)) {
-                controls[key] = false;
-            }
-        }
+        releaseMobileControls();
+        this.game.events.off('blur', releaseMobileControls);
+        this.game.events.off('hidden', releaseMobileControls);
     });
 
     this.gameEnded = false;

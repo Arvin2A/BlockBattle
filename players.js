@@ -263,6 +263,7 @@ export function initiatePlayers(scene, p1Select = 'axeman', p2Select = 'swordman
                 p.y + (p.lastDir.y * 50),
                 p.variant === 'SLEDGEHAMMER' ? 'sledgehammeratk' : 'hammeratk'
             );
+            if (p.variant !== 'SLEDGEHAMMER') p.atk.setScale(0.75);
         } else if (p.name == "SLATEMAN") {
             p.atk = scene.add.sprite(
                 p.x + (p.lastDir.x * 50),

@@ -2,6 +2,7 @@
 <html lang="en"> 
 <head> 
     <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
     <title>BLOCK BATTLE!!</title>
     <link rel="icon" type="image/x-icon" href="width_512.ico">
     <style type="text/css">
@@ -12,8 +13,16 @@
             height: 100%;
             overflow: hidden;
             background: #000;
+            /* Stop iOS from turning taps into zoom/scroll/selection gestures,
+               which steal the touches (and stall the game) mid-match. */
+            touch-action: none;
+            overscroll-behavior: none;
         }
         #game {
+            -webkit-user-select: none;
+            user-select: none;
+            -webkit-touch-callout: none;
+            -webkit-tap-highlight-color: transparent;
             width: 100vw;
             height: 100vh;
             height: 100dvh;
@@ -34,6 +43,13 @@
 </head>
 <body>
 <div id="game"></div>
+<script>
+    // Safari's pinch events and double-tap zoom still fire around the canvas
+    // (the letterbox bars), so block them for the whole page.
+    for (const name of ['gesturestart', 'gesturechange', 'gestureend', 'dblclick']) {
+        document.addEventListener(name, event => event.preventDefault(), { passive: false });
+    }
+</script>
 <script type="module" src="./main.js"></script>
 
 </body>
