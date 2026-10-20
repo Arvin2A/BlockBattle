@@ -279,9 +279,9 @@ function tryRepair(api, scene, player, target, direction, currentTime) {
 
             const hasAttacked = api.pushAttack(scene, player, target, null);
             if (hasAttacked) {
-                player.KBmultiplier -= 0.20;
+                player.KBmultiplier -= 0.25;
             } else {
-                player.KBmultiplier -= 0.02;
+                player.KBmultiplier -= 0.075;
             }
             spawnRepairBox();
 
@@ -291,9 +291,9 @@ function tryRepair(api, scene, player, target, direction, currentTime) {
 
                 const hasAttacked1 = api.pushAttack(scene, player, target, null);
                 if (hasAttacked1) {
-                    player.KBmultiplier -= 0.20;
+                    player.KBmultiplier -= 0.25;
                 } else {
-                    player.KBmultiplier -= 0.02;
+                    player.KBmultiplier -= 0.075;
                 }
                 spawnRepairBox();
 
@@ -303,9 +303,9 @@ function tryRepair(api, scene, player, target, direction, currentTime) {
 
                     const hasAttacked2 = api.pushAttack(scene, player, target, null);
                     if (hasAttacked2) {
-                        player.KBmultiplier -= 0.20;
+                        player.KBmultiplier -= 0.25;
                     } else {
-                        player.KBmultiplier -= 0.02;
+                        player.KBmultiplier -= 0.075;
                     }
                     spawnRepairBox();
 
@@ -518,8 +518,8 @@ export default {
     // the arm sits behind the body with the handle out the front.
     rightFacingAttackSprites: ['hammeratk', 'hammeratkheal'],
     textureAttackSpriteOffsets: {
-        hammeratk: { x: -62, y: 15 },
-        hammeratkheal: { x: -6, y: -13 }
+        hammeratk: { x: -52, y: 20 },
+        hammeratkheal: { x: -6, y: -5 }
     },
     handleAttack: attack,
     tryQuickslamJump,
