@@ -252,6 +252,7 @@ export class OnlineOverlayScene extends Phaser.Scene {
         });
 
         if (this.sys.game.device.input.touch) this.createTouchControls();
+        else this.createKeyGuides(slot);
 
         this.banner = this.add.text(500, 455, [
             `YOU ARE ${slot.toUpperCase()}`,
@@ -264,7 +265,7 @@ export class OnlineOverlayScene extends Phaser.Scene {
             strokeThickness: 6,
             align: 'center'
         }).setOrigin(0.5).setAlpha(0);
-        this.controlsHint = this.add.text(500, 525, 'MOVE: WASD / ARROWS    ATTACK: E / SHIFT    SPECIAL: Q / '/'    LEAVE: ESC', {
+        this.controlsHint = this.add.text(500, 525, 'EITHER KEY LAYOUT WORKS    LEAVE: ESC', {
             fontFamily: 'GameFont',
             fontSize: '14px',
             fill: '#ffffff',
@@ -363,6 +364,23 @@ export class OnlineOverlayScene extends Phaser.Scene {
             fontSize: '12px',
             fill: '#999999'
         }).setOrigin(0.5).setDepth(5004);
+    }
+
+    // Next to your own stat box, like the local game's guide, but showing both
+    // layouts since either one controls your fighter online.
+    createKeyGuides(slot) {
+        const x = slot === 'p1' ? 400 : 800;
+        const scale = 0.55;
+        const left = this.add.image(x + 35, 65, 'p1guide').setScale(scale);
+        const right = this.add.image(x + 128, 65, 'p2guide').setScale(scale);
+        const or = this.add.text(x + 85, 65, 'OR', {
+            fontFamily: 'GameFont',
+            fontSize: '10px',
+            fill: '#ffffff',
+            stroke: '#000000',
+            strokeThickness: 3
+        }).setOrigin(0.5);
+        [left, right, or].forEach(object => object.setAlpha(0.65));
     }
 
     createTouchControls() {
