@@ -328,9 +328,11 @@ function handleGunmanSpecial(api, scene, attacker, direction, currentTime, victi
     attacker.lastTap[direction] = currentTime;
 }
 
+const GRENADE_COOLDOWN = 500;
+
 function chuck(api, scene, attacker, victim) {
     if (attacker.hitstun || attacker.freeze || scene.finisherActive ||
-        attacker.activeGrenade) return;
+        attacker.activeGrenade || scene.time.now < (attacker.nextGrenadeTime ?? 0)) return;
 
     const direction = attacker.lastDir;
     const grenade = scene.physics.add.image(
@@ -379,6 +381,7 @@ function chuck(api, scene, attacker, victim) {
         api.spawnExplosion(scene, grenade);
         scene.sound.play('explosion');
         if (attacker.activeGrenade === grenade) attacker.activeGrenade = null;
+        attacker.nextGrenadeTime = scene.time.now + GRENADE_COOLDOWN;
         removeColliders();
         grenade.destroy();
     };
