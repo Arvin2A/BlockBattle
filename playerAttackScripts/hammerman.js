@@ -137,7 +137,7 @@ function hardSwing(api, scene, attacker, target, animKey) {
                 const randDir = Math.random() < 0.5 ? -1 : 1;
                 api.applyKnockback(scene, target, (375 * target.KBmultiplier) * randDir, -200 * target.KBmultiplier);
             } else {
-                api.applyKnockback(scene, target, (400 * target.KBmultiplier * api.getAttackDamageScale(attacker)) * dirX, (300 * target.KBmultiplier) * dirY);
+                api.applyKnockback(scene, target, (450 * target.KBmultiplier * api.getAttackDamageScale(attacker)) * dirX, (300 * target.KBmultiplier) * dirY);
             }
             attacker.combo = 0;
             attacker.comboTimer = 0;
@@ -149,7 +149,7 @@ function hardSwing(api, scene, attacker, target, animKey) {
 
         if (attacker.revokeAggressorStun) scene.time.removeEvent(attacker.revokeAggressorStun);
         if (target.revokeVictimStun) scene.time.removeEvent(target.revokeVictimStun);
-        scene.time.delayedCall(400 * target.KBmultiplier, () => {
+        scene.time.delayedCall(600 * target.KBmultiplier, () => {
             target.hitstun = false;
         });
         scene.time.delayedCall(1000, () => {
