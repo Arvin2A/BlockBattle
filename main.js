@@ -948,8 +948,14 @@ function create() {
         const p1 = mobileControls.p1;
         const p2 = mobileControls.p2;
 
-        //P1
-        const p1Buttons = [
+        const p1Buttons = botMode ? [
+            [60, 420, '←', p1, 'left'],
+            [240, 420, '→', p1, 'right'],
+            [150, 330, '↑', p1, 'up'],
+            [150, 420, '↓', p1, 'down'],
+            [850, 420, 'A', p1, 'attack'],
+            [940, 330, 'S', p1, 'special']
+        ] : [
             [60, 420, '←', p1, 'left'],
             [240, 420, '→', p1, 'right'],
             [150, 330, '↑', p1, 'up'],
@@ -998,9 +1004,10 @@ function create() {
     if (isMobile) {
         for (const player of Object.values(this.gameState.players)) {
             if (player.name !== 'AXEMAN' || player.variant !== 'CHAINSAW') continue;
+            if (botMode && player.id === 2) continue;
 
-            const x = player.id === 1 ? 330 : 650;
-            const button = this.add.circle(x, 420, 34, 0x000000, 0.55)
+            const x = player.id === 1 ? (botMode ? 760 : 330) : 650;
+            const button = this.add.circle(x, 420, botMode ? 45 : 34, 0x000000, 0.55)
                 .setScrollFactor(0)
                 .setDepth(999)
                 .setInteractive();
