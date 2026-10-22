@@ -111,7 +111,7 @@ function tryDaggerAttack(api, scene, attacker, target, animKey, thirdAnimKey) {
             daggerattack(api, scene, attacker, target, animKey);
         }
     }
-    attacker.nextAttackTime = scene.time.now + 100; // Attack cooldown
+    attacker.nextAttackTime = scene.time.now + api.getAttackCooldown(attacker); // Attack cooldown
 }
 function lungePush(api, scene, attacker, target, animKey) {
     //Push attacks happen if the player is at maximum velocity

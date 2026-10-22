@@ -1,8 +1,49 @@
 function basicAttack(api, scene, attacker, victim) {
-    api.tryAttack(scene, attacker, victim, 'rodatk', 'rodatk');
+    api.tryAttack(scene, attacker, victim, 'rodatk', 'rodatkthird');
 }
 
 const neutralSpecial = () => {};
+
+// Where the rod tip sits in each 300x300 frame (facing right). rodatk swings
+// use their frame 0 tip; reelin's tip moves as the rod is pulled back.
+const ROD_TIPS = {
+    rodatk: [{ x: 174, y: 111 }],
+    linelessrod: [{ x: 174, y: 111 }],
+    reelin: [
+        { x: 173, y: 111 }, { x: 172, y: 108 }, { x: 167, y: 100 }, { x: 158, y: 89 },
+        { x: 145, y: 79 }, { x: 128, y: 71 }, { x: 109, y: 66 }, { x: 91, y: 64 },
+        { x: 76, y: 66 }, { x: 66, y: 68 }, { x: 62, y: 69 }
+    ]
+};
+const ROD_SWING_ANIMS = ['rodatk', 'rodatkthird'];
+// The line drawn in the rod sheet is 3px thick before the atk sprite is scaled.
+const SHEET_LINE_WIDTH = 3;
+const REEL_SPEED = 1600;
+const PULL_SPEED = 900;
+// Hooking a platform above the fisherman swings him up around the hook in a
+// circle for SWING_MS before the straight pull takes over.
+const SWING_MS = 500;
+const SWING_SPEED = 900;
+// Small inward pull during the swing so the circle tightens instead of drifting outward.
+const SWING_PULL = 250;
+
+// Maps the rod tip through the atk sprite's flip, rotation and scale so the
+// rope starts from the end of the rod instead of the fisherman's centre.
+function getRodTip(player) {
+    const rod = player.atk;
+    const tips = ROD_TIPS[rod?.texture.key];
+    if (!rod?.visible || !tips) return { x: player.x, y: player.y };
+    const rodTip = tips[rod.frame.name] ?? tips[0];
+    const facing = rod.flipX ? -1 : 1;
+    const localX = (rodTip.x - rod.width / 2) * rod.scaleX * facing;
+    const localY = (rodTip.y - rod.height / 2) * rod.scaleY;
+    const cos = Math.cos(rod.rotation);
+    const sin = Math.sin(rod.rotation);
+    return {
+        x: rod.x + localX * cos - localY * sin,
+        y: rod.y + localX * sin + localY * cos
+    };
+}
 function tryPull(api, scene, player, target, direction, currentTime) {
     const dtapDelay = 250;
     const pullCD = player.dirSpecialCooldown;
@@ -33,10 +74,9 @@ function tryPull(api, scene, player, target, direction, currentTime) {
             player.y,
             'hook' // make a small hook sprite
         );
-        hook.setTint(0x8b5a2b);
         hook.body.setMass(0);
 
-        hook.setScale(2);
+        hook.setScale(0.8);
         hook.body.allowGravity = true;
         hook.body.gravity.y = 700;
         scene.objs.add(hook);
@@ -48,31 +88,84 @@ function tryPull(api, scene, player, target, direction, currentTime) {
             -250
         );
 
+        scene.sound.play('reel');
         scene.sound.play('whoosh');
 
         let cleanedUp = false;
+        let reelingIn = false;
         let pullingToPlatform = false;
+        let swingUntil = 0;
+        let latchedTarget = null;
+        const castTime = scene.time.now;
         let removeRopeUpdate = () => {};
         let timeoutEvent = null;
         const colliders = [];
-        const cleanup = () => {
+        // Removes the hook and rope at once (new cast, respawn, scene end).
+        const removeHook = () => {
             if (cleanedUp) return;
             cleanedUp = true;
             removeRopeUpdate();
             timeoutEvent?.remove(false);
             colliders.forEach(collider => collider.destroy());
-            scene.events.off('shutdown', cleanup);
+            scene.events.off('shutdown', removeHook);
             scene.physics.world.off('worldbounds', cleanupAtWorldBounds);
             hook.destroy();
             rope.destroy();
-            if (player.activeHookCleanup === cleanup) {
+            if (player.activeHookCleanup === removeHook) {
                 player.activeHookCleanup = null;
+                player.idleWeaponTexture = null;
                 player.isUsingSideSpecial = false;
                 player.isAttacking = false;
             }
         };
-        player.activeHookCleanup = cleanup;
-        scene.events.once('shutdown', cleanup);
+        // Ends the cast: the player is free again while the hook reels back to the rod tip.
+        const cleanup = () => {
+            if (cleanedUp || reelingIn) return;
+            reelingIn = true;
+            pullingToPlatform = false;
+            latchedTarget = null;
+            timeoutEvent?.remove(false);
+            colliders.forEach(collider => collider.destroy());
+            colliders.length = 0;
+            scene.physics.world.off('worldbounds', cleanupAtWorldBounds);
+            if (hook.body) {
+                hook.setVelocity(0, 0);
+                hook.body.enable = false;
+            }
+            if (player.activeHookCleanup === removeHook) {
+                player.isUsingSideSpecial = false;
+                player.isAttacking = false;
+            }
+            timeoutEvent = scene.time.delayedCall(1500, removeHook);
+            startReelAnim();
+        };
+        // Latching or reeling back switches the held rod from linelessrod to reelin.
+        // A swing in progress is left to finish so its isAttacking release still fires.
+        let reelAnimStarted = false;
+        const startReelAnim = () => {
+            if (reelAnimStarted) return;
+            reelAnimStarted = true;
+            player.idleWeaponTexture = 'reelin';
+            const rod = player.atk;
+            if (!ROD_SWING_ANIMS.includes(rod.anims.currentAnim?.key) || !rod.anims.isPlaying) {
+                rod.play('reelin');
+            }
+        };
+        const reelHookIn = tip => {
+            const dx = tip.x - hook.x;
+            const dy = tip.y - hook.y;
+            const distance = Math.hypot(dx, dy);
+            const step = REEL_SPEED * scene.game.loop.delta / 1000;
+            if (distance <= step) {
+                removeHook();
+                return false;
+            }
+            hook.setPosition(hook.x + (dx / distance) * step, hook.y + (dy / distance) * step);
+            return true;
+        };
+        player.activeHookCleanup = removeHook;
+        player.idleWeaponTexture = 'linelessrod';
+        scene.events.once('shutdown', removeHook);
         hook.setCollideWorldBounds(true);
         hook.body.onWorldBounds = true;
         const cleanupAtWorldBounds = body => {
@@ -85,6 +178,23 @@ function tryPull(api, scene, player, target, direction, currentTime) {
             pullingToPlatform = true;
             hook.setVelocity(0, 0);
             hook.body.enable = false;
+            if (player.y > hook.y) swingUntil = scene.time.now + SWING_MS;
+            startReelAnim();
+        };
+        const latchToTarget = () => {
+            latchedTarget = target;
+            colliders.forEach(collider => collider.destroy());
+            colliders.length = 0;
+            timeoutEvent?.remove(false);
+            hook.setVelocity(0, 0);
+            hook.body.enable = false;
+            hook.setPosition(target.x, target.y);
+            if (player.activeHookCleanup === removeHook) {
+                player.isUsingSideSpecial = false;
+                player.isAttacking = false;
+            }
+            timeoutEvent = scene.time.delayedCall(750, cleanup);
+            startReelAnim();
         };
         const pullPlayerToHook = () => {
             if (cleanedUp || !pullingToPlatform) return;
@@ -99,7 +209,25 @@ function tryPull(api, scene, player, target, direction, currentTime) {
                 cleanup();
                 return;
             }
-            player.setVelocity((dx / distance) * 900, (dy / distance) * 900);
+            const towardX = dx / distance;
+            const towardY = dy / distance;
+            // Stops swinging early once he has come up level with the hook.
+            if (scene.time.now < swingUntil && player.y > hook.y) {
+                // Of the two directions perpendicular to the rope, take the one going up.
+                // Straight below the hook both are level, so swing the way he is facing.
+                let swingX = -towardY;
+                let swingY = towardX;
+                if (swingY > 0 || (swingY === 0 && swingX * player.lastDir.x < 0)) {
+                    swingX = -swingX;
+                    swingY = -swingY;
+                }
+                player.setVelocity(
+                    swingX * SWING_SPEED + towardX * SWING_PULL,
+                    swingY * SWING_SPEED + towardY * SWING_PULL
+                );
+                return;
+            }
+            player.setVelocity(towardX * PULL_SPEED, towardY * PULL_SPEED);
         };
 
         colliders.push(
@@ -128,7 +256,7 @@ function tryPull(api, scene, player, target, direction, currentTime) {
                 scene.time.delayedCall(550, () => {
                     if (target.active) target.hitstun = false;
                 });
-                cleanup();
+                latchToTarget();
             }),
 
             scene.physics.add.overlap(
@@ -141,13 +269,45 @@ function tryPull(api, scene, player, target, direction, currentTime) {
 
         removeRopeUpdate = api.addSceneUpdateListener(scene, () => {
             if (cleanedUp || !hook.active || !rope.active) return;
+            if (!player.active) {
+                removeHook();
+                return;
+            }
+            // Between swings the rod is held without its drawn line, since the rope is the line.
+            const rod = player.atk;
+            if (!rod.anims.isPlaying && rod.texture.key === 'rodatk') rod.setTexture(player.idleWeaponTexture, 0);
             if (pullingToPlatform) pullPlayerToHook();
+            if (latchedTarget) {
+                if (!latchedTarget.active) {
+                    cleanup();
+                    return;
+                }
+                hook.setPosition(latchedTarget.x, latchedTarget.y);
+            }
 
+            const tip = getRodTip(player);
+            if (reelingIn && !reelHookIn(tip)) return;
             rope.clear();
-            rope.lineStyle(3, 0x8b5a2b);
+            rope.lineStyle(SHEET_LINE_WIDTH * rod.scaleX, 0x000000);
             rope.beginPath();
-            rope.moveTo(player.x, player.y);
-            rope.lineTo(hook.x, hook.y);
+            rope.moveTo(tip.x, tip.y);
+            const midX = (tip.x + hook.x) / 2;
+            const midY = (tip.y + hook.y) / 2;
+            const ropeLength = Math.hypot(hook.x - tip.x, hook.y - tip.y);
+            const straightenTime = 400;
+            const bendLeft = Math.max(0, 1 - (scene.time.now - castTime) / straightenTime);
+            const ropeBend = Math.min(60, ropeLength * 0.2) * bendLeft;
+            const ctrlX = midX;
+            const ctrlY = midY - ropeBend * 2;
+            const segments = 12;
+            for (let i = 1; i <= segments; i++) {
+                const t = i / segments;
+                const u = 1 - t;
+                rope.lineTo(
+                    u * u * tip.x + 2 * u * t * ctrlX + t * t * hook.x,
+                    u * u * tip.y + 2 * u * t * ctrlY + t * t * hook.y
+                );
+            }
             rope.strokePath();
 
             if (hook.body?.enable) {
@@ -164,6 +324,13 @@ function tryPull(api, scene, player, target, direction, currentTime) {
 }
 
 export default {
+    // The rod sheet is drawn facing right with the arms on the left of each frame.
+    rightFacingAttackSprites: ['rodatk', 'linelessrod', 'reelin'],
+    textureAttackSpriteOffsets: {
+        rodatk: { x: -13, y: 17 },
+        linelessrod: { x: -13, y: 17 },
+        reelin: { x: -13, y: 17 }
+    },
     handleAttack: basicAttack,
     handleDirSpecial: (api, scene, attacker, direction, currentTime, victim) =>
         tryPull(api, scene, attacker, victim, direction, currentTime),

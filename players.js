@@ -284,6 +284,7 @@ export function initiatePlayers(scene, p1Select = 'axeman', p2Select = 'swordman
                 p.y + (p.lastDir.y * 50),
                 'rodatk'
             );
+            p.atk.setScale(0.6);
         } else if (p.name == "SCYTHEMAN") {
             p.atk = scene.add.sprite(
                 p.x + (p.lastDir.x * 50),

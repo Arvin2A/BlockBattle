@@ -6,6 +6,7 @@ function tilt(api, scene, attacker, victim, xMul, yMul, kbTime) {
 }
 
 const neutralSpecial = () => {};
+const GRAB_WINDUP_MS = 250;
 function tryGrab(api, scene, attacker, target, direction, currentTime, animKey = 'crowbargrab') {
     //Exclusive to the crowbarman, this attack initiates a grab on the target
     //When the target is grabbed, they are unable to move or attack, they will be hooked on the crowbar for 3 seconds before released
@@ -21,85 +22,94 @@ function tryGrab(api, scene, attacker, target, direction, currentTime, animKey =
         api.setAttackSprite(attacker, animKey);
         attacker.isUsingSideSpecial = true
         attacker.isUsingSideSpecial = false;
-
-
-        if (api.attackIsElligible(attacker, target, 200) && !scene.finisherActive) {
-            const grabOffset = {
-                x: Math.sign(target.x - attacker.x) * 150,
-                y: Math.min(target.y - attacker.y, 0)
-            };
-            target.hitstunUntil = 3000 + scene.time.now;
-            target.hitstun = true;
-            target.willDecelerate = false;
-            target.freezeUntil = scene.time.now - 1;
-            attacker.freezeUntil = scene.time.now - 1;
-            attacker.willDecelerate = true;
-            attacker.comboTimer = 600;
-            target.KBmultiplier += 0.03 * api.getAttackDamageScale(attacker);
-            api.damagePlanksInAttack(attacker, 0.03 * api.getAttackDamageScale(attacker));
-            //weak damage, but the target is grabbed and unable to move or attack for 3 seconds
-            scene.sound.play('grab');
-            target.body.allowGravity = false;
-            target.setVelocity(0, 0);
-            target.grabbedBy = attacker;
-            attacker.activeGrab = {
-                target,
-                offset: grabOffset,
-                atkOffset: {
-                    x: attacker.atk.x - attacker.x,
-                    y: attacker.atk.y - attacker.y
-                },
-                atkFlipX: attacker.atk.flipX,
-                atkAngle: attacker.atk.angle,
-                releaseEvent: scene.time.delayedCall(3000, () => releaseGrab(api, scene, attacker, scene.time.now, false))
-            };
-            attacker.atk.once(`animationcomplete-${animKey}`, () => {
-                if (attacker.activeGrab && attacker.activeGrab.target === target) {
-                    attacker.atk.setFrame(6);
-                    attacker.atk.stop();
-                }
-            });
-
-            /*const dirX = attacker.lastDir.x;
-
-            let dirY = attacker.lastDir.y;
-            if (dirY === 0) dirY = -0.5; //always launch upwards if on same level
-
-            //very stronk knockback
-            //launch to the side if the target is pinned against the ground, otherwise launch in the direction of the attack
-            if (target.body.touching.down && dirY > 0.7) {
-                const randDir = Math.random() < 0.5 ? -1 : 1;
-                api.applyKnockback(scene, target, (400 * target.KBmultiplier) * randDir, -200 * target.KBmultiplier);
-            } else {
-                api.applyKnockback(scene, target, (350 * target.KBmultiplier * api.getAttackDamageScale(attacker)) * dirX, (700 * target.KBmultiplier) * dirY);
-            }*/ //its a grab, obviously no knockback.
-
-
-
-            attacker.combo = 0;
-            attacker.comboTimer = 0;
-        } else {
-            attacker.atk.once(`animationcomplete-${animKey}`, () => {
-                scene.sound.play('miss');
-                scene.time.delayedCall(300, () => {
-                    api.hideAttackSprite(attacker);
-                });
-            });
-        }
         api.startSideSpecialCooldown(attacker, currentTime, grabCD);
-
         attacker.canAttack = false;
 
-        scene.time.delayedCall(400, () => {
+        let interrupted = false;
+        const removeInterruptCheck = api.addSceneUpdateListener(scene, () => {
+            if (attacker.hitstun) interrupted = true;
+        });
+        scene.time.delayedCall(GRAB_WINDUP_MS + 400, () => {
             attacker.canAttack = true;
         });
-        if (attacker.revokeAggressorStun) scene.time.removeEvent(attacker.revokeAggressorStun);
-        if (target.revokeVictimStun) scene.time.removeEvent(target.revokeVictimStun);
-        scene.time.delayedCall(500 * target.KBmultiplier, () => {
-            if (!target.grabbedBy) target.hitstun = false;
-        });
-        scene.time.delayedCall(1000, () => {
-            if (!target.grabbedBy && !scene.finisherActive) target.willDecelerate = true;
+        scene.time.delayedCall(GRAB_WINDUP_MS, () => {
+            removeInterruptCheck();
+            if (interrupted) {
+                api.hideAttackSprite(attacker);
+                return;
+            }
+            const grabAnimPlaying = attacker.atk.anims.isPlaying && attacker.atk.anims.currentAnim?.key === animKey;
+
+            //canAttack is already off for the windup, so skip that check; the interrupt check covers hitstun.
+            const grabLands = api.attackIsElligible(attacker, target, 200, false) && !scene.finisherActive;
+            attacker.attackBypassesHitstun = false;
+            if (grabLands) {
+                const grabOffset = {
+                    x: Math.sign(target.x - attacker.x) * 150,
+                    y: Math.min(target.y - attacker.y, 0)
+                };
+                target.hitstunUntil = 3000 + scene.time.now;
+                target.hitstun = true;
+                target.willDecelerate = false;
+                target.freezeUntil = scene.time.now - 1;
+                attacker.freezeUntil = scene.time.now - 1;
+                attacker.willDecelerate = true;
+                attacker.comboTimer = 600;
+                target.KBmultiplier += 0.03 * api.getAttackDamageScale(attacker);
+                api.damagePlanksInAttack(attacker, 0.03 * api.getAttackDamageScale(attacker));
+                //weak damage, but the target is grabbed and unable to move or attack for 3 seconds
+                scene.sound.play('grab');
+                target.body.allowGravity = false;
+                target.setVelocity(0, 0);
+                target.grabbedBy = attacker;
+                attacker.activeGrab = {
+                    target,
+                    offset: grabOffset,
+                    atkOffset: {
+                        x: attacker.atk.x - attacker.x,
+                        y: attacker.atk.y - attacker.y
+                    },
+                    atkFlipX: attacker.atk.flipX,
+                    atkAngle: attacker.atk.angle,
+                    releaseEvent: scene.time.delayedCall(3000, () => releaseGrab(api, scene, attacker, scene.time.now, false))
+                };
+                const holdGrabPose = () => {
+                    if (attacker.activeGrab && attacker.activeGrab.target === target) {
+                        attacker.atk.setVisible(true);
+                        attacker.atk.setFrame(6);
+                        attacker.atk.stop();
+                    }
+                };
+                if (grabAnimPlaying) {
+                    attacker.atk.once(`animationcomplete-${animKey}`, holdGrabPose);
+                } else {
+                    holdGrabPose();
+                }
+
+                attacker.combo = 0;
+                attacker.comboTimer = 0;
+            } else {
+                const missGrab = () => {
+                    scene.sound.play('miss');
+                    scene.time.delayedCall(300, () => {
+                        api.hideAttackSprite(attacker);
+                    });
+                };
+                if (grabAnimPlaying) {
+                    attacker.atk.once(`animationcomplete-${animKey}`, missGrab);
+                } else {
+                    missGrab();
+                }
+            }
+
+            if (attacker.revokeAggressorStun) scene.time.removeEvent(attacker.revokeAggressorStun);
+            if (target.revokeVictimStun) scene.time.removeEvent(target.revokeVictimStun);
+            scene.time.delayedCall(500 * target.KBmultiplier, () => {
+                if (!target.grabbedBy) target.hitstun = false;
+            });
+            scene.time.delayedCall(1000, () => {
+                if (!target.grabbedBy && !scene.finisherActive) target.willDecelerate = true;
+            });
         });
     }
     attacker.lastTap[direction] = currentTime;
