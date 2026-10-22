@@ -1330,26 +1330,31 @@ const SWORD_THIRD_HOLD_MS = 250;
 // Shifts each intro frame (drawn facing right) so it lines up with the player.
 // The swordman intro draws the fighter off-centre so the weapon has room; the
 // mallet intro only draws the mallet, matched to where the idle mallet sits.
+// The fisherman intro draws his arms centred in the frame instead of off to the
+// left like rodatk, so its last frame is matched to where the idle rod sits.
 const INTRO_OFFSETS = {
     swordman: { x: 31, y: 0 },
-    hammerman: { x: 20, y: -2 }
+    hammerman: { x: 20, y: -2 },
+    fisherman: { x: 0, y: 1 }
 };
 
-// Sounds played when an intro reaches a given sheet frame (0-based).
+const INTRO_SCALES = {
+    fisherman: 0.6
+};
+
 const INTRO_SOUNDS = {
     hammerman: { frame: 11, key: 'glassbreak' }
 };
 
-// A fighter whose texture has a `<texture>intro` animation (LONGSWORD SWORDMAN
-// and MALLET HAMMERMAN) plays it in place of their weapon sprite during the countdown.
-// It isn't looped, so it stays on its last frame until endCharacterIntros.
+
 function startCharacterIntros(scene) {
     for (const player of Object.values(scene.gameState.players)) {
         const key = `${player.texture.key}intro`;
         if (!scene.anims.exists(key)) continue;
         const intro = scene.add.sprite(player.x, player.y, key)
             .setDepth(player.depth)
-            .setFlipX(player.lastDir.x < 0);
+            .setFlipX(player.lastDir.x < 0)
+            .setScale(INTRO_SCALES[player.texture.key] ?? 1);
         scene.objs.add(intro);
         const introSound = INTRO_SOUNDS[player.texture.key];
         if (introSound) {
@@ -1417,23 +1422,33 @@ function updateSwordmanIdle(player) {
     else sprite.setAngle(0);
 }
 
-// MALLET HAMMERMAN holds his mallet out on the first frame of hammeratk
-// whenever he isn't attacking, like the LONGSWORD idle above.
-function updateMalletIdle(player) {
-    if (player.variant !== 'MALLET' || player.isAttacking || player.activeGrab) return;
+// MALLET HAMMERMAN and ANGLER FISHERMAN hold their weapon out on the first
+// frame of their swing whenever they aren't attacking, like the LONGSWORD idle above.
+const IDLE_WEAPON_TEXTURES = {
+    MALLET: 'hammeratk',
+    ANGLER: 'rodatk'
+};
+
+function updateWeaponIdle(player) {
+    // idleWeaponTexture lets a move swap the idle pose, like ANGLER's lineless rod while his hook is out.
+    const idleTexture = player.idleWeaponTexture ?? IDLE_WEAPON_TEXTURES[player.variant];
+    if (!idleTexture || player.isAttacking || player.activeGrab) return;
     const sprite = player.atk;
 
-    if (sprite.anims.isPlaying) sprite.stop();
-    if (sprite.texture.key !== 'hammeratk') sprite.setTexture('hammeratk');
-    sprite.setFrame(0);
+    // An overridden idle pose may be animating (ANGLER's reelin), so leave it running.
+    if (!player.idleWeaponTexture || sprite.texture.key !== idleTexture) {
+        if (sprite.anims.isPlaying) sprite.stop();
+        if (sprite.texture.key !== idleTexture) sprite.setTexture(idleTexture);
+        sprite.setFrame(0);
+    }
     sprite.setVisible(true);
     // Re-placed here since update() placed it using the texture it had then.
-    const offset = getAttackSpriteOffset(player, 'hammeratk');
+    const offset = getAttackSpriteOffset(player, idleTexture);
     sprite.setPosition(
         player.x + player.lastDir.x * player.atkXOffset + offset.x,
         player.y + player.lastDir.y * player.atkYOffset - 15 + offset.y
     );
-    sprite.setFlipX(getAttackSpriteFlipX(player, 'hammeratk'));
+    sprite.setFlipX(getAttackSpriteFlipX(player, idleTexture));
     if (player.lastDir.y < 0) sprite.setAngle(90);
     else if (player.lastDir.y > 0) sprite.setAngle(-90);
     else sprite.setAngle(0);
@@ -2201,8 +2216,8 @@ function update() {
     updateSledgehammerAnimation(p2);
     updateSwordmanIdle(p1);
     updateSwordmanIdle(p2);
-    updateMalletIdle(p1);
-    updateMalletIdle(p2);
+    updateWeaponIdle(p1);
+    updateWeaponIdle(p2);
     updateCharacterIntro(p1);
     updateCharacterIntro(p2);
 

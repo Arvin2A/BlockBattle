@@ -108,10 +108,10 @@ function steelPlank(
 function hardSwing(api, scene, attacker, target, animKey) {
     //Push attacks happen if the player is at maximum velocity
     api.setAttackSprite(attacker, animKey);
-    scene.time.delayedCall(250, () => {
+    scene.time.delayedCall(150, () => {
         //short windup before the mallet connects, like veryhardSwing but much quicker.
         if (api.attackIsElligible(attacker, target, 100) && !scene.finisherActive) {
-            target.hitstunUntil = 400 * target.KBmultiplier + scene.time.now;
+            target.hitstunUntil = 600 * target.KBmultiplier + scene.time.now;
             target.willDecelerate = false;
             target.freezeUntil = scene.time.now - 1;
             attacker.freezeUntil = scene.time.now - 1;
