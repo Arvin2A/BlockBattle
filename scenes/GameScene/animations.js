@@ -43,6 +43,12 @@ export function createGameAnimations(scene) {
         frameRate: 20,
         repeat: 0
     });
+    scene.anims.create({
+        key: 'fishermanintro',
+        frames: scene.anims.generateFrameNumbers('fishermanintro', { start: 0, end: 75 }),
+        frameRate: 50,
+        repeat: 0
+    });
     // Frame 41 of the 42-frame sheet is blank, so stop on 40 to keep the mallet shown.
     scene.anims.create({
         key: 'hammermanintro',
@@ -76,8 +82,22 @@ export function createGameAnimations(scene) {
     });
     scene.anims.create({
         key: 'rodatk',
-        frames: scene.anims.generateFrameNumbers('rodatk', { start: 0, end: 3 }),
-        frameRate: 28,
+        frames: scene.anims.generateFrameNumbers('rodatk', { start: 0, end: 17 }),
+        frameRate: 66,
+        repeat: 0
+    });
+    // Plays once when the hook latches or reels back, then holds its last frame until the rope is gone.
+    scene.anims.create({
+        key: 'reelin',
+        frames: scene.anims.generateFrameNumbers('reelin', { start: 0, end: 10 }),
+        frameRate: 24,
+        repeat: 0
+    });
+    // The finishing cast plays the whole sheet; regular swings stop after frame 17.
+    scene.anims.create({
+        key: 'rodatkthird',
+        frames: scene.anims.generateFrameNumbers('rodatk', { start: 0, end: 30 }),
+        frameRate: 60,
         repeat: 0
     });
     scene.anims.create({
@@ -95,7 +115,7 @@ export function createGameAnimations(scene) {
     scene.anims.create({
         key: 'hammeratk',
         frames: scene.anims.generateFrameNumbers('hammeratk', { start: 0, end: 8 }),
-        frameRate: 32,
+        frameRate: 48,
         repeat: 0
     });
     scene.anims.create({
@@ -155,7 +175,7 @@ export function createGameAnimations(scene) {
     scene.anims.create({
         key: 'crowbargrab',
         frames: scene.anims.generateFrameNumbers('crowbargrab', { start: 0, end: 6 }),
-        frameRate: 48,
+        frameRate: 28,
         repeat: 0
     });
     scene.anims.create({

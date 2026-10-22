@@ -329,11 +329,34 @@ export function preload() {
     );
 
     this.load.spritesheet(
-        'rodatk',
-        'assets/sprites/fisherman/rodatk1.png',
+        'fishermanintro',
+        'assets/sprites/fisherman/intro.png',
         {
-            frameWidth: 50,
-            frameHeight: 50
+            frameWidth: 300,
+            frameHeight: 300
+        }
+    );
+
+    this.load.image(
+        'linelessrod',
+        'assets/sprites/fisherman/linelessRod.png'
+    );
+
+    this.load.spritesheet(
+        'reelin',
+        'assets/sprites/fisherman/reelIn.png',
+        {
+            frameWidth: 300,
+            frameHeight: 300
+        }
+    );
+
+    this.load.spritesheet(
+        'rodatk',
+        'assets/sprites/fisherman/testrodAtk.png',
+        {
+            frameWidth: 300,
+            frameHeight: 300
         }
     );
 
@@ -736,5 +759,13 @@ export function preload() {
     this.load.audio('harvest', 'audio/harvest.wav');
     this.load.audio('damn', 'audio/daaaaaamn.wav');
     this.load.audio('glassbreak', 'audio/glassbreak.wav');
+
+    // =====================================================
+    // AUDIO - AUTOMATICALLY ADDED
+    // =====================================================
+
+    this.load.audio('gain', 'audio/gain.ogg');
+    this.load.audio('reel', 'audio/reel.wav');
+    this.load.audio('variantselect', 'audio/variantselect.wav');
 
 }

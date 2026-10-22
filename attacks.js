@@ -97,6 +97,12 @@ function addProjectilePlatformColliders(scene, projectile, attacker) {
     return () => colliders.forEach(collider => collider.destroy());
 }
 
+function getAttackCooldown(attacker) {
+    if (attacker.name === "FISHERMAN") return 275;
+    if (attacker.name === "SWORDMAN" && attacker.variant === "DAGGER") return 100;
+    return 400;
+}
+
 function getAttackDamageScale(attacker) {
     const baseDamageScale = Number.isFinite(attacker.baseDamageScale)
         ? attacker.baseDamageScale
@@ -210,6 +216,7 @@ function spawnCrater(scene, x, y, duration) {
 export function hasIdleAttackSprite(player) {
     return player.variant === 'SLEDGEHAMMER' ||
         player.variant === 'MALLET' ||
+        player.variant === 'ANGLER' ||
         (player.name === 'SWORDMAN' && player.variant !== 'DAGGER');
 }
 
@@ -539,7 +546,7 @@ export function attack(scene, attacker, target, animKey) {
     scene.time.delayedCall(150, () => {
         hideAttackSprite(attacker);
     });
-    queueStunRelease(scene, attacker, target, 400, 650);
+    queueStunRelease(scene, attacker, target, getAttackCooldown(attacker), 650);
     return hit;
 }
 // Shared attack types. Character-exclusive moves live in playerAttackScripts/.
@@ -614,7 +621,9 @@ export function pushAttack(scene, attacker, target, animKey) {
     scene.time.delayedCall(250, () => {
         hideAttackSprite(attacker);
     });
-    scene.time.delayedCall(400, () => {
+    // DAGGER's push keeps the full 400ms recovery; its fast cooldown is too strong here.
+    const isDagger = attacker.name === "SWORDMAN" && attacker.variant === "DAGGER";
+    scene.time.delayedCall(isDagger ? 400 : getAttackCooldown(attacker), () => {
         attacker.canAttack = true;
     });
     if (attacker.revokeAggressorStun) scene.time.removeEvent(attacker.revokeAggressorStun);
@@ -703,7 +712,7 @@ export function thirdAttack(scene, attacker, target, animKey) {
         hideAttackSprite(attacker);
     });
 
-    scene.time.delayedCall(400, () => {
+    scene.time.delayedCall(getAttackCooldown(attacker), () => {
         attacker.canAttack = true;
     });
 
@@ -815,7 +824,7 @@ export function tryAttack(scene, attacker, target, animKey, thirdAnimKey) {
             attack(scene, attacker, target, animKey);
         }
     }
-    attacker.nextAttackTime = scene.time.now + 400; // Attack cooldown
+    attacker.nextAttackTime = scene.time.now + getAttackCooldown(attacker); // Attack cooldown
 }
 
 export function downslamAttack(scene, attacker, target) {
@@ -857,6 +866,7 @@ const sharedAttackHelpers = {
     queueStunRelease,
     applyKnockback,
     getAttackDamageScale,
+    getAttackCooldown,
     getProjectileBlockingPlatforms,
     attackIsElligible,
     isInvincible,
