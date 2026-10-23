@@ -55,7 +55,6 @@ function activateChainsaw(api, scene, attacker, victim, options = {}) {
 
 function startRampage(api, scene, attacker, victim) {
     if (!attacker.chainsawMode || attacker.hitstun || attacker.freeze ||
-        scene.finisherActive ||
         scene.time.now < (attacker.rampageCooldownUntil ?? 0) ||
         scene.time.now < (attacker.chainsawCooldownUntil ?? 0)) return;
 
@@ -83,7 +82,7 @@ function startRampage(api, scene, attacker, victim) {
 }
 
 function explodeChainsaw(api, scene, attacker, victim, options = {}) {
-    if (attacker.chainsawHasExploded || !victim.active || scene.finisherActive || api.isInvincible(victim)) return;
+    if (attacker.chainsawHasExploded || !victim.active || api.isInvincible(victim)) return;
 
     attacker.chainsawHasExploded = true;
     attacker.chainsawCooldownUntil = scene.time.now + 5000;
@@ -185,7 +184,7 @@ function breakPlanksWithChainsaw(api, scene, attacker) {
 
 
 function updateChainsaw(api, scene, attacker, victim, options = {}) {
-    if (!attacker.active || attacker.hitstun || attacker.freeze || scene.finisherActive) {
+    if (!attacker.active || attacker.hitstun || attacker.freeze) {
         deactivateChainsaw(scene, attacker);
         return;
     }
@@ -297,7 +296,7 @@ function placePlank(
         rotated = attacker.lastDir.y === 0, allowChainsawMode = false } = {}
 ) {
     if ((!allowChainsawMode && attacker.chainsawMode) || attacker.hitstun || attacker.freeze ||
-        scene.finisherActive || attacker.woodCount < 15) return;
+        attacker.woodCount < 15) return;
 
     const plank = scene.physics.add.image(
         x,
@@ -355,12 +354,12 @@ function setChainsawMode(scene, attacker, enabled) {
 
 function toggleChainsawMode(scene, attacker) {
     if (attacker.name !== 'AXEMAN' || attacker.variant !== 'CHAINSAW' ||
-        attacker.hitstun || attacker.freeze || scene.finisherActive) return;
+        attacker.hitstun || attacker.freeze) return;
     setChainsawMode(scene, attacker, !attacker.chainsawMode);
 }
 
 function toggleChainsaw(api, scene, attacker, victim, options = {}) {
-    if (!attacker.chainsawMode || attacker.hitstun || attacker.freeze || scene.finisherActive) return;
+    if (!attacker.chainsawMode || attacker.hitstun || attacker.freeze) return;
     if (attacker.chainsawActive || scene.time.now < (attacker.chainsawCooldownUntil ?? 0)) {
         deactivateChainsaw(scene, attacker);
         return;
@@ -382,7 +381,6 @@ function handleAttack(api, scene, attacker, victim) {
 function handleDirSpecial(api, scene, attacker, direction, currentTime, victim) {
     if (attacker.variant === 'CHAINSAW') {
         if (!attacker.chainsawMode || attacker.hitstun || attacker.freeze ||
-            scene.finisherActive ||
             currentTime < (attacker.chainsawCooldownUntil ?? 0)) return;
 
         const doubleTap = currentTime - attacker.lastTap[direction] < 250;
@@ -416,7 +414,7 @@ const neutralSpecial = () => {};
 function superSwing(api, scene, attacker, target, animKey) {
 
     let hit = false;
-    if (api.attackIsElligible(attacker, target, 150) && !scene.finisherActive) {
+    if (api.attackIsElligible(attacker, target, 150)) {
         api.setAttackSprite(attacker, animKey);
         hit = true;
 
@@ -462,7 +460,7 @@ function superSwing(api, scene, attacker, target, animKey) {
         target.hitstun = false;
     });
     scene.time.delayedCall(800, () => {
-        if (!scene.finisherActive) target.willDecelerate = true;
+        target.willDecelerate = true;
     });
 
 }

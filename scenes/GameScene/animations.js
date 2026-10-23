@@ -234,16 +234,4 @@ export function createGameAnimations(scene) {
         frameRate: 35,
         repeat: -1
     });
-    scene.anims.create({
-        key: 'impact1',
-        frames: scene.anims.generateFrameNumbers('impact1', { start: 0, end: 3 }),
-        frameRate: 48,
-        repeat: 0
-    });
-    scene.anims.create({
-        key: 'impact2',
-        frames: scene.anims.generateFrameNumbers('impact2', { start: 0, end: 4 }),
-        frameRate: 48,
-        repeat: 0
-    });
 }

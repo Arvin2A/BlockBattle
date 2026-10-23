@@ -11,6 +11,7 @@ import { net } from '../mp/client.js';
 import { END_REASONS } from '../mp/protocol.js';
 import { encodeButtons, readControllerInput, INPUT_BUTTONS } from '../input.js';
 import { QuickChat } from './OnlineQuickChat.js';
+import { COLORS, FONTS, makeButton, makePanel } from '../ui/theme.js';
 
 // Online you control one fighter, so both keyboard layouts work.
 const KEY_BINDINGS = {
@@ -24,7 +25,7 @@ const KEY_BINDINGS = {
 };
 const CAPTURED_KEYS = 'W,A,S,D,UP,DOWN,LEFT,RIGHT,E,SHIFT,ALT,Q,FORWARD_SLASH';
 
-const SLOT_COLORS = { p1: '#ff4343', p2: '#3d8bff' };
+const SLOT_COLORS = { p1: COLORS.p1, p2: COLORS.p2 };
 
 function emptyButtons() {
     return Object.fromEntries(INPUT_BUTTONS.map(button => [button, false]));
@@ -328,11 +329,11 @@ export class OnlineOverlayScene extends Phaser.Scene {
         this.waitingText.setVisible(false);
         this.youMarker.setVisible(false);
         this.add.rectangle(500, 300, 1000, 600, 0x000000, 0.55);
-        this.add.rectangle(500, 300, 560, 250, 0x171717, 0.95).setStrokeStyle(3, 0xffffff).setDepth(5000);
+        makePanel(this, 500, 300, 560, 250).setDepth(5000);
         this.add.text(500, 225, title, {
-            fontFamily: 'VCROSD',
+            fontFamily: FONTS.body,
             fontSize: title.length > 12 ? '26px' : '44px',
-            fill: won ? '#ffd34d' : '#ffffff',
+            fill: won ? COLORS.accent : COLORS.text,
             align: 'center',
             wordWrap: { width: 520 }
         }).setOrigin(0.5).setDepth(5003);
@@ -345,18 +346,9 @@ export class OnlineOverlayScene extends Phaser.Scene {
             : [{ x: 500, label: 'MAIN MENU', action: () => this.gameScene.leaveTo('MenuScene') }];
 
         for (const button of buttons) {
-            const box = this.add.rectangle(button.x, 330, 200, 60, 0x333333)
-                .setStrokeStyle(3, 0xffffff)
-                .setInteractive({ useHandCursor: true })
-                .setDepth(5001);
-            this.add.text(button.x, 330, button.label, {
-                fontFamily: 'VCROSD',
-                fontSize: '26px',
-                fill: '#ffffff'
-            }).setOrigin(0.5).setDepth(5002);
-            box.on('pointerover', () => box.setFillStyle(0x555555));
-            box.on('pointerout', () => box.setFillStyle(0x333333));
-            box.on('pointerdown', button.action);
+            const { box, text } = makeButton(this, button.x, 330, 200, 60, button.label, button.action, 26);
+            box.setDepth(5001);
+            text.setDepth(5002);
         }
         this.input.keyboard.once('keydown-ENTER', buttons[0].action);
         this.add.text(500, 395, canRequeue ? 'ENTER: PLAY AGAIN' : 'ENTER: MAIN MENU', {
@@ -405,7 +397,7 @@ export class OnlineOverlayScene extends Phaser.Scene {
             this.add.text(x, y, label, {
                 fontSize: label.length > 1 ? '26px' : '44px',
                 color: '#ffffff',
-                fontFamily: 'Arial'
+                fontFamily: FONTS.body
             }).setOrigin(0.5).setAlpha(0.6);
             let pointerId = null;
             const release = pointer => {

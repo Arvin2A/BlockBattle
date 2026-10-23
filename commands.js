@@ -1,3 +1,4 @@
+import { spawnDirtBurst } from './attacks.js';
 export const Commands = {
     LEFT: 0,
     RIGHT: 1,
@@ -65,6 +66,7 @@ export function executeStateCommand(scene, players, command) {
             attacker.doubleJumpEffect.setAlpha(1);
             attacker.hasDoubleJumped = true;
             scene.tweens.add({targets: attacker.doubleJumpEffect,alpha: 0,duration: 200,ease: 'Cubic.easeOut'});
+            spawnDirtBurst(scene, attacker.x, attacker.body.bottom, 6, 3, 5, 0.8, [0xffffff, 0xdddddd, 0xbbbbbb], 150, 230);
             
             break;
 
