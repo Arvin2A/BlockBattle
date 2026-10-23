@@ -41,7 +41,7 @@ function tryGrab(api, scene, attacker, target, direction, currentTime, animKey =
             const grabAnimPlaying = attacker.atk.anims.isPlaying && attacker.atk.anims.currentAnim?.key === animKey;
 
             //canAttack is already off for the windup, so skip that check; the interrupt check covers hitstun.
-            const grabLands = api.attackIsElligible(attacker, target, 200, false) && !scene.finisherActive;
+            const grabLands = api.attackIsElligible(attacker, target, 200, false);
             attacker.attackBypassesHitstun = false;
             if (grabLands) {
                 const grabOffset = {
@@ -108,7 +108,7 @@ function tryGrab(api, scene, attacker, target, direction, currentTime, animKey =
                 if (!target.grabbedBy) target.hitstun = false;
             });
             scene.time.delayedCall(1000, () => {
-                if (!target.grabbedBy && !scene.finisherActive) target.willDecelerate = true;
+                if (!target.grabbedBy) target.willDecelerate = true;
             });
         });
     }

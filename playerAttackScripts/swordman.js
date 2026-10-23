@@ -23,7 +23,7 @@ function attack(api, scene, attacker, victim) {
 }
 function daggerattack(api, scene, attacker, target, animKey) {
     //the core attack function that is used as of now
-    if (!attacker.canAttack || attacker.hitstun || scene.finisherActive) return;
+    if (!attacker.canAttack || attacker.hitstun) return;
 
     api.setAttackSprite(attacker, animKey);
 
@@ -116,7 +116,7 @@ function tryDaggerAttack(api, scene, attacker, target, animKey, thirdAnimKey) {
 function lungePush(api, scene, attacker, target, animKey) {
     //Push attacks happen if the player is at maximum velocity
     api.setAttackSprite(attacker, animKey);
-    if (api.attackIsElligible(attacker, target, 155, false) && !scene.finisherActive) {
+    if (api.attackIsElligible(attacker, target, 155, false)) {
         target.hitstunUntil = 300 * target.KBmultiplier + scene.time.now;
         target.willDecelerate = false;
         target.freezeUntil = scene.time.now - 1;
@@ -159,7 +159,7 @@ function lungePush(api, scene, attacker, target, animKey) {
         target.hitstun = false;
     });
     scene.time.delayedCall(1000, () => {
-        if (!scene.finisherActive) target.willDecelerate = true;
+        target.willDecelerate = true;
     });
 
 }
@@ -176,7 +176,7 @@ function quickstepAttack(api, scene, attacker, target, animKey) {
 
     attacker.lastDir.x = originalDirX;
 
-    if (eligible && !scene.finisherActive) {
+    if (eligible) {
         target.hitstunUntil = 300 * target.KBmultiplier + scene.time.now;
         target.willDecelerate = false;
         target.freezeUntil = scene.time.now - 1;
@@ -238,7 +238,7 @@ function quickstepAttack(api, scene, attacker, target, animKey) {
     });
 
     scene.time.delayedCall(1000, () => {
-        if (!scene.finisherActive) target.willDecelerate = true;
+        target.willDecelerate = true;
     });
 }
 function tryQuickstep(api, scene, player, direction, target, currentTime) {

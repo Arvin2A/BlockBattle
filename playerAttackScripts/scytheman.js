@@ -9,7 +9,7 @@ const neutralSpecial = () => {};
 function slamThirdAttack(api, scene, attacker, target, animKey) {
     //The third attack launching the target away
     api.setAttackSprite(attacker, animKey);
-    if (api.attackIsElligible(attacker, target) && !scene.finisherActive) {
+    if (api.attackIsElligible(attacker, target)) {
         target.hitstunUntil = 500 * target.KBmultiplier + scene.time.now;
         target.willDecelerate = false;
         target.freezeUntil = scene.time.now - 1;
@@ -57,7 +57,7 @@ function slamThirdAttack(api, scene, attacker, target, animKey) {
         target.hitstun = false;
     });
     scene.time.delayedCall(1000, () => {
-        if (!scene.finisherActive) target.willDecelerate = true;
+        target.willDecelerate = true;
     });
 
 }
@@ -92,7 +92,7 @@ function tryMow(api, scene, player, target, direction, currentTime) {
 
         const inGrass = player.inGrass || target.inGrass;
         const knockbackScale = inGrass ? 2 : 1;
-        if (api.attackIsElligible(player, target, 250) && !scene.finisherActive) {
+        if (api.attackIsElligible(player, target, 250)) {
             target.hitstunUntil = scene.time.now + 450;
             target.willDecelerate = false;
             target.freezeUntil = scene.time.now - 1;
@@ -103,7 +103,7 @@ function tryMow(api, scene, player, target, direction, currentTime) {
             scene.sound.play('slice');
             target.flash();
             scene.time.delayedCall(450, () => {
-                if (!scene.finisherActive) target.willDecelerate = true;
+                target.willDecelerate = true;
             });
         } else {
             scene.sound.play('miss');

@@ -1,7 +1,7 @@
 
 import { changeBotMode } from "../gameSettings.js";
 import { preloadMenu } from "./GameScene/preload.js";
-import { fadeOutTo } from "./transitions.js";
+import { fadeOutTo, slideInFromSides } from "./transitions.js";
 import { fetchServerStatus, getServerName, isOnlineConfigured } from "../mp/serverConfig.js";
 import { getNavigationBounds, wrapIndex, moveSelection, createNavigationBox, moveNavigationBox, getConnectedControllers, getMenuGamepadInput} from "../navigation.js"
 var currentControllers = [];
@@ -10,7 +10,7 @@ var navBox = null;
 var layout = []
 var selectedIndex = 0;
 var previousInput = {};
-const CHANGELOG_VERSION = "2026-10-19-1";
+const CHANGELOG_VERSION = "2026-10-22-1";
 
 function getVersionColor(version) {
     const [year, month, day, update] = version.split("-").map(Number);
@@ -61,6 +61,14 @@ export const MenuScene = {
         this.input.topOnly = false;
 
         const changelogEntries = [
+            {
+                title: "FISHERMAN REWORK",
+                body: "FISHERMAN has arms now and has been redesigned, with a thinner fishing line and an intro animation where he spins his rod.\n The hook isn't absurdly huge anymore. Instead it snaps to a player in its hit range, and the line curves more. If the hook falls below the platform it's hooking onto, it curves upward a bit.\n The line now reels in instead of instantly disappearing, and reeling/pulling it in has its own quick animation of lifting the rod up.\n Overall the ability is much more concise and easier to use, and FISHERMAN attacks faster (not as fast as DAGGER though)."
+            },
+            {
+                title: "BETTER GAME EFFECTS + MENU INTRO",
+                body: "An attempt to add better game effects and a menu intro animation.\n Hits now spray tiny white particles from the side that got hit. At 100% KB and up, getting launched leaves a white ghost trail and smoke and shakes the screen. At 200% and up it gets VIOLENT: a red ghost trail and a severe screen shake.\n Fighters at 100%+ pulse red, landings and double jumps kick up dust, KOs fire a beam back into the arena, and respawns flash in.\n Winning now shows a GAME! screen and a results panel with KOs, max KB and damage dealt.\n The menu slides in from the sides, and the UI uses the same colors and fonts everywhere."
+            },
             {
                 title: "HAMMERMAN REDESIGN!",
                 body: "MALLET HAMMERMAN has been redesigned with more detailed animations and an intro animation, just like swordman."
@@ -113,10 +121,6 @@ export const MenuScene = {
 
         const upcomingEntries = [
             {
-                title: "FISHERMAN REDESIGN",
-                body: "Fisherman is next in line for the redesign treatment: more detailed animations and an intro animation."
-            },
-            {
                 title: "MOBILE THUMBSTICK FOR MULTIPLAYER",
                 body: "A thumbstick for mobile players in online multiplayer."
             },
@@ -150,7 +154,7 @@ export const MenuScene = {
 
         const compactText = this.add.text(
             40, 180,
-            "HAMMERMAN and SWORDMAN has been redesigned, quick chat has been added to the game as well as small UI tweaks and audio changes.",
+            "FISHERMAN has been reworked: arms, a smaller hook that snaps to players, a reeling line and faster attacks. Hits, launches, KOs and wins also have new effects, and the menu slides in.",
             {
                 fontFamily: "VCROSD",
                 fontSize: "16px",
@@ -637,6 +641,14 @@ export const MenuScene = {
             }
             fadeOutTo(this, () => this.scene.start('MapAndModifierSelectScene'));
         }}); 
+
+        const introLength = slideInFromSides(this, [
+            [changelogBox, compactTitle, compactText, openChangelogText],
+            [onlineBox, onlineText, onlineStatus],
+            [botBox, botText],
+            [startBox, startText]
+        ]);
+        this.menuIntroUntil = this.time.now + introLength;
     },
     update: function () {
         currentControllers = getConnectedControllers(this);
@@ -645,6 +657,9 @@ export const MenuScene = {
         if (!primaryController) {
             return;
         }
+
+        // Wait for the buttons to finish sliding in so the box lands on them.
+        if (this.time.now < this.menuIntroUntil) return;
 
         if (!navBox) {
             navBox = createNavigationBox(this, {
