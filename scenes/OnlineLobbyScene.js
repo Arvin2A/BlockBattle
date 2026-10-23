@@ -13,6 +13,7 @@ import { cleanName, MAP_CHOICES, MAX_NAME_LENGTH } from '../mp/protocol.js';
 import { createNameFilter } from '../mp/nameFilter.js';
 import inappropriateWords from '../assets/inappropriate_words?raw';
 import { getOnlineServerHost, getServerName, isOnlineConfigured, usesRemoteServer } from '../mp/serverConfig.js';
+import { makeButton } from '../ui/theme.js';
 
 const SETTINGS_KEY = 'blockBattleOnline';
 const MAP_LABELS = { RANDOM: 'RANDOM' };
@@ -101,25 +102,6 @@ function openNameBox(current, onDone) {
         input.select();
     }, 0);
     return () => finish(null);
-}
-
-function makeButton(scene, x, y, width, height, label, onClick, fontSize = 24) {
-    const box = scene.add.rectangle(x, y, width, height, 0x171717)
-        .setStrokeStyle(3, 0xffffff)
-        .setInteractive({ useHandCursor: true });
-    const text = scene.add.text(x, y, label, {
-        fontFamily: 'VCROSD',
-        fontSize: `${fontSize}px`,
-        fill: '#ffffff',
-        align: 'center'
-    }).setOrigin(0.5);
-    box.on('pointerover', () => box.setFillStyle(0x444444));
-    box.on('pointerout', () => box.setFillStyle(0x171717));
-    box.on('pointerdown', () => {
-        scene.sound.play('hover2');
-        onClick();
-    });
-    return { box, text };
 }
 
 function makeArrow(scene, x, y, label, onClick) {

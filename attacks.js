@@ -121,7 +121,7 @@ function getAttackDamageScale(attacker) {
     return baseDamageScale * externalDamageScale * grassDamageScale * scytheGrassCutScale;
 }
 
-function spawnDirtBurst(
+export function spawnDirtBurst(
     scene,
     x,
     y,
@@ -434,19 +434,6 @@ export function setAttackSprite(attacker, animKey) {
     attacker.atk.play(animKey, true);
 }
 
-export function finisherFreeze(scene) {
-    scene.finisherActive = true;
-    scene.physics.pause();
-    scene.baseZoom = 2;
-    scene.sound.stopAll();
-    scene.sound.play('finisher');
-    scene.time.delayedCall(1000, () => {
-        scene.physics.world.resume();
-        scene.baseZoom = 1;
-        scene.finisherActive = false;
-    });
-}
-
 export function spawnExplosion(scene, victim, scale = 0.7) {
     const explosion = scene.add.sprite(victim.x, victim.y, 'explosion')
         .setDepth(8)
@@ -456,12 +443,74 @@ export function spawnExplosion(scene, victim, scale = 0.7) {
     explosion.once('animationcomplete-explosion', () => explosion.destroy());
 }
 
-const FINISHER_THRESHOLD = 1555;
+// KB% at which a hit counts as heavy: white afterimage, smoke trail, screen shake.
+export const HEAVY_KB_PERCENT = 100;
+// KB% at which a heavy hit turns violent: red afterimage and trail, severe shake.
+export const VIOLENT_KB_PERCENT = 200;
 
-export function applyKnockback(scene, target, vx, vy, finishable = false) {
-    if (scene.gameState?.players &&
-        Object.values(scene.gameState.players).includes(target)) {
+// Shake is applied as a camera scroll offset in GameScene.update, because
+// cameras.main.shake() isn't sent to online players.
+export function triggerScreenShake(scene, intensity, duration = 250) {
+    const now = scene.time.now;
+    const current = scene.shake;
+    if (current && now < current.until && current.intensity > intensity) return;
+    scene.shake = { start: now, until: now + duration, intensity };
+}
+
+// A few white pixels that pop out of the side of the victim that got hit.
+// The hit side faces away from the knockback, or toward the opponent if there is none.
+export function spawnHitParticles(scene, target, vx = 0, vy = 0, heavy = false, violent = false) {
+    if (scene.time.now - (target.lastHitParticlesAt ?? 0) < 80) return;
+    target.lastHitParticlesAt = scene.time.now;
+
+    let dirX = -vx;
+    let dirY = -vy;
+    if (Math.hypot(dirX, dirY) < 1) {
+        const players = scene.gameState.players;
+        const opponent = players.player === target ? players.player2 : players.player;
+        dirX = opponent.x - target.x;
+        dirY = opponent.y - target.y;
     }
+    const length = Math.hypot(dirX, dirY) || 1;
+    dirX /= length;
+    dirY /= length;
+
+    // The sprite's position is current; the physics body only catches up next step.
+    const center = { x: target.x, y: target.y };
+    const reach = Math.min(
+        Math.abs(dirX) > 0.001 ? target.body.halfWidth / Math.abs(dirX) : Infinity,
+        Math.abs(dirY) > 0.001 ? target.body.halfHeight / Math.abs(dirY) : Infinity
+    );
+    const edgeX = center.x + dirX * reach;
+    const edgeY = center.y + dirY * reach;
+    const baseAngle = Math.atan2(dirY, dirX);
+
+    const count = violent ? 18 : 10;
+    for (let index = 0; index < count; index += 1) {
+        const size = Phaser.Math.Between(2, 3);
+        const color = violent && index % 2 ? 0xff2020 : 0xffffff;
+        const pixel = scene.add.rectangle(edgeX, edgeY, size, size, color).setDepth(8);
+        scene.objs.add(pixel);
+        const angle = baseAngle + Phaser.Math.FloatBetween(-0.9, 0.9);
+        const distance = Phaser.Math.Between(10, 24) * (violent ? 2.4 : heavy ? 1.6 : 1);
+        scene.tweens.add({
+            targets: pixel,
+            x: edgeX + Math.cos(angle) * distance,
+            y: edgeY + Math.sin(angle) * distance,
+            alpha: 0,
+            duration: Phaser.Math.Between(160, 280),
+            ease: 'Cubic.easeOut',
+            onComplete: () => pixel.destroy()
+        });
+    }
+}
+
+function isFighter(scene, target) {
+    const players = scene.gameState?.players;
+    return Boolean(players) && (players.player === target || players.player2 === target);
+}
+
+export function applyKnockback(scene, target, vx, vy) {
     const resistance = Number.isFinite(target.playerKBresistance) && target.playerKBresistance > 0
         ? target.playerKBresistance
         : 1;
@@ -469,13 +518,32 @@ export function applyKnockback(scene, target, vx, vy, finishable = false) {
     const resistantVy = vy / resistance;
     target.setVelocity(resistantVx, resistantVy);
 
-    return Math.hypot(resistantVx, resistantVy);
+    const speed = Math.hypot(resistantVx, resistantVy);
+    if (isFighter(scene, target)) {
+        const kbPercent = (target.KBmultiplier * 100) - 100;
+        const heavy = kbPercent >= HEAVY_KB_PERCENT;
+        const violent = kbPercent >= VIOLENT_KB_PERCENT;
+        spawnHitParticles(scene, target, resistantVx, resistantVy, heavy, violent);
+        if (heavy) {
+            target.heavyLaunch = true;
+            target.violentLaunch = violent;
+            target.heavyLaunchAt = scene.time.now;
+            target.afterimage = true;
+            if (violent) {
+                triggerScreenShake(scene, 26, 600);
+            } else {
+                triggerScreenShake(scene, Phaser.Math.Clamp(6 + (kbPercent - HEAVY_KB_PERCENT) / 16, 6, 12));
+            }
+        }
+    }
+
+    return speed;
 }
 
 
 export function attack(scene, attacker, target, animKey) {
     //the core attack function that is used as of now
-    if (!attacker.canAttack || attacker.hitstun || scene.finisherActive) return;
+    if (!attacker.canAttack || attacker.hitstun) return;
 
     setAttackSprite(attacker, animKey);
 
@@ -560,7 +628,7 @@ export function pushAttack(scene, attacker, target, animKey) {
         damagePlanksInAttack(attacker);
     }
     let hit = false;
-    if (attackIsElligible(attacker, target, 125) && !scene.finisherActive) {
+    if (attackIsElligible(attacker, target, 125)) {
         hit = true;
 
         target.hitstunUntil = 450 + scene.time.now;;
@@ -632,7 +700,7 @@ export function pushAttack(scene, attacker, target, animKey) {
         target.hitstun = false;
     });
     scene.time.delayedCall(600, () => {
-        if (!scene.finisherActive) target.willDecelerate = true;
+        target.willDecelerate = true;
     });
     return hit;
 }
@@ -640,7 +708,7 @@ export function thirdAttack(scene, attacker, target, animKey) {
     // The third attack launches the target away
     setAttackSprite(attacker, animKey);
 
-    if (attackIsElligible(attacker, target) && !scene.finisherActive) {
+    if (attackIsElligible(attacker, target)) {
         target.hitstunUntil = 500 * target.KBmultiplier + scene.time.now;
         target.willDecelerate = false;
         target.freezeUntil = scene.time.now - 1;
@@ -694,8 +762,7 @@ export function thirdAttack(scene, attacker, target, animKey) {
             target,
             (500 * target.KBmultiplier *
                 (getAttackDamageScale(attacker) + plungeMultiplier)) * dirX,
-            (500 * target.KBmultiplier) * dirY,
-            true
+            (500 * target.KBmultiplier) * dirY
         );
 
         attacker.combo = 0;
@@ -729,9 +796,7 @@ export function thirdAttack(scene, attacker, target, animKey) {
     });
 
     scene.time.delayedCall(1000, () => {
-        if (!scene.finisherActive) {
-            target.willDecelerate = true;
-        }
+        target.willDecelerate = true;
     });
 }
 
@@ -755,7 +820,7 @@ export function tiltAttack(scene, attacker, target, {
     if (onUse) {
         onUse(scene);
     }
-    if (attackIsElligible(attacker, target, range) && !scene.finisherActive) {
+    if (attackIsElligible(attacker, target, range)) {
         target.hitstunUntil = kbTime + 300 + scene.time.now;
         target.willDecelerate = false;
         target.freezeUntil = scene.time.now - 1;
@@ -804,7 +869,7 @@ export function tiltAttack(scene, attacker, target, {
         target.hitstunTimer = null;
     });
     scene.time.delayedCall(kbTime, () => {
-        if (!scene.finisherActive) target.willDecelerate = true;
+        target.willDecelerate = true;
     });
     attacker.nextAttackTime = scene.time.now + 400;
 }
@@ -834,7 +899,7 @@ export function downslamAttack(scene, attacker, target) {
 
     const dx = target.x - attacker.x;
     const dy = target.y - attacker.y;
-    if (Math.hypot(dx, dy) > 125 || scene.finisherActive || isInvincible(target)) return false;
+    if (Math.hypot(dx, dy) > 125 || isInvincible(target)) return false;
 
     target.hitstunUntil = scene.time.now + 500;
     target.willDecelerate = false;

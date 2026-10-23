@@ -1,6 +1,7 @@
 import { modifierOptions } from './scenes/MapAndModifierSelect.js';
 import { getCharacterTexture } from './characterTextures.js';
 import { hasIdleAttackSprite } from './attacks.js';
+import { COLORS, FONTS } from './ui/theme.js';
 export function initiatePlayers(scene, p1Select = 'axeman', p2Select = 'swordman', p1Variant = '', p2Variant = '') {
     const players = {
         player: null,
@@ -327,9 +328,9 @@ export function initiatePlayers(scene, p1Select = 'axeman', p2Select = 'swordman
         scene.objs.add(p.atk);
     }
 
-    players.player.header = scene.add.text(players.player.x, players.player.y - 50, "P1" ,{ fontFamily: 'GameFont', fontSize: '18px', fill: '#ff4343' });
-    const headerFILL = scene.botMode ? '#686868' : '#0051ff'
-    players.player2.header = scene.add.text(players.player2.x, players.player2.y - 50, scene.botMode ? 'CPU' : 'P2' ,{ fontFamily: 'GameFont', fontSize: '18px', fill: headerFILL });
+    players.player.header = scene.add.text(players.player.x, players.player.y - 50, "P1" ,{ fontFamily: FONTS.title, fontSize: '18px', fill: COLORS.p1 });
+    const headerFILL = scene.botMode ? '#686868' : COLORS.p2
+    players.player2.header = scene.add.text(players.player2.x, players.player2.y - 50, scene.botMode ? 'CPU' : 'P2' ,{ fontFamily: FONTS.title, fontSize: '18px', fill: headerFILL });
     scene.objs.add(players.player.header);
     scene.objs.add(players.player2.header);
 

@@ -1,5 +1,6 @@
 import Phaser from 'phaser';
-import {handleAttack, handleDirSpecial, handleNeutralSpecial, handleDirSpecialAttack, handleHorizantalTilt, handleDownTilt, handleUpTilt, downslamAttack, updateScythemanGrass, updateChainsawWood, toggleChainsawMode, tryQuickslamJump, positionAttackSprite, hasIdleAttackSprite, getAttackSpriteOffset, getAttackSpriteFlipX} from './attacks.js';
+import {handleAttack, handleDirSpecial, handleNeutralSpecial, handleDirSpecialAttack, handleHorizantalTilt, handleDownTilt, handleUpTilt, downslamAttack, updateScythemanGrass, updateChainsawWood, toggleChainsawMode, tryQuickslamJump, positionAttackSprite, hasIdleAttackSprite, getAttackSpriteOffset, getAttackSpriteFlipX, triggerScreenShake, spawnDirtBurst, spawnExplosion} from './attacks.js';
+import { COLORS, FONTS, makePanel, playerColor, playerHex, textStyle } from './ui/theme.js';
 import { MAX_WOOD_COUNT } from './playerAttackScripts/axeman.js';
 import { initiatePlayers, updateCombo } from './players.js';
 import { Commands, executeStateCommand} from './commands.js';
@@ -447,6 +448,8 @@ var mobileControls = {
 
 var winBar;
 var restartBtn;
+// The win-screen buttons are drawn square; this squashes them to be shorter.
+const WIN_BUTTON_SCALE_Y = 0.24;
 var restartBtnPressed;
 
 var homeBtn;
@@ -739,7 +742,8 @@ function create() {
 
     this.gameEnded = false;
     this.winCooldown = false;
-    this.finisherActive = false;
+    this.shake = null;
+    this.shakeOffset = { x: 0, y: 0 };
     this.matchStartTime = null;
     this.mapHazard = null;
     this.activeHazard = null;
@@ -786,12 +790,12 @@ function create() {
     this.hud.add(winBar);
 
     restartBtn = this.add.image(425,450, 'restartBtn');
-    restartBtn.setScale(0.35);
+    restartBtn.setScale(0.25);
     restartBtn.setVisible(false);
     this.hud.add(restartBtn);
 
     restartBtnPressed = this.add.image(425,450, 'restartBtnPressed');
-    restartBtnPressed.setScale(0.35);
+    restartBtnPressed.setScale(0.25);
     restartBtnPressed.setVisible(false);
     this.hud.add(restartBtnPressed)
 
@@ -816,12 +820,12 @@ function create() {
     });
 
     homeBtn = this.add.image(600,450, 'gohomeBtn');
-    homeBtn.setScale(0.35);
+    homeBtn.setScale(0.25);
     homeBtn.setVisible(false);
     this.hud.add(homeBtn);
 
     homeBtnPressed = this.add.image(600,450, 'gohomeBtnPressed');
-    homeBtnPressed.setScale(0.35);
+    homeBtnPressed.setScale(0.25);
     homeBtnPressed.setVisible(false);
     this.hud.add(homeBtnPressed)
 
@@ -888,7 +892,7 @@ function create() {
             const label = scene.add.text(x, y, text, {
                 fontSize: '48px',
                 color: '#ffffff',
-                fontFamily: 'Arial'
+                fontFamily: FONTS.body
             })
             .setOrigin(0.5)
             .setAlpha(0.5)
@@ -1048,6 +1052,37 @@ function create() {
         this.physics.add.collider(player, this.gameState.map.platforms);
         this.physics.add.collider(player, this.gameState.map.topPlatforms);
         this.physics.add.collider(player, this.planks);
+
+        player.slot = key === 'player' ? 'p1' : 'p2';
+        player.stats = { kos: 0, maxKB: player.KBmultiplier, damageDealt: 0 };
+        player.statsLastKB = player.KBmultiplier;
+        player.wasGrounded = true;
+        player.launchTrail = this.add.particles(player.x, player.y, '__WHITE', {
+            x: { min: -6, max: 6 },
+            y: { min: -6, max: 6 },
+            speed: { min: 10, max: 40 },
+            scale: { start: 3.5, end: 0 },
+            alpha: { start: 0.55, end: 0 },
+            tint: [0xffffff, 0xdddddd, 0xaaaaaa],
+            lifespan: 450,
+            frequency: 20,
+            quantity: 2,
+            emitting: false
+        });
+        this.objs.addAt(player.launchTrail, this.objs.getIndex(player));
+        player.violentTrail = this.add.particles(player.x, player.y, '__WHITE', {
+            x: { min: -8, max: 8 },
+            y: { min: -8, max: 8 },
+            speed: { min: 20, max: 70 },
+            scale: { start: 4.5, end: 0 },
+            alpha: { start: 0.8, end: 0 },
+            tint: [0xff2020, 0xb00000, 0xff6060],
+            lifespan: 550,
+            frequency: 12,
+            quantity: 3,
+            emitting: false
+        });
+        this.objs.addAt(player.violentTrail, this.objs.getIndex(player));
     }
 
     const keys = Object.keys(this.gameState.players);
@@ -1313,7 +1348,12 @@ function spawnAfterimage(scene, player) {
     ghost.setScale(player.scaleX, player.scaleY);
     ghost.setFlipX(player.flipX);
 
-    ghost.setAlpha(0.5);
+    if (player.heavyLaunch) {
+        ghost.setTint(player.violentLaunch ? 0xff2020 : 0xffffff).setTintMode(Phaser.TintModes.FILL);
+        ghost.setAlpha(0.7);
+    } else {
+        ghost.setAlpha(0.5);
+    }
 
     ghost.setDepth(player.depth - 1);
     scene.objs.add(ghost);
@@ -1322,6 +1362,252 @@ function spawnAfterimage(scene, player) {
         alpha: 0,
         duration: 100,
         onComplete: () => ghost.destroy()
+    });
+}
+
+const DANGER_KB = 2.0;
+const DUST_COLORS = [0xffffff, 0xdddddd, 0xbbbbbb];
+
+function updateLaunchEffects(scene, player) {
+    const { x: vx, y: vy } = player.body.velocity;
+    const speed = Math.hypot(vx, vy);
+    const grounded = player.body.blocked.down || player.body.touching.down;
+
+    if (player.heavyLaunch && scene.time.now - player.heavyLaunchAt > 150 &&
+        (speed < 500 || grounded)) {
+        player.heavyLaunch = false;
+        player.violentLaunch = false;
+        if (!player.downslamming && !player.isUsingSideSpecial) player.afterimage = false;
+    }
+
+    const trailing = player.heavyLaunch && speed > 20;
+    for (const [trail, active] of [
+        [player.launchTrail, trailing && !player.violentLaunch],
+        [player.violentTrail, trailing && player.violentLaunch]
+    ]) {
+        if (active) {
+            trail.setPosition(player.x - (vx / speed) * 15, player.y - (vy / speed) * 15);
+            if (!trail.emitting) trail.start();
+        } else if (trail.emitting) {
+            trail.stop();
+        }
+    }
+
+    if (grounded && !player.wasGrounded && (player.lastFallSpeed ?? 0) > 250) {
+        spawnDirtBurst(scene, player.x, player.body.bottom, 8, 3, 6,
+            Math.min(1.6, player.lastFallSpeed / 500), DUST_COLORS, 160, 260);
+    }
+    player.wasGrounded = grounded;
+    player.lastFallSpeed = vy;
+}
+
+function updateDangerGlow(scene, player) {
+    const rampaging = scene.time.now < (player.rampageUntil ?? 0);
+    if (player.KBmultiplier >= DANGER_KB && !rampaging) {
+        const rate = 0.008 + (player.KBmultiplier - DANGER_KB) * 0.004;
+        const pulse = (Math.sin(scene.time.now * rate) + 1) / 2;
+        const gb = Math.round(255 - pulse * 150);
+        player.setTint((0xff << 16) | (gb << 8) | gb);
+        player.dangerTinted = true;
+    } else if (player.dangerTinted) {
+        player.dangerTinted = false;
+        if (!rampaging) player.clearTint();
+    }
+}
+
+function updateMatchStats(player, opponent) {
+    const gained = player.KBmultiplier - player.statsLastKB;
+    if (gained > 0) opponent.stats.damageDealt += gained * 100;
+    player.stats.maxKB = Math.max(player.stats.maxKB, player.KBmultiplier);
+    player.statsLastKB = player.KBmultiplier;
+}
+
+// A beam in the scorer's color fired back into the arena from where the loser left it.
+function spawnKOBlast(scene, loser, scorer) {
+    const view = scene.cameras.main.worldView;
+    const edgeX = Phaser.Math.Clamp(loser.x, view.x, view.right);
+    const edgeY = Phaser.Math.Clamp(loser.y, view.y, view.bottom);
+    const angle = Math.atan2(view.centerY - edgeY, view.centerX - edgeX);
+    const length = Math.hypot(view.width, view.height);
+
+    const beam = scene.add.rectangle(edgeX, edgeY, length, 120, playerHex(scorer.slot))
+        .setOrigin(0, 0.5).setRotation(angle).setDepth(50).setScale(0.2, 1);
+    const core = scene.add.rectangle(edgeX, edgeY, length, 40, 0xffffff)
+        .setOrigin(0, 0.5).setRotation(angle).setDepth(51).setScale(0.2, 1);
+    scene.objs.add(beam);
+    scene.objs.add(core);
+    scene.tweens.add({ targets: [beam, core], scaleX: 1, duration: 120, ease: 'Cubic.easeOut' });
+    scene.tweens.add({
+        targets: [beam, core],
+        scaleY: 0,
+        alpha: 0,
+        delay: 150,
+        duration: 450,
+        ease: 'Cubic.easeIn',
+        onComplete: () => {
+            beam.destroy();
+            core.destroy();
+        }
+    });
+    spawnExplosion(scene, { x: edgeX, y: edgeY }, 1.2);
+    triggerScreenShake(scene, 12, 400);
+    scene.sound.play('explosion');
+}
+
+function playRespawn(scene, player) {
+    const column = scene.add.rectangle(player.x, 0, 70, 1200, 0xffffff, 0.8)
+        .setOrigin(0.5, 0).setDepth(50);
+    scene.objs.add(column);
+    scene.tweens.add({
+        targets: column,
+        scaleX: 0,
+        alpha: 0,
+        duration: 400,
+        ease: 'Cubic.easeOut',
+        onComplete: () => column.destroy()
+    });
+    player.respawnTween?.stop();
+    player.setAlpha(1);
+    player.respawnTween = scene.tweens.add({
+        targets: player,
+        alpha: 0.25,
+        duration: 125,
+        yoyo: true,
+        repeat: 5,
+        onComplete: () => player.setAlpha(1)
+    });
+}
+
+function showMatchEnd(scene, winner, loser) {
+    for (const player of [winner, loser]) {
+        player.launchTrail.stop();
+        player.violentTrail.stop();
+        player.heavyLaunch = false;
+        player.violentLaunch = false;
+        player.afterimage = false;
+        if (player.dangerTinted) {
+            player.dangerTinted = false;
+            player.clearTint();
+        }
+    }
+
+    scene.tweens.killTweensOf(scene.specialPrompt);
+    scene.specialPrompt.setVisible(false);
+
+    const flash = scene.add.rectangle(500, 300, 1000, 600, 0xffffff, 1);
+    const topBar = scene.add.rectangle(500, -35, 1000, 70, 0x000000);
+    const bottomBar = scene.add.rectangle(500, 635, 1000, 70, 0x000000);
+    const stamp = scene.add.text(500, 270, 'GAME!', textStyle('title', {
+        fontSize: '96px',
+        strokeThickness: 10
+    })).setOrigin(0.5).setScale(3).setAlpha(0);
+    scene.hud.add([topBar, bottomBar, stamp, flash]);
+
+    scene.tweens.add({ targets: flash, alpha: 0, duration: 400, onComplete: () => flash.destroy() });
+    scene.tweens.add({ targets: topBar, y: 35, duration: 300, ease: 'Cubic.easeOut' });
+    scene.tweens.add({ targets: bottomBar, y: 565, duration: 300, ease: 'Cubic.easeOut' });
+    scene.tweens.add({
+        targets: stamp,
+        scale: 1,
+        alpha: 1,
+        delay: 150,
+        duration: 350,
+        ease: 'Back.easeOut',
+        onComplete: () => {
+            triggerScreenShake(scene, 14, 400);
+            scene.sound.play('slamimpact');
+        }
+    });
+
+    // Online players get their results from the overlay scene instead.
+    if (scene.online) return;
+
+    scene.time.delayedCall(1400, () => {
+        scene.tweens.add({ targets: stamp, alpha: 0, scale: 0.6, duration: 250, onComplete: () => stamp.destroy() });
+        showResultsPanel(scene, winner);
+    });
+}
+
+function showResultsPanel(scene, winner) {
+    const p1 = scene.gameState.players.player;
+    const p2 = scene.gameState.players.player2;
+    const formatKB = multiplier => `${((multiplier * 100) - 100).toFixed(1)}%`;
+    const rows = [
+        ['KOS', p => `${p.stats.kos}`],
+        ['MAX KB', p => formatKB(p.stats.maxKB)],
+        ['DAMAGE', p => `${p.stats.damageDealt.toFixed(1)}%`]
+    ];
+
+    const backdrop = scene.add.rectangle(500, 300, 1000, 600, 0x000000, 0.45).setAlpha(0);
+    // Each text is typed out in this order once the panel lands.
+    const typed = [
+        [scene.add.text(500, 145, '', textStyle('title', {
+            fontSize: '40px',
+            fill: playerColor(winner.slot)
+        })).setOrigin(0.5), `${winner.name} WINS!`],
+        [scene.add.text(390, 195, '', textStyle('title', { fontSize: '18px', fill: COLORS.p1, strokeThickness: 3 })).setOrigin(0.5), p1.name],
+        [scene.add.text(610, 195, '', textStyle('title', { fontSize: '18px', fill: COLORS.p2, strokeThickness: 3 })).setOrigin(0.5), p2.name]
+    ];
+    rows.forEach(([label, value], index) => {
+        const y = 240 + index * 40;
+        typed.push(
+            [scene.add.text(390, y, '', textStyle('body', { fill: p1 === winner ? COLORS.accent : COLORS.text })).setOrigin(0.5), value(p1)],
+            [scene.add.text(500, y, '', textStyle('body', { fontSize: '18px', fill: COLORS.muted })).setOrigin(0.5), label],
+            [scene.add.text(610, y, '', textStyle('body', { fill: p2 === winner ? COLORS.accent : COLORS.text })).setOrigin(0.5), value(p2)]
+        );
+    });
+
+    const panel = scene.add.container(0, -450, [
+        makePanel(scene, 500, 245, 620, 270),
+        ...typed.map(([text]) => text)
+    ]);
+    scene.hud.add([backdrop, panel]);
+    scene.tweens.add({ targets: backdrop, alpha: 1, duration: 300 });
+    scene.tweens.add({
+        targets: panel,
+        y: 0,
+        duration: 650,
+        ease: 'Bounce.easeOut',
+        onComplete: () => typewrite(scene, typed)
+    });
+
+    const buttons = [restartBtn, homeBtn];
+    for (const button of [restartBtn, restartBtnPressed, homeBtn, homeBtnPressed]) {
+        scene.hud.bringToTop(button);
+    }
+    buttons.forEach((button, index) => {
+        const restingY = button.y;
+        button.setY(-100).setVisible(true);
+        scene.tweens.add({
+            targets: button,
+            y: restingY,
+            delay: 450 + index * 120,
+            duration: 650,
+            ease: 'Bounce.easeOut'
+        });
+    });
+}
+
+// Types each [textObject, fullText] pair out one letter at a time, in order.
+function typewrite(scene, queue, letterMs = 35) {
+    let item = 0;
+    let letters = 0;
+    const event = scene.time.addEvent({
+        delay: letterMs,
+        loop: true,
+        callback: () => {
+            // A slow frame can fire this more than once after the last letter.
+            if (item >= queue.length) return;
+            const [text, full] = queue[item];
+            letters += 1;
+            text.setText(full.slice(0, letters));
+            if (full[letters - 1] !== ' ') scene.sound.play('hover', { volume: 0.25 });
+            if (letters >= full.length) {
+                item += 1;
+                letters = 0;
+                if (item >= queue.length) event.remove();
+            }
+        }
     });
 }
 
@@ -1680,6 +1966,10 @@ function update() {
     const maxZoom = this.gameState.map.definition.maxZoom ?? defaultMaxZoom;
     zoom = Phaser.Math.Clamp(zoom, minZoom, maxZoom);
 
+    // Take last frame's shake back out so it doesn't build up in the smoothing.
+    this.cameras.main.scrollX -= this.shakeOffset.x;
+    this.cameras.main.scrollY -= this.shakeOffset.y;
+
     this.cameras.main.scrollX += (
         midX - this.cameras.main.width / 2 - this.cameras.main.scrollX
     ) * 0.12;
@@ -1687,6 +1977,17 @@ function update() {
     this.cameras.main.scrollY += (
         midY - this.cameras.main.height / 2 - this.cameras.main.scrollY
     ) * 0.12;
+
+    this.shakeOffset.x = 0;
+    this.shakeOffset.y = 0;
+    if (this.shake && this.time.now < this.shake.until) {
+        const left = (this.shake.until - this.time.now) / (this.shake.until - this.shake.start);
+        const strength = this.shake.intensity * left / this.cameras.main.zoom;
+        this.shakeOffset.x = Phaser.Math.FloatBetween(-strength, strength);
+        this.shakeOffset.y = Phaser.Math.FloatBetween(-strength, strength);
+    }
+    this.cameras.main.scrollX += this.shakeOffset.x;
+    this.cameras.main.scrollY += this.shakeOffset.y;
 
     this.cameras.main.zoom += (
         zoom - this.cameras.main.zoom
@@ -1912,20 +2213,26 @@ function update() {
     for (const player of [p1, p2]) {
         updateKBText(this, player, player.KBmultiplier);
     }
+    updateMatchStats(p1, p2);
+    updateMatchStats(p2, p1);
+    for (const player of [p1, p2]) {
+        updateLaunchEffects(this, player);
+        updateDangerGlow(this, player);
+    }
 
     if (p1.afterimage) {
         if (this.time.now > p1.afterimageTimer) {
 
             spawnAfterimage(this, p1);
 
-            p1.afterimageTimer = this.time.now + 40;
+            p1.afterimageTimer = this.time.now + (p1.violentLaunch ? 20 : 40);
         }
     } 
     if (p2.afterimage) {
         if (this.time.now > p2.afterimageTimer) {
             spawnAfterimage(this, p2);
 
-            p2.afterimageTimer = this.time.now + 40;
+            p2.afterimageTimer = this.time.now + (p2.violentLaunch ? 20 : 40);
         }
     }
 
@@ -2234,10 +2541,14 @@ function update() {
             } else {
                 p1.KBmultiplier = 1.00;
             }
+            p1.statsLastKB = p1.KBmultiplier;
+            p2.stats.kos += 1;
 
             console.log(p2.winNumber)
             updateWins(this);
+            spawnKOBlast(this, p1, p2);
             teleportBackToArena(p1);
+            if (p2.winNumber < winNumber) playRespawn(this, p1);
             
             this.time.delayedCall(1500, () => {
                 this.winCooldown = false;
@@ -2250,8 +2561,12 @@ function update() {
             } else {
                 p2.KBmultiplier = 1.00;
             }
+            p2.statsLastKB = p2.KBmultiplier;
+            p1.stats.kos += 1;
             updateWins(this);
+            spawnKOBlast(this, p2, p1);
             teleportBackToArena(p2);
+            if (p1.winNumber < winNumber) playRespawn(this, p2);
             
             this.time.delayedCall(1500, () => {
                 this.winCooldown = false;
@@ -2261,20 +2576,13 @@ function update() {
         if (p1.winNumber >= winNumber || p2.winNumber >= winNumber) {
             if (p1.outOfBounds) {
                 this.gameEnded = true;
-                const winner = this.add.text(500, 150, p2.name + ' WINS!', { fontFamily: 'GameFont', fontSize: '32px', fill: '#00008B' }).setOrigin(0.5).setStroke('#000000', 5);
-                this.hud.add(winner);
+                showMatchEnd(this, p2, p1);
             } else if (p2.outOfBounds) {
                 this.gameEnded = true;
-                const winner = this.add.text(500, 150, p1.name + ' WINS!', { fontFamily: 'GameFont', fontSize: '32px', fill: '#8B0000' }).setOrigin(0.5).setStroke('#000000', 5);
-                this.hud.add(winner);
+                showMatchEnd(this, p1, p2);
             }
-            if (this.online) {
-                // Players get their own rematch/menu buttons from the online overlay.
-                if (this.gameEnded) reportMatchEnd(p1.outOfBounds ? 'p2' : 'p1');
-            } else {
-                restartBtn.setVisible(true);
-                homeBtn.setVisible(true);
-            }
+            // Online players get their own rematch/menu buttons from the overlay scene.
+            if (this.online && this.gameEnded) reportMatchEnd(p1.outOfBounds ? 'p2' : 'p1');
         }
     }
     updateKB(this);

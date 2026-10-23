@@ -32,8 +32,7 @@ function steelPlank(
     attacker,
     { allowChainsawMode = false } = {}
 ) {
-    if (attacker.hitstun || attacker.freeze ||
-        scene.finisherActive) return;
+    if (attacker.hitstun || attacker.freeze) return;
 
     
 
@@ -110,7 +109,7 @@ function hardSwing(api, scene, attacker, target, animKey) {
     api.setAttackSprite(attacker, animKey);
     scene.time.delayedCall(150, () => {
         //short windup before the mallet connects, like veryhardSwing but much quicker.
-        if (api.attackIsElligible(attacker, target, 100) && !scene.finisherActive) {
+        if (api.attackIsElligible(attacker, target, 100)) {
             target.hitstunUntil = 600 * target.KBmultiplier + scene.time.now;
             target.willDecelerate = false;
             target.freezeUntil = scene.time.now - 1;
@@ -153,7 +152,7 @@ function hardSwing(api, scene, attacker, target, animKey) {
             target.hitstun = false;
         });
         scene.time.delayedCall(1000, () => {
-            if (!scene.finisherActive) target.willDecelerate = true;
+            target.willDecelerate = true;
         });
     });
     scene.time.delayedCall(250, () => {
@@ -179,7 +178,7 @@ function veryhardSwing(api, scene, attacker, target, animKey) {
             return;
         }
         //the delay makes slegdehammer man telegraphable and punishable, but also makes it feel like a big swing.
-        if (api.attackIsElligible(attacker, target, 150) && !scene.finisherActive && attacker.variant === "SLEDGEHAMMER") {
+        if (api.attackIsElligible(attacker, target, 150) && attacker.variant === "SLEDGEHAMMER") {
             api.damagePlanksInAttack(attacker, 0.30);
             target.hitstunUntil = 400 * target.KBmultiplier + scene.time.now;
             target.willDecelerate = false;
@@ -220,7 +219,7 @@ function veryhardSwing(api, scene, attacker, target, animKey) {
             target.hitstun = false;
         });
         scene.time.delayedCall(1000, () => {
-            if (!scene.finisherActive) target.willDecelerate = true;
+            target.willDecelerate = true;
         });
     });
     scene.time.delayedCall(1500, () => {
@@ -335,7 +334,7 @@ function quickslam1(api, scene, attacker, target, animKey = 'sledgehammerquicksl
     //quickslam is a special attack that does less knockback and damage then the normal attack.
     //This is only for sledgehammer.
     //Used as a quick move that contrast's sledgehammer's slow, telegraphed, and easily punishable attacks.
-    if (api.attackIsElligible(attacker, target, 250, false) && !scene.finisherActive && attacker.variant === "SLEDGEHAMMER") {
+    if (api.attackIsElligible(attacker, target, 250, false) && attacker.variant === "SLEDGEHAMMER") {
         attacker.quickslamJumpUntil = scene.time.now + 1000;
         attacker.quickslamJumpTarget = target;
         target.hitstunUntil = 400 * target.KBmultiplier + scene.time.now;
@@ -376,7 +375,7 @@ function quickslam1(api, scene, attacker, target, animKey = 'sledgehammerquicksl
         target.hitstun = false;
     });
     scene.time.delayedCall(1000, () => {
-        if (!scene.finisherActive) target.willDecelerate = true;
+        target.willDecelerate = true;
     });
     scene.sound.play('sledgewhoosh');
     scene.time.delayedCall(203, () => {
@@ -498,7 +497,7 @@ function quickslam2(api, scene, attacker, target, animKey = 'sledgehammerquicksl
             target.hitstun = false;
         });
         scene.time.delayedCall(1000, () => {
-            if (!scene.finisherActive) target.willDecelerate = true;
+            target.willDecelerate = true;
         });
     });
 }

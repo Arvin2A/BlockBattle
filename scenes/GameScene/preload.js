@@ -630,22 +630,6 @@ export function preload() {
     );
     this.load.image('impactcrater', 'assets/impactcrater.png');
 
-    this.load.spritesheet(
-        'impact1',
-        'assets/impact1.png',
-        {
-            frameWidth: 50,
-            frameHeight: 50
-        }
-    );
-    this.load.spritesheet(
-        'impact2',
-        'assets/impact2.png',
-        {
-            frameWidth: 50,
-            frameHeight: 50
-        }
-    );
 
 
 
@@ -659,8 +643,6 @@ export function preload() {
     this.load.audio('countdown', 'audio/countdown.wav');
 
     this.load.audio('swosh', 'audio/swosh.wav');
-
-    this.load.audio('finisher', 'audio/finisher.wav');
 
     this.load.audio('slamimpact', 'audio/slamimpact.wav');
 
