@@ -4,16 +4,23 @@ import { handleAttack } from "../../attacks.js";
 import { handleDirSpecial } from "../../attacks.js";
 import { handleDirSpecialAttack } from "../../attacks.js";
 import { toggleChainsawMode } from "../../attacks.js";
-import { isInvincible } from "../../attacks.js";
+import { isInvincible, attackIsElligible } from "../../attacks.js";
 
 const MAX_CHAINSAW_WOOD = 225;
 const PLANK_WOOD_COST = 15;
+// CHAINSAW keeps one plank's worth for a clutch under himself; walls only spend the rest.
+const CLUTCH_WOOD_RESERVE = PLANK_WOOD_COST;
+const WALL_WOOD_NEEDED = PLANK_WOOD_COST + CLUTCH_WOOD_RESERVE;
+// CHAINSAW: the saw has the same reach as a basic attack.
+const SAW_CONTACT_RANGE = 92;
+const SAW_ENGAGE_RANGE = 320;
+const SAW_SPINUP_RANGE = 170;
 
 // Basic attacks land within this distance (attackIsElligible); DAGGER's are shorter.
 const LIGHT_RANGE = 100;
 const DAGGER_RANGE = 85;
-// Attacking while moving uses pushAttack, which reaches a little further.
-const PUSH_RANGE = 125;
+// Attacking while moving uses pushAttack, same reach as a jab.
+const PUSH_RANGE = 100;
 // Swing a little inside the real range so hits don't miss on its edge.
 const RANGE_MARGIN = 8;
 const CHASE_DEADZONE = 12;
@@ -66,19 +73,16 @@ function isOffStage(player, surfaces) {
     return !isGrounded(player) && !surfaceBelow(surfaces, player.x, player.body.bottom);
 }
 
-// Same checks as attackIsElligible, without its side effects.
+// The real attackIsElligible check aimed along dir, with no side effects.
+// Invincibility is ignored so the bot still lines up hits on a respawning target.
 function wouldHit(attacker, target, dir, range) {
-    const dx = target.x - attacker.x;
-    const dy = target.y - attacker.y;
-    const distance = Math.hypot(dx, dy);
-    if (distance > range || distance === 0) return false;
-    const dot = (dx / distance) * dir.x + (dy / distance) * dir.y;
-    const facingUp = dir.y < -0.9 && Math.abs(dir.x) < 0.2;
-    const facingDown = dir.y > 0.9 && Math.abs(dir.x) < 0.2;
-    const targetAbove = dy < (facingUp || facingDown ? -25 : -10) && Math.abs(dy) <= 135;
-    const targetBelow = dy > 25;
-    if ((targetBelow && facingUp) || (facingDown && targetAbove)) return false;
-    return dot > 0.7 || facingUp || targetAbove;
+    if (target.x === attacker.x && target.y === attacker.y) return false;
+    return attackIsElligible(attacker, target, range, {
+        direction: dir,
+        ignoreCanAttack: true,
+        ignoreInvincibility: true,
+        silent: true
+    });
 }
 
 // Which way to face for a basic attack that lands, or null if none would.
@@ -166,6 +170,12 @@ function recover(scene, bot, target, surfaces) {
     send(scene, bot, dirX < 0 ? Commands.LEFT : Commands.RIGHT);
 
     const underSolid = goal.gap === 0 && goal.solid;
+    // On a plank off the stage: jump off it first, keeping the double jump.
+    if (isGrounded(bot) && !underSolid && scene.time.now - bot.lastJump > 400) {
+        bot.lastJump = scene.time.now;
+        send(scene, bot, Commands.UP);
+        return;
+    }
     const falling = bot.body.velocity.y > -60;
     const nearLevel = feet > goal.top - 40;
     if (underSolid || !falling) return;
@@ -254,46 +264,17 @@ export function runBotAI(scene, bot, target, fiveframecount) {
     if (isChainsawAxeman) {
         if (grounded) {
             bot.airPlankUsed = false;
-        } else if (bot.airTime > 1850 && !bot.airPlankUsed &&
-            !bot.airPlankSequence && bot.woodCount >= PLANK_WOOD_COST * 3 &&
-            bot.chainsawMode) {
-            bot.airPlankUsed = true;
-            bot.airPlankSequence = true;
-            toggleChainsawMode(scene, bot);
-
-            const down = { x: 0, y: 1 };
-            placeBotPlank(scene, bot, target, bot.x, bot.y + 100, down);
-
-            scene.time.delayedCall(50 + Math.random() * 50, () => {
-                if (!bot.active) {
-                    bot.airPlankSequence = false;
-                    return;
-                }
-                if (bot.chainsawMode || bot.hitstun || bot.freeze ||
-                    bot.woodCount < PLANK_WOOD_COST * 2) {
-                    finishAirPlankSequence(scene, bot);
-                    return;
-                }
-                placeBotPlank(
-                    scene, bot, target, bot.x - 200, bot.y + 100, down
-                );
-
-                scene.time.delayedCall(50 + Math.random() * 50, () => {
-                    if (!bot.active) {
-                        bot.airPlankSequence = false;
-                        return;
-                    }
-                    if (bot.chainsawMode || bot.hitstun || bot.freeze ||
-                        bot.woodCount < PLANK_WOOD_COST) {
-                        finishAirPlankSequence(scene, bot);
-                        return;
-                    }
-                    placeBotPlank(
-                        scene, bot, target, bot.x + 200, bot.y + 100, down
-                    );
-                    finishAirPlankSequence(scene, bot);
-                });
-            });
+        } else if (!bot.airPlankUsed && !bot.airPlankSequence && !bot.hitstun && !bot.freeze &&
+            bot.woodCount >= PLANK_WOOD_COST && bot.body.velocity.y > 50 &&
+            ((isOffStage(bot, surfaces) && bot.hasDoubleJumped) || bot.airTime > 1850)) {
+            // CLUTCH: one plank right under his feet, paid for with the reserve.
+            if (bot.chainsawMode) toggleChainsawMode(scene, bot);
+            if (!bot.chainsawMode) {
+                bot.airPlankUsed = true;
+                bot.airPlankSequence = true;
+                placeBotPlank(scene, bot, target, bot.x, bot.y + 70, { x: 0, y: 1 });
+                finishAirPlankSequence(scene, bot);
+            }
         }
     }
 
@@ -306,7 +287,9 @@ export function runBotAI(scene, bot, target, fiveframecount) {
     // RECOVERY
     // ======================
 
-    if (isOffStage(bot, surfaces)) {
+    // Standing on a plank with no stage under it (CHAINSAW's clutch) counts too.
+    const onPlankOffStage = grounded && !surfaceBelow(surfaces, bot.x, bot.body.bottom);
+    if (isOffStage(bot, surfaces) || onPlankOffStage) {
         recover(scene, bot, target, surfaces);
         return;
     }
@@ -374,9 +357,11 @@ export function runBotAI(scene, bot, target, fiveframecount) {
 
         bot.nextWoodGatherTime ??= now + 1500 + Math.random() * 1500;
         bot.nextPlankTime ??= now + 2500 + Math.random() * 2000;
+        // Farming needs a running saw, and the saw won't start for 5s after an explosion.
+        const sawReady = now >= (bot.chainsawCooldownUntil ?? 0);
 
         if (bot.chainsawGathering) {
-            if (targetDistance <= 230 || bot.woodCount >= MAX_CHAINSAW_WOOD || !grounded) {
+            if (targetDistance <= 230 || bot.woodCount >= MAX_CHAINSAW_WOOD || !grounded || !sawReady) {
                 bot.chainsawGathering = false;
                 bot.nextWoodGatherTime = now + 2500 + Math.random() * 2500;
                 bot.lastDir = { x: side, y: 0 };
@@ -393,7 +378,7 @@ export function runBotAI(scene, bot, target, fiveframecount) {
             }
         }
 
-        if (grounded && targetDistance > 230 && bot.woodCount < MAX_CHAINSAW_WOOD &&
+        if (grounded && sawReady && targetDistance > 230 && bot.woodCount < MAX_CHAINSAW_WOOD &&
             now >= bot.nextWoodGatherTime) {
             bot.chainsawGathering = true;
             if (!bot.chainsawMode) toggleChainsawMode(scene, bot);
@@ -406,15 +391,23 @@ export function runBotAI(scene, bot, target, fiveframecount) {
             return;
         }
 
-        if (targetDistance >= 200 && bot.woodCount >= PLANK_WOOD_COST &&
-            now >= bot.nextPlankTime) {
-            if (bot.chainsawMode) toggleChainsawMode(scene, bot);
+        // Wall them off: on a timer from range, or right away while the saw is
+        // cooling down and they're coming in close. A close wall goes halfway
+        // between them so it actually lands in their way.
+        const wallOff = !sawReady && targetDistance < 200 && targetDistance > 90 &&
+            now >= (bot.nextCooldownWallTime ?? 0);
+        const wantsWall = bot.woodCount >= WALL_WOOD_NEEDED &&
+            ((targetDistance >= 200 && now >= bot.nextPlankTime) || wallOff);
+        if (wantsWall && bot.chainsawMode) toggleChainsawMode(scene, bot);
+        if (wantsWall && !bot.chainsawMode) {
+            if (wallOff) bot.nextCooldownWallTime = now + 1800;
             const direction = { x: side, y: 0 };
+            const wallGap = wallOff ? Phaser.Math.Clamp(Math.abs(dx) / 2, 45, 100) : 200;
             placeBotPlank(
                 scene,
                 bot,
                 target,
-                bot.x + direction.x * 200,
+                bot.x + direction.x * wallGap,
                 bot.y - 50,
                 direction
             );
@@ -424,22 +417,8 @@ export function runBotAI(scene, bot, target, fiveframecount) {
             return;
         }
 
-        if (targetDistance <= 145 && now >= bot.nextSideSpecialTime &&
-            now >= (bot.chainsawCooldownUntil ?? 0) && !bot.isUsingSideSpecial) {
-            const direction = dx < 0 ? 'left' : 'right';
-            bot.lastDir = { x: side, y: 0 };
-            handleDirSpecial(scene, bot, direction, now, target);
-            handleDirSpecial(scene, bot, direction, now, target);
-        }
-
-        const chainsawDistance = Math.hypot(target.x - bot.atk.x, target.y - bot.atk.y);
-        if (bot.chainsawMode && chainsawDistance <= 85) {
-            bot.lastDir = { x: side, y: 0 };
-            if (!bot.chainsawActive && now - bot.lastAttack > 500) {
-                bot.lastAttack = now;
-                handleAttack(scene, bot, target);
-            }
-            send(scene, bot, Commands.NONE);
+        if (targetHittable && targetDistance <= SAW_ENGAGE_RANGE &&
+            fightWithSaw(scene, bot, target, surfaces, grounded)) {
             return;
         }
     }
@@ -560,6 +539,89 @@ function specialFits(bot, dx, dy, grounded) {
         default:
             return false;
     }
+}
+
+function ensureSawRunning(scene, bot, target) {
+    if (!bot.chainsawMode) toggleChainsawMode(scene, bot);
+    const now = scene.time.now;
+    if (!bot.chainsawActive && now >= (bot.chainsawCooldownUntil ?? 0) &&
+        now - bot.lastAttack > 300) {
+        bot.lastAttack = now;
+        handleAttack(scene, bot, target);
+    }
+}
+
+// The saw cuts continuously instead of swinging, and only points one of four
+// ways. So the bot moves into reach, faces whichever way would cut, and holds
+// the saw on the target. Returns false when it has nothing to fight with.
+function fightWithSaw(scene, bot, target, surfaces, grounded) {
+    const now = scene.time.now;
+    const dx = target.x - bot.x;
+    const dy = target.y - bot.y;
+    const side = Math.sign(dx) || bot.lastDir.x || 1;
+
+    // No saw for a while after an explosion: back off instead of walking in empty-handed.
+    if (now < (bot.chainsawCooldownUntil ?? 0)) {
+        if (Math.hypot(dx, dy) < 220) {
+            walk(scene, bot, -side, surfaces);
+        } else {
+            send(scene, bot, Commands.NONE);
+        }
+        bot.lastDir = { x: side, y: 0 };
+        return true;
+    }
+
+    const cutFacing = [{ x: side, y: 0 }, { x: 0, y: -1 }, { x: 0, y: 1 }]
+        .find(dir => wouldHit(bot, target, dir, SAW_CONTACT_RANGE));
+
+    if (cutFacing) {
+        // Cutting: stay on them as they get pushed around.
+        const holdX = cutFacing.y === 0 ? target.x - cutFacing.x * 60 : target.x;
+        if (Math.abs(holdX - bot.x) > 10) walk(scene, bot, Math.sign(holdX - bot.x), surfaces);
+        else send(scene, bot, Commands.NONE);
+        bot.lastDir = cutFacing;
+        ensureSawRunning(scene, bot, target);
+
+        // Rampage only pays off once the saw is already on them.
+        if (bot.chainsawActive && bot.chainsawContactDuration > 150 &&
+            now >= bot.nextSideSpecialTime && now >= (bot.rampageCooldownUntil ?? 0)) {
+            const direction = side < 0 ? 'left' : 'right';
+            handleDirSpecial(scene, bot, direction, now, target);
+            handleDirSpecial(scene, bot, direction, now, target);
+        }
+        return true;
+    }
+
+    // Closing in. Chasing jumps throws the blade off, so:
+    //  - target in the air above: get under them with the saw pointed up and let
+    //    them fall onto it.
+    //  - target standing somewhere higher: jump up to their level.
+    //  - otherwise line up beside them, or over them when they're below.
+    const targetGrounded = isGrounded(target);
+    const above = dy < -45;
+    let facing;
+    if (above && !targetGrounded && Math.abs(dx) < 160) {
+        facing = { x: 0, y: -1 };
+        walkTo(scene, bot, target.x, surfaces, 8);
+    } else if (Math.abs(dx) < 45 && dy > 60) {
+        facing = { x: 0, y: 1 };
+        walkTo(scene, bot, target.x, surfaces, 8);
+    } else {
+        facing = { x: side, y: 0 };
+        walkTo(scene, bot, target.x - side * 50, surfaces, 8);
+        if (above && targetGrounded && Math.abs(dx) < 220) {
+            if (grounded && now - bot.lastJump > 400) {
+                bot.lastJump = now;
+                send(scene, bot, Commands.UP);
+            } else if (!grounded && bot.body.velocity.y > 0) {
+                tryDoubleJump(scene, bot);
+            }
+        }
+    }
+    bot.lastDir = facing;
+    // Start the motor on the way in so the blade is already cutting on contact.
+    if (Math.hypot(dx, dy) < SAW_SPINUP_RANGE) ensureSawRunning(scene, bot, target);
+    return true;
 }
 
 function placeBotPlank(scene, bot, target, x, y, direction) {

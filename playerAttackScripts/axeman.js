@@ -6,8 +6,24 @@ function tilt(api, scene, attacker, victim, xMul, yMul, kbTime) {
         range: 150, freeze: 80, sfx: 'swosh', kbTime
     });
 }
+// While the saw is cutting someone, the chainsaw axeman floats instead of
+// freezing in the air like other fighters do: gravity drops to a fraction and his
+// fall speed is capped, but he can still move, so he can keep building platforms.
+const SAW_CONTACT_GRAVITY_SCALE = 0.3;
+const SAW_CONTACT_MAX_FALL_SPEED = 120;
+
+function setSawFloat(scene, attacker, floating) {
+    if (!attacker.body) return;
+    const worldGravity = scene.physics.world.gravity.y;
+    attacker.body.gravity.y = floating ? -worldGravity * (1 - SAW_CONTACT_GRAVITY_SCALE) : 0;
+    if (floating && attacker.body.velocity.y > SAW_CONTACT_MAX_FALL_SPEED) {
+        attacker.setVelocityY(SAW_CONTACT_MAX_FALL_SPEED);
+    }
+}
+
 function deactivateChainsaw(scene, attacker) {
     if (!attacker.chainsawActive) return false;
+    setSawFloat(scene, attacker, false);
     attacker.chainsawSFX.stop();
     attacker.clearTint();
     attacker.chainsawSFX.setRate(1);
@@ -53,6 +69,18 @@ function activateChainsaw(api, scene, attacker, victim, options = {}) {
     startChainsawHitEvent(api, scene, attacker, victim, options);
 }
 
+// RAMPAGE: for 1s the saw cuts twice as fast, contact counts double toward the
+// explosion (a full rampage in contact detonates in ~1s instead of 2s), and an
+// explosion set off during it hits harder. Contact only starts counting on the
+// first chip hit, so the harder explosion gets a short grace past the rampage.
+const RAMPAGE_EXPLOSION_DAMAGE_SCALE = 1.4;
+const RAMPAGE_EXPLOSION_KNOCKBACK_SCALE = 1.25;
+const RAMPAGE_EXPLOSION_GRACE_MS = 300;
+
+function isRampaging(scene, attacker) {
+    return scene.time.now < (attacker.rampageUntil ?? 0);
+}
+
 function startRampage(api, scene, attacker, victim) {
     if (!attacker.chainsawMode || attacker.hitstun || attacker.freeze ||
         scene.time.now < (attacker.rampageCooldownUntil ?? 0) ||
@@ -64,6 +92,7 @@ function startRampage(api, scene, attacker, victim) {
 
     attacker.rampageEvent?.remove(false);
     attacker.rampageUntil = scene.time.now + 1000;
+    attacker.rampageExplosionUntil = attacker.rampageUntil + RAMPAGE_EXPLOSION_GRACE_MS;
     attacker.rampageCooldownUntil = attacker.rampageUntil;
     attacker.chainsawHitInterval = 25;
     attacker.chainsawSFX.setRate(1.2);
@@ -81,33 +110,33 @@ function startRampage(api, scene, attacker, victim) {
 
 }
 
+// The explosion follows the same curve as a combo finisher: speed and hitstun
+// both grow with KB, so it starts KOing around where a 3-hit combo does. It used
+// to square the target's KB for speed but keep a flat 500ms of hitstun, which
+// the death ray's freeze mostly used up, so 250% launches were recoverable.
 function explodeChainsaw(api, scene, attacker, victim, options = {}) {
     if (attacker.chainsawHasExploded || !victim.active || api.isInvincible(victim)) return;
 
     attacker.chainsawHasExploded = true;
     attacker.chainsawCooldownUntil = scene.time.now + 5000;
-    const damageScale = api.getAttackDamageScale(attacker);
-    const hitstunDuration = options.explosionHitstun ?? 500;
-    victim.KBmultiplier += (options.explosionDamage ?? 0.25) * damageScale;
-    const knockback = (options.explosionKnockback ?? 550) *
-        damageScale *
-        victim.KBmultiplier * 0.5;
-    victim.freezeUntil = scene.time.now - 1;
-    victim.hitstunUntil = scene.time.now + hitstunDuration;
-    victim.willDecelerate = false;
-    victim.flash();
-    api.spawnExplosion(scene, victim, 0.7 * victim.KBmultiplier);
-    scene.sound.play('explosion');
-    api.applyKnockback(
-        scene,
-        victim,
-        attacker.lastDir.x * knockback * victim.KBmultiplier * 0.85,
-        attacker.lastDir.y * knockback - 200 * victim.KBmultiplier/2
-    );
-    api.hitFreeze(scene, options.hitFreezeDuration ?? 60);
-    scene.time.delayedCall(hitstunDuration, () => {
-        if (victim.active) victim.willDecelerate = true;
+    const rampaging = scene.time.now < (attacker.rampageExplosionUntil ?? 0);
+    attacker.rampageExplosionUntil = 0;
+    const force = (options.explosionKnockback ?? 450) *
+        (rampaging ? RAMPAGE_EXPLOSION_KNOCKBACK_SCALE : 1);
+    api.landHit(scene, attacker, victim, {
+        damage: (options.explosionDamage ?? 0.25) * (rampaging ? RAMPAGE_EXPLOSION_DAMAGE_SCALE : 1),
+        plankDamage: 0,
+        hitstun: options.explosionHitstun ?? 400,
+        hitFreeze: options.hitFreezeDuration ?? 60,
+        sound: 'explosion',
+        // Harvesting points the saw down, so a grounded victim gets thrown
+        // sideways instead of being pushed into the floor.
+        knockback: { x: force, y: force, lift: -0.25, spike: { x: force * 0.9, y: -force * 0.55 } },
+        decelerateAfter: victim => (options.explosionHitstun ?? 400) * victim.KBmultiplier,
+        resetCombo: false
     });
+    victim.flash();
+    api.spawnExplosion(scene, victim, (rampaging ? 0.9 : 0.7) * victim.KBmultiplier);
     deactivateChainsaw(scene, attacker);
 }
 
@@ -190,14 +219,23 @@ function updateChainsaw(api, scene, attacker, victim, options = {}) {
     }
     api.positionAttackSprite(attacker, 'activechainsaw');
     breakPlanksWithChainsaw(api, scene, attacker);
-    if (!victim.active || api.isInvincible(victim) || api.distanceBetween(attacker.atk, victim) > (options.range ?? 50)) {
+    // Same reach as everyone's basic attack: range and facing from the body,
+    // blocked by walls. silent, because chip hits flash the victim themselves.
+    const inReach = victim.active && api.attackIsElligible(
+        attacker, victim, options.range ?? api.STANDARD_HITS.jab.range,
+        { ignoreCanAttack: true, silent: true }
+    );
+    if (!inReach) {
         attacker.chainsawLastContactTime = 0;
+        setSawFloat(scene, attacker, false);
         return;
     }
+    setSawFloat(scene, attacker, true);
 
     const now = scene.time.now;
     if (attacker.chainsawLastContactTime > 0) {
-        attacker.chainsawContactDuration += now - attacker.chainsawLastContactTime;
+        const contactRate = isRampaging(scene, attacker) ? 2 : 1;
+        attacker.chainsawContactDuration += (now - attacker.chainsawLastContactTime) * contactRate;
     }
     attacker.chainsawLastContactTime = now;
 
@@ -242,7 +280,7 @@ function updateChainsawWood(scene, attacker, victim) {
     const canCollect = attacker.chainsawMode &&
         attacker.chainsawActive &&
         (attacker.body.blocked.down || attacker.body.touching.down) &&
-        attacker.atk.angle === -90 &&
+        attacker.lastDir.y > 0 &&
         !standingOnVictim;
 
     attacker.woodText.setPosition(attacker.x, attacker.y - 75);
@@ -311,8 +349,9 @@ function placePlank(
     plank.setImmovable(true);
     plank.body.setSize(rotated ? 10 : 200, rotated ? 200 : 10);
     plank.body.setOffset(rotated ? 95 : 0, rotated ? 0 : 95);
-    plank.health = 0.10;
+    plank.health = 0.12;
     plank.maxHealth = plank.health;
+    plank.owner = attacker;
     scene.objs.add(plank);
     scene.planks.add(plank);
 
@@ -411,58 +450,31 @@ function neutralPlaceAndHarvest(api, scene, attacker, victim) {
     });
 }
 const neutralSpecial = () => {};
+// Cleave's hit. Flat knockback (no KB growth) plus the chopped debuff.
+const SUPER_SWING = {
+    damage: 0.34,
+    hitstun: 500,
+    hitstunGrowth: false,
+    hitFreeze: 50,
+    sound: 'axecleavesfx',
+    knockback: { x: 800, y: 500, growth: false, spike: { x: 800, y: -200 } },
+    decelerateAfter: 800
+};
 function superSwing(api, scene, attacker, target, animKey) {
-
-    let hit = false;
-    if (api.attackIsElligible(attacker, target, 150)) {
+    // The axe only swings when it connects.
+    const hit = api.attackIsElligible(attacker, target, 150);
+    if (hit) {
         api.setAttackSprite(attacker, animKey);
-        hit = true;
-
-        target.hitstunUntil = 500 + scene.time.now;;
-        target.willDecelerate = false;
-        target.freezeUntil = scene.time.now - 1;
-        attacker.freezeUntil = scene.time.now - 1;
-        attacker.willDecelerate = true;
-        attacker.comboTimer = 600;
+        api.landHit(scene, attacker, target, SUPER_SWING);
         target.choppedUntil = scene.time.now + 3000;
-        target.KBmultiplier += 0.34 * api.getAttackDamageScale(attacker);
-        api.damagePlanksInAttack(attacker, 0.34 * api.getAttackDamageScale(attacker));
-        api.hitFreeze(scene, 50);
-        scene.sound.play('axecleavesfx');
-        const dirX = attacker.lastDir.x;
-
-        let dirY = attacker.lastDir.y;
-        if (dirY === 0) dirY = -0.5; //always launch upwards if on same level
-
-        //very stronk knockback
-        //launch to the side if the target is pinned against the ground, otherwise launch in the direction of the attack
-        if (target.body.touching.down && dirY > 0.7) {
-            const randDir = Math.random() < 0.5 ? -1 : 1;
-            api.applyKnockback(scene, target, (800 * api.getAttackDamageScale(attacker)) * randDir, -200 * target.KBmultiplier);
-        } else {
-            api.applyKnockback(scene, target, (800 * api.getAttackDamageScale(attacker)) * dirX, (500) * dirY);
-        }
-        attacker.combo = 0;
-        attacker.comboTimer = 0;
-
     }
+    api.clearQueuedStunTimers(scene, attacker, target);
     attacker.canAttack = false;
     scene.time.delayedCall(400, () => {
         api.hideAttackSprite(attacker);
         attacker.canAttack = true;
-        console.log(target.choppedUntil);
-        console.log(target.chopped);
     });
-
-    if (attacker.revokeAggressorStun) scene.time.removeEvent(attacker.revokeAggressorStun);
-    if (target.revokeVictimStun) scene.time.removeEvent(target.revokeVictimStun);
-    scene.time.delayedCall(1000, () => {
-        target.hitstun = false;
-    });
-    scene.time.delayedCall(800, () => {
-        target.willDecelerate = true;
-    });
-
+    return hit;
 }
 function tryCleave(api, scene, player, direction, currentTime) {
     const dtapDelay = 250;
@@ -507,6 +519,12 @@ function tryCleave(api, scene, player, direction, currentTime) {
 }
 
 export default {
+    hitSounds: {
+        light: ['axeslash1', 'axeslash2'],
+        finisher: 'axethirdhitsfx'
+    },
+    // Axes are made for chopping wood.
+    plankDamageScale: 3,
     handleAttack,
     updateChainsawWood,
     toggleChainsawMode,

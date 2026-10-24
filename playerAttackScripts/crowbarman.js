@@ -41,8 +41,9 @@ function tryGrab(api, scene, attacker, target, direction, currentTime, animKey =
             const grabAnimPlaying = attacker.atk.anims.isPlaying && attacker.atk.anims.currentAnim?.key === animKey;
 
             //canAttack is already off for the windup, so skip that check; the interrupt check covers hitstun.
-            const grabLands = api.attackIsElligible(attacker, target, 200, false);
+            const grabLands = api.attackIsElligible(attacker, target, 200, { ignoreCanAttack: true });
             attacker.attackBypassesHitstun = false;
+            api.damagePlanksInAttack(attacker, 0.03 * api.getAttackDamageScale(attacker));
             if (grabLands) {
                 const grabOffset = {
                     x: Math.sign(target.x - attacker.x) * 150,
@@ -56,7 +57,6 @@ function tryGrab(api, scene, attacker, target, direction, currentTime, animKey =
                 attacker.willDecelerate = true;
                 attacker.comboTimer = 600;
                 target.KBmultiplier += 0.03 * api.getAttackDamageScale(attacker);
-                api.damagePlanksInAttack(attacker, 0.03 * api.getAttackDamageScale(attacker));
                 //weak damage, but the target is grabbed and unable to move or attack for 3 seconds
                 scene.sound.play('grab');
                 target.body.allowGravity = false;
@@ -147,6 +147,10 @@ function releaseGrab(api, scene, attacker, currentTime, fling = true) {
 }
 
 export default {
+    hitSounds: {
+        light: ['crowbarclang1', 'crowbarclang2'],
+        finisher: 'crowbarhit'
+    },
     handleAttack: (api, scene, attacker, victim) => {
         if (attacker.activeGrab) {
             releaseGrab(api, scene, attacker, scene.time.now, true);

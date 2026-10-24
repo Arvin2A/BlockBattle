@@ -1,6 +1,6 @@
 export function preloadMenu() {
-    this.load.image('menuBackground', 'assets/Homescreen.png');
-    this.load.image('uifade', 'assets/uifade.png');
+    this.load.image('menuBackground', 'assets/menu/Homescreen.png');
+    this.load.image('uifade', 'assets/menu/uifade.png');
     this.load.audio('hover', 'audio/hover.wav');
     this.load.audio('buttonhover', 'audio/buttonhover.wav');
     this.load.audio('deny', 'audio/deny.wav');
@@ -8,10 +8,10 @@ export function preloadMenu() {
 }
 
 export function preloadMapSelection() {
-    this.load.image('desertpreview', 'assets/arenapreview.png');
-    this.load.image('snowypreview', 'assets/snowy_preview.png');
-    this.load.image('randompreview', 'assets/random_preview.png');
-    this.load.image('jungle_preview', 'assets/jungle_preview.png');
+    this.load.image('desertpreview', 'assets/menu/arenapreview.png');
+    this.load.image('snowypreview', 'assets/menu/snowy_preview.png');
+    this.load.image('randompreview', 'assets/menu/random_preview.png');
+    this.load.image('jungle_preview', 'assets/menu/jungle_preview.png');
     this.load.audio('hover', 'audio/hover.wav');
     this.load.audio('buttonhover', 'audio/buttonhover.wav');
     this.load.audio('hover2', 'audio/hover2.wav');
@@ -19,9 +19,9 @@ export function preloadMapSelection() {
 }
 
 export function preloadCharacterSelection() {
-    this.load.image('desertpreview', 'assets/arenapreview.png');
-    this.load.image('selectedoverlay', 'assets/selectedOverlay.png');
-    this.load.image('ready', 'assets/READY.png');
+    this.load.image('desertpreview', 'assets/menu/arenapreview.png');
+    this.load.image('selectedoverlay', 'assets/menu/selectedOverlay.png');
+    this.load.image('ready', 'assets/menu/READY.png');
     this.load.audio('hover', 'audio/hover.wav');
     this.load.audio('buttonhover', 'audio/buttonhover.wav');
     this.load.audio('deny', 'audio/deny.wav');
@@ -67,44 +67,43 @@ export function preload() {
     // MENU
     // =====================================================
 
-    this.load.image('menuBackground', 'assets/Homescreen.png');
-    this.load.image('uifade', 'assets/uifade.png');
+    this.load.image('menuBackground', 'assets/menu/Homescreen.png');
+    this.load.image('uifade', 'assets/menu/uifade.png');
     
     this.load.audio('hover', 'audio/hover.wav');
     this.load.audio('buttonhover', 'audio/buttonhover.wav');
     this.load.audio('deny', 'audio/deny.wav');
 
     //map preview images
-    this.load.image('desertpreview', 'assets/arenapreview.png');
-    this.load.image('snowypreview', 'assets/snowy_preview.png');
-    this.load.image('randompreview', 'assets/random_preview.png');
+    this.load.image('desertpreview', 'assets/menu/arenapreview.png');
+    this.load.image('snowypreview', 'assets/menu/snowy_preview.png');
+    this.load.image('randompreview', 'assets/menu/random_preview.png');
 
     // =====================================================
     // MAP / STAGE
     // =====================================================
 
-    this.load.image('background', 'assets/background_one.png');
+    this.load.image('background', 'assets/ingame/background_one.png');
 
-    this.load.image('ground', 'assets/ground.png');
-    this.load.image('betterground', 'assets/betterground.png');
+    this.load.image('betterground', 'assets/ingame/betterground.png');
 
-    this.load.image('platform', 'assets/platform.png');
-    this.load.image('platform1', 'assets/platform1.png');
+    this.load.image('platform', 'assets/ingame/platform.png');
+    this.load.image('platform1', 'assets/ingame/platform1.png');
 
-    this.load.image('groundhitbox', 'assets/groundhitbox.png');
-    this.load.image('thickgroundhitbox', 'assets/groundhitbox2.png');
+    this.load.image('groundhitbox', 'assets/ingame/groundhitbox.png');
+    this.load.image('thickgroundhitbox', 'assets/ingame/groundhitbox2.png');
 
-    this.load.image('snowy_background', 'assets/snowy_background.png');
-    this.load.image('snowy_betterground', 'assets/snowy_betterground.png');
+    this.load.image('snowy_background', 'assets/ingame/snowy_background.png');
+    this.load.image('snowy_betterground', 'assets/ingame/snowy_betterground.png');
     
-    this.load.image('snowplatform1', 'assets/snowplatform1.png');
-    this.load.image('snowplatform2', 'assets/snowplatform2.png');
+    this.load.image('snowplatform1', 'assets/ingame/snowplatform1.png');
+    this.load.image('snowplatform2', 'assets/ingame/snowplatform2.png');
 
-    this.load.image('jungle_background', 'assets/jungle_background.png');
-    this.load.image('jungle_betterground', 'assets/jungle_betterground.png');
-    this.load.image('jungle_platform', 'assets/jungle_platform.png');
+    this.load.image('jungle_background', 'assets/ingame/jungle_background.png');
+    this.load.image('jungle_betterground', 'assets/ingame/jungle_betterground.png');
+    this.load.image('jungle_platform', 'assets/ingame/jungle_platform.png');
 
-    this.load.image('jungle_preview', 'assets/jungle_preview.png');
+    this.load.image('jungle_preview', 'assets/menu/jungle_preview.png');
 
     
 
@@ -113,38 +112,38 @@ export function preload() {
     // UI
     // =====================================================
 
-    this.load.image('redstat', 'assets/KBstatBG1.png');
-    this.load.image('bluestat', 'assets/KBstatBG2.png');
-    this.load.image('botstat', 'assets/KBstatBGBOT.png');
+    this.load.image('redstat', 'assets/ingame/KBstatBG1.png');
+    this.load.image('bluestat', 'assets/ingame/KBstatBG2.png');
+    this.load.image('botstat', 'assets/ingame/KBstatBGBOT.png');
 
 
-    this.load.image('p1guide', 'assets/p1guide.png');
-    this.load.image('p2guide', 'assets/p2guide.png');
+    this.load.image('p1guide', 'assets/ingame/p1guide.png');
+    this.load.image('p2guide', 'assets/ingame/p2guide.png');
 
-    this.load.image('winbar', 'assets/WINbar.png');
+    this.load.image('winbar', 'assets/ingame/WINbar.png');
 
-    this.load.image('restartBtn', 'assets/restartBtn.png');
-    this.load.image('restartBtnPressed', 'assets/pressedRestart.png');
+    this.load.image('restartBtn', 'assets/ingame/restartBtn.png');
+    this.load.image('restartBtnPressed', 'assets/ingame/pressedRestart.png');
 
-    this.load.image('gohomeBtn', 'assets/goHomeBtn.png');
-    this.load.image('gohomeBtnPressed', 'assets/pressedgoHome.png');
+    this.load.image('gohomeBtn', 'assets/ingame/goHomeBtn.png');
+    this.load.image('gohomeBtnPressed', 'assets/ingame/pressedgoHome.png');
 
-    this.load.image('resumeBtn', 'assets/resumeBtn.png');
+    this.load.image('resumeBtn', 'assets/ingame/resumeBtn.png');
 
     for (let i = 1; i < 5; i++) {
-        this.load.image('countdown' + i, 'assets/countdown' + i + '.png');
+        this.load.image('countdown' + i, 'assets/ingame/countdown' + i + '.png');
     }
 
-    this.load.image('ready', 'assets/READY.png');
-    this.load.image('selectedoverlay', 'assets/selectedOverlay.png');
+    this.load.image('ready', 'assets/menu/READY.png');
+    this.load.image('selectedoverlay', 'assets/menu/selectedOverlay.png');
 
 
     // =====================================================
     // HAZARDS
     // =====================================================
 
-    this.load.spritesheet('sandstorm', 'assets/sandstorm.png', {frameWidth: 1000, frameHeight: 600});    
-    this.load.spritesheet('blizzard', 'assets/blizzard.png', {frameWidth: 1000, frameHeight: 600});
+    this.load.spritesheet('sandstorm', 'assets/ingame/sandstorm.png', {frameWidth: 1000, frameHeight: 600});    
+    this.load.spritesheet('blizzard', 'assets/ingame/blizzard.png', {frameWidth: 1000, frameHeight: 600});
 
     this.load.audio('storm', 'audio/sandstorm.mp3');
 
@@ -152,8 +151,8 @@ export function preload() {
     // EFFECTS
     // =====================================================
 
-    this.load.image('doublejump', 'assets/DoubleJump.png');
-    this.load.image('plungedAura', 'assets/plungedAura.png');
+    this.load.image('doublejump', 'assets/ingame/DoubleJump.png');
+    this.load.image('plungedAura', 'assets/statusailments/plungedAura.png');
 
     // =====================================================
     // AXEMAN
@@ -190,7 +189,7 @@ export function preload() {
             frameHeight: 75
         }
     );
-    this.load.image('chopped', 'assets/woodcrack.png');
+    this.load.image('chopped', 'assets/statusailments/woodcrack.png');
 
     // =====================================================
     // SWORDMAN
@@ -590,7 +589,7 @@ export function preload() {
     );
     this.load.spritesheet(
         'explosion',
-        'assets/explosion.png',
+        'assets/ingame/explosion.png',
         {
             frameWidth: 120,
             frameHeight: 200
@@ -614,7 +613,7 @@ export function preload() {
 
     this.load.spritesheet(
         'upbambooGrow',
-        'assets/upBamboo.png',
+        'assets/ingame/upBamboo.png',
         {
             frameWidth: 50,
             frameHeight: 50
@@ -622,13 +621,13 @@ export function preload() {
     );
     this.load.spritesheet(
         'upgrassGrow',
-        'assets/upGrass.png',
+        'assets/ingame/upGrass.png',
         {
             frameWidth: 75,
             frameHeight: 75
         }
     );
-    this.load.image('impactcrater', 'assets/impactcrater.png');
+    this.load.image('impactcrater', 'assets/ingame/impactcrater.png');
 
 
 
@@ -712,7 +711,6 @@ export function preload() {
     this.load.audio('plunge', 'audio/plunge.ogg');
     this.load.audio('slatelight1', 'audio/slatelight1.wav');
     this.load.audio('slatelight2', 'audio/slatelight2.wav');
-    this.load.audio('rockbreak', 'audio/rockbreak.wav')
 
     // =====================================================
     // AUDIO - CROWBARMAN
@@ -737,7 +735,6 @@ export function preload() {
     // AUDIO - MISC
     // =====================================================
 
-    this.load.audio('bamboo', 'audio/snd_spearrise.wav');
     this.load.audio('harvest', 'audio/harvest.wav');
     this.load.audio('damn', 'audio/daaaaaamn.wav');
     this.load.audio('glassbreak', 'audio/glassbreak.wav');
@@ -746,9 +743,7 @@ export function preload() {
     // AUDIO - AUTOMATICALLY ADDED
     // =====================================================
 
-    this.load.audio('gain', 'audio/gain.ogg');
     this.load.audio('reel', 'audio/reel.wav');
-    this.load.audio('variantselect', 'audio/variantselect.wav');
 
     // =====================================================
     // AUDIO - NEW (added by add-audio.js, move into a section if you like)

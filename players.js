@@ -346,7 +346,7 @@ export function initiatePlayers(scene, p1Select = 'axeman', p2Select = 'swordman
     for (const key in players) {
         const player = players[key];
         if (player.name === 'AXEMAN' && player.variant === 'CHAINSAW') {
-            const switchKey = player.id === 1 ? 'Q' : '/';
+            const switchKey = player.id === 1 ? 'LEFT ALT' : 'RIGHT ALT';
             const isPlayerOne = player.id === 1;
             const iconX = isPlayerOne ? 34 : 966;
             const labelX = isPlayerOne ? 60 : 940;

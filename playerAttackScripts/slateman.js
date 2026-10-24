@@ -8,53 +8,31 @@ function tilt(api, scene, attacker, victim, xMul, yMul, kbTime) {
 const neutralSpecial = () => {};
 function markPlunge(api, scene, attacker, target, dir) {
     //Marks attack for plunge
-    let hit = false;
-    if (api.attackIsElligible(attacker, target, 150, false)) {
-        hit = true;
-        target.hitstunUntil = 450 * target.KBmultiplier + scene.time.now;
-        target.willDecelerate = false;
-        target.freezeUntil = scene.time.now - 1;
-        attacker.freezeUntil = scene.time.now - 1;
-        attacker.willDecelerate = true;
-        attacker.comboTimer = 600;
-        target.KBmultiplier += 0.075 * api.getAttackDamageScale(attacker);
-        api.damagePlanksInAttack(attacker, 0.08 * api.getAttackDamageScale(attacker));
+    const hit = api.strike(scene, attacker, target, {
+        range: 150,
+        bypass: { ignoreCanAttack: true },
+        direction: { x: dir, y: attacker.lastDir.y },
+        damage: 0.075,
+        plankDamage: 0.08,
+        hitstun: 450,
+        hitFreeze: 50,
+        sound: 'plunge',
+        knockback: { x: 300, y: 500, spike: { x: 325, y: -200 } },
+        decelerateAfter: 600
+    });
+    if (hit) {
+        // Marked after the launch, so the mark's own bonus doesn't apply to it.
         target.plunged = true;
-        api.hitFreeze(scene, 50);
-        scene.sound.play('plunge');
-        const dirX = attacker.lastDir.x;
-
-        let dirY = attacker.lastDir.y;
-        if (dirY === 0) dirY = -0.5; //always launch upwards if on same level
-
-        //very stronk knockback
-        //launch to the side if the target is pinned against the ground, otherwise launch in the direction of the attack
-        if (target.body.touching.down && dirY > 0.7) {
-            const randDir = Math.random() < 0.5 ? -1 : 1;
-            api.applyKnockback(scene, target, (325 * target.KBmultiplier * api.getAttackDamageScale(attacker)) * randDir, -200 * target.KBmultiplier);
-        } else {
-            api.applyKnockback(scene, target, (300 * target.KBmultiplier * api.getAttackDamageScale(attacker)) * dir, (500 * target.KBmultiplier) * dirY);
-        }
-        attacker.combo = 0;
-        attacker.comboTimer = 0;
+        target.plungeEvent?.remove(false);
+        target.plungeEvent = scene.time.delayedCall(2500, () => {
+            target.plunged = false;
+            target.plungeEvent = null;
+        });
     } else {
         attacker.combo = 0;
     }
-    attacker.canAttack = false;
-    scene.time.delayedCall(400, () => {
-        attacker.canAttack = true;
-    });
-    if (attacker.revokeAggressorStun) scene.time.removeEvent(attacker.revokeAggressorStun);
-    if (target.revokeVictimStun) scene.time.removeEvent(target.revokeVictimStun);
-    scene.time.delayedCall(450 * target.KBmultiplier, () => {
-        target.hitstun = false;
-    });
-    scene.time.delayedCall(600, () => {
-        target.willDecelerate = true;
-    });
-    scene.time.delayedCall(2500, () => {
-        target.plunged = false;
-    });
+    api.clearQueuedStunTimers(scene, attacker, target);
+    api.recoverAfterAttack(scene, attacker, { hideAfter: null });
     return hit;
 }
 function tryPlunge(api, scene, player, target, direction, currentTime) {
@@ -77,6 +55,8 @@ function tryPlunge(api, scene, player, target, direction, currentTime) {
     api.startSideSpecialCooldown(player, currentTime, pullCD);
     player.attackBypassesHitstun = false;
     player.isAttacking = true;
+    // A new swing, so the plunge can damage a plank even if the last swing did.
+    player.attackSequence = (player.attackSequence ?? 0) + 1;
 
     const currentLastDir = player.lastDir.x;
 
@@ -162,6 +142,10 @@ function tryPlunge(api, scene, player, target, direction, currentTime) {
 }
 
 export default {
+    hitSounds: {
+        light: ['slatelight1', 'slatelight2'],
+        finisher: 'slatepunch'
+    },
     handleAttack: (api, scene, attacker, victim) =>
         api.tryAttack(scene, attacker, victim, 'slateatk', 'slateatkthird'),
     handleDirSpecial: (api, scene, attacker, direction, currentTime, victim) =>
