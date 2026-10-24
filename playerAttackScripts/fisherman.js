@@ -243,27 +243,21 @@ function tryPull(api, scene, player, target, direction, currentTime) {
                 if (cleanedUp || player.hasHitSideSpecial || pullingToPlatform || api.isInvincible(target)) return;
                 player.hasHitSideSpecial = true;
 
-                target.hitstunUntil = 550 + scene.time.now;
-
                 const dx = player.x - target.x;
                 const dy = player.y - target.y;
-
                 const dist = Math.hypot(dx, dy) || 1;
-
                 const pullStrength = 900;
 
-                api.applyKnockback(
-                    scene,
-                    target,
-                    (dx / dist) * pullStrength,
-                    (dy / dist) * pullStrength,
-                    { noDeathRay: true }
-                );
-
-                scene.sound.play('anyhit');
-                target.KBmultiplier += 0.22 * api.getAttackDamageScale(player);
-                scene.time.delayedCall(550, () => {
-                    if (target.active) target.hitstun = false;
+                api.landHit(scene, player, target, {
+                    damage: 0.22,
+                    plankDamage: 0,
+                    hitstun: 550,
+                    hitstunGrowth: false,
+                    sound: 'anyhit',
+                    knockback: () => ({ x: (dx / dist) * pullStrength, y: (dy / dist) * pullStrength }),
+                    noDeathRay: true,
+                    decelerateAfter: 550,
+                    resetCombo: false
                 });
                 latchToTarget();
             }),
@@ -333,6 +327,8 @@ function tryPull(api, scene, player, target, direction, currentTime) {
 }
 
 export default {
+    attackCooldown: 275,
+    hitSounds: { finisher: 'rodthirdhitsfx' },
     // The rod sheet is drawn facing right with the arms on the left of each frame.
     rightFacingAttackSprites: ['rodatk', 'linelessrod', 'reelin'],
     textureAttackSpriteOffsets: {

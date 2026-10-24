@@ -6,60 +6,13 @@ function tilt(api, scene, attacker, victim, xMul, yMul, kbTime) {
 }
 
 const neutralSpecial = () => {};
+// The standard finisher with a steeper, harder launch and no hitstop.
+const SLAM_FINISHER = {
+    hitFreeze: 0,
+    knockback: { x: 350, y: 700, onDown: 'popUp' }
+};
 function slamThirdAttack(api, scene, attacker, target, animKey) {
-    //The third attack launching the target away
-    api.setAttackSprite(attacker, animKey);
-    if (api.attackIsElligible(attacker, target)) {
-        target.hitstunUntil = 500 * target.KBmultiplier + scene.time.now;
-        target.willDecelerate = false;
-        target.freezeUntil = scene.time.now - 1;
-        attacker.freezeUntil = scene.time.now - 1;
-        attacker.willDecelerate = true;
-        attacker.comboTimer = 600;
-        target.KBmultiplier += 0.07 * api.getAttackDamageScale(attacker);
-        api.damagePlanksInAttack(attacker, 0.10 * api.getAttackDamageScale(attacker));
-        if (attacker.name == "SWORDMAN") {
-            scene.sound.play('swordthirdhitsfx');
-        } else if (attacker.name == "AXEMAN") {
-            scene.sound.play('axethirdhitsfx');
-        } else if (attacker.name == "FISHERMAN") {
-            scene.sound.play('rodthirdhitsfx');
-        } else if (attacker.name == "SCYTHEMAN") {
-            scene.sound.play('scythethirdhitsfx');
-        }
-        let dirX = attacker.lastDir.x;
-
-        let dirY = attacker.lastDir.y;
-        if (dirY === 0) {
-            dirY = -0.5; //always launch upwards if on same level
-        } else if (dirY === 1) {
-            dirX = attacker.x <= target.x ? 0.75 : -0.75;
-            dirY = -1;
-        }
-
-        //very stronk knockback
-        //launch to the side if the target is pinned against the ground, otherwise launch in the direction of the attack
-
-        api.applyKnockback(scene, target, (350 * target.KBmultiplier * api.getAttackDamageScale(attacker)) * dirX, (700 * target.KBmultiplier) * dirY);
-        attacker.combo = 0;
-        attacker.comboTimer = 0;
-    }
-    attacker.canAttack = false;
-    scene.time.delayedCall(250, () => {
-        api.hideAttackSprite(attacker);
-    });
-    scene.time.delayedCall(400, () => {
-        attacker.canAttack = true;
-    });
-    if (attacker.revokeAggressorStun) scene.time.removeEvent(attacker.revokeAggressorStun);
-    if (target.revokeVictimStun) scene.time.removeEvent(target.revokeVictimStun);
-    scene.time.delayedCall(500 * target.KBmultiplier, () => {
-        target.hitstun = false;
-    });
-    scene.time.delayedCall(1000, () => {
-        target.willDecelerate = true;
-    });
-
+    api.thirdAttack(scene, attacker, target, animKey, SLAM_FINISHER);
 }
 function tryAttack2(api, scene, attacker, target, animKey, thirdAnimKey) {
     //handles some other stuff before calling either attack functions
@@ -90,24 +43,23 @@ function tryMow(api, scene, player, target, direction, currentTime) {
         api.setAttackSprite(player, 'scytheatktilt');
         player.atk.setScale(3);
 
+        // Mowing through grass doubles the hit.
         const inGrass = player.inGrass || target.inGrass;
         const knockbackScale = inGrass ? 2 : 1;
-        if (api.attackIsElligible(player, target, 250)) {
-            target.hitstunUntil = scene.time.now + 450;
-            target.willDecelerate = false;
-            target.freezeUntil = scene.time.now - 1;
-            target.KBmultiplier += 0.15 * knockbackScale * api.getAttackDamageScale(player);
-            api.damagePlanksInAttack(player, 0.15 * api.getAttackDamageScale(player));
-            api.applyKnockback(scene, target, 850 * knockbackScale * player.lastDir.x, -150 * knockbackScale);
-            api.hitFreeze(scene, 70);
-            scene.sound.play('slice');
-            target.flash();
-            scene.time.delayedCall(450, () => {
-                target.willDecelerate = true;
-            });
-        } else {
-            scene.sound.play('miss');
-        }
+        api.strike(scene, player, target, {
+            range: 250,
+            damage: 0.15 * knockbackScale,
+            plankDamage: 0.15,
+            hitstun: 450,
+            hitstunGrowth: false,
+            hitFreeze: 70,
+            sound: 'slice',
+            knockback: () => ({ x: 850 * knockbackScale * player.lastDir.x, y: -150 * knockbackScale }),
+            decelerateAfter: 450,
+            resetCombo: false,
+            onHit: () => target.flash(),
+            missSound: 'miss'
+        });
 
         api.cutNearbyGrass(scene, player.x, player.y + 20, 180, player);
         api.startSideSpecialCooldown(player, currentTime, mowCD);
@@ -278,6 +230,10 @@ function tryMowLegacy(api, scene, player, target, direction, currentTime) {
 }
 
 export default {
+    hitSounds: {
+        light: ['axeslash1', 'axeslash2'],
+        finisher: 'scythethirdhitsfx'
+    },
     handleAttack: (api, scene, attacker, victim) =>
         tryAttack2(api, scene, attacker, victim, 'scytheatk', 'scytheatk'),
     handleDirSpecial: (api, scene, attacker, direction, currentTime, victim) =>

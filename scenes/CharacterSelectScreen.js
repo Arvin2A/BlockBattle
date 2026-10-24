@@ -1,3 +1,4 @@
+import Phaser from 'phaser';
 import { botMode, simulationMode } from "../gameSettings.js";
 import { preloadCharacterSelection } from "./GameScene/preload.js";
 import { getCharacterTexture } from "../characterTextures.js";
@@ -21,12 +22,16 @@ export function setSelectedCharacters(p1Character, p1Variant, p2Character, p2Var
     player2Variant = p2Variant;
 }
 
-export const CharacterSelectScene = {
+export class CharacterSelectScene extends Phaser.Scene {
+    constructor() {
+        super({ key: 'CharacterSelectScene' });
+    }
 
-    key: 'CharacterSelectScene',
+    preload() {
+        preloadCharacterSelection.call(this);
+    }
 
-    preload: preloadCharacterSelection,
-    create: function () {
+    create() {
         this.cameras.main.fadeIn(200, 0, 0, 0);
 
         // -----------------------------
@@ -832,9 +837,9 @@ export const CharacterSelectScene = {
             this.updateCharacterDescriptions();
         });*/
 
-    },
+    }
 
-    update: function () {
+    update() {
 
         const justDown = key => Phaser.Input.Keyboard.JustDown(this.keys[key]);
         const keyboardDelta = (left, right, up, down) => {
@@ -893,4 +898,4 @@ export const CharacterSelectScene = {
         }
 
     }
-};
+}

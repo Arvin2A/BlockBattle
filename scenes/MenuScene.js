@@ -1,3 +1,4 @@
+import Phaser from 'phaser';
 
 import { changeBotMode, simulationMode } from "../gameSettings.js";
 import { preloadMenu } from "./GameScene/preload.js";
@@ -38,12 +39,18 @@ function getVersionColor(version) {
 }
 
 const changelogColor = getVersionColor(CHANGELOG_VERSION);const CHANGELOG_STORAGE_KEY = "blockBattleSeenChangelog";
-export const MenuScene = {
+export class MenuScene extends Phaser.Scene {
     //load the menu scene which is just a cool background image we made
     //its also has the start button, initiating the game when clicked
-    key: 'MenuScene',
-    preload: preloadMenu,
-    create: function () {
+    constructor() {
+        super({ key: 'MenuScene' });
+    }
+
+    preload() {
+        preloadMenu.call(this);
+    }
+
+    create() {
         this.cameras.main.fadeIn(200, 0, 0, 0);
         const bg = this.add.image(500, 300, 'menuBackground');
         bg.setDisplaySize(this.scale.width, this.scale.height);
@@ -683,8 +690,9 @@ export const MenuScene = {
             [startBox, startText]
         ]);
         this.menuIntroUntil = this.time.now + introLength;
-    },
-    update: function () {
+    }
+
+    update() {
         currentControllers = getConnectedControllers(this);
         primaryController = currentControllers[0] ?? null;
 
@@ -748,6 +756,4 @@ export const MenuScene = {
 
         previousInput = { ...input};
     }
-
-    
-};
+}

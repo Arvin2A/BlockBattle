@@ -159,7 +159,7 @@ export function createAuthorityGame(Phaser, baseConfig, gameScene) {
     const config = {
         ...baseConfig,
         type: authorityParams.render ? Phaser.AUTO : Phaser.HEADLESS,
-        scene: [createAuthorityBootScene(gameScene.preload), gameScene],
+        scene: [createAuthorityBootScene(gameScene.prototype.preload), gameScene],
         // Hidden tabs pause requestAnimationFrame, so drive the game with timers
         // instead. Only one tab at a time is "in front" when several matches run.
         fps: { target: 60, forceSetTimeOut: !authorityParams.render },
