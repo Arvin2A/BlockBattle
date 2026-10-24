@@ -750,4 +750,10 @@ export function preload() {
     this.load.audio('reel', 'audio/reel.wav');
     this.load.audio('variantselect', 'audio/variantselect.wav');
 
+    // =====================================================
+    // AUDIO - NEW (added by add-audio.js, move into a section if you like)
+    // =====================================================
+
+    this.load.audio('superexplosion', 'audio/superexplosion.mp3');
+
 }

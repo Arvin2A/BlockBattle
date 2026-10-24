@@ -771,6 +771,8 @@ function create() {
     this.input.addPointer(5);
     this.baseZoom = 1;
     this.hitFreezeUntil = 0;
+    this.hitFreezeUltra = false;
+    this.deathRayAttackLockUntil = 0;
     this.hitFocus = null;
     this.hud = this.add.container(0, 0);
     this.objs = this.add.container(0,0);
