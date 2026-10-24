@@ -1,6 +1,7 @@
 import Phaser from 'phaser';
 import {handleAttack, handleDirSpecial, handleNeutralSpecial, handleDirSpecialAttack, handleHorizantalTilt, handleDownTilt, handleUpTilt, downslamAttack, updateScythemanGrass, updateChainsawWood, toggleChainsawMode, tryQuickslamJump, positionAttackSprite, hasIdleAttackSprite, getAttackSpriteOffset, getAttackSpriteFlipX, triggerScreenShake, spawnDirtBurst, spawnExplosion} from './attacks.js';
 import { COLORS, FONTS, makePanel, playerColor, playerHex, textStyle } from './ui/theme.js';
+import { addTouchAssist } from './ui/touchAssist.js';
 import { MAX_WOOD_COUNT } from './playerAttackScripts/axeman.js';
 import { initiatePlayers, updateCombo } from './players.js';
 import { Commands, executeStateCommand} from './commands.js';
@@ -11,11 +12,12 @@ import { MapAndModifierSelectScene, getMatchMapDefinition, resetMapAndModifierSe
 import { preload } from './scenes/GameScene/preload.js';
 import { createGameAnimations } from './scenes/GameScene/animations.js';
 import { runBotAI } from './scenes/GameScene/botAI.js';
+import { runBotAI as runLegacyBotAI } from './scenes/GameScene/botAILegacy.js'; // BENCHMARK-TEMP
 import { Map } from './scenes/GameScene/Map.js';
 import { modifierOptions } from './scenes/MapAndModifierSelect.js';
 import UIPlugin from 'phaser4-rex-plugins/templates/ui/ui-plugin.js';
 import unmuteAudio from 'unmute-ios-audio';
-import { botMode, changeBotMode } from './gameSettings.js';
+import { botMode, simulationMode, changeBotMode } from './gameSettings.js';
 import { createInputState, applyInputFrame, consumePress, emptyControllerInput, readControllerInput } from './input.js';
 import { isAuthority, beginAuthorityCapture, attachAuthority, createAuthorityGame, getOnlinePlayerNames, pollNetworkInput, reportMatchEnd } from './mp/authority.js';
 import { OnlineLobbyScene } from './scenes/OnlineLobbyScene.js';
@@ -603,6 +605,7 @@ function updateSpecialMeters(scene) {
     const players = scene.gameState.players;
     if (
         !scene.specialPromptShown &&
+        !scene.simulationMode &&
         scene.matchStartTime !== null &&
         scene.time.now >= scene.matchStartTime + 5000 &&
         (!players.player.hasUsedSideSpecial || !players.player2.hasUsedSideSpecial)
@@ -764,8 +767,11 @@ function create() {
         p2: 0
     };
     this.botMode = botMode;
+    this.simulationMode = simulationMode;
     this.input.addPointer(5);
     this.baseZoom = 1;
+    this.hitFreezeUntil = 0;
+    this.hitFocus = null;
     this.hud = this.add.container(0, 0);
     this.objs = this.add.container(0,0);
     this.objcam = this.cameras.add(0,0,1000,600, false, "hudCam");
@@ -867,8 +873,9 @@ function create() {
     const p2guide = this.add.image(850, 65, 'p2guide');
     p2guide.setAlpha(0.65);
     this.hud.add(p2guide);
-    if (this.online) {
+    if (this.online || simulationMode) {
         // Online players can use either key layout, so these hints would just confuse.
+        // In a simulation nobody is playing, so there's nothing to show.
         p1guide.setVisible(false);
         p2guide.setVisible(false);
     }
@@ -880,10 +887,13 @@ function create() {
     //mobile support:
     const isMobile = this.sys.game.device.input.touch;
 
+    // Every touch button, so a near-miss tap can press the closest one (ui/touchAssist.js).
+    const touchButtons = [];
     if (isMobile) {
+        addTouchAssist(this, touchButtons);
 
         function makeButton(scene, x, y, text, keyRef) {
-            
+
             const btn = scene.add.circle(x, y, 45, 0x000000, 0.45)
                 .setScrollFactor(0)
                 .setDepth(999)
@@ -901,48 +911,37 @@ function create() {
 
             btn.activePointerID = null;
 
-            btn.on('pointerdown', (pointer) => {
+            const press = (pointer) => {
                 keyRef.obj[keyRef.key] = true;
                 keyRef.obj[keyRef.key + "Pressed"] = true;
                 if (keyRef.obj === mobileControls.p1) {
                     scene.mobileButtons.p1.forEach(obj => {
-                        if (obj) obj.setAlpha(1);  
+                        if (obj) obj.setAlpha(1);
                     });
-                
+
                     inputMode.p1 = "touch";
                 } else if (keyRef.obj === mobileControls.p2) {
                     scene.mobileButtons.p2.forEach(obj => {
-                        if (obj) obj.setAlpha(1);  
+                        if (obj) obj.setAlpha(1);
                     });
                     inputMode.p2 = "touch";
                 }
                 btn.activePointerID = pointer.id;
                 btn.setFillStyle(0xFFFFFF, 0.5);
-            });
-
-            btn.on('pointerup', (pointer) => {
-                if (pointer.id === btn.activePointerID) {
-                    keyRef.obj[keyRef.key] = false;
-                    btn.activePointerID = null;
-                    btn.setFillStyle(0x000000, 0.5);
-
-                }
-            });
-            btn.on('pointerout', (pointer) => {
+            };
+            const release = (pointer) => {
                 if (pointer.id === btn.activePointerID) {
                     keyRef.obj[keyRef.key] = false;
                     btn.activePointerID = null;
                     btn.setFillStyle(0x000000, 0.5);
                 }
-            });
+            };
 
-            btn.on('pointerupoutside', (pointer) => {
-                if (pointer.id === btn.activePointerID) {
-                    keyRef.obj[keyRef.key] = false;
-                    btn.activePointerID = null;
-                    btn.setFillStyle(0x000000,0.5);
-                }
-            });
+            btn.on('pointerdown', press);
+            btn.on('pointerup', release);
+            btn.on('pointerout', release);
+            btn.on('pointerupoutside', release);
+            touchButtons.push({ circle: btn, press, release });
 
             scene.hud.add(btn);
             scene.hud.add(label);
@@ -978,7 +977,8 @@ function create() {
             [920, 330, 'S', p2, 'special']
         ];
 
-        p1Buttons.forEach(btn => {
+        // CPUs don't get buttons at all: a hidden circle would still leave its label behind.
+        if (!simulationMode) p1Buttons.forEach(btn => {
             const butn = makeButton(this, btn[0], btn[1], btn[2], {
                 obj: btn[3],
                 key: btn[4]
@@ -986,12 +986,11 @@ function create() {
             this.mobileButtons.p1.push(butn);
         });
 
-        p2Buttons.forEach(btn => {
+        if (!botMode) p2Buttons.forEach(btn => {
             const butn = makeButton(this, btn[0], btn[1], btn[2], {
                 obj: btn[3],
                 key: btn[4]
             });
-            if (botMode) butn.visible = false;
             this.mobileButtons.p2.push(butn);
         });
 
@@ -1009,6 +1008,7 @@ function create() {
         for (const player of Object.values(this.gameState.players)) {
             if (player.name !== 'AXEMAN' || player.variant !== 'CHAINSAW') continue;
             if (botMode && player.id === 2) continue;
+            if (simulationMode) continue;
 
             const x = player.id === 1 ? (botMode ? 760 : 330) : 650;
             const button = this.add.circle(x, 420, botMode ? 45 : 34, 0x000000, 0.55)
@@ -1020,10 +1020,12 @@ function create() {
                 color: '#ffffff',
                 fontFamily: 'VCROSD'
             }).setOrigin(0.5).setScrollFactor(0).setDepth(1000);
-            button.on('pointerdown', () => {
+            const toggleMode = () => {
                 inputMode[player.id === 1 ? 'p1' : 'p2'] = 'touch';
                 toggleChainsawMode(this, player);
-            });
+            };
+            button.on('pointerdown', toggleMode);
+            touchButtons.push({ circle: button, press: toggleMode, release: () => {} });
             this.hud.add(button);
             this.hud.add(label);
             player.modeSwitchButton = button;
@@ -1083,6 +1085,19 @@ function create() {
             emitting: false
         });
         this.objs.addAt(player.violentTrail, this.objs.getIndex(player));
+        player.ultraTrail = this.add.particles(player.x, player.y, '__WHITE', {
+            x: { min: -10, max: 10 },
+            y: { min: -10, max: 10 },
+            speed: { min: 30, max: 110 },
+            scale: { start: 5.5, end: 0 },
+            alpha: { start: 0.9, end: 0 },
+            tint: [0x9b30ff, 0xc58bff, 0xffffff],
+            lifespan: 650,
+            frequency: 8,
+            quantity: 4,
+            emitting: false
+        });
+        this.objs.addAt(player.ultraTrail, this.objs.getIndex(player));
     }
 
     const keys = Object.keys(this.gameState.players);
@@ -1332,6 +1347,7 @@ const accelFactor = 20;
 
 const baseZoom = 1;
 const minZoom = 0.6;
+const HIT_FOCUS_ZOOM = 2.4;
 const defaultMaxZoom = 1.4;
 
 const tiltThreshold = 150;
@@ -1349,7 +1365,8 @@ function spawnAfterimage(scene, player) {
     ghost.setFlipX(player.flipX);
 
     if (player.heavyLaunch) {
-        ghost.setTint(player.violentLaunch ? 0xff2020 : 0xffffff).setTintMode(Phaser.TintModes.FILL);
+        const ghostTint = player.ultraLaunch ? 0x9b30ff : player.violentLaunch ? 0xff2020 : 0xffffff;
+        ghost.setTint(ghostTint).setTintMode(Phaser.TintModes.FILL);
         ghost.setAlpha(0.7);
     } else {
         ghost.setAlpha(0.5);
@@ -1377,13 +1394,15 @@ function updateLaunchEffects(scene, player) {
         (speed < 500 || grounded)) {
         player.heavyLaunch = false;
         player.violentLaunch = false;
+        player.ultraLaunch = false;
         if (!player.downslamming && !player.isUsingSideSpecial) player.afterimage = false;
     }
 
     const trailing = player.heavyLaunch && speed > 20;
     for (const [trail, active] of [
         [player.launchTrail, trailing && !player.violentLaunch],
-        [player.violentTrail, trailing && player.violentLaunch]
+        [player.violentTrail, trailing && player.violentLaunch && !player.ultraLaunch],
+        [player.ultraTrail, trailing && player.ultraLaunch]
     ]) {
         if (active) {
             trail.setPosition(player.x - (vx / speed) * 15, player.y - (vy / speed) * 15);
@@ -1482,8 +1501,10 @@ function showMatchEnd(scene, winner, loser) {
     for (const player of [winner, loser]) {
         player.launchTrail.stop();
         player.violentTrail.stop();
+        player.ultraTrail.stop();
         player.heavyLaunch = false;
         player.violentLaunch = false;
+        player.ultraLaunch = false;
         player.afterimage = false;
         if (player.dangerTinted) {
             player.dangerTinted = false;
@@ -1966,17 +1987,28 @@ function update() {
     const maxZoom = this.gameState.map.definition.maxZoom ?? defaultMaxZoom;
     zoom = Phaser.Math.Clamp(zoom, minZoom, maxZoom);
 
+    // A 200%+ launch: snap in close on the victim (not the midpoint, since
+    // GUNMAN can launch someone from across the map) until the freeze ends.
+    const focus = this.hitFocus?.active ? this.hitFocus : null;
+    if (focus) {
+        midX = focus.x;
+        midY = focus.y;
+        zoom = HIT_FOCUS_ZOOM;
+    }
+    const followRate = focus ? 0.35 : 0.12;
+    const zoomRate = focus ? 0.3 : 0.05;
+
     // Take last frame's shake back out so it doesn't build up in the smoothing.
     this.cameras.main.scrollX -= this.shakeOffset.x;
     this.cameras.main.scrollY -= this.shakeOffset.y;
 
     this.cameras.main.scrollX += (
         midX - this.cameras.main.width / 2 - this.cameras.main.scrollX
-    ) * 0.12;
+    ) * followRate;
 
     this.cameras.main.scrollY += (
         midY - this.cameras.main.height / 2 - this.cameras.main.scrollY
-    ) * 0.12;
+    ) * followRate;
 
     this.shakeOffset.x = 0;
     this.shakeOffset.y = 0;
@@ -1991,7 +2023,7 @@ function update() {
 
     this.cameras.main.zoom += (
         zoom - this.cameras.main.zoom
-    ) * 0.05;
+    ) * zoomRate;
 
     if (this.gameEnded) {
         p1.setVelocity(0, 0);
@@ -2001,14 +2033,14 @@ function update() {
 
     p1.hitstun = this.time.now < p1.hitstunUntil;
     p2.hitstun = this.time.now < p2.hitstunUntil;
-    if (in1.miscPressed) {
+    if (in1.miscPressed && !simulationMode) {
         toggleChainsawMode(this, p1);
     }
     if (in2.miscPressed) {
         toggleChainsawMode(this, p2);
     }
 
-    p1.horizontalMovementActive = p1LeftDown || p1RightDown;
+    p1.horizontalMovementActive = !simulationMode && (p1LeftDown || p1RightDown);
     p2.horizontalMovementActive = !botMode && (
         p2LeftDown || p2RightDown
     );
@@ -2019,7 +2051,7 @@ function update() {
     const p1AttackPressed = p1Chainsaw
         ? in1.attackPressed
         : in1.attack || in1.attackPressed;
-    if (p1AttackPressed && (!p1.hitstun || p1.activeGrab)) {
+    if (p1AttackPressed && (!p1.hitstun || p1.activeGrab) && !simulationMode) {
         const now = this.time.now;
         if (inputMode.p1 !== "keyboard" && !mobileControls.p1.attack) {
             this.mobileButtons.p1.forEach(obj => {
@@ -2116,6 +2148,9 @@ function update() {
         //player.canAttack =
             //this.time.now < player.canAttackUntil;
 
+        // Only the platform being stood on right now; a stale one would stop the
+        // fisherman's hook from latching onto it after leaving it (e.g. off-stage).
+        if (!player.body.touching.down) player.currentPlatform = null;
         const platforms = getMapPlatforms(this);
         platforms.forEach(platform => {
             handlePlatformCollide(player, platform);
@@ -2225,19 +2260,19 @@ function update() {
 
             spawnAfterimage(this, p1);
 
-            p1.afterimageTimer = this.time.now + (p1.violentLaunch ? 20 : 40);
+            p1.afterimageTimer = this.time.now + (p1.ultraLaunch ? 12 : p1.violentLaunch ? 20 : 40);
         }
     } 
     if (p2.afterimage) {
         if (this.time.now > p2.afterimageTimer) {
             spawnAfterimage(this, p2);
 
-            p2.afterimageTimer = this.time.now + (p2.violentLaunch ? 20 : 40);
+            p2.afterimageTimer = this.time.now + (p2.ultraLaunch ? 12 : p2.violentLaunch ? 20 : 40);
         }
     }
 
     p1.hitstun = this.time.now < p1.hitstunUntil;
-    if (!p1.hitstun) {
+    if (!p1.hitstun && !simulationMode) {
         const p1LeftPressed = in1.leftPressed;
         const p1RightPressed = in1.rightPressed;
         const p1SpecialPressed = in1.specialPressed;
@@ -2586,8 +2621,12 @@ function update() {
         }
     }
     updateKB(this);
+    const pickAI = slot => window.__legacySlot === slot ? runLegacyBotAI : runBotAI; // BENCHMARK-TEMP
     if (botMode) {
-        runBotAI(this, p2, p1, fiveframecount);
+        pickAI('p2')(this, p2, p1, fiveframecount);
+    }
+    if (simulationMode) {
+        pickAI('p1')(this, p1, p2, fiveframecount);
     }
     updateMapHazard(this);
     if (fiveframecount >= 5) {

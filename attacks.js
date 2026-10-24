@@ -350,11 +350,27 @@ export function attackIsElligible(
 
 // Shared hit feedback, stun timing, and attack sprites.
 function hitFreeze(scene, ms = 50) {
+    const now = scene.time.now;
+    scene.lastHitFreeze = { at: now, ms };
+    // A 200%+ launch earlier this frame stretches this attack's freeze.
+    const bonus = scene.ultraHitAt === now ? ULTRA_FREEZE_BONUS : 0;
+    freezeUntil(scene, now + ms + bonus);
+}
+
+// Keeps the freeze going until the latest end asked for, so a short freeze
+// can't end a longer one early.
+function freezeUntil(scene, until) {
+    if (until <= (scene.hitFreezeUntil ?? 0)) return;
+    scene.hitFreezeUntil = until;
     scene.physics.world.pause();
     scene.anims.pauseAll();
     scene.tweens.pauseAll();
     scene.baseZoom = 2;
-    scene.time.delayedCall(ms, () => {
+    scene.hitFreezeEnd?.remove(false);
+    scene.hitFreezeEnd = scene.time.delayedCall(until - scene.time.now, () => {
+        scene.hitFreezeUntil = 0;
+        scene.hitFreezeEnd = null;
+        scene.hitFocus = null;
         scene.physics.world.resume();
         scene.anims.resumeAll();
         scene.tweens.resumeAll();
@@ -446,7 +462,14 @@ export function spawnExplosion(scene, victim, scale = 0.7) {
 // KB% at which a hit counts as heavy: white afterimage, smoke trail, screen shake.
 export const HEAVY_KB_PERCENT = 100;
 // KB% at which a heavy hit turns violent: red afterimage and trail, severe shake.
-export const VIOLENT_KB_PERCENT = 200;
+export const VIOLENT_KB_PERCENT = 150;
+// KB% at which a launch becomes a death ray: purple trail and beam, longer
+// freeze and a close zoom on the victim.
+export const ULTRA_KB_PERCENT = 200;
+const ULTRA_FREEZE_BONUS = 300;
+// Launches slower than this (like the stop at the start of a combo) aren't a death ray.
+const ULTRA_MIN_SPEED = 400;
+const DEATH_RAY_COLOR = 0x9b30ff;
 
 // Shake is applied as a camera scroll offset in GameScene.update, because
 // cameras.main.shake() isn't sent to online players.
@@ -459,7 +482,7 @@ export function triggerScreenShake(scene, intensity, duration = 250) {
 
 // A few white pixels that pop out of the side of the victim that got hit.
 // The hit side faces away from the knockback, or toward the opponent if there is none.
-export function spawnHitParticles(scene, target, vx = 0, vy = 0, heavy = false, violent = false) {
+export function spawnHitParticles(scene, target, vx = 0, vy = 0, heavy = false, violent = false, ultra = false) {
     if (scene.time.now - (target.lastHitParticlesAt ?? 0) < 80) return;
     target.lastHitParticlesAt = scene.time.now;
 
@@ -485,14 +508,16 @@ export function spawnHitParticles(scene, target, vx = 0, vy = 0, heavy = false, 
     const edgeY = center.y + dirY * reach;
     const baseAngle = Math.atan2(dirY, dirX);
 
-    const count = violent ? 18 : 10;
+    const count = ultra ? 28 : violent ? 18 : 10;
     for (let index = 0; index < count; index += 1) {
-        const size = Phaser.Math.Between(2, 3);
-        const color = violent && index % 2 ? 0xff2020 : 0xffffff;
+        const size = Phaser.Math.Between(2, ultra ? 4 : 3);
+        const color = ultra
+            ? (index % 2 ? DEATH_RAY_COLOR : 0xd9b3ff)
+            : violent && index % 2 ? 0xff2020 : 0xffffff;
         const pixel = scene.add.rectangle(edgeX, edgeY, size, size, color).setDepth(8);
         scene.objs.add(pixel);
         const angle = baseAngle + Phaser.Math.FloatBetween(-0.9, 0.9);
-        const distance = Phaser.Math.Between(10, 24) * (violent ? 2.4 : heavy ? 1.6 : 1);
+        const distance = Phaser.Math.Between(10, 24) * (ultra ? 3.4 : violent ? 2.4 : heavy ? 1.6 : 1);
         scene.tweens.add({
             targets: pixel,
             x: edgeX + Math.cos(angle) * distance,
@@ -503,6 +528,57 @@ export function spawnHitParticles(scene, target, vx = 0, vy = 0, heavy = false, 
             onComplete: () => pixel.destroy()
         });
     }
+}
+
+// 200%+ launch: freezes 300ms longer than the attack's own freeze, zooms in on
+// the victim, and fires a purple beam through them, across the whole screen,
+// along the way they're being sent.
+function launchDeathRay(scene, target, vx, vy) {
+    const now = scene.time.now;
+    scene.ultraHitAt = now;
+    scene.hitFocus = target;
+    const last = scene.lastHitFreeze;
+    const attackFreeze = last?.at === now ? last.ms : 0;
+    freezeUntil(scene, now + attackFreeze + ULTRA_FREEZE_BONUS);
+
+    const angle = Math.atan2(vy, vx);
+    // Long enough to cross the screen both ways even at the widest zoom.
+    const length = 6000;
+    const layers = [
+        scene.add.rectangle(target.x, target.y, length, 300, DEATH_RAY_COLOR, 0.35),
+        scene.add.rectangle(target.x, target.y, length, 190, DEATH_RAY_COLOR),
+        scene.add.rectangle(target.x, target.y, length, 65, 0xffffff)
+    ];
+    // scene.objs draws in list order, so slot the beam in behind both fighters.
+    const { player, player2 } = scene.gameState.players;
+    const behindFighters = Math.min(scene.objs.getIndex(player), scene.objs.getIndex(player2));
+    for (const layer of layers) {
+        layer.setOrigin(0.5, 0.5).setRotation(angle).setScale(0.15, 1);
+        scene.objs.addAt(layer, behindFighters);
+    }
+    const baseAlpha = layers.map(layer => layer.alpha);
+
+    // Tweens are paused during the freeze, so this animates off the clock instead.
+    const GROW_MS = 120;
+    const FADE_MS = 450;
+    const removeUpdate = addSceneUpdateListener(scene, () => {
+        const elapsed = scene.time.now - now;
+        const holdUntil = Math.max(now + GROW_MS + 60, scene.hitFreezeUntil || 0);
+        const fade = (scene.time.now - holdUntil) / FADE_MS;
+        if (fade >= 1) {
+            removeUpdate();
+            layers.forEach(layer => layer.destroy());
+            return;
+        }
+        const grow = Math.min(1, elapsed / GROW_MS);
+        const scaleX = 0.15 + 0.85 * (1 - Math.pow(1 - grow, 3));
+        const pulse = 1 + Math.sin(elapsed / 25) * 0.08;
+        const shrink = fade > 0 ? 1 - fade * fade : 1;
+        layers.forEach((layer, index) => {
+            layer.setScale(scaleX, pulse * shrink);
+            layer.setAlpha(baseAlpha[index] * shrink);
+        });
+    });
 }
 
 function isFighter(scene, target) {
@@ -523,13 +599,18 @@ export function applyKnockback(scene, target, vx, vy) {
         const kbPercent = (target.KBmultiplier * 100) - 100;
         const heavy = kbPercent >= HEAVY_KB_PERCENT;
         const violent = kbPercent >= VIOLENT_KB_PERCENT;
-        spawnHitParticles(scene, target, resistantVx, resistantVy, heavy, violent);
+        const ultra = kbPercent >= ULTRA_KB_PERCENT && speed >= ULTRA_MIN_SPEED;
+        spawnHitParticles(scene, target, resistantVx, resistantVy, heavy, violent, ultra);
         if (heavy) {
             target.heavyLaunch = true;
             target.violentLaunch = violent;
+            target.ultraLaunch = ultra;
             target.heavyLaunchAt = scene.time.now;
             target.afterimage = true;
-            if (violent) {
+            if (ultra) {
+                triggerScreenShake(scene, 40, 900);
+                launchDeathRay(scene, target, resistantVx, resistantVy);
+            } else if (violent) {
                 triggerScreenShake(scene, 26, 600);
             } else {
                 triggerScreenShake(scene, Phaser.Math.Clamp(6 + (kbPercent - HEAVY_KB_PERCENT) / 16, 6, 12));
