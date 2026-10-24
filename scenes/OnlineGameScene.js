@@ -12,6 +12,7 @@ import { END_REASONS } from '../mp/protocol.js';
 import { encodeButtons, readControllerInput, INPUT_BUTTONS } from '../input.js';
 import { QuickChat } from './OnlineQuickChat.js';
 import { COLORS, FONTS, makeButton, makePanel } from '../ui/theme.js';
+import { addTouchAssist } from '../ui/touchAssist.js';
 
 // Online you control one fighter, so both keyboard layouts work.
 const KEY_BINDINGS = {
@@ -392,6 +393,8 @@ export class OnlineOverlayScene extends Phaser.Scene {
         if (self?.character === 'axeman' && self.variant === 'CHAINSAW') {
             layout.push([760, 420, 'ALT', 'misc']);
         }
+        const touchButtons = [];
+        addTouchAssist(this, touchButtons);
         for (const [x, y, label, button] of layout) {
             const circle = this.add.circle(x, y, 45, 0x000000, 0.45).setInteractive();
             this.add.text(x, y, label, {
@@ -407,16 +410,18 @@ export class OnlineOverlayScene extends Phaser.Scene {
                 circle.setFillStyle(0x000000, 0.45);
                 this.gameScene.flushInput();
             };
-            circle.on('pointerdown', pointer => {
+            const press = pointer => {
                 pointerId = pointer.id;
                 touch.held[button] = true;
                 touch.pressed[button] = true;
                 circle.setFillStyle(0xffffff, 0.5);
                 this.gameScene.flushInput();
-            });
+            };
+            circle.on('pointerdown', press);
             circle.on('pointerup', release);
             circle.on('pointerout', release);
             circle.on('pointerupoutside', release);
+            touchButtons.push({ circle, press, release });
         }
     }
 

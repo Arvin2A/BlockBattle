@@ -1,5 +1,5 @@
 
-import { changeBotMode } from "../gameSettings.js";
+import { changeBotMode, simulationMode } from "../gameSettings.js";
 import { preloadMenu } from "./GameScene/preload.js";
 import { fadeOutTo, slideInFromSides } from "./transitions.js";
 import { fetchServerStatus, getServerName, isOnlineConfigured } from "../mp/serverConfig.js";
@@ -527,10 +527,13 @@ export const MenuScene = {
         );
         botBox.setStrokeStyle(4, 0x000000);
 
+        // The arrow beside this button flips it between VS CPU and SIMULATION
+        // (bot vs bot). The choice stays until the page is reloaded.
+        let simulationSelected = simulationMode;
         const botText = this.add.text(
             875,
             420,
-            'PLAY VS CPU',
+            simulationSelected ? 'SIMULATION' : 'PLAY VS CPU',
             {
                 fontFamily: 'VCROSD',
                 fontSize: '28px',
@@ -541,10 +544,43 @@ export const MenuScene = {
         ).setOrigin(0.5);
         botText.setInteractive();
 
-        botText.on('pointerdown', function () {
-            changeBotMode(true);
+        const startBotMatch = () => {
+            changeBotMode(true, simulationSelected);
             fadeOutTo(this, () => this.scene.start('MapAndModifierSelectScene'));
-        }, this);
+        };
+        botText.on('pointerdown', startBotMatch);
+
+        const modeArrowBox = this.add.rectangle(755, 420, 20, 70, 0x111111);
+        modeArrowBox.setStrokeStyle(4, 0x000000);
+        modeArrowBox.setInteractive({ useHandCursor: true });
+        const modeArrow = this.add.triangle(
+            755, 420,
+            9, 0,
+            9, 18,
+            0, 9,
+            0xffffff
+        ); 
+       const showBotMode = () => {
+            botText.setText(simulationSelected ? 'SIMULATION' : 'PLAY VS CPU');
+            modeArrow.setScale(simulationSelected ? -1 : 1, 1);
+        };
+        showBotMode();
+        const toggleBotMode = () => {
+            simulationSelected = !simulationSelected;
+            this.sound.play('hover2');
+            showBotMode();
+        };
+        modeArrowBox.on('pointerdown', toggleBotMode);
+        modeArrowBox.on('pointerover', () => {
+            modeArrowBox.setFillStyle(0xffffff);
+            modeArrowBox.setStrokeStyle(4, 0xbbbbbb);
+            modeArrow.setFillStyle(0x111111);
+        });
+        modeArrowBox.on('pointerout', () => {
+            modeArrowBox.setFillStyle(0x111111);
+            modeArrowBox.setStrokeStyle(4, 0x000000);
+            modeArrow.setFillStyle(0xffffff);
+        });
         botText.on('pointerover', function () {
             botBox.setFillStyle(0xffffff);
             botBox.setStrokeStyle(4, 0xbbbbbb);
@@ -630,10 +666,8 @@ export const MenuScene = {
                 setOnlineState(true, `${getServerName()} - ${status.online} ONLINE`, '#7dff8a');
             });
         }
-        layout.push({button: botBox, action: () => {
-            changeBotMode(true);
-            fadeOutTo(this, () => this.scene.start('MapAndModifierSelectScene'));
-        }}); 
+        layout.push({button: modeArrowBox, action: toggleBotMode});
+        layout.push({button: botBox, action: startBotMatch});
         layout.push({button: startBox, action: () => {
             changeBotMode(false);
             if ('audioSession' in navigator) {
@@ -645,7 +679,7 @@ export const MenuScene = {
         const introLength = slideInFromSides(this, [
             [changelogBox, compactTitle, compactText, openChangelogText],
             [onlineBox, onlineText, onlineStatus],
-            [botBox, botText],
+            [botBox, botText, modeArrowBox, modeArrow],
             [startBox, startText]
         ]);
         this.menuIntroUntil = this.time.now + introLength;
