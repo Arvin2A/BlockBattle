@@ -1,3 +1,7 @@
+// BlockBattle — Copyright (C) 2026 Arvin Zaman
+// Original source: https://github.com/Arvin2A/BlockBattle
+// Licensed under the GNU GPL v3 only. See LICENSE.
+
 // Online lobby: pick a fighter and a name, then either host a match on a map of
 // your choice or join one from the list of open matches. When the server pairs
 // two players it sends "matchFound" and we move to OnlineGameScene.

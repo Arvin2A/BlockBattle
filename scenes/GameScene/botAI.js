@@ -1,3 +1,7 @@
+// BlockBattle — Copyright (C) 2026 Arvin Zaman
+// Original source: https://github.com/Arvin2A/BlockBattle
+// Licensed under the GNU GPL v3 only. See LICENSE.
+
 import { Commands } from "../../commands.js";
 import { executeStateCommand } from "../../commands.js";
 import { handleAttack } from "../../attacks.js";

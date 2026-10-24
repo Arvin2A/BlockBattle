@@ -1,3 +1,7 @@
+// BlockBattle — Copyright (C) 2026 Arvin Zaman
+// Original source: https://github.com/Arvin2A/BlockBattle
+// Licensed under the GNU GPL v3 only. See LICENSE.
+
 // What a player runs during an online match. Nothing here decides gameplay:
 // OnlineGameScene draws what the server's GameScene looks like (via MirrorView)
 // and sends this player's buttons to the server. OnlineOverlayScene sits on top

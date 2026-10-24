@@ -1,3 +1,7 @@
+// BlockBattle — Copyright (C) 2026 Arvin Zaman
+// Original source: https://github.com/Arvin2A/BlockBattle
+// Licensed under the GNU GPL v3 only. See LICENSE.
+
 import Phaser from 'phaser';
 import { botMode, simulationMode } from "../gameSettings.js";
 import { preloadCharacterSelection } from "./GameScene/preload.js";

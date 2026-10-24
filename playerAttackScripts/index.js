@@ -1,3 +1,7 @@
+// BlockBattle — Copyright (C) 2026 Arvin Zaman
+// Original source: https://github.com/Arvin2A/BlockBattle
+// Licensed under the GNU GPL v3 only. See LICENSE.
+
 import axeman from './axeman.js';
 import crowbarman from './crowbarman.js';
 import fisherman from './fisherman.js';

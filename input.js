@@ -1,3 +1,7 @@
+// BlockBattle — Copyright (C) 2026 Arvin Zaman
+// Original source: https://github.com/Arvin2A/BlockBattle
+// Licensed under the GNU GPL v3 only. See LICENSE.
+
 // input.js
 // Every player's controls end up in one "input state" object, no matter if they
 // come from this keyboard, a touch screen, a controller, or (online) the network.
