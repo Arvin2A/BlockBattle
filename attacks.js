@@ -1,3 +1,7 @@
+// BlockBattle — Copyright (C) 2026 Arvin Zaman
+// Original source: https://github.com/Arvin2A/BlockBattle
+// Licensed under the GNU GPL v3 only. See LICENSE.
+
 // Public attack API. The building blocks live in combat/:
 //   blueprints.js    strike()/landHit(), the one hit pipeline every attack uses
 //   eligibility.js   attackIsElligible() and its bypassOptions

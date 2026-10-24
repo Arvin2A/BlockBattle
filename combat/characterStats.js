@@ -1,3 +1,7 @@
+// BlockBattle — Copyright (C) 2026 Arvin Zaman
+// Original source: https://github.com/Arvin2A/BlockBattle
+// Licensed under the GNU GPL v3 only. See LICENSE.
+
 import { CHARACTER_ATTACK_SCRIPTS } from '../playerAttackScripts/index.js';
 
 export function getCharacterScript(attacker) {

@@ -1,3 +1,7 @@
+// BlockBattle — Copyright (C) 2026 Arvin Zaman
+// Original source: https://github.com/Arvin2A/BlockBattle
+// Licensed under the GNU GPL v3 only. See LICENSE.
+
 // mp/client.js
 // The player's connection to the LAN server. One connection is shared by the
 // lobby and the online game scenes, so it lives here instead of in a scene.

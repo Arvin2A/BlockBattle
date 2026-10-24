@@ -1,3 +1,7 @@
+// BlockBattle — Copyright (C) 2026 Arvin Zaman
+// Original source: https://github.com/Arvin2A/BlockBattle
+// Licensed under the GNU GPL v3 only. See LICENSE.
+
 // mp/mirror.js
 // Online matches run the real GameScene on the server (see mp/authority.js).
 // MirrorCapture walks that scene every frame and writes down what changed:

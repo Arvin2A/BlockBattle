@@ -1,3 +1,7 @@
+// BlockBattle — Copyright (C) 2026 Arvin Zaman
+// Original source: https://github.com/Arvin2A/BlockBattle
+// Licensed under the GNU GPL v3 only. See LICENSE.
+
 // Attack blueprints. Every melee hit in the game is one of these with different
 // numbers, so a new move is a spec object, not another copy of the hit code.
 //

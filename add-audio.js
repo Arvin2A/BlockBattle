@@ -1,4 +1,8 @@
 #!/usr/bin/env node
+// BlockBattle — Copyright (C) 2026 Arvin Zaman
+// Original source: https://github.com/Arvin2A/BlockBattle
+// Licensed under the GNU GPL v3 only. See LICENSE.
+
 // Adds any file in audio/ that isn't referenced yet to the match preload()
 // in scenes/GameScene/preload.js. The sound key is the filename without its
 // extension, e.g. audio/reel.wav -> this.load.audio('reel', 'audio/reel.wav');
