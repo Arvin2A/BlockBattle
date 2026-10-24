@@ -4,38 +4,223 @@ import { handleAttack } from "../../attacks.js";
 import { handleDirSpecial } from "../../attacks.js";
 import { handleDirSpecialAttack } from "../../attacks.js";
 import { toggleChainsawMode } from "../../attacks.js";
+import { isInvincible } from "../../attacks.js";
 
 const MAX_CHAINSAW_WOOD = 225;
 const PLANK_WOOD_COST = 15;
 
-function placeBotPlank(scene, bot, target, x, y, direction) {
-    bot.lastDir = direction;
-    bot.plankGhost.setPosition(x, y);
-    bot.plankGhost.setAngle(direction.y === 0 ? 90 : 0);
-    handleAttack(scene, bot, target);
+// Basic attacks land within this distance (attackIsElligible); DAGGER's are shorter.
+const LIGHT_RANGE = 100;
+const DAGGER_RANGE = 85;
+// Attacking while moving uses pushAttack, which reaches a little further.
+const PUSH_RANGE = 125;
+// Swing a little inside the real range so hits don't miss on its edge.
+const RANGE_MARGIN = 8;
+const CHASE_DEADZONE = 12;
+// How far from a drop the bot will walk.
+const LEDGE_MARGIN = 30;
+// From this KB on, a launch back toward the stage is wasted, so launch upward instead.
+const KILL_KB = 1.6;
+// Rough horizontal reach of the dash specials, used to avoid dashing off the stage.
+const DASH_REACH = {
+    LONGSWORD: 300,
+    DAGGER: 180,
+    LUMBERER: 150
+};
+
+function send(scene, bot, type) {
+    executeStateCommand(scene, scene.gameState.players, {
+        playerID: bot.id,
+        type
+    });
 }
 
-function finishAirPlankSequence(scene, bot) {
-    bot.airPlankSequence = false;
-    if (bot.active && !bot.chainsawMode) {
-        bot.plankModeReturnAt = scene.time.now + 350;
+function isGrounded(player) {
+    return player.body.blocked.down || player.body.touching.down;
+}
+
+// Every platform as a plain box. The main ground is solid from below too.
+function getSurfaces(scene) {
+    const { platforms, topPlatforms, ground } = scene.gameState.map;
+    return [...platforms.getChildren(), ...topPlatforms.getChildren()]
+        .filter(platform => platform.active && platform.body?.enable)
+        .map(platform => ({
+            left: platform.body.left,
+            right: platform.body.right,
+            top: platform.body.top,
+            solid: platform === ground
+        }));
+}
+
+// The highest surface under (x, feetY), or null if it's a drop to the blast zone.
+function surfaceBelow(surfaces, x, feetY) {
+    let best = null;
+    for (const surface of surfaces) {
+        if (x < surface.left || x > surface.right || surface.top < feetY - 4) continue;
+        if (!best || surface.top < best.top) best = surface;
     }
+    return best;
+}
+
+function isOffStage(player, surfaces) {
+    return !isGrounded(player) && !surfaceBelow(surfaces, player.x, player.body.bottom);
+}
+
+// Same checks as attackIsElligible, without its side effects.
+function wouldHit(attacker, target, dir, range) {
+    const dx = target.x - attacker.x;
+    const dy = target.y - attacker.y;
+    const distance = Math.hypot(dx, dy);
+    if (distance > range || distance === 0) return false;
+    const dot = (dx / distance) * dir.x + (dy / distance) * dir.y;
+    const facingUp = dir.y < -0.9 && Math.abs(dir.x) < 0.2;
+    const facingDown = dir.y > 0.9 && Math.abs(dir.x) < 0.2;
+    const targetAbove = dy < (facingUp || facingDown ? -25 : -10) && Math.abs(dy) <= 135;
+    const targetBelow = dy > 25;
+    if ((targetBelow && facingUp) || (facingDown && targetAbove)) return false;
+    return dot > 0.7 || facingUp || targetAbove;
+}
+
+// Which way to face for a basic attack that lands, or null if none would.
+function chooseAttackDir(bot, target, range, stageCenter) {
+    const side = Math.sign(target.x - bot.x) || bot.lastDir.x || 1;
+    const horizontal = { x: side, y: 0 };
+    const up = { x: 0, y: -1 };
+    const down = { x: 0, y: 1 };
+    const options = [horizontal, up, down];
+
+    // The combo's third hit launches. Late in a stock, sending them back over
+    // the stage wastes it, so launch them upward when that's the only choice.
+    const launchesInward = (side > 0) === (target.x < stageCenter);
+    if (bot.combo >= 2 && target.KBmultiplier >= KILL_KB && launchesInward) {
+        options.unshift(up);
+    }
+    return options.find(dir => wouldHit(bot, target, dir, range)) ?? null;
+}
+
+// Walks toward dirX unless that step would leave nothing to land on.
+function walk(scene, bot, dirX, surfaces) {
+    const aheadX = bot.x + dirX * LEDGE_MARGIN;
+    if (!surfaceBelow(surfaces, aheadX, bot.body.bottom)) {
+        send(scene, bot, Commands.NONE);
+        return false;
+    }
+    bot.lastDir = { x: dirX, y: 0 };
+    send(scene, bot, dirX < 0 ? Commands.LEFT : Commands.RIGHT);
+    return true;
+}
+
+function walkTo(scene, bot, x, surfaces, deadzone = CHASE_DEADZONE) {
+    const dx = x - bot.x;
+    if (Math.abs(dx) <= deadzone) {
+        send(scene, bot, Commands.NONE);
+        return true;
+    }
+    walk(scene, bot, Math.sign(dx), surfaces);
+    return false;
+}
+
+function tryDoubleJump(scene, bot) {
+    if (bot.hasDoubleJumped) return false;
+    bot.lastDir = { x: 0, y: -1 };
+    send(scene, bot, Commands.DOUBLE_UP);
+    return true;
+}
+
+function useDirSpecial(scene, bot, target, dirX) {
+    if (scene.time.now < bot.nextSideSpecialTime) return false;
+    bot.lastDir = { x: dirX, y: 0 };
+    bot.lastDirSpecial = scene.time.now;
+    handleDirSpecial(scene, bot, dirX < 0 ? 'left' : 'right', scene.time.now, target);
+    return true;
+}
+
+// Off-stage: head for the nearest surface, keep the double jump until falling
+// near its level, then fall back on a recovery special.
+function recover(scene, bot, target, surfaces) {
+    const feet = bot.body.bottom;
+    let goal = null;
+    let goalScore = Infinity;
+    for (const surface of surfaces) {
+        const gap = bot.x < surface.left
+            ? surface.left - bot.x
+            : bot.x > surface.right ? bot.x - surface.right : 0;
+        const climb = Math.max(0, feet - surface.top);
+        const score = gap + climb * 1.5 - (surface.solid ? 40 : 0);
+        if (score < goalScore) {
+            goal = { ...surface, gap };
+            goalScore = score;
+        }
+    }
+    if (!goal) return;
+
+    // Under a solid stage: get out from under it before jumping.
+    let aimX;
+    if (goal.gap === 0 && goal.solid) {
+        aimX = bot.x - goal.left < goal.right - bot.x ? goal.left - 50 : goal.right + 50;
+    } else {
+        aimX = Math.min(Math.max(bot.x, goal.left + 40), goal.right - 40);
+    }
+    const dirX = Math.sign(aimX - bot.x) || 1;
+    bot.lastDir = { x: dirX, y: 0 };
+    send(scene, bot, dirX < 0 ? Commands.LEFT : Commands.RIGHT);
+
+    const underSolid = goal.gap === 0 && goal.solid;
+    const falling = bot.body.velocity.y > -60;
+    const nearLevel = feet > goal.top - 40;
+    if (underSolid || !falling) return;
+
+    if (!bot.hasDoubleJumped && (nearLevel || goal.gap > 250)) {
+        tryDoubleJump(scene, bot);
+        return;
+    }
+    if (!nearLevel || goal.gap < 20) return;
+
+    const recoveryTowardStage = Math.sign(aimX - bot.x);
+    if (bot.name === 'FISHERMAN' && goal.gap < 550 && feet - goal.top < 250) {
+        useDirSpecial(scene, bot, target, recoveryTowardStage);
+    } else if (bot.hasDoubleJumped && DASH_REACH[bot.variant]) {
+        useDirSpecial(scene, bot, target, recoveryTowardStage);
+    }
+}
+
+// The target is off-stage: wait at the ledge nearest to them and hit them as they come back.
+function edgeguard(scene, bot, target, surfaces, stageCenter) {
+    let ledgeX = null;
+    let best = Infinity;
+    for (const surface of surfaces) {
+        for (const edge of [surface.left + LEDGE_MARGIN + 5, surface.right - LEDGE_MARGIN - 5]) {
+            const distance = Math.hypot(edge - target.x, surface.top - target.y);
+            if (distance < best) {
+                best = distance;
+                ledgeX = edge;
+            }
+        }
+    }
+    if (ledgeX === null) return false;
+    walkTo(scene, bot, ledgeX, surfaces, 15);
+    if (Math.abs(target.x - bot.x) > 20) {
+        bot.lastDir = { x: Math.sign(target.x - bot.x), y: 0 };
+    }
+    return true;
 }
 
 export function runBotAI(scene, bot, target, fiveframecount) {
     //let the ai make the ai 🔥
     bot.horizontalMovementActive = false;
+    const now = scene.time.now;
     const ground = scene.gameState.map.ground;
-
-    const groundLeft = ground.x - ground.displayWidth / 2;
-    const groundRight = ground.x + ground.displayWidth / 2;
-
-    const edgeBuffer = 25;
-    const recoveryMargin = 50;
-    const deadzone = 0; //REALLY LOW
+    const stageCenter = ground.x;
+    const surfaces = getSurfaces(scene);
+    const grounded = isGrounded(bot);
+    if (grounded) bot.hasDoubleJumped = false;
 
     const dx = target.x - bot.x;
     const dy = target.y - bot.y;
+    const distance = Math.hypot(dx, dy);
+    const side = Math.sign(dx) || 1;
+    const targetHittable = target.active && !isInvincible(target);
+    const targetOffStage = isOffStage(target, surfaces);
     // ======================
     // DISABLED STATES
     // ======================
@@ -45,15 +230,20 @@ export function runBotAI(scene, bot, target, fiveframecount) {
         handleDirSpecialAttack(scene, bot, target);
     }
 
-    if (bot.hitstun || bot.freeze || bot.isUsingSideSpecial) {
-        executeStateCommand(scene, scene.gameState.players, {
-            playerID: bot.id,
-            type: Commands.NONE
-        });
+    // CROWBARMAN's grab: fling them toward the closer side of the stage right away.
+    if (bot.activeGrab) {
+        bot.lastDir = { x: target.x < stageCenter ? -1 : 1, y: 0 };
+        handleAttack(scene, bot, target);
+        send(scene, bot, Commands.NONE);
         return;
     }
 
-    if (bot.plankModeReturnAt && scene.time.now >= bot.plankModeReturnAt &&
+    if (bot.hitstun || bot.freeze || bot.isUsingSideSpecial) {
+        send(scene, bot, Commands.NONE);
+        return;
+    }
+
+    if (bot.plankModeReturnAt && now >= bot.plankModeReturnAt &&
         !bot.airPlankSequence && !bot.chainsawMode) {
         toggleChainsawMode(scene, bot);
         bot.plankModeReturnAt = 0;
@@ -62,7 +252,7 @@ export function runBotAI(scene, bot, target, fiveframecount) {
     const isChainsawAxeman =
         bot.name === 'AXEMAN' && bot.variant === 'CHAINSAW';
     if (isChainsawAxeman) {
-        if (bot.body.blocked.down || bot.body.touching.down) {
+        if (grounded) {
             bot.airPlankUsed = false;
         } else if (bot.airTime > 1850 && !bot.airPlankUsed &&
             !bot.airPlankSequence && bot.woodCount >= PLANK_WOOD_COST * 3 &&
@@ -108,10 +298,7 @@ export function runBotAI(scene, bot, target, fiveframecount) {
     }
 
     if (bot.airPlankSequence) {
-        executeStateCommand(scene, scene.gameState.players, {
-            playerID: bot.id,
-            type: Commands.NONE
-        });
+        send(scene, bot, Commands.NONE);
         return;
     }
 
@@ -119,118 +306,29 @@ export function runBotAI(scene, bot, target, fiveframecount) {
     // RECOVERY
     // ======================
 
-    const offLeft = bot.x < groundLeft - recoveryMargin;
-    const offRight = bot.x > groundRight + recoveryMargin;
-
-    if (offLeft || offRight || bot.y > ground.y + 50) {
-
-        // move toward stage
-
-
-        if (offLeft) {
-            bot.lastDir = { x: 1, y: 0 };
-            executeStateCommand(scene, scene.gameState.players, {
-                playerID: bot.id,
-                type: Commands.RIGHT
-            });
-        }
-
-        if (offRight) {
-            bot.lastDir = { x: -1, y: 0 };
-            executeStateCommand(scene, scene.gameState.players, {
-                playerID: bot.id,
-                type: Commands.LEFT
-            });
-        }
-
-        if (bot.body.blocked.down) {
-            console.log("GROUNDED");
-            executeStateCommand(scene, scene.gameState.players, {
-                playerID: bot.id,
-                type: Commands.UP
-            });
-            bot.hasDoubleJumped = false;
-            return;
-        }
-
-        if (!bot.hasDoubleJumped) {
-            bot.lastDir = { x: 0, y: -1 };
-            executeStateCommand(scene, scene.gameState.players, {
-                playerID: bot.id,
-                type: Commands.DOUBLE_UP
-            });
-            return;
-        }
-
+    if (isOffStage(bot, surfaces)) {
+        recover(scene, bot, target, surfaces);
         return;
     }
 
     // ======================
-    // STAGE SAFETY
+    // DOWNSLAM (only over the stage)
     // ======================
 
-    if (bot.x <= groundLeft + edgeBuffer) {
-
-        bot.lastDir = { x: 1, y: 0 };
-        executeStateCommand(scene, scene.gameState.players, {
-            playerID: bot.id,
-            type: Commands.RIGHT
-        });
-
+    if (!grounded && bot.airTime >= 1000 && dy > 0 && distance <= 125 &&
+        targetHittable && now >= (bot.nextDownslamTime || 0)) {
+        bot.nextDownslamTime = now + 1000;
+        send(scene, bot, Commands.DOWNSLAM);
         return;
     }
 
-    if (bot.x >= groundRight - edgeBuffer) {
-
-        bot.lastDir = { x: -1, y: 0 };
-        executeStateCommand(scene, scene.gameState.players, {
-            playerID: bot.id,
-            type: Commands.LEFT
-        });
-
-        return;
-    }
-
-    if (!bot.body.blocked.down && bot.airTime >= 1000 && dy > 0 &&
-        Math.hypot(dx, dy) <= 125 &&
-        scene.time.now >= (bot.nextDownslamTime || 0)) {
-        bot.nextDownslamTime = scene.time.now + 1000;
-        executeStateCommand(scene, scene.gameState.players, {
-            playerID: bot.id,
-            type: Commands.DOWNSLAM
-        });
-        return;
-    }
-
-    const targetIsAttacking = !target.canAttack || target.isUsingSideSpecial;
-    if (targetIsAttacking && !bot.targetWasAttacking &&
-        Math.hypot(dx, dy) < 120 && Math.random() < 0.2) {
-        bot.attackEvadeUntil = scene.time.now + 160;
-    }
-    bot.targetWasAttacking = targetIsAttacking;
-
-    if (target.nextSideSpecialTime > 0 &&
-        scene.time.now >= target.nextSideSpecialTime &&
-        target.nextSideSpecialTime !== bot.lastTargetSpecialReadyTime) {
-        bot.lastTargetSpecialReadyTime = target.nextSideSpecialTime;
-        if (Math.hypot(dx, dy) < 160 && Math.random() < 0.2) {
-            bot.specialReadyEvadeUntil = scene.time.now + 220;
+    // Back off from a dir special that's already coming at us.
+    if (target.isUsingSideSpecial && distance < 200 && !targetOffStage) {
+        if (!walk(scene, bot, -side, surfaces) && grounded &&
+            now - bot.lastJump > 500) {
+            bot.lastJump = now;
+            send(scene, bot, Commands.UP);
         }
-    }
-
-    if (scene.time.now < (bot.specialReadyEvadeUntil || 0) ||
-        scene.time.now < (bot.attackEvadeUntil || 0)) {
-        let evadeDirection = dx > 0 ? -1 : 1;
-        const roomToEvade = evadeDirection < 0
-            ? bot.x - groundLeft
-            : groundRight - bot.x;
-        if (roomToEvade < edgeBuffer + 80) evadeDirection *= -1;
-
-        bot.lastDir = { x: evadeDirection, y: 0 };
-        executeStateCommand(scene, scene.gameState.players, {
-            playerID: bot.id,
-            type: evadeDirection < 0 ? Commands.LEFT : Commands.RIGHT
-        });
         return;
     }
 
@@ -242,13 +340,13 @@ export function runBotAI(scene, bot, target, fiveframecount) {
         const specialHorizontal = canShootHorizontally && Math.abs(dx) <= 1000;
         const specialVertical = canShootVertically && Math.abs(dy) <= 1000;
 
-        if ((specialHorizontal || specialVertical) && !bot.gunmanSpecialActive &&
-            scene.time.now >= bot.nextSideSpecialTime) {
+        if (targetHittable && (specialHorizontal || specialVertical) &&
+            !bot.gunmanSpecialActive && now >= bot.nextSideSpecialTime) {
             bot.lastDir = specialHorizontal
                 ? { x: Math.sign(dx), y: 0 }
                 : { x: 0, y: Math.sign(dy) };
             const specialDirection = bot.lastDir.x < 0 ? 'left' : 'right';
-            handleDirSpecial(scene, bot, specialDirection, scene.time.now, target);
+            handleDirSpecial(scene, bot, specialDirection, now, target);
         }
 
         if (canShootHorizontally || canShootVertically) {
@@ -256,31 +354,23 @@ export function runBotAI(scene, bot, target, fiveframecount) {
                 ? { x: Math.sign(dx), y: 0 }
                 : { x: 0, y: Math.sign(dy) };
 
-            if (scene.time.now >= bot.nextAttackTime && bot.canAttack) {
+            if (targetHittable && now >= bot.nextAttackTime && bot.canAttack) {
                 handleAttack(scene, bot, target);
             }
-            executeStateCommand(scene, scene.gameState.players, {
-                playerID: bot.id,
-                type: Commands.NONE
-            });
+            send(scene, bot, Commands.NONE);
             return;
         }
 
+        // Too close to shoot: step back to get a clean line.
         if (horizontalLane && Math.abs(dx) <= 50) {
-            bot.lastDir = { x: dx >= 0 ? 1 : -1, y: 0 };
-            executeStateCommand(scene, scene.gameState.players, {
-                playerID: bot.id,
-                type: dx >= 0 ? Commands.LEFT : Commands.RIGHT
-            });
+            if (!walk(scene, bot, -side, surfaces)) bot.lastDir = { x: side, y: 0 };
             return;
         }
     }
 
     if (isChainsawAxeman && !bot.airPlankSequence &&
-        scene.time.now >= (bot.plankModeReturnAt || 0)) {
-        const targetDistance = Math.hypot(dx, dy);
-        const grounded = bot.body.blocked.down || bot.body.touching.down;
-        const now = scene.time.now;
+        now >= (bot.plankModeReturnAt || 0)) {
+        const targetDistance = distance;
 
         bot.nextWoodGatherTime ??= now + 1500 + Math.random() * 1500;
         bot.nextPlankTime ??= now + 2500 + Math.random() * 2000;
@@ -289,7 +379,7 @@ export function runBotAI(scene, bot, target, fiveframecount) {
             if (targetDistance <= 230 || bot.woodCount >= MAX_CHAINSAW_WOOD || !grounded) {
                 bot.chainsawGathering = false;
                 bot.nextWoodGatherTime = now + 2500 + Math.random() * 2500;
-                bot.lastDir = { x: Math.sign(dx) || 1, y: 0 };
+                bot.lastDir = { x: side, y: 0 };
                 if (bot.chainsawActive) handleAttack(scene, bot, target);
             } else {
                 if (!bot.chainsawMode) toggleChainsawMode(scene, bot);
@@ -298,10 +388,7 @@ export function runBotAI(scene, bot, target, fiveframecount) {
                     now >= (bot.chainsawCooldownUntil ?? 0)) {
                     handleAttack(scene, bot, target);
                 }
-                executeStateCommand(scene, scene.gameState.players, {
-                    playerID: bot.id,
-                    type: Commands.NONE
-                });
+                send(scene, bot, Commands.NONE);
                 return;
             }
         }
@@ -315,17 +402,14 @@ export function runBotAI(scene, bot, target, fiveframecount) {
                 now >= (bot.chainsawCooldownUntil ?? 0)) {
                 handleAttack(scene, bot, target);
             }
-            executeStateCommand(scene, scene.gameState.players, {
-                playerID: bot.id,
-                type: Commands.NONE
-            });
+            send(scene, bot, Commands.NONE);
             return;
         }
 
         if (targetDistance >= 200 && bot.woodCount >= PLANK_WOOD_COST &&
             now >= bot.nextPlankTime) {
             if (bot.chainsawMode) toggleChainsawMode(scene, bot);
-            const direction = { x: Math.sign(dx) || 1, y: 0 };
+            const direction = { x: side, y: 0 };
             placeBotPlank(
                 scene,
                 bot,
@@ -336,272 +420,158 @@ export function runBotAI(scene, bot, target, fiveframecount) {
             );
             bot.plankModeReturnAt = now + 350;
             bot.nextPlankTime = now + 3500 + Math.random() * 2500;
-            executeStateCommand(scene, scene.gameState.players, {
-                playerID: bot.id,
-                type: Commands.NONE
-            });
+            send(scene, bot, Commands.NONE);
             return;
         }
 
         if (targetDistance <= 145 && now >= bot.nextSideSpecialTime &&
             now >= (bot.chainsawCooldownUntil ?? 0) && !bot.isUsingSideSpecial) {
             const direction = dx < 0 ? 'left' : 'right';
-            bot.lastDir = { x: dx < 0 ? -1 : 1, y: 0 };
+            bot.lastDir = { x: side, y: 0 };
             handleDirSpecial(scene, bot, direction, now, target);
             handleDirSpecial(scene, bot, direction, now, target);
         }
-    }
 
-    // ======================
-    // JUMP TO TARGET
-    // ======================
-
-    if (
-        dy < -120 &&
-        scene.time.now - bot.lastJump > 500
-    ) {
-       if (dy < -120) {
-            // grounded -> normal jump
-            if (bot.body.blocked.down) {
-                bot.lastJump = scene.time.now;
-                bot.lastDir = { x: 0, y: -1 };
-                executeStateCommand(scene, scene.gameState.players, {
-                    playerID: bot.id,
-                    type: Commands.UP
-                });
-
-                return;
+        const chainsawDistance = Math.hypot(target.x - bot.atk.x, target.y - bot.atk.y);
+        if (bot.chainsawMode && chainsawDistance <= 85) {
+            bot.lastDir = { x: side, y: 0 };
+            if (!bot.chainsawActive && now - bot.lastAttack > 500) {
+                bot.lastAttack = now;
+                handleAttack(scene, bot, target);
             }
-
-            // target is REALLY high above us
-            if (
-                dy < -25 &&
-                !bot.body.blocked.down &&
-                !bot.hasDoubleJumped
-            ) {
-                console.log("HIGH UP!")
-                executeStateCommand(scene, scene.gameState.players, {
-                    playerID: bot.id,
-                    type: Commands.DOUBLE_UP
-                });
-
-                return;
-            }
+            send(scene, bot, Commands.NONE);
+            return;
         }
-    }
-    if (bot.body.blocked.down) {
-        bot.hasDoubleJumped = false;
     }
 
     // ======================
     // ATTACK
     // ======================
 
-    if (dy > 50  && Math.abs(dy) < 100 && Math.abs(dx) < 36) {
-        bot.lastDir = { x: 0, y: 1 };
-    }
-    const attackRange = 65 + 55;
-
-    const chainsawDistance = Math.hypot(target.x - bot.atk.x, target.y - bot.atk.y);
-    if (bot.name === 'AXEMAN' && bot.variant === 'CHAINSAW' &&
-        bot.chainsawMode && !bot.airPlankSequence &&
-        scene.time.now >= (bot.plankModeReturnAt || 0) &&
-        chainsawDistance <= 85) {
-        if (!bot.chainsawActive && scene.time.now - bot.lastAttack > 500) {
-            bot.lastAttack = scene.time.now;
+    const usesBasicCombo = bot.name !== "GUNMAN" && !isChainsawAxeman;
+    const readyToAttack = bot.canAttack && now >= bot.nextAttackTime;
+    if (usesBasicCombo && targetHittable && readyToAttack) {
+        const isDagger = bot.name === 'SWORDMAN' && bot.variant === 'DAGGER';
+        const lightRange = (isDagger ? DAGGER_RANGE : LIGHT_RANGE) - RANGE_MARGIN;
+        const attackDir = chooseAttackDir(bot, target, lightRange, stageCenter);
+        if (attackDir) {
+            bot.lastDir = attackDir;
+            bot.lastAttack = now;
+            // Standing still keeps tryAttack on the combo instead of pushAttack.
+            send(scene, bot, Commands.NONE);
             handleAttack(scene, bot, target);
+            return;
         }
 
-        executeStateCommand(scene, scene.gameState.players, {
-            playerID: bot.id,
-            type: Commands.NONE
-        });
-        return;
-    }
-    
-    if (bot.name !== "GUNMAN" &&
-        !(bot.name === 'AXEMAN' && bot.variant === 'CHAINSAW') &&
-        Math.abs(dx) < attackRange && Math.abs(dy) < attackRange+50) {
-
-        if (scene.time.now - bot.lastAttack > 100) {
-
-            bot.lastAttack = scene.time.now;
-
-            handleAttack(scene, bot, target);
+        // Running in from just outside combo range: the moving attack reaches further.
+        const runningIn = Math.sign(bot.body.velocity.x) === side &&
+            Math.abs(bot.body.velocity.x) > 40;
+        if (bot.combo === 0 && runningIn && Math.abs(dy) < 60 &&
+            wouldHit(bot, target, { x: side, y: 0 }, PUSH_RANGE - RANGE_MARGIN)) {
+            bot.lastAttack = now;
+            if (walk(scene, bot, side, surfaces)) {
+                handleAttack(scene, bot, target);
+                return;
+            }
         }
+    }
 
-        executeStateCommand(scene, scene.gameState.players, {
-            playerID: bot.id,
-            type: Commands.NONE
-        });
+    // ======================
+    // EDGEGUARD
+    // ======================
 
+    if (targetOffStage && usesBasicCombo) {
+        edgeguard(scene, bot, target, surfaces, stageCenter);
         return;
     }
 
     // ======================
-    // CHASE
+    // CHARACTER SPECIALS
     // ======================
 
-    if (dx > deadzone) {
+    if (targetHittable && !targetOffStage && now >= bot.nextSideSpecialTime &&
+        now - bot.lastDirSpecial > 500 && specialFits(bot, dx, dy, grounded)) {
+        // Don't dash off the end of the stage.
+        const reach = DASH_REACH[bot.variant] ?? 0;
+        if (!reach || surfaceBelow(surfaces, bot.x + side * reach, bot.body.bottom)) {
+            useDirSpecial(scene, bot, target, side);
+            send(scene, bot, Commands.NONE);
+            return;
+        }
+    }
 
-        bot.lastDir = { x: 1, y: 0 };
+    // ======================
+    // MOVEMENT
+    // ======================
 
-        executeStateCommand(scene, scene.gameState.players, {
-            playerID: bot.id,
-            type: Commands.RIGHT
-        });
+    // Target above: jump, and save the double jump for the top of the first one.
+    if (dy < -90 && Math.abs(dx) < 300) {
+        if (grounded && now - bot.lastJump > 400) {
+            bot.lastJump = now;
+            send(scene, bot, Commands.UP);
+        } else if (!grounded && bot.body.velocity.y > -80 && dy < -60) {
+            tryDoubleJump(scene, bot);
+        }
+    }
 
-    } else if (dx < -deadzone) {
+    // Target below while on a platform: walk off its nearer edge (the top
+    // platforms can't be dropped through).
+    const platform = bot.currentPlatform;
+    if (dy > 80 && grounded && platform && platform !== ground &&
+        Math.abs(dx) < platform.body.width / 2) {
+        const toLeft = bot.x - platform.body.left;
+        const toRight = platform.body.right - bot.x;
+        const leftOpen = surfaceBelow(surfaces, platform.body.left - LEDGE_MARGIN, bot.body.bottom + 1);
+        const exitDir = (toLeft < toRight && leftOpen) || !surfaceBelow(surfaces, platform.body.right + LEDGE_MARGIN, bot.body.bottom + 1)
+            ? -1
+            : 1;
+        bot.lastDir = { x: exitDir, y: 0 };
+        send(scene, bot, exitDir < 0 ? Commands.LEFT : Commands.RIGHT);
+        return;
+    }
 
-        bot.lastDir = { x: -1, y: 0 };
-
-        executeStateCommand(scene, scene.gameState.players, {
-            playerID: bot.id,
-            type: Commands.LEFT
-        });
-
+    if (Math.abs(dx) > CHASE_DEADZONE) {
+        walk(scene, bot, side, surfaces);
     } else {
-        executeStateCommand(scene, scene.gameState.players, {
-            playerID: bot.id,
-            type: Commands.NONE
-        });
+        send(scene, bot, Commands.NONE);
     }
-    
-    const specDirection = (bot.lastDir.x > 0 && bot.lastDir.x !== 0) ? "right" : "left";
-    //CHARACTER-SPECIFIC SPECIAL ATTACK INTERACTIONS:
-    if (bot.name === "AXEMAN" && bot.variant !== 'CHAINSAW') {
-        const attackRange = 150;
+}
 
-        if (Math.abs(dx) < attackRange && Math.abs(dy) < 50) {
-
-            if (scene.time.now - bot.lastDirSpecial > 500) {
-
-                bot.lastDirSpecial = scene.time.now;
-
-                handleDirSpecial(scene, bot, specDirection, scene.time.now, target);
-            }
-
-            executeStateCommand(scene, scene.gameState.players, {
-                playerID: bot.id,
-                type: Commands.NONE
-            });
-
-            return;
-        }
-    } else if (bot.name === "SWORDMAN") {
-        const attackRange = 350;
-        if (Math.abs(dx) < attackRange && Math.abs(dx) > attackRange-100) {
-
-            if (scene.time.now - bot.lastDirSpecial > 500) {
-
-                bot.lastDirSpecial = scene.time.now;
-
-                handleDirSpecial(scene, bot, specDirection, scene.time.now, target);
-            }
-
-            executeStateCommand(scene, scene.gameState.players, {
-                playerID: bot.id,
-                type: Commands.NONE
-            });
-
-            return;
-        }
-    } else if (bot.name === "FISHERMAN") {
-        const attackRange = 400;
-
-        if (Math.abs(dx) < attackRange && Math.abs(dx) > attackRange-100) {
-
-            if (scene.time.now - bot.lastDirSpecial > 500) {
-
-                bot.lastDirSpecial = scene.time.now;
-
-                handleDirSpecial(scene, bot, specDirection, scene.time.now, target);
-            }
-
-            executeStateCommand(scene, scene.gameState.players, {
-                playerID: bot.id,
-                type: Commands.NONE
-            });
-
-            return;
-        }
-    } else if (bot.name === "SCYTHEMAN") {
-        const attackRange = 300;
-
-        if (Math.abs(dx) < attackRange && Math.abs(dy) < 125) {
-
-            if (scene.time.now - bot.lastDirSpecial > 500) {
-
-                bot.lastDirSpecial = scene.time.now;
-
-                handleDirSpecial(scene, bot, specDirection, scene.time.now, target);
-            }
-
-            executeStateCommand(scene, scene.gameState.players, {
-                playerID: bot.id,
-                type: Commands.NONE
-            });
-
-            return;
-        }
-    } else if (bot.name === "HAMMERMAN") {
-        const attackRange = 80;
-
-        if (Math.abs(dx) < attackRange) {
-
-            if (scene.time.now - bot.lastDirSpecial > 500 && Math.abs(dy) < 100) {
-
-                bot.lastDirSpecial = scene.time.now;
-
-                handleDirSpecial(scene, bot, specDirection, scene.time.now, target);
-            }
-
-            executeStateCommand(scene, scene.gameState.players, {
-                playerID: bot.id,
-                type: Commands.NONE
-            });
-
-            return;
-        }
-    } else if (bot.name === "SLATEMAN") {
-        const attackRange = 130;
-
-        if (Math.abs(dx) < attackRange) {
-
-            if (scene.time.now - bot.lastDirSpecial > 500 && Math.abs(dy) < 50) {
-
-                bot.lastDirSpecial = scene.time.now;
-
-                handleDirSpecial(scene, bot, specDirection, scene.time.now, target);
-            }
-
-            executeStateCommand(scene, scene.gameState.players, {
-                playerID: bot.id,
-                type: Commands.NONE
-            });
-
-            return;
-        }
-    } else if (bot.name === "CROWBARMAN") {
-        const attackRange = 200;
-
-        if (Math.abs(dx) < attackRange) {
-
-            if (scene.time.now - bot.lastDirSpecial > 500 && Math.abs(dy) < 50) {
-
-                bot.lastDirSpecial = scene.time.now;
-
-                handleDirSpecial(scene, bot, specDirection, scene.time.now, target);
-            }
-
-            executeStateCommand(scene, scene.gameState.players, {
-                playerID: bot.id,
-                type: Commands.NONE
-            });
-
-            return;
-        }
+// Whether this character's dir special is worth using from here.
+function specialFits(bot, dx, dy, grounded) {
+    const adx = Math.abs(dx);
+    const ady = Math.abs(dy);
+    switch (bot.name) {
+        case 'AXEMAN':
+            return bot.variant !== 'CHAINSAW' && adx < 150 && ady < 50;
+        case 'SWORDMAN':
+            // QUICKSTEP passes through the target, so DAGGER keeps it for recovery.
+            return bot.variant !== 'DAGGER' && adx > 200 && adx < 350 && ady < 60;
+        case 'FISHERMAN':
+            return adx > 250 && adx < 450 && ady < 80;
+        case 'SCYTHEMAN':
+            return adx < 300 && ady < 125;
+        case 'HAMMERMAN':
+            return adx < 80 && ady < 100;
+        case 'SLATEMAN':
+            return adx < 130 && ady < 50;
+        case 'CROWBARMAN':
+            return grounded && adx > 90 && adx < 200 && ady < 50;
+        default:
+            return false;
     }
-    
-    
+}
+
+function placeBotPlank(scene, bot, target, x, y, direction) {
+    bot.lastDir = direction;
+    bot.plankGhost.setPosition(x, y);
+    bot.plankGhost.setAngle(direction.y === 0 ? 90 : 0);
+    handleAttack(scene, bot, target);
+}
+
+function finishAirPlankSequence(scene, bot) {
+    bot.airPlankSequence = false;
+    if (bot.active && !bot.chainsawMode) {
+        bot.plankModeReturnAt = scene.time.now + 350;
+    }
 }

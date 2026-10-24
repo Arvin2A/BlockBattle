@@ -95,6 +95,8 @@ function tryPull(api, scene, player, target, direction, currentTime) {
         let reelingIn = false;
         let pullingToPlatform = false;
         let swingUntil = 0;
+        // How far above the hook the pull aims, so he ends up standing on the surface.
+        let pullLift = 0;
         let latchedTarget = null;
         const castTime = scene.time.now;
         let removeRopeUpdate = () => {};
@@ -173,11 +175,17 @@ function tryPull(api, scene, player, target, direction, currentTime) {
         };
         scene.physics.world.on('worldbounds', cleanupAtWorldBounds);
 
-        const latchToPlatform = () => {
+        const latchToPlatform = (_hook, platform) => {
             if (cleanedUp || pullingToPlatform) return;
             pullingToPlatform = true;
             hook.setVelocity(0, 0);
             hook.body.enable = false;
+            // The main ground is solid on every side, so a hook that catches its side
+            // would pull him flat into the wall. Anchor on the top surface instead.
+            if (platform?.body && hook.y > platform.body.top) {
+                hook.y = platform.body.top;
+                pullLift = player.body.height / 2 + 10;
+            }
             if (player.y > hook.y) swingUntil = scene.time.now + SWING_MS;
             startReelAnim();
         };
@@ -203,7 +211,7 @@ function tryPull(api, scene, player, target, direction, currentTime) {
                 return;
             }
             const dx = hook.x - player.x;
-            const dy = hook.y - player.y;
+            const dy = hook.y - pullLift - player.y;
             const distance = Math.hypot(dx, dy);
             if (distance <= 50) {
                 cleanup();
@@ -264,7 +272,7 @@ function tryPull(api, scene, player, target, direction, currentTime) {
                 api.platformsWithoutStandingPlatform(scene, player),
                 latchToPlatform
             ),
-            scene.physics.add.overlap(hook, scene.planks, latchToPlatform)
+            scene.physics.add.overlap(hook, scene.planks, () => latchToPlatform())
         );
 
         removeRopeUpdate = api.addSceneUpdateListener(scene, () => {

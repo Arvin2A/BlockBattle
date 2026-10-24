@@ -328,9 +328,9 @@ export function initiatePlayers(scene, p1Select = 'axeman', p2Select = 'swordman
         scene.objs.add(p.atk);
     }
 
-    players.player.header = scene.add.text(players.player.x, players.player.y - 50, "P1" ,{ fontFamily: FONTS.title, fontSize: '18px', fill: COLORS.p1 });
+    players.player.header = scene.add.text(players.player.x, players.player.y - 50, scene.simulationMode ? 'CPU 1' : 'P1' ,{ fontFamily: FONTS.title, fontSize: '18px', fill: COLORS.p1 });
     const headerFILL = scene.botMode ? '#686868' : COLORS.p2
-    players.player2.header = scene.add.text(players.player2.x, players.player2.y - 50, scene.botMode ? 'CPU' : 'P2' ,{ fontFamily: FONTS.title, fontSize: '18px', fill: headerFILL });
+    players.player2.header = scene.add.text(players.player2.x, players.player2.y - 50, scene.simulationMode ? 'CPU 2' : scene.botMode ? 'CPU' : 'P2' ,{ fontFamily: FONTS.title, fontSize: '18px', fill: headerFILL });
     scene.objs.add(players.player.header);
     scene.objs.add(players.player2.header);
 
@@ -397,11 +397,14 @@ export function initiatePlayers(scene, p1Select = 'axeman', p2Select = 'swordman
         }
     }
 
-    if (scene.botMode) {
-        players.player2.lastJump = 0;
-        players.player2.lastAttack = 0;
-        players.player2.lastDirSpecial = 0;
-        players.player2.isBot = true;
+    const bots = scene.simulationMode
+        ? [players.player, players.player2]
+        : scene.botMode ? [players.player2] : [];
+    for (const bot of bots) {
+        bot.lastJump = 0;
+        bot.lastAttack = 0;
+        bot.lastDirSpecial = 0;
+        bot.isBot = true;
     }
 
     

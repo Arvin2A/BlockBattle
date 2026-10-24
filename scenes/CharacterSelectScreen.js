@@ -1,4 +1,4 @@
-import { botMode } from "../gameSettings.js";
+import { botMode, simulationMode } from "../gameSettings.js";
 import { preloadCharacterSelection } from "./GameScene/preload.js";
 import { getCharacterTexture } from "../characterTextures.js";
 import { fadeOutTo } from "./transitions.js";
@@ -76,9 +76,11 @@ export const CharacterSelectScene = {
         this.add.text(
             500,
             50,
-            botMode
-                ? 'SELECT PLAYER AND CPU'
-                : 'SELECT YOUR CHARACTER',
+            simulationMode
+                ? 'SELECT BOTH CPUS'
+                : botMode
+                    ? 'SELECT PLAYER AND CPU'
+                    : 'SELECT YOUR CHARACTER',
             {
                 fontFamily: 'VCROSD',
                 fontSize: '35px',
