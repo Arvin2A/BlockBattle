@@ -1,3 +1,7 @@
+// BlockBattle — Copyright (C) 2026 Arvin Zaman
+// Original source: https://github.com/Arvin2A/BlockBattle
+// Licensed under the GNU GPL v3 only. See LICENSE.
+
 // Runs one hidden (headless) Chrome and opens a tab per online match.
 // Each tab runs the real game as the match's authority (see mp/authority.js).
 // Tabs are opened/closed through Chrome's built-in DevTools HTTP endpoints,

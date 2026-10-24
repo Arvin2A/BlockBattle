@@ -1,3 +1,7 @@
+// BlockBattle — Copyright (C) 2026 Arvin Zaman
+// Original source: https://github.com/Arvin2A/BlockBattle
+// Licensed under the GNU GPL v3 only. See LICENSE.
+
 import { damagePlank as damageAxemanPlank } from '../playerAttackScripts/axeman.js';
 import { spawnDirtBurst } from './effects.js';
 import { getCharacterStat } from './characterStats.js';

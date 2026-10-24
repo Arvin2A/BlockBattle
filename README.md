@@ -12,6 +12,8 @@ I have only started using CLAUDE from october 11 2026, the game was made back in
 
 BlockBattle — Copyright (C) 2026 Arvin Zaman
 
+Original source: https://github.com/Arvin2A/BlockBattle
+
 The game's code and the art I drew are licensed under the GNU General Public License, version 3 only. See [LICENSE](LICENSE).
 
 Sound effects in `audio/` are from [Pixabay](https://pixabay.com) and are used under the [Pixabay Content License](https://pixabay.com/service/license-summary/). They are **not** covered by the GPL, and you can't redistribute them on their own.

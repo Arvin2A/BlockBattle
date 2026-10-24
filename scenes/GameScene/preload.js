@@ -1,3 +1,7 @@
+// BlockBattle — Copyright (C) 2026 Arvin Zaman
+// Original source: https://github.com/Arvin2A/BlockBattle
+// Licensed under the GNU GPL v3 only. See LICENSE.
+
 export function preloadMenu() {
     this.load.image('menuBackground', 'assets/menu/Homescreen.png');
     this.load.image('uifade', 'assets/menu/uifade.png');

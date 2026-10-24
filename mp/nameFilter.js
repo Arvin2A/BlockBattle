@@ -1,3 +1,7 @@
+// BlockBattle — Copyright (C) 2026 Arvin Zaman
+// Original source: https://github.com/Arvin2A/BlockBattle
+// Licensed under the GNU GPL v3 only. See LICENSE.
+
 // Checks player names against assets/inappropriate_words (one word or phrase
 // per line). The browser and the server each load that file and pass its text
 // to createNameFilter, so both sides block the same names.

@@ -1,3 +1,7 @@
+// BlockBattle — Copyright (C) 2026 Arvin Zaman
+// Original source: https://github.com/Arvin2A/BlockBattle
+// Licensed under the GNU GPL v3 only. See LICENSE.
+
 // Every playable character and its variants, in character-select order.
 // Shared by the character select screen, the online lobby and the LAN server
 // (which uses it to reject made-up characters), so add new variants here.

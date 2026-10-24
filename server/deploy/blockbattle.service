@@ -1,3 +1,7 @@
+# BlockBattle — Copyright (C) 2026 Arvin Zaman
+# Original source: https://github.com/Arvin2A/BlockBattle
+# Licensed under the GNU GPL v3 only. See LICENSE.
+
 # systemd service for the BlockBattle online server. See SERVER_SETUP.md.
 # Edit User / WorkingDirectory / BB_ALLOWED_ORIGINS for your machine first.
 # Install:  sudo cp server/deploy/blockbattle.service /etc/systemd/system/

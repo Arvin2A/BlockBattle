@@ -1,3 +1,7 @@
+// BlockBattle — Copyright (C) 2026 Arvin Zaman
+// Original source: https://github.com/Arvin2A/BlockBattle
+// Licensed under the GNU GPL v3 only. See LICENSE.
+
 // mp/protocol.js
 // Things the browser game and the LAN server (server/index.js) have to agree on.
 // Plain JS with no Phaser imports so Node can load it too.
