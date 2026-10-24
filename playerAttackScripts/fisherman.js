@@ -256,7 +256,8 @@ function tryPull(api, scene, player, target, direction, currentTime) {
                     scene,
                     target,
                     (dx / dist) * pullStrength,
-                    (dy / dist) * pullStrength
+                    (dy / dist) * pullStrength,
+                    { noDeathRay: true }
                 );
 
                 scene.sound.play('anyhit');

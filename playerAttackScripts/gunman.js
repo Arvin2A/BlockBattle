@@ -371,7 +371,8 @@ function chuck(api, scene, attacker, victim) {
                 scene,
                 victim,
                 direction.x * knockback,
-                verticalKick
+                verticalKick,
+                { noDeathRay: true }
             );
             scene.time.delayedCall(300, () => {
                 if (victim.active) victim.willDecelerate = true;
