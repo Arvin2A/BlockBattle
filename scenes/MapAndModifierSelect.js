@@ -1,3 +1,4 @@
+import Phaser from 'phaser';
 import { DEFAULT_MAP, MAP_LIST, getRandomMap } from './GameScene/MapDefinitions.js';
 import { preloadMapSelection } from './GameScene/preload.js';
 import { fadeOutTo } from './transitions.js';
@@ -73,10 +74,16 @@ var layout = []
 var selectedIndex = 0;
 var previousInput = {};
 var panel;
-export const MapAndModifierSelectScene = {
-	key: 'MapAndModifierSelectScene',
-	preload: preloadMapSelection,
-	create: function () {
+export class MapAndModifierSelectScene extends Phaser.Scene {
+	constructor() {
+		super({ key: 'MapAndModifierSelectScene' });
+	}
+
+	preload() {
+		preloadMapSelection.call(this);
+	}
+
+	create() {
 		this.cameras.main.fadeIn(200, 0, 0, 0);
 		const maps = [
 			...MAP_LIST.map(definition => ({ definition, preview: definition.preview, name: definition.name })),
@@ -408,8 +415,9 @@ export const MapAndModifierSelectScene = {
 			}
 		];
 		selectedIndex = this.selectedMapIndex;
-	},
-	update: function () {
+	}
+
+	update() {
 		currentControllers = getConnectedControllers(this);
 		primaryController = currentControllers[0] ?? null;
 
@@ -476,4 +484,4 @@ export const MapAndModifierSelectScene = {
 
 		previousInput = { ...input };
 	}
-};
+}

@@ -81,6 +81,7 @@ function steelPlank(
     plank.health = attacker.variant === 'SLEDGEHAMMER' ? 0.50 : 0.13;
     plank.maxHealth = plank.health;
 
+    plank.owner = attacker;
     scene.objs.add(plank);
     scene.planks.add(plank);
     attacker.steelPlanks.push(plank);
@@ -104,56 +105,35 @@ function steelPlank(
     });
 }
 
+const MALLET_SWING = {
+    range: 100,
+    damage: 0.13,
+    plankDamage: 0.5,
+    hitstun: 600,
+    hitFreeze: 100,
+    sound: 'hammerhit',
+    knockback: { x: 450, y: 300, spike: { x: 375, y: -200 } },
+    decelerateAfter: 1000,
+    missSound: 'miss'
+};
+const SLEDGEHAMMER_SWING = {
+    range: 150,
+    damage: 0.30,
+    plankDamage: 0.30,
+    hitstun: 400,
+    hitFreeze: 100,
+    sound: 'sledgehammerhit',
+    knockback: { x: 1050, y: 500, spike: { x: 850, y: -200 } },
+    decelerateAfter: 1000
+};
+
 function hardSwing(api, scene, attacker, target, animKey) {
-    //Push attacks happen if the player is at maximum velocity
     api.setAttackSprite(attacker, animKey);
-    scene.time.delayedCall(150, () => {
-        //short windup before the mallet connects, like veryhardSwing but much quicker.
-        if (api.attackIsElligible(attacker, target, 100)) {
-            target.hitstunUntil = 600 * target.KBmultiplier + scene.time.now;
-            target.willDecelerate = false;
-            target.freezeUntil = scene.time.now - 1;
-            attacker.freezeUntil = scene.time.now - 1;
-            attacker.willDecelerate = true;
-            attacker.comboTimer = 600;
-            target.KBmultiplier += 0.13 * api.getAttackDamageScale(attacker);
-            api.damagePlanksInAttack(attacker, 0.5 * api.getAttackDamageScale(attacker));
-
-            api.hitFreeze(scene, 100);
-            if (attacker.name === "HAMMERMAN") {
-                scene.sound.play('hammerhit');
-            } else {
-                scene.sound.play('anyhit');
-            }
-            const dirX = attacker.lastDir.x;
-
-            let dirY = attacker.lastDir.y;
-            if (dirY === 0) dirY = -0.5; //always launch upwards if on same level
-
-            //very stronk knockback
-            //launch to the side if the target is pinned against the ground, otherwise launch in the direction of the attack
-            if (target.body.touching.down && dirY > 0.7) {
-                const randDir = Math.random() < 0.5 ? -1 : 1;
-                api.applyKnockback(scene, target, (375 * target.KBmultiplier) * randDir, -200 * target.KBmultiplier);
-            } else {
-                api.applyKnockback(scene, target, (450 * target.KBmultiplier * api.getAttackDamageScale(attacker)) * dirX, (300 * target.KBmultiplier) * dirY);
-            }
-            attacker.combo = 0;
-            attacker.comboTimer = 0;
-        } else {
-            attacker.combo = 0;
-            scene.sound.play('miss');
-        }
+    //short windup before the mallet connects, like veryhardSwing but much quicker.
+    api.afterWindup(scene, attacker, 150, () => {
+        if (!api.strike(scene, attacker, target, MALLET_SWING)) attacker.combo = 0;
         attacker.canAttack = false;
-
-        if (attacker.revokeAggressorStun) scene.time.removeEvent(attacker.revokeAggressorStun);
-        if (target.revokeVictimStun) scene.time.removeEvent(target.revokeVictimStun);
-        scene.time.delayedCall(600 * target.KBmultiplier, () => {
-            target.hitstun = false;
-        });
-        scene.time.delayedCall(1000, () => {
-            target.willDecelerate = true;
-        });
+        api.clearQueuedStunTimers(scene, attacker, target);
     });
     scene.time.delayedCall(250, () => {
         api.hideAttackSprite(attacker);
@@ -167,72 +147,26 @@ function veryhardSwing(api, scene, attacker, target, animKey) {
     api.setAttackSprite(attacker, animKey);
     //getting hit during the windup resets the swing animation, so the swing has to be cancelled too
     //otherwise it lands invisibly if the hitstun ends before the windup does.
-    let interrupted = false;
-    const removeInterruptCheck = api.addSceneUpdateListener(scene, () => {
-        if (attacker.hitstun) interrupted = true;
-    });
-    scene.time.delayedCall(800, () => {
-        removeInterruptCheck();
-        if (interrupted) {
-            attacker.combo = 0;
-            return;
-        }
+    const windup = api.afterWindup(scene, attacker, 800, () => {
         //the delay makes slegdehammer man telegraphable and punishable, but also makes it feel like a big swing.
-        if (api.attackIsElligible(attacker, target, 150) && attacker.variant === "SLEDGEHAMMER") {
-            api.damagePlanksInAttack(attacker, 0.30);
-            target.hitstunUntil = 400 * target.KBmultiplier + scene.time.now;
-            target.willDecelerate = false;
-            target.freezeUntil = scene.time.now - 1;
-            attacker.freezeUntil = scene.time.now - 1;
-            attacker.willDecelerate = true;
-            attacker.comboTimer = 600;
-            target.KBmultiplier += 0.30 * api.getAttackDamageScale(attacker);
-            api.hitFreeze(scene, 100);
-            if (attacker.name === "HAMMERMAN" && attacker.variant === "SLEDGEHAMMER") {
-                scene.sound.play('sledgehammerhit');
-            } else {
-                scene.sound.play('anyhit');
-            }
-            const dirX = attacker.lastDir.x;
-
-            let dirY = attacker.lastDir.y;
-            if (dirY === 0) dirY = -0.5; //always launch upwards if on same level
-
-            //very stronk knockback
-            //launch to the side if the target is pinned against the ground, otherwise launch in the direction of the attack
-            if (target.body.touching.down && dirY > 0.7) {
-                const randDir = Math.random() < 0.5 ? -1 : 1;
-                api.applyKnockback(scene, target, (850 * target.KBmultiplier) * randDir, -200 * target.KBmultiplier);
-            } else {
-                api.applyKnockback(scene, target, (1050 * target.KBmultiplier * api.getAttackDamageScale(attacker)) * dirX, (500 * target.KBmultiplier) * dirY);
-            }
-            attacker.combo = 0;
-            attacker.comboTimer = 0;
-        } else {
-            attacker.combo = 0;
-        }
+        const hit = attacker.variant === "SLEDGEHAMMER" &&
+            api.strike(scene, attacker, target, SLEDGEHAMMER_SWING);
+        if (!hit) attacker.combo = 0;
         attacker.canAttack = false;
-
-        if (attacker.revokeAggressorStun) scene.time.removeEvent(attacker.revokeAggressorStun);
-        if (target.revokeVictimStun) scene.time.removeEvent(target.revokeVictimStun);
-        scene.time.delayedCall(400 * target.KBmultiplier, () => {
-            target.hitstun = false;
-        });
-        scene.time.delayedCall(1000, () => {
-            target.willDecelerate = true;
-        });
+        api.clearQueuedStunTimers(scene, attacker, target);
+    }, {
+        interruptible: true,
+        onInterrupt: () => { attacker.combo = 0; }
     });
     scene.time.delayedCall(1500, () => {
         //obviously its a longer delay, its a sledgehammer. the player should be punished for using it.
         attacker.canAttack = true;
     });
     scene.time.delayedCall(750, () => {
-        if (attacker.canAttack && !interrupted) {
+        if (attacker.canAttack && !windup.interrupted) {
             scene.sound.play('sledgewhoosh');
         }
     });
-
-
 }
 function tryAttack3(api, scene, attacker, target, animKey, thirdAnimKey) {
     //handles some other stuff before calling either attack functions
@@ -327,6 +261,19 @@ function tryRepair(api, scene, player, target, direction, currentTime) {
 
     player.lastTap[direction] = currentTime;
 }
+// Quickslam's first hit pops the target straight up for the follow-up jump.
+function quickslamLaunchUp({ attacker, kb, damageScale, grounded, side }) {
+    const dirY = attacker.lastDir.y === 0 ? -1 : attacker.lastDir.y; //always launch upwards if on same level
+    if (grounded && dirY > 0.7) return { x: 50 * kb * side, y: -1500 * kb };
+    return { x: 50 * kb * damageScale * attacker.lastDir.x, y: -1000 };
+}
+// The aerial follow-up spikes them back down.
+function quickslamSpikeDown({ attacker, kb, damageScale, grounded, side }) {
+    const dirY = attacker.lastDir.y === 0 ? 1 : attacker.lastDir.y; //special case
+    if (grounded && dirY > 0.7) return { x: 200 * kb * side, y: -1500 * kb };
+    return { x: 500 * kb * damageScale * attacker.lastDir.x, y: 1000 };
+}
+
 function quickslam1(api, scene, attacker, target, animKey = 'sledgehammerquickslam1') {
     attacker.quickslamJumpUntil = 0;
     attacker.quickslamJumpTarget = null;
@@ -334,49 +281,26 @@ function quickslam1(api, scene, attacker, target, animKey = 'sledgehammerquicksl
     //quickslam is a special attack that does less knockback and damage then the normal attack.
     //This is only for sledgehammer.
     //Used as a quick move that contrast's sledgehammer's slow, telegraphed, and easily punishable attacks.
-    if (api.attackIsElligible(attacker, target, 250, false) && attacker.variant === "SLEDGEHAMMER") {
-        attacker.quickslamJumpUntil = scene.time.now + 1000;
-        attacker.quickslamJumpTarget = target;
-        target.hitstunUntil = 400 * target.KBmultiplier + scene.time.now;
-        target.canAttack = false;
-        target.willDecelerate = false;
-        target.freezeUntil = scene.time.now - 1;
-        attacker.freezeUntil = scene.time.now - 1;
-        attacker.comboTimer = 600;
-        target.KBmultiplier += 0.25 * api.getAttackDamageScale(attacker);
-        api.damagePlanksInAttack(attacker, 0.25 * api.getAttackDamageScale(attacker));
-        api.hitFreeze(scene, 100);
-        const dirX = attacker.lastDir.x;
-
-        let dirY = attacker.lastDir.y;
-        if (dirY === 0) dirY = -1; //always launch upwards if on same level
-
-
-        //very stronk knockback
-        //launch to the side if the target is pinned against the ground, otherwise launch in the direction of the attack
-        if (target.body.touching.down && dirY > 0.7) {
-            const randDir = Math.random() < 0.5 ? -1 : 1;
-            api.applyKnockback(scene, target, (50 * target.KBmultiplier) * randDir, -1500 * target.KBmultiplier);
-        } else {
-            api.applyKnockback(scene, target, (50 * target.KBmultiplier * api.getAttackDamageScale(attacker)) * dirX, (1000) * -1);
+    const hit = attacker.variant === "SLEDGEHAMMER" && api.strike(scene, attacker, target, {
+        range: 250,
+        bypass: { ignoreCanAttack: true },
+        damage: 0.25,
+        hitstun: 400,
+        hitFreeze: 100,
+        knockback: quickslamLaunchUp,
+        decelerateAfter: 1000,
+        onHit: () => {
+            attacker.quickslamJumpUntil = scene.time.now + 1000;
+            attacker.quickslamJumpTarget = target;
+            target.canAttack = false;
+            scene.time.delayedCall(800, () => {
+                target.canAttack = true;
+            });
         }
-        scene.time.delayedCall(800, () => {
-            target.canAttack = true;
-        });
-        attacker.combo = 0;
-        attacker.comboTimer = 0;
-    } else {
-        attacker.combo = 0;
-    }
+    });
+    if (!hit) attacker.combo = 0;
+    api.clearQueuedStunTimers(scene, attacker, target);
 
-    if (attacker.revokeAggressorStun) scene.time.removeEvent(attacker.revokeAggressorStun);
-    if (target.revokeVictimStun) scene.time.removeEvent(target.revokeVictimStun);
-    scene.time.delayedCall(400 * target.KBmultiplier, () => {
-        target.hitstun = false;
-    });
-    scene.time.delayedCall(1000, () => {
-        target.willDecelerate = true;
-    });
     scene.sound.play('sledgewhoosh');
     scene.time.delayedCall(203, () => {
         api.spawnDirtBurst(
@@ -454,51 +378,22 @@ function tryQuickslamJump(api, scene, attacker, currentTime) {
 }
 function quickslam2(api, scene, attacker, target, animKey = 'sledgehammerquickslam2') {
     api.setAttackSprite(attacker, animKey);
-    //quickslam is a special attack that does less knockback and damage then the normal attack.
-    //This is only for sledgehammer.
-    //Used as a quick move that contrast's sledgehammer's slow, telegraphed, and easily punishable attacks.
     //The second quickslam is the aerial version, instead of sending the target flying up, it sends them flying down.
     scene.time.delayedCall(50, () => {
-        if (api.attackIsElligible(attacker, target, 200, false, true)) {
-            target.hitstunUntil = 400 * target.KBmultiplier + scene.time.now;
-            target.willDecelerate = false;
-            target.freezeUntil = scene.time.now - 1;
-            attacker.freezeUntil = scene.time.now - 1;
-            attacker.willDecelerate = true;
-            attacker.comboTimer = 600;
-            target.KBmultiplier += 0.25 * api.getAttackDamageScale(attacker);
-            api.damagePlanksInAttack(attacker, 0.25 * api.getAttackDamageScale(attacker));
-            scene.sound.play('sledgehammerquickslam');
-            scene.sound.play('damn', { volume: 2 });
-            api.hitFreeze(scene, 100);
-            const dirX = attacker.lastDir.x;
-
-            let dirY = attacker.lastDir.y;
-            if (dirY === 0) dirY = 1; //special case
-
-            //very stronk knockback
-            //launch to the side if the target is pinned against the ground, otherwise launch in the direction of the attack
-            if (target.body.touching.down && dirY > 0.7) {
-                const randDir = Math.random() < 0.5 ? -1 : 1;
-                api.applyKnockback(scene, target, (200 * target.KBmultiplier) * randDir, -1500 * target.KBmultiplier);
-            } else {
-                api.applyKnockback(scene, target, (500 * target.KBmultiplier * api.getAttackDamageScale(attacker)) * dirX, (1000));
-            }
-            attacker.combo = 0;
-            attacker.comboTimer = 0;
-        } else {
-            attacker.combo = 0;
-        }
+        const hit = api.strike(scene, attacker, target, {
+            range: 200,
+            bypass: { ignoreCanAttack: true, allowTargetBelow: true },
+            damage: 0.25,
+            hitstun: 400,
+            hitFreeze: 100,
+            sound: 'sledgehammerquickslam',
+            knockback: quickslamSpikeDown,
+            decelerateAfter: 1000,
+            onHit: () => scene.sound.play('damn', { volume: 2 })
+        });
+        if (!hit) attacker.combo = 0;
         attacker.canAttack = true;
-
-        if (attacker.revokeAggressorStun) scene.time.removeEvent(attacker.revokeAggressorStun);
-        if (target.revokeVictimStun) scene.time.removeEvent(target.revokeVictimStun);
-        scene.time.delayedCall(400 * target.KBmultiplier, () => {
-            target.hitstun = false;
-        });
-        scene.time.delayedCall(1000, () => {
-            target.willDecelerate = true;
-        });
+        api.clearQueuedStunTimers(scene, attacker, target);
     });
 }
 function tryQuickslam(api, scene, attacker, target, direction, currentTime) {
@@ -516,6 +411,7 @@ function tryQuickslam(api, scene, attacker, target, direction, currentTime) {
 }
 
 export default {
+    hitSounds: { light: 'hammerhit' },
     // Mallet swing sheets are drawn facing right and need their own nudge so
     // the arm sits behind the body with the handle out the front.
     rightFacingAttackSprites: ['hammeratk', 'hammeratkheal'],
