@@ -767,7 +767,7 @@ function create() {
         const p1Buttons = botMode ? [
             [60, 420, '←', p1, 'left'],
             [240, 420, '→', p1, 'right'],
-            [150, 330, '↑', p1, 'up'],
+            [940, 420, '↑', p1, 'up'],
             [150, 420, '↓', p1, 'down'],
             [850, 420, 'A', p1, 'attack'],
             [940, 330, 'S', p1, 'special']
