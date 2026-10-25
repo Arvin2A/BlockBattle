@@ -705,9 +705,9 @@ function create() {
     if (isMobile) {
         addTouchAssist(this, touchButtons);
 
-        function makeButton(scene, x, y, text, keyRef) {
+        function makeButton(scene, x, y, text, keyRef, radius = 45) {
 
-            const btn = scene.add.circle(x, y, 45, 0x000000, 0.45)
+            const btn = scene.add.circle(x, y, radius, 0x000000, 0.45)
                 .setScrollFactor(0)
                 .setDepth(999)
                 .setInteractive();
@@ -765,10 +765,10 @@ function create() {
         const p2 = mobileControls.p2;
 
         const p1Buttons = botMode ? [
-            [60, 420, '←', p1, 'left'],
-            [240, 420, '→', p1, 'right'],
+            [60, 420, '←', p1, 'left', 55],
+            [172, 420, '→', p1, 'right', 55],
             [940, 420, '↑', p1, 'up'],
-            [150, 420, '↓', p1, 'down'],
+            [280, 420, '↓', p1, 'down'],
             [850, 420, 'A', p1, 'attack'],
             [940, 330, 'S', p1, 'special']
         ] : [
@@ -795,7 +795,7 @@ function create() {
             const butn = makeButton(this, btn[0], btn[1], btn[2], {
                 obj: btn[3],
                 key: btn[4]
-            });
+            }, btn[5]);
             this.mobileButtons.p1.push(butn);
         });
 
