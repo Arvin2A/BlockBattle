@@ -386,10 +386,10 @@ export class OnlineOverlayScene extends Phaser.Scene {
         const extraPointers = 6 - this.input.manager.pointersTotal;
         if (extraPointers > 0) this.input.addPointer(extraPointers);
         const layout = [
-            [60, 420, '←', 'left'],
-            [240, 420, '→', 'right'],
+            [60, 420, '←', 'left', 55],
+            [172, 420, '→', 'right', 55],
             [940, 420, '↑', 'up'],
-            [150, 420, '↓', 'down'],
+            [280, 420, '↓', 'down'],
             [850, 420, 'A', 'attack'],
             [940, 330, 'S', 'special']
         ];
@@ -399,8 +399,8 @@ export class OnlineOverlayScene extends Phaser.Scene {
         }
         const touchButtons = [];
         addTouchAssist(this, touchButtons);
-        for (const [x, y, label, button] of layout) {
-            const circle = this.add.circle(x, y, 45, 0x000000, 0.45).setInteractive();
+        for (const [x, y, label, button, radius = 45] of layout) {
+            const circle = this.add.circle(x, y, radius, 0x000000, 0.45).setInteractive();
             this.add.text(x, y, label, {
                 fontSize: label.length > 1 ? '26px' : '44px',
                 color: '#ffffff',
