@@ -388,9 +388,9 @@ export class OnlineOverlayScene extends Phaser.Scene {
         const layout = [
             [60, 420, '←', 'left', 55],
             [172, 420, '→', 'right', 55],
-            [940, 420, '↑', 'up'],
-            [280, 420, '↓', 'down'],
-            [850, 420, 'A', 'attack'],
+            [850, 330, '↑', 'up'],
+            [850, 420, '↓', 'down'],
+            [940, 420, 'A', 'attack'],
             [940, 330, 'S', 'special']
         ];
         const self = this.match.self;
