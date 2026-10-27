@@ -2,9 +2,23 @@
 // Original source: https://github.com/Arvin2A/BlockBattle
 // Licensed under the GNU GPL v3 only. See LICENSE.
 
+function attackAnim(attacker) {
+    return attacker.variant === 'SLEDGEHAMMER' ? 'sledgehammeratk' : 'hammeratk';
+}
+
 function attack(api, scene, attacker, victim) {
-    const animKey = attacker.variant === 'SLEDGEHAMMER' ? 'sledgehammeratk' : 'hammeratk';
+    const animKey = attackAnim(attacker);
     tryAttack3(api, scene, attacker, victim, animKey, animKey);
+}
+
+// No tilt sheet yet, so tilts reuse the swing sprite; the swosh is what gives them away.
+// SLEDGEHAMMER has no tilts: tilting just does his normal swing.
+function tilt(api, scene, attacker, victim, xMul, yMul, kbTime) {
+    if (attacker.variant === 'SLEDGEHAMMER') return attack(api, scene, attacker, victim);
+    api.tiltAttack(scene, attacker, victim, {
+        animKey: 'hammeratk', kb: 0.035, xMul, yMul,
+        range: 150, freeze: 80, sfx: 'swosh', kbTime
+    });
 }
 
 const neutralSpecial = () => {};
@@ -434,7 +448,10 @@ export default {
         MALLET: steelPlank,
         SLEDGEHAMMER: steelPlank
     },
-    handleHorizantalTilt: attack,
-    handleDownTilt: attack,
-    handleUpTilt: attack
+    handleHorizantalTilt: (api, scene, attacker, victim) =>
+        tilt(api, scene, attacker, victim, 0.6, 1, 600),
+    handleDownTilt: (api, scene, attacker, victim) =>
+        tilt(api, scene, attacker, victim, 0, 2, 300),
+    handleUpTilt: (api, scene, attacker, victim) =>
+        tilt(api, scene, attacker, victim, 0, 0.88, 300)
 };

@@ -6,6 +6,14 @@ function basicAttack(api, scene, attacker, victim) {
     api.tryAttack(scene, attacker, victim, 'rodatk', 'rodatkthird');
 }
 
+// No tilt sheet yet, so tilts reuse the rod swing; the swosh is what gives them away.
+function tilt(api, scene, attacker, victim, xMul, yMul, kbTime) {
+    api.tiltAttack(scene, attacker, victim, {
+        animKey: 'rodatk', kb: 0.035, xMul, yMul,
+        range: 150, freeze: 80, sfx: 'swosh', kbTime
+    });
+}
+
 const neutralSpecial = () => {};
 
 // Where the rod tip sits in each 300x300 frame (facing right). rodatk swings
@@ -345,7 +353,10 @@ export default {
         tryPull(api, scene, attacker, victim, direction, currentTime),
     handleNeutralSpecial: neutralSpecial,
     variantNeutralSpecials: { ANGLER: neutralSpecial },
-    handleHorizantalTilt: basicAttack,
-    handleDownTilt: basicAttack,
-    handleUpTilt: basicAttack
+    handleHorizantalTilt: (api, scene, attacker, victim) =>
+        tilt(api, scene, attacker, victim, 0.6, 1, 600),
+    handleDownTilt: (api, scene, attacker, victim) =>
+        tilt(api, scene, attacker, victim, 0, 2, 300),
+    handleUpTilt: (api, scene, attacker, victim) =>
+        tilt(api, scene, attacker, victim, 0, 0.88, 300)
 };
