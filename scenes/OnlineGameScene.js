@@ -16,7 +16,7 @@ import { END_REASONS } from '../mp/protocol.js';
 import { encodeButtons, readControllerInput, INPUT_BUTTONS } from '../input.js';
 import { QuickChat } from './OnlineQuickChat.js';
 import { COLORS, FONTS, makeButton, makePanel } from '../ui/theme.js';
-import { addTouchAssist } from '../ui/touchAssist.js';
+import { addTouchAssist, isPhoneScreen } from '../ui/touchAssist.js';
 
 // Online you control one fighter, so both keyboard layouts work.
 const KEY_BINDINGS = {
@@ -385,12 +385,19 @@ export class OnlineOverlayScene extends Phaser.Scene {
         // Phaser only tracks one finger by default; allow multi-touch like the local game does.
         const extraPointers = 6 - this.input.manager.pointersTotal;
         if (extraPointers > 0) this.input.addPointer(extraPointers);
-        const layout = [
+        const layout = isPhoneScreen() ? [
             [60, 420, '←', 'left', 55],
             [172, 420, '→', 'right', 55],
             [850, 330, '↑', 'up'],
             [850, 420, '↓', 'down'],
             [940, 420, 'A', 'attack'],
+            [940, 330, 'S', 'special']
+        ] : [
+            [60, 420, '←', 'left'],
+            [240, 420, '→', 'right'],
+            [150, 330, '↑', 'up'],
+            [150, 420, '↓', 'down'],
+            [850, 420, 'A', 'attack'],
             [940, 330, 'S', 'special']
         ];
         const self = this.match.self;
