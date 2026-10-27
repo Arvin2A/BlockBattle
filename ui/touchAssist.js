@@ -5,6 +5,12 @@
 
 export const TOUCH_ASSIST_RANGE = 75;
 
+// Phones get the split layout (arrows left, up/down/A/S right); tablets and bigger keep the D-pad.
+// Uses the screen's short side so rotating the device doesn't change the answer.
+export function isPhoneScreen() {
+    return Math.min(window.screen.width, window.screen.height) < 600;
+}
+
 
 export function addTouchAssist(scene, buttons) {
     const onPointerDown = (pointer, over) => {

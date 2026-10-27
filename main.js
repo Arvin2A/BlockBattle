@@ -5,7 +5,7 @@
 import Phaser from 'phaser';
 import {handleAttack, handleDirSpecial, handleNeutralSpecial, handleDirSpecialAttack, handleHorizantalTilt, handleDownTilt, handleUpTilt, downslamAttack, updateScythemanGrass, updateChainsawWood, toggleChainsawMode, tryQuickslamJump, positionAttackSprite, hasIdleAttackSprite, getAttackSpriteOffset, getAttackSpriteAngle, getAttackSpriteFlipX, triggerScreenShake, spawnDirtBurst, spawnExplosion} from './attacks.js';
 import { COLORS, FONTS, makePanel, playerColor, playerHex, textStyle } from './ui/theme.js';
-import { addTouchAssist } from './ui/touchAssist.js';
+import { addTouchAssist, isPhoneScreen } from './ui/touchAssist.js';
 import { MAX_WOOD_COUNT } from './playerAttackScripts/axeman.js';
 import { initiatePlayers, updateCombo } from './players.js';
 import { Commands, executeStateCommand} from './commands.js';
@@ -764,7 +764,7 @@ function create() {
         const p1 = mobileControls.p1;
         const p2 = mobileControls.p2;
 
-        const p1Buttons = botMode ? [
+        const p1Buttons = botMode ? (isPhoneScreen() ? [
             [60, 420, '←', p1, 'left', 55],
             [172, 420, '→', p1, 'right', 55],
             [850, 330, '↑', p1, 'up'],
@@ -772,6 +772,13 @@ function create() {
             [940, 420, 'A', p1, 'attack'],
             [940, 330, 'S', p1, 'special']
         ] : [
+            [60, 420, '←', p1, 'left'],
+            [240, 420, '→', p1, 'right'],
+            [150, 330, '↑', p1, 'up'],
+            [150, 420, '↓', p1, 'down'],
+            [850, 420, 'A', p1, 'attack'],
+            [940, 330, 'S', p1, 'special']
+        ]) : [
             [60, 420, '←', p1, 'left'],
             [240, 420, '→', p1, 'right'],
             [150, 330, '↑', p1, 'up'],
