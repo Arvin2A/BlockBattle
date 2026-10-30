@@ -1,0 +1,17 @@
+# BlockBattle — Copyright (C) 2026 Arvin Zaman
+# Original source: https://github.com/Arvin2A/BlockBattle
+# Licensed under the GNU GPL v3 only. See LICENSE.
+
+# Checks GitHub for new commits every 5 minutes. See SERVER_SETUP.md.
+# Install:  sudo cp server/deploy/blockbattle-update.* /etc/systemd/system/
+#           sudo systemctl daemon-reload && sudo systemctl enable --now blockbattle-update.timer
+
+[Unit]
+Description=Check for BlockBattle updates every 5 minutes
+
+[Timer]
+OnBootSec=2min
+OnUnitActiveSec=5min
+
+[Install]
+WantedBy=timers.target

@@ -8,6 +8,7 @@ import { changeBotMode, simulationMode } from "../gameSettings.js";
 import { preloadMenu } from "./GameScene/preload.js";
 import { fadeOutTo, slideInFromSides } from "./transitions.js";
 import { fetchServerStatus, getServerName, isOnlineConfigured } from "../mp/serverConfig.js";
+import { FONTS, COLORS } from "../ui/theme.js";
 import { getNavigationBounds, wrapIndex, moveSelection, createNavigationBox, moveNavigationBox, getConnectedControllers, getMenuGamepadInput} from "../navigation.js"
 var currentControllers = [];
 var primaryController = null;
@@ -645,6 +646,14 @@ export class MenuScene extends Phaser.Scene {
             strokeThickness: 3
         }).setOrigin(0.5);
         onlineBox.setInteractive({ useHandCursor: true });
+        // Everyone connected, in a match or not. The button itself shows who's waiting.
+        const onlineCount = this.add.text(875, 285, '', {
+            fontFamily: FONTS.title,
+            fontSize: '14px',
+            fill: '#7dff8a',
+            stroke: COLORS.stroke,
+            strokeThickness: 4
+        }).setOrigin(0.5);
 
         let onlineReady = false;
         const setOnlineState = (ready, label, color) => {
@@ -686,7 +695,9 @@ export class MenuScene extends Phaser.Scene {
                     setOnlineState(false, 'SERVER OFFLINE', '#ff6b6b');
                     return;
                 }
-                setOnlineState(true, `${getServerName()} - ${status.online} ONLINE`, '#7dff8a');
+                // Older servers don't send waiting yet.
+                setOnlineState(true, `${getServerName()} - ${status.waiting ?? status.online} WAITING`, '#7dff8a');
+                onlineCount.setText(`${status.online} ONLINE`);
             });
         }
         layout.push({button: modeArrowBox, action: toggleBotMode});
@@ -701,7 +712,7 @@ export class MenuScene extends Phaser.Scene {
 
         const introLength = slideInFromSides(this, [
             [changelogBox, compactTitle, compactText, openChangelogText],
-            [onlineBox, onlineText, onlineStatus],
+            [onlineBox, onlineText, onlineStatus, onlineCount],
             [botBox, botText, modeArrowBox, modeArrow],
             [startBox, startText]
         ]);

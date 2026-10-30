@@ -256,6 +256,28 @@ sudo systemctl restart blockbattle
 
 Restarting ends any matches in progress, so do it when nobody is playing.
 
+### Automatic updates
+
+To skip the commands above, let the server update itself. Every 5 minutes it checks
+GitHub for new commits on `main`. If there are any, it pulls them, rebuilds and restarts.
+If a match is in progress, it waits and tries again on the next check, so nobody gets kicked.
+
+```bash
+sudo cp /home/blockbattle/BlockBattle/server/deploy/blockbattle-update.* /etc/systemd/system/
+sudo systemctl daemon-reload
+sudo systemctl enable --now blockbattle-update.timer
+```
+
+If your username isn't `blockbattle`, change it in `blockbattle-update.service` first.
+
+- See when the next check runs: `systemctl list-timers blockbattle-update`
+- See what past checks did: `journalctl -u blockbattle-update -n 50`
+- Check right now: `sudo systemctl start blockbattle-update`
+- Turn it off: `sudo systemctl disable --now blockbattle-update.timer`
+
+Don't edit files in the server's copy of the repo by hand. The update only fast-forwards,
+so local changes make every check fail until you undo them.
+
 ## Troubleshooting
 
 | Problem | What to check |

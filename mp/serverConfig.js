@@ -52,7 +52,7 @@ export function getOnlineServerHost() {
 }
 
 // Asks the server how it's doing (its /mp/status page).
-// Resolves { online, queued, matches }, or null if it's off/unreachable. Never throws.
+// Resolves { online, waiting, queued, matches }, or null if it's off/unreachable. Never throws.
 export async function fetchServerStatus(timeoutMs = 4000) {
     if (!isOnlineConfigured()) return null;
     const url = new URL(getOnlineServerUrl());
