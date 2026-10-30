@@ -8,8 +8,9 @@
 # If a match is in progress it waits for the next run, so nobody gets kicked.
 set -euo pipefail
 
-APP_USER="${APP_USER:-blockbattle}"
-APP_DIR="${APP_DIR:-/home/blockbattle/BlockBattle}"
+# Defaults: the repo this script is in, and the user who owns it.
+APP_DIR="${APP_DIR:-$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)}"
+APP_USER="${APP_USER:-$(stat -c %U "$APP_DIR")}"
 BRANCH="${BRANCH:-main}"
 SERVICE="${SERVICE:-blockbattle}"
 STATUS_URL="${STATUS_URL:-http://127.0.0.1:8080/mp/status}"
