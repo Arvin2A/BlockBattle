@@ -58,10 +58,7 @@ unmuteAudio();
 // and the sound effects were taken from various games as listed in the preload function.
 //WASD and arrow keys control the players; E/SHIFT attack, Q / FORWARD SLASH use special and LEFT ALT / RIGHT ALT switch chainsaw mode.
 
-function sleep(ms) {
-    return new Promise(resolve => setTimeout(resolve, ms));
-    //was meant to be used, but was succeeded later after the discovery of scene.time.delayedCall
-}
+
 function interpolateColor(startColor, endColor, amount) {
     const start = Phaser.Display.Color.HexStringToColor(startColor);
     const end = Phaser.Display.Color.HexStringToColor(endColor);
@@ -197,7 +194,6 @@ export var config = {
 var game;
 
 loadFont().then(() => {
-    // The LAN server opens the game with ?authority=... to run an online match.
     game = isAuthority()
         ? createAuthorityGame(Phaser, config, GameScene)
         : new Phaser.Game(config);
@@ -212,7 +208,6 @@ function addButtonHoverSounds(game) {
         if (scene.cache.audio.exists('buttonhover')) scene.sound.play('buttonhover');
     });
     for (const scene of game.scene.scenes) {
-        // The first scene may already be created by the time the game is ready.
         if (scene.sys.settings.status === Phaser.Scenes.RUNNING) listen(scene);
         scene.events.on('create', () => listen(scene));
     }
@@ -318,7 +313,7 @@ function createSpecialMeters(scene) {
     });
     meters.forEach(meter => {
         if (meter.player.name === 'AXEMAN' && meter.player.variant === 'CHAINSAW') {
-            const woodMeterY = 145 + 65; // 65 pixels below the ability meter
+            const woodMeterY = 145 + 65;
             const woodLabel = scene.add.text(meter.x, woodMeterY - 22, 'WOOD (ft³)', {
                 fontFamily: 'VCROSD',
                 fontSize: '15px',
@@ -444,8 +439,7 @@ function updateSpecialMeters(scene) {
     }
 }
 
-// Reads this computer's keyboard, touch buttons and controller for one player.
-// Online, the authority uses pollNetworkInput instead (see readPlayerInputs).
+
 function pollLocalInput(scene, slot) {
     const isP1 = slot === 'p1';
     const keys = isP1 ? wasd : cursors;
@@ -537,7 +531,6 @@ function releaseMobileControls() {
 }
 
 function create() {
-    // online = this scene is the authority for a LAN match (inputs come from the network).
     this.online = isAuthority();
     if (this.online) beginAuthorityCapture(this);
     this.playerInputs = { p1: createInputState(), p2: createInputState() };
@@ -552,8 +545,6 @@ function create() {
     inputMode.p1 = 'touch';
     inputMode.p2 = 'touch';
 
-    // iOS can swallow a touch's end (system gesture, notification, app switch),
-    // which would leave an on-screen button held forever.
     this.game.events.on('blur', releaseMobileControls);
     this.game.events.on('hidden', releaseMobileControls);
     this.events.once('shutdown', () => {
@@ -608,7 +599,6 @@ function create() {
         this.mapHazard = mapDefinition.hazard ?? null;
     }
     this.nextHazardCheckAt = this.time.now + 5000;
-    //Making the map, platforms, and the KB stat display
     this.cameras.main.fadeIn(500, 0, 0, 0);
 
     winBar = this.add.image(500 , 300, 'winbar');
@@ -697,20 +687,15 @@ function create() {
     p2guide.setAlpha(0.65);
     this.hud.add(p2guide);
     if (this.online || simulationMode) {
-        // Online players can use either key layout, so these hints would just confuse.
-        // In a simulation nobody is playing, so there's nothing to show.
         p1guide.setVisible(false);
         p2guide.setVisible(false);
     }
 
-    //platform.refreshBody();
 
     createGameAnimations(this);
 
-    //mobile support:
     const isMobile = this.sys.game.device.input.touch;
 
-    // Every touch button, so a near-miss tap can press the closest one (ui/touchAssist.js).
     const touchButtons = [];
     if (isMobile) {
         addTouchAssist(this, touchButtons);
@@ -797,7 +782,6 @@ function create() {
             [60, 330, 'S', p1, 'special']
         ];
 
-        //P2
         const p2Buttons = [
             [740, 420, '←', p2, 'left'],
             [920, 420, '→', p2, 'right'],
@@ -807,7 +791,6 @@ function create() {
             [920, 330, 'S', p2, 'special']
         ];
 
-        // CPUs don't get buttons at all: a hidden circle would still leave its label behind.
         if (!simulationMode) p1Buttons.forEach(btn => {
             const butn = makeButton(this, btn[0], btn[1], btn[2], {
                 obj: btn[3],
@@ -826,7 +809,6 @@ function create() {
 
     }
 
-    //---PLAYER---\\
     this.gameState.players = initiatePlayers(
         this,
         player1Character,
@@ -872,7 +854,6 @@ function create() {
         }
     }
 
-    //a bit of cam intiation:
     this.physics.world.setBounds(0, 0, 2000, 1200);
     this.cameras.main.setBounds(0, 0, 2000, 1200);
     this.cameras.main.ignore(this.hud);
@@ -936,13 +917,11 @@ function create() {
         for (let j = i + 1; j < keys.length; j++) {
             const playerA = this.gameState.players[keys[i]];
             const playerB = this.gameState.players[keys[j]];
-            // Players block each other unless one is dashing through (QUICKSTEP).
             this.playerCollisionCollider = this.physics.add.collider(playerA, playerB, null,
                 (a, b) => !a.clipThroughPlayers && !b.clipThroughPlayers);
         }
     }
 
-    //load icons for the KB stat display
     const plr1Icon = this.add.image(250, 65, this.gameState.players.player.icon);
     const plr2Icon = this.add.image(650, 65, this.gameState.players.player2.icon);
     this.hud.add(plr1Icon);
@@ -1000,7 +979,6 @@ function create() {
         this.input.keyboard.off('keyup', this.onP2RightAltUp);
     });
 
-    //3-2-1 COUNTDOWN
     
 
     this.time.delayedCall(50, () => {
@@ -1123,7 +1101,6 @@ function create() {
     });
 
     if (this.online) {
-        // Nobody can pause a match that two people are playing.
         this.pauseButton.setVisible(false).disableInteractive();
         attachAuthority(this);
     }
@@ -1140,7 +1117,7 @@ function updateWins(scene) {
         }
         scene.tweens.add({
             targets: winBar,
-            scaleY: 1, // from 0 → full height
+            scaleY: 1,
             duration: 300,
             ease: 'Cubic.easeOut'
         });
@@ -1149,7 +1126,7 @@ function updateWins(scene) {
             scene.gameState.players.player2.winText.setVisible(false);
             scene.tweens.add({
                 targets: winBar,
-                scaleY: 0, // from 0 → full height
+                scaleY: 0,
                 duration: 300,
                 ease: 'Cubic.easeOut'
             });
@@ -1371,7 +1348,6 @@ function showMatchEnd(scene, winner, loser) {
         }
     });
 
-    // Online players get their results from the overlay scene instead.
     if (scene.online) return;
 
     scene.time.delayedCall(1400, () => {
@@ -1391,7 +1367,6 @@ function showResultsPanel(scene, winner) {
     ];
 
     const backdrop = scene.add.rectangle(500, 300, 1000, 600, 0x000000, 0.45).setAlpha(0);
-    // Each text is typed out in this order once the panel lands.
     const typed = [
         [scene.add.text(500, 145, '', textStyle('title', {
             fontSize: '40px',
@@ -1448,7 +1423,6 @@ function typewrite(scene, queue, letterMs = 35) {
         delay: letterMs,
         loop: true,
         callback: () => {
-            // A slow frame can fire this more than once after the last letter.
             if (item >= queue.length) return;
             const [text, full] = queue[item];
             letters += 1;
@@ -1513,7 +1487,6 @@ function updateCharacterIntro(player) {
     const facing = player.lastDir.x < 0 ? -1 : 1;
     const offset = INTRO_OFFSETS[player.texture.key] ?? { x: 0, y: 0 };
     intro.setPosition(player.x + offset.x * facing, player.y + offset.y);
-    // The idle weapon pose is re-shown every frame; keep it hidden under the intro.
     player.atk.setVisible(false);
 }
 
@@ -1534,9 +1507,6 @@ function updateSwordmanIdle(player) {
     const sprite = player.atk;
 
     if (sprite.anims.isPlaying) sprite.stop();
-    // Hold the last frame of the previous swing instead of snapping back to
-    // the idle pose: combo swings hold until the combo timer runs out, the
-    // finishing swing holds for SWORD_THIRD_HOLD_MS after it ends.
     const lastAnim = player.lastAttackAnim;
     const holdCombo = player.combo > 0 &&
         (lastAnim === 'swordatk' || lastAnim === 'swordatksecond');
@@ -1552,8 +1522,6 @@ function updateSwordmanIdle(player) {
         sprite.setFrame(0);
     }
     sprite.setVisible(true);
-    // Position comes from the per-frame atk placement in update(), so the
-    // idle pose lines up with where attacks are drawn.
     sprite.setFlipX(-player.lastDir.x < 0);
     if (player.lastDir.y < 0) sprite.setAngle(90);
     else if (player.lastDir.y > 0) sprite.setAngle(-90);
@@ -1570,19 +1538,16 @@ const IDLE_WEAPON_TEXTURES = {
 };
 
 function updateWeaponIdle(player) {
-    // idleWeaponTexture lets a move swap the idle pose, like ANGLER's lineless rod while his hook is out.
     const idleTexture = player.idleWeaponTexture ?? IDLE_WEAPON_TEXTURES[player.variant];
     if (!idleTexture || player.isAttacking || player.activeGrab) return;
     const sprite = player.atk;
 
-    // An overridden idle pose may be animating (ANGLER's reelin), so leave it running.
     if (!player.idleWeaponTexture || sprite.texture.key !== idleTexture) {
         if (sprite.anims.isPlaying) sprite.stop();
         if (sprite.texture.key !== idleTexture) sprite.setTexture(idleTexture);
         sprite.setFrame(0);
     }
     sprite.setVisible(true);
-    // Re-placed here since update() placed it using the texture it had then.
     const offset = getAttackSpriteOffset(player, idleTexture);
     sprite.setPosition(
         player.x + player.lastDir.x * player.atkXOffset + offset.x,
@@ -1656,7 +1621,6 @@ function updateKB(scene) {
             });
         };
 
-        // Plunge DoT
         if (player.plunged) {
 
             if (!player.lastPlungeTick) {
@@ -1665,7 +1629,7 @@ function updateKB(scene) {
             player.plungeAura.visible = true;
 
             if (scene.time.now - player.lastPlungeTick >= 450) {
-                player.KBmultiplier += 0.025; // 3.5%
+                player.KBmultiplier += 0.025;
                 player.flash();
                 scene.sound.play('anyhit');
                 player.lastPlungeTick = scene.time.now;
@@ -1675,15 +1639,12 @@ function updateKB(scene) {
             player.lastPlungeTick = null;
         }
 
-        // Worked out every frame so nothing set elsewhere sticks around by mistake.
-        // SLATEMAN starts slow and speeds up as he takes KB, but hits softer.
         let speedScaling = 1;
         let damageScale = 1;
         if (player.name === "SLATEMAN") {
             speedScaling = SLATEMAN_START_SPEED + (player.KBmultiplier - 1) * SLATEMAN_SPEED_PER_KB;
             damageScale = Math.max(0.1, 1 - (player.KBmultiplier - 1) * 0.35);
         }
-        // CHOPPED halves both on top of that.
         if (player.chopped) {
             speedScaling *= 0.5;
             damageScale *= 0.5;
@@ -1694,7 +1655,6 @@ function updateKB(scene) {
         player.nettedMark.visible = player.netted;
 
         if (player.lastKBmultiplier !== player.KBmultiplier) {
-            // KB multiplier changed
 
             if (player.name === "SLATEMAN") {
                 if (player.KBmultiplier < 1.50) player.setTexture('slateman');
@@ -1723,7 +1683,6 @@ function updateKB(scene) {
             const speed = Math.hypot(vx, vy);
             if (speed > 20) {
                 player.slateTrail.setPosition(player.x - (vx / speed) * 20, player.y - (vy / speed) * 20 + 25);
-                // setFrequency resets the emit timer, so only call it when plunge state flips.
                 const plunging = Boolean(player.isPlunging);
                 if (player.slateTrailPlunging !== plunging) {
                     player.slateTrailPlunging = plunging;
@@ -1805,7 +1764,6 @@ function update() {
         this.baseZoom = 1.4;
     }
 
-    // distance between this.gameState.players
     var distX = Math.abs(p1.x - p2.x);
     var distY = Math.abs(p1.y - p2.y);
 
@@ -1825,8 +1783,6 @@ function update() {
     const maxZoom = this.gameState.map.definition.maxZoom ?? defaultMaxZoom;
     zoom = Phaser.Math.Clamp(zoom, minZoom, maxZoom);
 
-    // A 200%+ launch: snap in close on the victim (not the midpoint, since
-    // GUNMAN can launch someone from across the map) until the freeze ends.
     const focus = this.hitFocus?.active ? this.hitFocus : null;
     if (focus) {
         midX = focus.x;
@@ -1836,7 +1792,6 @@ function update() {
     const followRate = focus ? 0.35 : 0.12;
     const zoomRate = focus ? 0.3 : 0.05;
 
-    // Take last frame's shake back out so it doesn't build up in the smoothing.
     this.cameras.main.scrollX -= this.shakeOffset.x;
     this.cameras.main.scrollY -= this.shakeOffset.y;
 
@@ -1883,7 +1838,6 @@ function update() {
     
     
     const p1Chainsaw = p1.name === 'AXEMAN' && p1.variant === 'CHAINSAW';
-    // attackPressed also catches online taps that start and end between two frames.
     const p1AttackPressed = p1Chainsaw
         ? in1.attackPressed
         : in1.attack || in1.attackPressed;
@@ -1897,16 +1851,12 @@ function update() {
         if (p1Chainsaw) {
             handleAttack(this, p1, p2);
         } else if (now - p1.lastInput.up < tiltThreshold) {
-            //placeholder
             handleUpTilt(this, p1, p2);
         } else if (now - p1.lastInput.down < tiltThreshold) {
-            //placeholder
             handleDownTilt(this, p1, p2);
         } else if (now - p1.lastInput.left < tiltThreshold) {
-            //placeholder
             handleHorizantalTilt(this, p1, p2, "left");
         } else if (now - p1.lastInput.right < tiltThreshold) {
-            //placeholder
             handleHorizantalTilt(this, p1, p2, "right");
         } else {
             handleAttack(this, p1, p2);
@@ -1977,13 +1927,8 @@ function update() {
         player.freeze =
             this.time.now < player.freezeUntil;
         player.chopped = this.time.now < player.choppedUntil;
-        // TRAPPER's net: shown until the stun ends, or a hit knocks them out of it.
         player.netted = player.hitstun && this.time.now < player.nettedUntil;
-        //player.canAttack =
-            //this.time.now < player.canAttackUntil;
 
-        // Only the platform being stood on right now; a stale one would stop the
-        // fisherman's hook from latching onto it after leaving it (e.g. off-stage).
         if (!player.body.touching.down) player.currentPlatform = null;
         const platforms = getMapPlatforms(this);
         platforms.forEach(platform => {
@@ -2000,7 +1945,6 @@ function update() {
     if (p1.lastDir.y === 0) p1.atk.setAngle(getAttackSpriteAngle(p1));
 
 
-    // PLAYER 2 (arrows)
     if (p2LeftDown) p2.lastDir = { x: -1, y: 0 };
     else if (p2RightDown) p2.lastDir = { x: 1, y: 0 };
     else if (p2UpDown) p2.lastDir = { x: 0, y: -1 };
@@ -2156,7 +2100,6 @@ function update() {
             handleDirSpecialAttack(this, p1, p2);
         }
         if (p1LeftDown) {
-            //transplant successful!
             executeStateCommand(this, this.gameState.players, {
                 playerID: p1.id,
                 type: Commands.LEFT
@@ -2238,7 +2181,6 @@ function update() {
 
     if (!p2.hitstun && !botMode) {
 
-        // Player 2 controls
         const p2LeftPressed = in2.leftPressed;
         const p2RightPressed = in2.rightPressed;
         const p2SpecialPressed = in2.specialPressed;
@@ -2374,7 +2316,6 @@ function update() {
             });
         }
     }
-    //PRIORITY
     for (const player of [p1, p2]) {
         if (player.freeze) {
             if (player.freezeGravity === null) {
@@ -2397,7 +2338,6 @@ function update() {
     updateCharacterIntro(p1);
     updateCharacterIntro(p2);
 
-    //WIN CONDITION -- DETECT IF PLAYER IS LAUNCHED FAR OFF SCREEN
 
     if (!this.gameEnded && !this.winCooldown) {
 
@@ -2450,12 +2390,11 @@ function update() {
                 this.gameEnded = true;
                 showMatchEnd(this, p1, p2);
             }
-            // Online players get their own rematch/menu buttons from the overlay scene.
             if (this.online && this.gameEnded) reportMatchEnd(p1.outOfBounds ? 'p2' : 'p1');
         }
     }
     updateKB(this);
-    const pickAI = slot => window.__legacySlot === slot ? runLegacyBotAI : runBotAI; // BENCHMARK-TEMP
+    const pickAI = slot => window.__legacySlot === slot ? runLegacyBotAI : runBotAI;
     if (botMode) {
         pickAI('p2')(this, p2, p1, fiveframecount);
     }

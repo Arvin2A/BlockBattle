@@ -4,7 +4,7 @@ Rules for any coding agent working in this repo. The hard rules aren't optional.
 
 ## Project
 
-BLOCK BATTLE!! is a 2D platform fighter built with Phaser 3 and Vite. Online play is server-authoritative: matches run in headless Chrome on the server, and clients only send inputs.
+BLOCK BATTLE!! is a 2D platform fighter built with Phaser 4 and Vite. Online play is server-authoritative: matches run in headless Chrome on the server, and clients only send inputs.
 
 | Path | What's there |
 | --- | --- |
