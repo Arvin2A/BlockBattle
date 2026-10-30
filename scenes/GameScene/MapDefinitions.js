@@ -64,9 +64,11 @@ const DESERT_MAP = {
         { x: 775, y: 725, texture: 'platform', scale: 0.5 }
     ],
     platformDepthOrder: ['main', 0, 1],
+    // Fighters start just above where they come to rest (a 52px body: feet at
+    // y + 27). Starting inside the floor can drop a fighter straight through it.
     playerSpawns: [
-        { x: 550, y: 855 },
-        { x: 1300, y: 750 }
+        { x: 550, y: 847 },
+        { x: 1300, y: 742 }
     ],
     tint: '#8d5c00',
 
@@ -137,8 +139,8 @@ const SNOWY_MAP = {
 
     platformDepthOrder: ['main', 0, 1],
     playerSpawns: [
-        { x: 550, y: 788},
-        { x: 1300, y: 788}
+        { x: 550, y: 780 },
+        { x: 1300, y: 780 }
     ],
     tint: '#2b6335',
 
@@ -229,8 +231,8 @@ const JUNGLE_MAP = {
 
     platformDepthOrder: [4, 3, 2, 1, 0, 'main'],
     playerSpawns: [
-        { x: 750, y: 792},
-        { x: 1300, y: 460}
+        { x: 750, y: 787 },
+        { x: 1300, y: 462 }
     ],
     tint: '#2b4363',
 

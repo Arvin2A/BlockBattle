@@ -54,7 +54,6 @@ function tryGrab(api, scene, attacker, target, direction, currentTime, animKey =
                     y: Math.min(target.y - attacker.y, 0)
                 };
                 target.hitstunUntil = 3000 + scene.time.now;
-                target.hitstun = true;
                 target.willDecelerate = false;
                 target.freezeUntil = scene.time.now - 1;
                 attacker.freezeUntil = scene.time.now - 1;
@@ -108,9 +107,6 @@ function tryGrab(api, scene, attacker, target, direction, currentTime, animKey =
 
             if (attacker.revokeAggressorStun) scene.time.removeEvent(attacker.revokeAggressorStun);
             if (target.revokeVictimStun) scene.time.removeEvent(target.revokeVictimStun);
-            scene.time.delayedCall(500 * target.KBmultiplier, () => {
-                if (!target.grabbedBy) target.hitstun = false;
-            });
             scene.time.delayedCall(1000, () => {
                 if (!target.grabbedBy) target.willDecelerate = true;
             });
@@ -128,7 +124,6 @@ function releaseGrab(api, scene, attacker, currentTime, fling = true) {
     attacker.activeGrab = null;
     target.grabbedBy = null;
     target.body.allowGravity = true;
-    target.hitstun = false;
     target.hitstunUntil = 0;
     target.freezeUntil = 0;
     target.willDecelerate = true;

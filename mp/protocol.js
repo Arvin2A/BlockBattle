@@ -7,6 +7,7 @@
 // Plain JS with no Phaser imports so Node can load it too.
 
 import { MAPS } from '../scenes/GameScene/MapDefinitions.js';
+import { toAsciiName } from './nameFilter.js';
 
 // Bump this whenever messages change so old tabs get a clear "refresh" error.
 export const PROTOCOL_VERSION = 3;
@@ -18,9 +19,12 @@ export const MAP_CHOICES = [...Object.keys(MAPS), 'RANDOM'];
 
 export const MAX_NAME_LENGTH = 16;
 
+// Names are plain English letters, digits, spaces and _-.!?' only, so lookalike
+// letters from other alphabets can't sneak a blocked word past the name filter.
 export function cleanName(name) {
-    const cleaned = String(name ?? '')
-        .replace(/[^\p{L}\p{N} _\-.!?']/gu, '')
+    const cleaned = toAsciiName(name)
+        .replace(/\|/g, 'l')
+        .replace(/[^A-Za-z0-9 _\-.!?']/g, '')
         .replace(/\s+/g, ' ')
         .trim()
         .slice(0, MAX_NAME_LENGTH);

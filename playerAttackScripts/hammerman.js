@@ -285,11 +285,12 @@ function quickslamLaunchUp({ attacker, kb, damageScale, grounded, side }) {
     if (grounded && dirY > 0.7) return { x: 50 * kb * side, y: -1500 * kb };
     return { x: 50 * kb * damageScale * attacker.lastDir.x, y: -1000 };
 }
-// The aerial follow-up spikes them back down.
-function quickslamSpikeDown({ attacker, kb, damageScale, grounded, side }) {
+
+function quickslamSpikeDown({ attacker, kb, damageScale, grounded }) {
+    const dirX = attacker.quickslamDirX;
     const dirY = attacker.lastDir.y === 0 ? 1 : attacker.lastDir.y; //special case
-    if (grounded && dirY > 0.7) return { x: 200 * kb * side, y: -1500 * kb };
-    return { x: 500 * kb * damageScale * attacker.lastDir.x, y: 1000 };
+    if (grounded && dirY > 0.7) return { x: 200 * kb * dirX, y: -1500 * kb };
+    return { x: 500 * kb * damageScale * dirX, y: 1000 };
 }
 
 function quickslam1(api, scene, attacker, target, animKey = 'sledgehammerquickslam1') {
@@ -403,6 +404,7 @@ function quickslam2(api, scene, attacker, target, animKey = 'sledgehammerquicksl
             bypass: { ignoreCanAttack: true, allowTargetBelow: true },
             damage: 0.25,
             hitstun: 400,
+            hitstunGrowth: false,
             hitFreeze: 100,
             sound: 'sledgehammerquickslam',
             knockback: quickslamSpikeDown,
@@ -422,6 +424,7 @@ function tryQuickslam(api, scene, attacker, target, direction, currentTime) {
     if (currentTime < attacker.nextSideSpecialTime) return;
 
     if (currentTime - attacker.lastTap[direction] < dtapDelay || attacker.isBot) {
+        attacker.quickslamDirX = direction === 'left' ? -1 : 1;
         quickslam1(api, scene, attacker, target);
         api.startSideSpecialCooldown(attacker, currentTime, slamCD);
     }
