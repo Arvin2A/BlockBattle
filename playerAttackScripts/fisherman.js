@@ -20,6 +20,9 @@ const neutralSpecial = () => {};
 
 
 const HARPOON_REACH = 120;
+// Harpoons are limited, so the armed swings hit harder than a normal jab/finisher.
+const HARPOON_DAMAGE = 0.05;
+const HARPOON_FINISHER_DAMAGE = 0.10;
 
 const MAX_HARPOONS = 5;
 const HARPOON_REGEN_MS = 3000;
@@ -34,7 +37,6 @@ const PIN_MS = 1000;
 const PIN_SPIKE_SPEED = 1400;
 
 const PIN_IMMUNITY_MS = 1500;
-// A landed pin drags the foe this far along the stab before it holds them.
 const PIN_SHIFT = 150;
 const PIN_SHIFT_MS = 120;
 
@@ -60,8 +62,6 @@ function useHarpoon(scene, player) {
     player.nextHarpoonAt ||= scene.time.now + HARPOON_REGEN_MS;
 }
 
-// Out of harpoons the third hit is just a punch: a short, weak shove that
-// grows with KB% like any other launch.
 const EMPTY_HANDED_FINISHER = {
     hitstun: 250,
     sound: 'slatelight1',
@@ -70,8 +70,6 @@ const EMPTY_HANDED_FINISHER = {
     decelerateAfter: 400
 };
 
-// Hits 1-2 and the running push are normal hits; the third one pins instead of launching.
-// Out of harpoons he fights with his fists: jab reach, nothing sticks and nothing pins.
 function harpoonAttack(api, scene, attacker, victim) {
     if (scene.time.now < attacker.nextAttackTime) return;
     if (!attacker.canAttack || attacker.hitstun) return;
@@ -79,6 +77,7 @@ function harpoonAttack(api, scene, attacker, victim) {
     const armed = harpoonsLeft(attacker) > 0;
     const sheet = armed ? 'harpoonatk' : 'harpoonlessatk';
     const range = armed ? HARPOON_REACH : api.STANDARD_HITS.jab.range;
+    const damage = armed ? { damage: HARPOON_DAMAGE } : {};
 
     if (attacker.combo >= 2 && !armed) {
         api.thirdAttack(scene, attacker, victim, 'harpoonlessatkthird', { ...EMPTY_HANDED_FINISHER, range });
@@ -91,8 +90,8 @@ function harpoonAttack(api, scene, attacker, victim) {
         }
     } else {
         const hit = attacker.horizontalMovementActive
-            ? api.pushAttack(scene, attacker, victim, sheet, { range, sound: 'axeslash2' })
-            : api.attack(scene, attacker, victim, sheet, { range });
+            ? api.pushAttack(scene, attacker, victim, sheet, { range, sound: 'axeslash2', ...damage })
+            : api.attack(scene, attacker, victim, sheet, { range, ...damage });
         if (armed && hit) {
             useHarpoon(scene, attacker);
             leaveHarpoonBehind(scene, attacker, 'harpoonatk', () =>
@@ -109,6 +108,7 @@ function harpoonPin(api, scene, attacker, target, animKey, range) {
     const grounded = isOnFloor(api, scene, target);
     const hit = api.thirdAttack(scene, attacker, target, animKey, {
         range,
+        damage: HARPOON_FINISHER_DAMAGE,
         hitstun: canPin ? PIN_MS : 300,
         hitstunGrowth: false,
         noDeathRay: true,
@@ -201,6 +201,9 @@ const HARPOON_THROW_COOLDOWN = 500;
 const HARPOON_THROW_SPEED = 950;
 const HARPOON_THROW_SINK = 120;
 const THROWN_HARPOON_MS = 2500;
+// Thrown harpoons pierce walls they break, losing a bit of plank damage per wall.
+const HARPOON_PLANK_DAMAGE = 0.13;
+const HARPOON_PIERCE_FALLOFF = 0.02;
 const THROWN_HARPOON_HIT = {
     damage: 0.06,
     plankDamage: 0,
@@ -222,7 +225,6 @@ function throwHarpoon(api, scene, attacker, target) {
     useHarpoon(scene, attacker);
 
     const direction = { ...attacker.lastDir };
-    // An empty-handed stab: the harpoon is what flies.
     api.setAttackSprite(attacker, 'harpoonlessatk');
     scene.sound.play('swosh');
 
@@ -238,6 +240,12 @@ function throwHarpoon(api, scene, attacker, target) {
     scene.objs.add(harpoon);
 
     const platforms = api.platformsWithoutStandingPlatform(scene, attacker);
+    let plankDamage = HARPOON_PLANK_DAMAGE;
+    const pierced = new Set();
+    let lastTip = {
+        x: harpoon.x + Math.cos(harpoon.rotation) * HARPOON_TIP,
+        y: harpoon.y + Math.sin(harpoon.rotation) * HARPOON_TIP
+    };
     let done = false;
     let removeUpdate = () => {};
     const fadeOut = (delay = 0) => {
@@ -264,6 +272,34 @@ function throwHarpoon(api, scene, attacker, target) {
         const tipX = harpoon.x + Math.cos(harpoon.rotation) * HARPOON_TIP;
         const tipY = harpoon.y + Math.sin(harpoon.rotation) * HARPOON_TIP;
 
+        // Walls are thinner than a frame of travel, so sweep the tip's whole path.
+        const path = new Phaser.Geom.Line(lastTip.x, lastTip.y, tipX, tipY);
+        lastTip = { x: tipX, y: tipY };
+        const walls = scene.planks?.getChildren().filter(plank =>
+            plank.active && plank.body?.enable && plank.owner !== attacker && !pierced.has(plank) &&
+            Phaser.Geom.Intersects.LineToRectangle(path, plank.body)) ?? [];
+        for (const wall of walls) {
+            pierced.add(wall);
+            api.damagePlank(scene, wall, plankDamage);
+            if (wall.active) {
+                // Not enough to break it: the harpoon sticks with its tip in the wall's face.
+                const { x, y, width, height } = wall.body;
+                const face = new Phaser.Geom.Rectangle(x, y, width, height);
+                const entry = Phaser.Geom.Intersects.GetLineToRectangle(path, face)
+                    .sort((a, b) => Phaser.Math.Distance.Between(path.x1, path.y1, a.x, a.y) -
+                        Phaser.Math.Distance.Between(path.x1, path.y1, b.x, b.y))[0];
+                if (entry) {
+                    harpoon.x += entry.x - tipX;
+                    harpoon.y += entry.y - tipY;
+                }
+                harpoon.setVelocity(0, 0);
+                harpoon.setAcceleration(0, 0);
+                fadeOut(600);
+                return;
+            }
+            plankDamage = Math.max(0, +(plankDamage - HARPOON_PIERCE_FALLOFF).toFixed(2));
+        }
+
         const body = target.body;
         if (target.active && !api.isInvincible(target) &&
             tipX > body.left - 6 && tipX < body.right + 6 &&
@@ -287,7 +323,6 @@ function throwHarpoon(api, scene, attacker, target) {
     });
 }
 
-// DIR SPECIAL: THROW NET. Only one net per player; throwing again takes the old one away.
 const NET_RELEASE_MS = 100;
 const NET_LAUNCH = { x: 420, y: -250 };
 const NET_STUN = 3000;
