@@ -263,12 +263,14 @@ GitHub for new commits on `main`. If there are any, it pulls them, rebuilds and 
 If a match is in progress, it waits and tries again on the next check, so nobody gets kicked.
 
 ```bash
-sudo cp /home/blockbattle/BlockBattle/server/deploy/blockbattle-update.* /etc/systemd/system/
+sudo cp ~/BlockBattle/server/deploy/blockbattle-update.* /etc/systemd/system/
 sudo systemctl daemon-reload
 sudo systemctl enable --now blockbattle-update.timer
 ```
 
-If your username isn't `blockbattle`, change it in `blockbattle-update.service` first.
+The service file expects the repo at `/home/zamanarvin/BlockBattle`. If yours is somewhere
+else, fix the `ExecStart=` path in `/etc/systemd/system/blockbattle-update.service`, then
+run `sudo systemctl daemon-reload`. The script finds the repo and its owner by itself.
 
 - See when the next check runs: `systemctl list-timers blockbattle-update`
 - See what past checks did: `journalctl -u blockbattle-update -n 50`

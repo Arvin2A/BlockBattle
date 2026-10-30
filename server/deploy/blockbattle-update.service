@@ -3,7 +3,8 @@
 # Licensed under the GNU GPL v3 only. See LICENSE.
 
 # One update check. Started by blockbattle-update.timer; see SERVER_SETUP.md.
-# Runs as root so it can restart the server; git and npm run as the server's user.
+# Runs as root so it can restart the server; git and npm run as whoever owns the repo.
+# Change the path below if your repo isn't in /home/zamanarvin/BlockBattle.
 
 [Unit]
 Description=BlockBattle auto-update check
@@ -12,7 +13,5 @@ Wants=network-online.target
 
 [Service]
 Type=oneshot
-ExecStart=/bin/bash /home/blockbattle/BlockBattle/server/deploy/autoupdate.sh
-Environment=APP_USER=blockbattle
-Environment=APP_DIR=/home/blockbattle/BlockBattle
+ExecStart=/bin/bash /home/zamanarvin/BlockBattle/server/deploy/autoupdate.sh
 Environment=BRANCH=main
