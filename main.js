@@ -3,7 +3,7 @@
 // Licensed under the GNU GPL v3 only. See LICENSE.
 
 import Phaser from 'phaser';
-import {handleAttack, handleDirSpecial, handleNeutralSpecial, handleDirSpecialAttack, handleHorizantalTilt, handleDownTilt, handleUpTilt, downslamAttack, updateScythemanGrass, updateChainsawWood, toggleChainsawMode, tryQuickslamJump, positionAttackSprite, hasIdleAttackSprite, getAttackSpriteOffset, getAttackSpriteAngle, getAttackSpriteFlipX, triggerScreenShake, spawnDirtBurst, spawnExplosion} from './attacks.js';
+import {handleAttack, handleDirSpecial, handleNeutralSpecial, handleDirSpecialAttack, handleHorizantalTilt, handleDownTilt, handleUpTilt, downslamAttack, updateScythemanGrass, updateChainsawWood, updateCharacter, toggleChainsawMode, tryQuickslamJump, positionAttackSprite, hasIdleAttackSprite, getAttackSpriteOffset, getAttackSpriteAngle, getAttackSpriteFlipX, triggerScreenShake, spawnDirtBurst, spawnExplosion} from './attacks.js';
 import { COLORS, FONTS, makePanel, playerColor, playerHex, textStyle } from './ui/theme.js';
 import { addTouchAssist, isPhoneScreen } from './ui/touchAssist.js';
 import { MAX_WOOD_COUNT } from './playerAttackScripts/axeman.js';
@@ -33,13 +33,23 @@ unmuteAudio();
 
 
 
-//TESTER CREDITS:
+//TESTER CREDITS - MAY 5, 2026
 //w testers for this game, including several students in my grade
 //The most impactful testers I'd wish to mention are:
 //Aidan Z, Deyu Z, Luke Ch, Augustus L, Jaylen L, Presley F, Giovanni M, Jeffrey C, Kenneth L, Abrar A , Mr. Primm
 //While they might have told others about the game, those are who I know about who have played and tested the game
 //Not only did they play the game, but I was also able to work up to some of their suggestions.
 //The ones impactful are the ones I've also observed mistakes in the game from, whether stating it to me or watching them play, so I can add fixes to the code
+
+//UPDATED INFO - OCTOBER 31st 2026
+
+//Testers now have been expanded to around 30+ people, if only by our discord server.
+//However many more dont have discord meaning there are around 50 people that play this game and send feedback to me
+//At the time, this game was way more localized, and it still is but little expansion is necessary to keep the game in development
+//True public release is not even close, expecting early 2027 for 
+//the game is to be split into LITE (website/current playable game), then a paid full version with much more content.
+//Lite will continue to stay open source
+
 
 // This is a 2D platform fighter game made using Phaser and Javascript. Requires a keyboard to play
 //ENTIRE script is made by zamanarvin. Before, some assets were made by jeffrey, now only one which is the website icon. I dont own/made any audio in this game however.
@@ -1159,6 +1169,7 @@ function updateWins(scene) {
 }
 function teleportBackToArena(player) {
     player.activeHookCleanup?.();
+    player.nettedUntil = 0;
     player.setPosition(1000, 0);
     player.setVelocityY(0);
     player.setVelocityX(0);
@@ -1549,11 +1560,13 @@ function updateSwordmanIdle(player) {
     else sprite.setAngle(0);
 }
 
-// MALLET HAMMERMAN and ANGLER FISHERMAN hold their weapon out on the first
+// MALLET HAMMERMAN, ANGLER and TRAPPER FISHERMAN hold their weapon out on the first
 // frame of their swing whenever they aren't attacking, like the LONGSWORD idle above.
 const IDLE_WEAPON_TEXTURES = {
     MALLET: 'hammeratk',
-    ANGLER: 'rodatk'
+    ANGLER: 'rodatk',
+    TRAPPER: 'harpoonatk',
+    METAMORPHIC: 'slateatk1'
 };
 
 function updateWeaponIdle(player) {
@@ -1611,6 +1624,10 @@ function updateSledgehammerAnimation(player) {
     }
 }
 
+// SLATEMAN's speed at 0% KB, and how much faster each 100% KB makes him.
+const SLATEMAN_START_SPEED = 0.75;
+const SLATEMAN_SPEED_PER_KB = 0.5;
+
 function updateKB(scene) {
     for (const key in scene.gameState.players) {
         const player = scene.gameState.players[key];
@@ -1658,15 +1675,23 @@ function updateKB(scene) {
             player.lastPlungeTick = null;
         }
 
-        if (player.chopped) {
-            player.baseDamageScale = 0.5;
-            player.playerSpeedScaling = 0.5;
-            player.choppedMark.visible = true;
-        } else if (!player.chopped) {
-            player.baseDamageScale = 1;
-            player.playerSpeedScaling = 1;
-            player.choppedMark.visible = false;
+        // Worked out every frame so nothing set elsewhere sticks around by mistake.
+        // SLATEMAN starts slow and speeds up as he takes KB, but hits softer.
+        let speedScaling = 1;
+        let damageScale = 1;
+        if (player.name === "SLATEMAN") {
+            speedScaling = SLATEMAN_START_SPEED + (player.KBmultiplier - 1) * SLATEMAN_SPEED_PER_KB;
+            damageScale = Math.max(0.1, 1 - (player.KBmultiplier - 1) * 0.35);
         }
+        // CHOPPED halves both on top of that.
+        if (player.chopped) {
+            speedScaling *= 0.5;
+            damageScale *= 0.5;
+        }
+        player.playerSpeedScaling = speedScaling;
+        player.baseDamageScale = damageScale;
+        player.choppedMark.visible = player.chopped;
+        player.nettedMark.visible = player.netted;
 
         if (player.lastKBmultiplier !== player.KBmultiplier) {
             // KB multiplier changed
@@ -1686,18 +1711,11 @@ function updateKB(scene) {
                     player.playerKBresistance = 0.5
                 };
 
-                player.playerSpeedScaling =
-                    (150 + ((player.KBmultiplier - 1) * 150)) / 300;
-
-                player.baseDamageScale =
-                    1 - ((player.KBmultiplier - 1) * 0.35);
-
-                player.baseDamageScale =
-                    Math.max(0.1, player.baseDamageScale);
             }
         }
         player.plungeAura.setPosition(player.x, player.y);
         player.choppedMark.setPosition(player.x, player.y);
+        player.nettedMark.setPosition(player.x, player.y);
         if (player.shadow) updateGroundShadow(scene, player);
 
         if (player.slateTrail) {
@@ -1851,8 +1869,6 @@ function update() {
         return;
     }
 
-    p1.hitstun = this.time.now < p1.hitstunUntil;
-    p2.hitstun = this.time.now < p2.hitstunUntil;
     if (in1.miscPressed && !simulationMode) {
         toggleChainsawMode(this, p1);
     }
@@ -1896,7 +1912,6 @@ function update() {
             handleAttack(this, p1, p2);
         }
     }
-    p2.hitstun = this.time.now < p2.hitstunUntil;
     const p2Chainsaw = p2.name === 'AXEMAN' && p2.variant === 'CHAINSAW';
     const p2AttackPressed = p2Chainsaw
         ? in2.attackPressed
@@ -1954,9 +1969,6 @@ function update() {
         }
         player.flashObject.setPosition(player.x, player.y);
 
-        player.hitstun =
-            this.time.now < player.hitstunUntil;
-
         if (player.hitstun && player.isAttacking && !player.activeGrab &&
             !player.attackBypassesHitstun) {
             player.isAttacking = false;
@@ -1965,6 +1977,8 @@ function update() {
         player.freeze =
             this.time.now < player.freezeUntil;
         player.chopped = this.time.now < player.choppedUntil;
+        // TRAPPER's net: shown until the stun ends, or a hit knocks them out of it.
+        player.netted = player.hitstun && this.time.now < player.nettedUntil;
         //player.canAttack =
             //this.time.now < player.canAttackUntil;
 
@@ -2032,6 +2046,8 @@ function update() {
     }
     updateChainsawWood(this, p1, p2);
     updateChainsawWood(this, p2, p1);
+    updateCharacter(this, p1, p2);
+    updateCharacter(this, p2, p1);
     
  
     p1.doubleJumpEffect.x = p1.x;
@@ -2091,7 +2107,6 @@ function update() {
         }
     }
 
-    p1.hitstun = this.time.now < p1.hitstunUntil;
     if (!p1.hitstun && !simulationMode) {
         const p1LeftPressed = in1.leftPressed;
         const p1RightPressed = in1.rightPressed;
@@ -2221,7 +2236,6 @@ function update() {
     }
 
 
-    p2.hitstun = this.time.now < p2.hitstunUntil;
     if (!p2.hitstun && !botMode) {
 
         // Player 2 controls

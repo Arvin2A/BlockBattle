@@ -10,6 +10,8 @@ export function hasIdleAttackSprite(player) {
     return player.variant === 'SLEDGEHAMMER' ||
         player.variant === 'MALLET' ||
         player.variant === 'ANGLER' ||
+        player.variant === 'TRAPPER' ||
+        player.variant === 'METAMORPHIC' ||
         (player.name === 'SWORDMAN' && player.variant !== 'DAGGER');
 }
 

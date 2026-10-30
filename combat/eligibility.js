@@ -9,8 +9,9 @@ import { isBlockedByWall } from './planks.js';
 // Every check attackIsElligible makes can be skipped with one of these.
 // Pass only the ones you need: attackIsElligible(a, t, 150, { ignoreCanAttack: true }).
 export const DEFAULT_BYPASS_OPTIONS = Object.freeze({
-    // Hit even while the attacker can't attack or is in hitstun. Used by specials
-    // that run on their own timers. The hit is also allowed to land through hitstun.
+    // Hit even while the attacker's attack is on cooldown. Used by specials that
+    // run on their own timers. A fighter in hitstun never lands a hit, so getting
+    // hit mid-special (PLUNGE's blade, a QUICKSLAM follow-up) cancels its hit.
     ignoreCanAttack: false,
     // Hit a target more than 25px below, whichever way the attacker faces.
     allowTargetBelow: false,
@@ -55,7 +56,8 @@ export function attackIsElligible(attacker, target, range = 100, bypassOptions =
         direction
     } = { ...DEFAULT_BYPASS_OPTIONS, ...bypassOptions };
 
-    if (!ignoreCanAttack && (!attacker.canAttack || attacker.hitstun)) return false;
+    if (attacker.hitstun) return false;
+    if (!ignoreCanAttack && !attacker.canAttack) return false;
     if (!ignoreInvincibility && isInvincible(target)) return false;
     const dx = target.x - attacker.x;
     const dy = target.y - attacker.y;

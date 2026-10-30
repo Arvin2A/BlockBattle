@@ -178,12 +178,13 @@ export const STANDARD_HITS = Object.freeze({
     }
 });
 
-export function attack(scene, attacker, target, animKey) {
+// overrides replaces parts of STANDARD_HITS.jab, e.g. a different hit sound.
+export function attack(scene, attacker, target, animKey, overrides = {}) {
     //the core attack function that is used as of now
     if (!attacker.canAttack || attacker.hitstun) return;
 
     setAttackSprite(attacker, animKey);
-    const hit = strike(scene, attacker, target, STANDARD_HITS.jab);
+    const hit = strike(scene, attacker, target, { ...STANDARD_HITS.jab, ...overrides });
     if (hit) {
         attacker.combo = (attacker.combo || 0) + 1;
     } else {
@@ -200,7 +201,8 @@ export function attack(scene, attacker, target, animKey) {
     return hit;
 }
 
-export function pushAttack(scene, attacker, target, animKey) {
+// overrides replaces parts of STANDARD_HITS.push.
+export function pushAttack(scene, attacker, target, animKey, overrides = {}) {
     //Push attacks happen if the player is at maximum velocity
     //No animKey = invisible hit that leaves whatever the atk sprite is doing alone
     if (animKey) {
@@ -208,7 +210,7 @@ export function pushAttack(scene, attacker, target, animKey) {
     } else {
         attacker.attackSequence = (attacker.attackSequence ?? 0) + 1;
     }
-    const hit = strike(scene, attacker, target, { ...STANDARD_HITS.push, missSound: 'miss' });
+    const hit = strike(scene, attacker, target, { ...STANDARD_HITS.push, missSound: 'miss', ...overrides });
     if (!hit) missCombo(attacker);
     clearQueuedStunTimers(scene, attacker, target);
 
@@ -353,6 +355,7 @@ const sharedAttackHelpers = {
     damagePlanksInAttack,
     addSceneUpdateListener,
     addProjectilePlatformColliders,
+    getMapPlatforms,
     platformsWithoutStandingPlatform,
     getAttackSpriteOffset,
     applyKnockback,
@@ -386,6 +389,10 @@ export function handleAttack(scene, attacker, victim) {
 
 export function updateChainsawWood(scene, attacker, victim) {
     return getCharacterScript(attacker)?.updateChainsawWood?.(scene, attacker, victim);
+}
+
+export function updateCharacter(scene, player, victim) {
+    return getCharacterScript(player)?.update?.(sharedAttackHelpers, scene, player, victim);
 }
 
 export function toggleChainsawMode(scene, attacker) {

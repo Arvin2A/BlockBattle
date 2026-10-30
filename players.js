@@ -62,13 +62,21 @@ export function initiatePlayers(scene, p1Select = 'axeman', p2Select = 'swordman
             grabbedBy: null,
             stunToken: 0,
             mowStunToken: 0,
-            hitstun: false,
             hitstunUntil: 0,
             freeze: false,
             freezeUntil: 0,
             freezeGravity: null,
             willDecelerate: true,
             hitstunGroundDeceleration: 0.98
+        });
+        // Always read straight from hitstunUntil, so a hit counts the moment it
+        // lands. A cached flag let the victim swing back in the same frame (both
+        // fighters stunned each other forever) and let old timers end a newer
+        // stun early. Writing to it does nothing; set hitstunUntil instead.
+        Object.defineProperty(p, 'hitstun', {
+            get() { return scene.time.now < this.hitstunUntil; },
+            set() { },
+            configurable: true
         });
 
         // Arena tracking and damage state.
@@ -163,11 +171,16 @@ export function initiatePlayers(scene, p1Select = 'axeman', p2Select = 'swordman
             plunged: false,
             lastPlungeTick: 0,
             chopped: false,
-            choppedUntil: 0
+            choppedUntil: 0,
+            netted: false,
+            nettedUntil: 0
         });
         p.choppedMark = scene.add.image(p.x, p.y, 'chopped');
         p.choppedMark.visible = false;
         scene.objs.add(p.choppedMark);
+        p.nettedMark = scene.add.image(p.x, p.y, 'netted');
+        p.nettedMark.visible = false;
+        scene.objs.add(p.nettedMark);
 
         p.plungeMark;
 
@@ -287,9 +300,9 @@ export function initiatePlayers(scene, p1Select = 'axeman', p2Select = 'swordman
             p.atk = scene.add.sprite(
                 p.x + (p.lastDir.x * 50),
                 p.y + (p.lastDir.y * 50),
-                'rodatk'
+                p.variant === 'TRAPPER' ? 'harpoonatk' : 'rodatk'
             );
-            p.atk.setScale(0.6);
+            if (p.variant !== 'TRAPPER') p.atk.setScale(0.6);
         } else if (p.name == "SCYTHEMAN") {
             p.atk = scene.add.sprite(
                 p.x + (p.lastDir.x * 50),
@@ -307,7 +320,7 @@ export function initiatePlayers(scene, p1Select = 'axeman', p2Select = 'swordman
             p.atk = scene.add.sprite(
                 p.x + (p.lastDir.x * 50),
                 p.y + (p.lastDir.y * 50),
-                'slateatk'
+                'slateatk1'
             );
         } else if (p.name === "CROWBARMAN") {
             p.atk = scene.add.sprite(

@@ -39,6 +39,20 @@ function markPlunge(api, scene, attacker, target, dir) {
     api.recoverAfterAttack(scene, attacker, { hideAfter: null });
     return hit;
 }
+// While plunging he drifts the way he dashed at the normal walking speed. Holding
+// left or right instead runs at that speed plus his own damage-scaled speed, so
+// the more hurt he is, the faster his plunge gets.
+function updatePlungeMovement(api, scene, player) {
+    if (!player.isPlunging || player.hitstun || player.freeze) return;
+    if (player.horizontalMovementActive) {
+        player.movementSpeed = player.baseMovementSpeed * (1 + player.playerSpeedScaling);
+    } else {
+        // Held every frame, since landing the plunge turns floor slowdown back on.
+        player.willDecelerate = false;
+        player.setVelocityX(player.plungeDirX * player.baseMovementSpeed);
+    }
+}
+
 function tryPlunge(api, scene, player, target, direction, currentTime) {
     const dtapDelay = 250;
     const pullCD = player.dirSpecialCooldown;
@@ -54,8 +68,6 @@ function tryPlunge(api, scene, player, target, direction, currentTime) {
         return;
     }
 
-    const currentSpeed = player.baseMovementSpeed;
-    player.baseMovementSpeed = currentSpeed*2;
     api.startSideSpecialCooldown(player, currentTime, pullCD);
     player.attackBypassesHitstun = false;
     player.isAttacking = true;
@@ -112,6 +124,8 @@ function tryPlunge(api, scene, player, target, direction, currentTime) {
     dagger.play('slateplunge');
     player.afterimage = true;
     player.isPlunging = true;
+    player.plungeDirX = direction === 'left' ? -1 : 1;
+    const wasDecelerating = player.willDecelerate;
 
 
     dagger.on('animationupdate', (animation, frame) => {
@@ -136,7 +150,8 @@ function tryPlunge(api, scene, player, target, direction, currentTime) {
         player.isPlunging = false;
         player.isAttacking = false;
         player.attackBypassesHitstun = false;
-        player.baseMovementSpeed = currentSpeed;
+        // A hit taken mid-plunge already scheduled when he slows down.
+        if (!player.decelerateEvent) player.willDecelerate = wasDecelerating;
 
 
         dagger.destroy();
@@ -150,10 +165,16 @@ export default {
         light: ['slatelight1', 'slatelight2'],
         finisher: 'slatepunch'
     },
+    // His arms are drawn facing right.
+    rightFacingAttackSprites: ['slateatk1'],
+    textureAttackSpriteOffsets: { slateatk1: { x: 5, y: -10 } },
+    // Second hit of the combo punches with the other arm, like SWORDMAN's back swing.
     handleAttack: (api, scene, attacker, victim) =>
-        api.tryAttack(scene, attacker, victim, 'slateatk', 'slateatkthird'),
+        api.tryAttack(scene, attacker, victim,
+            attacker.combo === 1 ? 'slateatksecond' : 'slateatk', 'slateatkthird'),
     handleDirSpecial: (api, scene, attacker, direction, currentTime, victim) =>
         tryPlunge(api, scene, attacker, victim, direction, currentTime),
+    update: updatePlungeMovement,
     handleNeutralSpecial: neutralSpecial,
     variantNeutralSpecials: { METAMORPHIC: neutralSpecial },
     handleHorizantalTilt: (api, scene, attacker, victim) =>

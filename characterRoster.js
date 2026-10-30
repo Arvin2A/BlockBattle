@@ -42,11 +42,19 @@ export const CHARACTER_ROSTER = [
     {
         key: 'fisherman',
         name: 'FISHERMAN',
-        variants: [{
-            name: 'ANGLER',
-            desc: 'Using a fishing rod as a whip?? \n\nDIR SPECIAL: GRAPPLE \n\n Throw your hook far for the chance to reel your opponent in.',
-            color: '#00318d'
-        }]
+        variants: [
+            {
+                name: 'ANGLER',
+                desc: 'Using a fishing rod as a whip?? \n\nDIR SPECIAL: GRAPPLE \n\n Throw your hook far for the chance to reel your opponent in.',
+                color: '#00318d'
+            },
+            {
+                name: 'TRAPPER',
+                desc: 'Why catch one fish when you can catch them all? Your third stab pins them to the floor. \n\nDIR SPECIAL: THROW NET \n\n Stuns for 3 seconds, whether it lands on them or they walk into it on the ground.',
+                color: '#e0661b',
+                fontSize: 17
+            }
+        ]
     },
     {
         key: 'scytheman',
