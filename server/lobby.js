@@ -459,8 +459,11 @@ export class Lobby {
     // ---- status ----
 
     getStatus() {
+        const greeted = [...this.clients.values()].filter(client => client.greeted);
         return {
-            online: [...this.clients.values()].filter(client => client.greeted).length,
+            online: greeted.length,
+            // In the online lobby (browsing or hosting), not in a match.
+            waiting: greeted.filter(client => client.state !== 'match').length,
             queued: this.queue.length,
             matches: [...this.matches.values()].filter(match => match.state !== 'ended').length
         };

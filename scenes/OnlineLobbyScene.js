@@ -382,7 +382,7 @@ export class OnlineLobbyScene extends Phaser.Scene {
 
         listen('status', message => {
             if (this.queueState === 'idle' || this.queueState === 'queued') {
-                this.setStatus(`Connected to ${getOnlineServerHost()}   |   ${message.online} online   |   ${message.queued} open matches   |   ${message.matches} playing`);
+                this.setStatus(`Connected to ${getOnlineServerHost()}   |   ${message.online} online   |   ${message.waiting ?? message.online} waiting   |   ${message.queued} open matches   |   ${message.matches} playing`);
             }
         });
         listen('queued', message => {
