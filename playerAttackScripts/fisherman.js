@@ -3,18 +3,417 @@
 // Licensed under the GNU GPL v3 only. See LICENSE.
 
 function basicAttack(api, scene, attacker, victim) {
+    if (attacker.variant === 'TRAPPER') return harpoonAttack(api, scene, attacker, victim);
     api.tryAttack(scene, attacker, victim, 'rodatk', 'rodatkthird');
 }
 
-// No tilt sheet yet, so tilts reuse the rod swing; the swosh is what gives them away.
 function tilt(api, scene, attacker, victim, xMul, yMul, kbTime) {
+    const trapperSheet = harpoonsLeft(attacker) > 0 ? 'harpoonatk' : 'harpoonlessatk';
     api.tiltAttack(scene, attacker, victim, {
-        animKey: 'rodatk', kb: 0.035, xMul, yMul,
+        animKey: attacker.variant === 'TRAPPER' ? trapperSheet : 'rodatk', kb: 0.035, xMul, yMul,
         range: 150, freeze: 80, sfx: 'swosh', kbTime
     });
 }
 
 const neutralSpecial = () => {};
+
+
+
+const HARPOON_REACH = 120;
+
+const MAX_HARPOONS = 3;
+const HARPOON_REGEN_MS = 3000;
+const HARPOON_TIP = 27;
+const STUCK_HARPOON_MS = 5000;
+const STUCK_HARPOON_FADE_MS = 1000;
+const MAX_STUCK_HARPOONS = 3;
+
+const HARPOON_LEFT_AT = { harpoonatk: 8, harpoonatkthird: 28 };
+
+const PIN_MS = 1000;
+const PIN_SPIKE_SPEED = 1400;
+
+const PIN_IMMUNITY_MS = 1500;
+
+
+const PIN_FLOOR_REACH = 40;
+
+function isOnFloor(api, scene, player) {
+    const body = player.body;
+    if (body.blocked.down || body.touching.down) return true;
+    return api.getMapPlatforms(scene).some(platform => {
+        const gap = platform.body.top - body.bottom;
+        return body.right > platform.body.left && body.left < platform.body.right &&
+            gap >= -4 && gap <= PIN_FLOOR_REACH;
+    });
+}
+
+function harpoonsLeft(player) {
+    return player.harpoons ?? MAX_HARPOONS;
+}
+
+function useHarpoon(scene, player) {
+    player.harpoons = harpoonsLeft(player) - 1;
+    player.nextHarpoonAt ||= scene.time.now + HARPOON_REGEN_MS;
+}
+
+// Out of harpoons the third hit is just a punch: a short, weak shove that's the
+// same at any KB% and never stuns.
+const EMPTY_HANDED_FINISHER = {
+    hitstun: 250,
+    hitstunGrowth: false,
+    sound: 'slatelight1',
+    knockback: { x: 250, y: 250, growth: false, scaleWithDamage: false },
+    noDeathRay: true,
+    decelerateAfter: 400
+};
+
+// Hits 1-2 and the running push are normal hits; the third one pins instead of launching.
+// Out of harpoons he fights with his fists: jab reach, nothing sticks and nothing pins.
+function harpoonAttack(api, scene, attacker, victim) {
+    if (scene.time.now < attacker.nextAttackTime) return;
+    if (!attacker.canAttack || attacker.hitstun) return;
+
+    const armed = harpoonsLeft(attacker) > 0;
+    const sheet = armed ? 'harpoonatk' : 'harpoonlessatk';
+    const range = armed ? HARPOON_REACH : api.STANDARD_HITS.jab.range;
+
+    if (attacker.combo >= 2 && !armed) {
+        api.thirdAttack(scene, attacker, victim, 'harpoonlessatkthird', { ...EMPTY_HANDED_FINISHER, range });
+    } else if (attacker.combo >= 2) {
+        const pinned = harpoonPin(api, scene, attacker, victim, 'harpoonatkthird', range);
+        if (pinned !== null) {
+            useHarpoon(scene, attacker);
+            leaveHarpoonBehind(scene, attacker, 'harpoonatkthird', () =>
+                stickHarpoon(api, scene, victim, pinnedHarpoonAngle(attacker), pinned));
+        }
+    } else {
+        const hit = attacker.horizontalMovementActive
+            ? api.pushAttack(scene, attacker, victim, sheet, { range, sound: 'axeslash2' })
+            : api.attack(scene, attacker, victim, sheet, { range });
+        if (armed && hit) {
+            useHarpoon(scene, attacker);
+            leaveHarpoonBehind(scene, attacker, 'harpoonatk', () =>
+                stickHarpoon(api, scene, victim, Math.atan2(victim.y - attacker.y, victim.x - attacker.x), false));
+        }
+    }
+    attacker.nextAttackTime = scene.time.now + api.getAttackCooldown(attacker);
+}
+
+// Returns null on a miss, otherwise whether the foe got pinned.
+function harpoonPin(api, scene, attacker, target, animKey, range) {
+    const now = scene.time.now;
+    const canPin = now >= (target.pinImmuneUntil ?? 0);
+    const grounded = isOnFloor(api, scene, target);
+    const hit = api.thirdAttack(scene, attacker, target, animKey, {
+        range,
+        hitstun: canPin ? PIN_MS : 300,
+        hitstunGrowth: false,
+        noDeathRay: true,
+        // Never a launch: held to the floor on the ground, driven straight down in the air.
+        knockback: () => ({ x: 0, y: canPin && !grounded ? PIN_SPIKE_SPEED : 0 }),
+        onHit: () => {
+            if (!canPin) return;
+            target.pinImmuneUntil = now + PIN_MS + PIN_IMMUNITY_MS;
+            if (grounded) target.freezeUntil = now + PIN_MS;
+        }
+    });
+    return hit ? canPin : null;
+}
+
+function pinnedHarpoonAngle(attacker) {
+    const facing = attacker.atk.flipX ? -1 : 1;
+    return Math.atan2(1, facing * 0.45);
+}
+
+function leaveHarpoonBehind(scene, attacker, animKey, onLeave) {
+    const atk = attacker.atk;
+    const sequence = attacker.attackSequence;
+    let left = false;
+    const swap = (anim, frame) => {
+        if (attacker.attackSequence !== sequence || anim.key !== animKey) {
+            atk.off('animationupdate', swap);
+            return;
+        }
+        if (frame.textureFrame < HARPOON_LEFT_AT[animKey]) return;
+        atk.setTexture('harpoonlessatk', frame.textureFrame);
+        if (!left) {
+            left = true;
+            onLeave();
+        }
+    };
+    atk.on('animationupdate', swap);
+}
+
+function stickHarpoon(api, scene, target, angle, pinned) {
+    if (!target.active) return;
+    const dirX = Math.cos(angle);
+    const dirY = Math.sin(angle);
+    const tipY = pinned ? target.body.bottom + 4 : target.y + dirY * 10;
+    const tipX = pinned ? target.x + (tipY - target.y) * (dirX / dirY) : target.x + dirX * 10;
+    const offsetX = tipX - dirX * HARPOON_TIP - target.x;
+    const offsetY = tipY - dirY * HARPOON_TIP - target.y;
+    const harpoon = scene.add.image(target.x + offsetX, target.y + offsetY, 'harpoon')
+        .setRotation(angle)
+        .setFlipY(dirX < 0);
+    scene.objs.add(harpoon);
+
+    let removeFollow = () => {};
+    const remove = () => {
+        removeFollow();
+        scene.tweens.killTweensOf(harpoon);
+        harpoon.destroy();
+    };
+    removeFollow = api.addSceneUpdateListener(scene, () => {
+        if (!target.active || target.outOfBounds) {
+            remove();
+            return;
+        }
+        harpoon.setPosition(target.x + offsetX, target.y + offsetY);
+    });
+    scene.tweens.add({
+        targets: harpoon,
+        alpha: 0,
+        delay: STUCK_HARPOON_MS - STUCK_HARPOON_FADE_MS,
+        duration: STUCK_HARPOON_FADE_MS,
+        onComplete: remove
+    });
+
+    target.stuckHarpoons = (target.stuckHarpoons ?? []).filter(stuck => stuck.harpoon.active);
+    target.stuckHarpoons.push({ harpoon, remove });
+    if (target.stuckHarpoons.length > MAX_STUCK_HARPOONS) target.stuckHarpoons.shift().remove();
+}
+
+const HARPOON_THROW_COOLDOWN = 500;
+const HARPOON_THROW_SPEED = 950;
+const HARPOON_THROW_SINK = 120;
+const THROWN_HARPOON_MS = 2500;
+const THROWN_HARPOON_HIT = {
+    damage: 0.06,
+    plankDamage: 0,
+    hitstun: 450,
+    hitstunGrowth: false,
+    hitFreeze: 60,
+    sound: 'anyhit',
+    knockback: { x: 650, y: 450, growth: false, scaleWithDamage: false },
+    noDeathRay: true,
+    decelerateAfter: 800,
+    resetCombo: false
+};
+
+function throwHarpoon(api, scene, attacker, target) {
+    const now = scene.time.now;
+    if (attacker.hitstun || attacker.freeze) return;
+    if (now < (attacker.nextHarpoonThrowTime ?? 0) || harpoonsLeft(attacker) <= 0) return;
+    attacker.nextHarpoonThrowTime = now + HARPOON_THROW_COOLDOWN;
+    useHarpoon(scene, attacker);
+
+    const direction = { ...attacker.lastDir };
+    // An empty-handed stab: the harpoon is what flies.
+    api.setAttackSprite(attacker, 'harpoonlessatk');
+    scene.sound.play('swosh');
+
+    const harpoon = scene.physics.add.sprite(
+        attacker.x + direction.x * 30,
+        attacker.y - 8 + direction.y * 30,
+        'harpoon'
+    );
+    harpoon.body.allowGravity = false;
+    harpoon.setVelocity(direction.x * HARPOON_THROW_SPEED, direction.y * HARPOON_THROW_SPEED);
+    harpoon.setAccelerationY(HARPOON_THROW_SINK);
+    harpoon.setRotation(Math.atan2(direction.y, direction.x));
+    scene.objs.add(harpoon);
+
+    const platforms = api.platformsWithoutStandingPlatform(scene, attacker);
+    let done = false;
+    let removeUpdate = () => {};
+    const fadeOut = (delay = 0) => {
+        if (done) return;
+        done = true;
+        removeUpdate();
+        expireEvent.remove(false);
+        harpoon.body.enable = false;
+        scene.tweens.add({
+            targets: harpoon,
+            alpha: 0,
+            delay,
+            duration: 400,
+            onComplete: () => harpoon.destroy()
+        });
+    };
+    const expireEvent = scene.time.delayedCall(THROWN_HARPOON_MS, () => fadeOut());
+
+    removeUpdate = api.addSceneUpdateListener(scene, () => {
+        if (done || !harpoon.active) return;
+        const { x: vx, y: vy } = harpoon.body.velocity;
+        harpoon.setRotation(Math.atan2(vy, vx));
+        harpoon.setFlipY(vx < 0);
+        const tipX = harpoon.x + Math.cos(harpoon.rotation) * HARPOON_TIP;
+        const tipY = harpoon.y + Math.sin(harpoon.rotation) * HARPOON_TIP;
+
+        const body = target.body;
+        if (target.active && !api.isInvincible(target) &&
+            tipX > body.left - 6 && tipX < body.right + 6 &&
+            tipY > body.top - 6 && tipY < body.bottom + 6) {
+            target.flash();
+            api.landHit(scene, attacker, target, { ...THROWN_HARPOON_HIT, direction });
+            harpoon.destroy();
+            done = true;
+            removeUpdate();
+            expireEvent.remove(false);
+            return;
+        }
+
+        const stuckIn = platforms.find(platform => platform.active &&
+            tipX > platform.body.left && tipX < platform.body.right &&
+            tipY > platform.body.top && tipY < platform.body.bottom);
+        if (stuckIn) {
+            harpoon.setVelocity(0, 0);
+            fadeOut(600);
+        }
+    });
+}
+
+// DIR SPECIAL: THROW NET. Only one net per player; throwing again takes the old one away.
+const NET_RELEASE_MS = 100;
+const NET_LAUNCH = { x: 420, y: -250 };
+const NET_STUN = 3000;
+const NET_AIR_MS = 3000;
+const NET_GROUND_MS = 6000;
+const NET_GROUND_ORIGIN_Y = 31 / 50;
+const NET_GROUND_HALF_WIDTH = 128;
+
+function netFoe(api, scene, owner, target, duration, holdInPlace) {
+    const now = scene.time.now;
+    api.landHit(scene, owner, target, {
+        damage: 0.02,
+        plankDamage: 0,
+        hitstun: duration,
+        hitstunGrowth: false,
+        sound: 'grab',
+        resetCombo: false,
+        noDeathRay: true,
+        knockback: () => ({ x: 0, y: Math.max(0, target.body.velocity.y) }),
+        onHit: () => {
+            target.nettedUntil = now + duration;
+            if (holdInPlace) target.freezeUntil = now + duration;
+        }
+    });
+}
+
+function throwNet(api, scene, player, target, direction, currentTime) {
+    const dtapDelay = 250;
+
+    if (player.hitstun || player.freeze) return;
+    if (currentTime < player.nextSideSpecialTime) return;
+
+    if (currentTime - player.lastTap[direction] < dtapDelay || player.isBot) {
+        player.activeNetCleanup?.();
+
+        const facing = direction === 'left' ? -1 : 1;
+        player.lastDir = { x: facing, y: 0 };
+        api.setAttackSprite(player, 'netthrow');
+        scene.sound.play('whoosh');
+
+        // Starts bundled up in his hands, spread out the way he's throwing.
+        const heldOffsetX = 40 + NET_GROUND_HALF_WIDTH;
+        const net = scene.physics.add.sprite(player.x + facing * heldOffsetX, player.y - 25, 'netonground');
+        net.body.enable = false;
+        net.setFlipX(facing < 0);
+        scene.objs.add(net);
+
+        let state = 'held';
+        let floorY = 0;
+        let expireEvent = null;
+        let removeUpdate = () => {};
+        const colliders = [];
+        const removeColliders = () => {
+            colliders.forEach(collider => collider.destroy());
+            colliders.length = 0;
+        };
+        const removeNet = () => {
+            if (state === 'gone') return;
+            state = 'gone';
+            removeUpdate();
+            removeColliders();
+            expireEvent?.remove(false);
+            scene.events.off('shutdown', removeNet);
+            scene.tweens.killTweensOf(net);
+            net.destroy();
+            if (player.activeNetCleanup === removeNet) player.activeNetCleanup = null;
+        };
+        const fadeOut = () => {
+            if (state === 'gone' || state === 'fading') return;
+            state = 'fading';
+            removeColliders();
+            net.body.enable = false;
+            scene.tweens.add({ targets: net, alpha: 0, duration: 400, onComplete: removeNet });
+        };
+        player.activeNetCleanup = removeNet;
+        scene.events.once('shutdown', removeNet);
+
+        // Lands on top of platforms only, so it can fly up through them.
+        const landsFromAbove = (_net, platform) =>
+            net.body.velocity.y >= 0 && net.body.prev.y + net.body.height <= platform.body.top + 8;
+
+        const release = () => {
+            if (state !== 'held') return;
+            state = 'air';
+            net.setTexture('netinair');
+            net.body.enable = true;
+            net.body.setSize(180, 30).setOffset(10, 20);
+            net.setVelocity(facing * NET_LAUNCH.x, NET_LAUNCH.y);
+            colliders.push(
+                scene.physics.add.collider(net, api.getMapPlatforms(scene), null, landsFromAbove),
+                scene.physics.add.overlap(net, target, () => {
+                    if (state !== 'air' || api.isInvincible(target)) return;
+                    netFoe(api, scene, player, target, NET_STUN, false);
+                    removeNet();
+                })
+            );
+            expireEvent = scene.time.delayedCall(NET_AIR_MS, fadeOut);
+        };
+        const layOnGround = () => {
+            state = 'ground';
+            removeColliders();
+            floorY = net.body.bottom;
+            net.body.enable = false;
+            net.setVelocity(0, 0);
+            net.setTexture('netonground');
+            net.setOrigin(0.5, NET_GROUND_ORIGIN_Y);
+            net.setPosition(net.x, floorY);
+            expireEvent?.remove(false);
+            expireEvent = scene.time.delayedCall(NET_GROUND_MS, fadeOut);
+        };
+
+        api.afterWindup(scene, player, NET_RELEASE_MS, release, {
+            interruptible: true,
+            onInterrupt: removeNet
+        });
+
+        removeUpdate = api.addSceneUpdateListener(scene, () => {
+            if (!net.active) return;
+            if (state === 'held') {
+                net.setPosition(player.x + facing * heldOffsetX, player.y - 25);
+            } else if (state === 'air' && (net.body.blocked.down || net.body.touching.down)) {
+                layOnGround();
+            } else if (state === 'ground' && target.active && !api.isInvincible(target)) {
+                const body = target.body;
+                const steppedIn = body.right > net.x - NET_GROUND_HALF_WIDTH &&
+                    body.left < net.x + NET_GROUND_HALF_WIDTH &&
+                    body.bottom > floorY - 12 && body.bottom < floorY + 8;
+                if (steppedIn) {
+                    netFoe(api, scene, player, target, NET_STUN, true);
+                    removeNet();
+                }
+            }
+        });
+
+        api.startSideSpecialCooldown(player, currentTime, player.dirSpecialCooldown);
+    }
+
+    player.lastTap[direction] = currentTime;
+}
 
 // Where the rod tip sits in each 300x300 frame (facing right). rodatk swings
 // use their frame 0 tip; reelin's tip moves as the rod is pulled back.
@@ -28,19 +427,15 @@ const ROD_TIPS = {
     ]
 };
 const ROD_SWING_ANIMS = ['rodatk', 'rodatkthird'];
-// The line drawn in the rod sheet is 3px thick before the atk sprite is scaled.
 const SHEET_LINE_WIDTH = 3;
 const REEL_SPEED = 1600;
 const PULL_SPEED = 900;
-// Hooking a platform above the fisherman swings him up around the hook in a
-// circle for SWING_MS before the straight pull takes over.
+
 const SWING_MS = 500;
 const SWING_SPEED = 900;
-// Small inward pull during the swing so the circle tightens instead of drifting outward.
 const SWING_PULL = 250;
 
-// Maps the rod tip through the atk sprite's flip, rotation and scale so the
-// rope starts from the end of the rod instead of the fisherman's centre.
+
 function getRodTip(player) {
     const rod = player.atk;
     const tips = ROD_TIPS[rod?.texture.key];
@@ -192,8 +587,7 @@ function tryPull(api, scene, player, target, direction, currentTime) {
             pullingToPlatform = true;
             hook.setVelocity(0, 0);
             hook.body.enable = false;
-            // The main ground is solid on every side, so a hook that catches its side
-            // would pull him flat into the wall. Anchor on the top surface instead.
+
             if (platform?.body && hook.y > platform.body.top) {
                 hook.y = platform.body.top;
                 pullLift = player.body.height / 2 + 10;
@@ -338,21 +732,67 @@ function tryPull(api, scene, player, target, direction, currentTime) {
     player.lastTap[direction] = currentTime;
 }
 
+const BACK_HARPOON_SPACING = 8;
+const BACK_HARPOON_LIFT = 20;
+
+function createHarpoonRack(scene, player) {
+    const behindPlayer = scene.objs.getIndex(player);
+    player.harpoonRack = [];
+    for (let i = 0; i < MAX_HARPOONS - 1; i++) {
+        const harpoon = scene.add.image(player.x, player.y, 'harpoon');
+        scene.objs.addAt(harpoon, behindPlayer);
+        player.harpoonRack.push(harpoon);
+    }
+}
+
+function updateTrapper(api, scene, player) {
+    if (player.variant !== 'TRAPPER') return;
+    if (!player.harpoonRack) createHarpoonRack(scene, player);
+
+    const now = scene.time.now;
+    if (player.nextHarpoonAt && now >= player.nextHarpoonAt) {
+        player.harpoons = Math.min(MAX_HARPOONS, harpoonsLeft(player) + 1);
+        player.nextHarpoonAt = player.harpoons < MAX_HARPOONS ? now + HARPOON_REGEN_MS : 0;
+    }
+    const harpoons = harpoonsLeft(player);
+    // With none left he holds out an empty hand.
+    player.idleWeaponTexture = harpoons > 0 ? null : 'harpoonlessatk';
+
+    if (player.lastDir.x !== 0) player.rackFacing = player.lastDir.x;
+    const facing = player.rackFacing ?? 1;
+    // Tips up, leaning back over the shoulder.
+    const angle = Phaser.Math.DegToRad(-90 - facing * 25);
+    player.harpoonRack.forEach((harpoon, i) => {
+        harpoon.setVisible(i < harpoons - 1);
+        harpoon.setRotation(angle);
+        harpoon.setPosition(player.x - facing * (12 + i * BACK_HARPOON_SPACING), player.y - BACK_HARPOON_LIFT);
+    });
+}
+
 export default {
     attackCooldown: 275,
     hitSounds: { finisher: 'rodthirdhitsfx' },
-    // The rod sheet is drawn facing right with the arms on the left of each frame.
-    rightFacingAttackSprites: ['rodatk', 'linelessrod', 'reelin'],
+    variantStats: {
+        TRAPPER: { hitSounds: { light: 'axeslash1', finisher: 'slash' } }
+    },
+    // The rod and harpoon sheets are drawn facing right with the arms on the left of each frame.
+    rightFacingAttackSprites: ['rodatk', 'linelessrod', 'reelin', 'harpoonatk', 'harpoonlessatk', 'netthrow'],
     textureAttackSpriteOffsets: {
         rodatk: { x: -13, y: 17 },
         linelessrod: { x: -13, y: 17 },
-        reelin: { x: -13, y: 17 }
+        reelin: { x: -13, y: 17 },
+        harpoonatk: { x: 0, y: 12 },
+        harpoonlessatk: { x: 0, y: 12 },
+        netthrow: { x: 0, y: 12 }
     },
     handleAttack: basicAttack,
+    update: updateTrapper,
     handleDirSpecial: (api, scene, attacker, direction, currentTime, victim) =>
-        tryPull(api, scene, attacker, victim, direction, currentTime),
+        attacker.variant === 'TRAPPER'
+            ? throwNet(api, scene, attacker, victim, direction, currentTime)
+            : tryPull(api, scene, attacker, victim, direction, currentTime),
     handleNeutralSpecial: neutralSpecial,
-    variantNeutralSpecials: { ANGLER: neutralSpecial },
+    variantNeutralSpecials: { ANGLER: neutralSpecial, TRAPPER: throwHarpoon },
     handleHorizantalTilt: (api, scene, attacker, victim) =>
         tilt(api, scene, attacker, victim, 0.6, 1, 600),
     handleDownTilt: (api, scene, attacker, victim) =>

@@ -68,7 +68,6 @@ export function queueStunRelease(scene, attacker, target, attackerDelay = 400, v
     });
     target.revokeVictimStun = scene.time.delayedCall(victimDelay, () => {
         if (target.stunToken !== stunToken) return;
-        target.hitstun = false;
         target.freeze = false;
         target.willDecelerate = true;
         target.revokeVictimStun = null;

@@ -191,7 +191,7 @@ function recover(scene, bot, target, surfaces) {
     if (!nearLevel || goal.gap < 20) return;
 
     const recoveryTowardStage = Math.sign(aimX - bot.x);
-    if (bot.name === 'FISHERMAN' && goal.gap < 550 && feet - goal.top < 250) {
+    if (bot.variant === 'ANGLER' && goal.gap < 550 && feet - goal.top < 250) {
         useDirSpecial(scene, bot, target, recoveryTowardStage);
     } else if (bot.hasDoubleJumped && DASH_REACH[bot.variant]) {
         useDirSpecial(scene, bot, target, recoveryTowardStage);
@@ -531,6 +531,8 @@ function specialFits(bot, dx, dy, grounded) {
             // QUICKSTEP passes through the target, so DAGGER keeps it for recovery.
             return bot.variant !== 'DAGGER' && adx > 200 && adx < 350 && ady < 60;
         case 'FISHERMAN':
+            // TRAPPER's net is slower and shorter than the hook, but lands on them from above.
+            if (bot.variant === 'TRAPPER') return adx > 150 && adx < 400 && ady < 150;
             return adx > 250 && adx < 450 && ady < 80;
         case 'SCYTHEMAN':
             return adx < 300 && ady < 125;

@@ -104,6 +104,27 @@ export function createGameAnimations(scene) {
         frameRate: 60,
         repeat: 0
     });
+    // TRAPPER's stab is frames 0-15; the pinning stab is 20 to the end of the sheet.
+    for (const sheet of ['harpoonatk', 'harpoonlessatk']) {
+        scene.anims.create({
+            key: sheet,
+            frames: scene.anims.generateFrameNumbers(sheet, { start: 0, end: 15 }),
+            frameRate: 60,
+            repeat: 0
+        });
+        scene.anims.create({
+            key: `${sheet}third`,
+            frames: scene.anims.generateFrameNumbers(sheet, { start: 20, end: 36 }),
+            frameRate: 50,
+            repeat: 0
+        });
+    }
+    scene.anims.create({
+        key: 'netthrow',
+        frames: scene.anims.generateFrameNumbers('netthrow', { start: 0, end: 5 }),
+        frameRate: 30,
+        repeat: 0
+    });
     scene.anims.create({
         key: 'scytheatk',
         frames: scene.anims.generateFrameNumbers('scytheatk', { start: 0, end: 3 }),
@@ -154,8 +175,14 @@ export function createGameAnimations(scene) {
     });
     scene.anims.create({
         key: 'slateatk',
-        frames: scene.anims.generateFrameNumbers('slateatk', { start: 0, end: 3 }),
-        frameRate: 32,
+        frames: scene.anims.generateFrameNumbers('slateatk1', { start: 0, end: 15 }),
+        frameRate: 60,
+        repeat: 0
+    });
+    scene.anims.create({
+        key: 'slateatksecond',
+        frames: scene.anims.generateFrameNumbers('slateatk1', { start: 15, end: 30 }),
+        frameRate: 60,
         repeat: 0
     });
     scene.anims.create({
@@ -166,8 +193,8 @@ export function createGameAnimations(scene) {
     });
     scene.anims.create({
         key: 'slateatkthird',
-        frames: scene.anims.generateFrameNumbers('slateatkthird', { start: 0, end: 3 }),
-        frameRate: 32,
+        frames: scene.anims.generateFrameNumbers('slateatk1', { start: 30, end: 48 }),
+        frameRate: 60,
         repeat: 0
     });
     scene.anims.create({

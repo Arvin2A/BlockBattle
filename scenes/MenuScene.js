@@ -15,7 +15,7 @@ var navBox = null;
 var layout = []
 var selectedIndex = 0;
 var previousInput = {};
-const CHANGELOG_VERSION = "2026-10-22-1";
+const CHANGELOG_VERSION = "2026-10-30-2";
 
 function getVersionColor(version) {
     const [year, month, day, update] = version.split("-").map(Number);
@@ -72,6 +72,22 @@ export class MenuScene extends Phaser.Scene {
         this.input.topOnly = false;
 
         const changelogEntries = [
+            {
+                title: "COMBAT + NAME FIXES",
+                body: "No more trading hits forever! Fighters could hit back the exact moment they got hit, so two fighters (bots especially) would stun each other over and over. Getting hit also sometimes ended your stun early, which is how people were breaking out of 3-hit combos. Both are fixed.\n Specials with a delayed hit, like PLUNGE and the QUICKSLAM follow-up, get cancelled if you're hit before they land.\n P1 can't fall through the floor at the start on DESERT ARENA anymore.\n Online names are plain English letters and numbers only now, and the name filter is a lot harder to sneak past."
+            },
+            {
+                title: "SLATEMAN UPDATE",
+                body: "SLATEMAN got new, better arms! He punches with one fist, then the other, and finishes the combo with a big overhead slam.\n His \"the more hurt, the faster\" thing never actually worked. Now it does: he starts a bit slow, hits normal speed around 50% KB and keeps speeding up from there (while hitting softer).\n PLUNGE now carries him forward at normal speed. Hold left or right during it and his KB speed kicks in on top, so a hurt SLATEMAN plunges way faster.\n SLEDGEHAMMER's QUICKSLAM follow-up now always spikes toward the side you quickslammed, and its stun doesn't grow with KB anymore."
+            },
+            {
+                title: "TRAPPER FISHERMAN",
+                body: "The TRAPPER variant of FISHERMAN is here! He stabs with a harpoon, and when a stab lands the harpoon stays stuck in your opponent for a few seconds.\n He only carries 3 harpoons (the ones on his back are your spares), and every one he sticks in someone or throws is gone until it grows back, one every 3 seconds. Run out and he's down to his fists, and his third hit is just a weak shove instead of a pin.\n His third stab doesn't launch, it PINS them to the floor for 1 second. Pin someone in the air and they get slammed down faster than a downslam.\n Pressing the SPECIAL key throws harpoons like javelins, one every half second. They hit hard, but the knockback never grows, so they won't KO on their own.\n His DIR SPECIAL throws a NET. Catch someone with it and they're NETTED for 3 seconds. If it misses and lands on the ground it stays there, and whoever walks into it gets NETTED for 3 seconds too."
+            },
+            {
+                title: "BALANCE + FIXES",
+                body: "ANGLER and MALLET finally have real tilts instead of repeating their basic attack.\n Combo enders always have the full recovery now, so fast fighters can't mash straight into the next combo.\n Red VIOLENT launches start at 150% now, and at 200%+ launches fire a purple DEATH RAY. You can't attack during the death ray freeze anymore, and pulls and explosions can't trigger it."
+            },
             {
                 title: "FISHERMAN REWORK",
                 body: "FISHERMAN has arms now and has been redesigned, with a thinner fishing line and an intro animation where he spins his rod.\n The hook isn't absurdly huge anymore. Instead it snaps to a player in its hit range, and the line curves more. If the hook falls below the platform it's hooking onto, it curves upward a bit.\n The line now reels in instead of instantly disappearing, and reeling/pulling it in has its own quick animation of lifting the rod up.\n Overall the ability is much more concise and easier to use, and FISHERMAN attacks faster (not as fast as DAGGER though)."
@@ -136,12 +152,8 @@ export class MenuScene extends Phaser.Scene {
                 body: "A thumbstick for mobile players in online multiplayer."
             },
             {
-                title: "TRAPPER FISHERMAN",
-                body: "The TRAPPER variant of FISHERMAN."
-            },
-            {
-                title: "SLATEMAN REWORK",
-                body: "Slateman will be reworked."
+                title: "SLATEMAN PLUNGE REWORK",
+                body: "SLATEMAN's PLUNGE is getting reworked. Coming Oct 31, in the evening!"
             },
             {
                 title: "LAWNMOWER SCYTHEMAN",
@@ -165,7 +177,7 @@ export class MenuScene extends Phaser.Scene {
 
         const compactText = this.add.text(
             40, 180,
-            "FISHERMAN has been reworked: arms, a smaller hook that snaps to players, a reeling line and faster attacks. Hits, launches, KOs and wins also have new effects, and the menu slides in.",
+            "TRAPPER FISHERMAN is here, with harpoons that pin, javelin throws and nets. SLATEMAN got better arms, his speed finally scales with KB, and PLUNGE carries him forward. A full PLUNGE rework comes next: Oct 31, in the evening!",
             {
                 fontFamily: "VCROSD",
                 fontSize: "16px",

@@ -38,6 +38,7 @@ export function preloadCharacterSelection() {
         ['swordman', 'assets/sprites/swordman/swordman-default.png'],
         ['daggerman', 'assets/sprites/swordman/swordman-dagger.png'],
         ['fisherman', 'assets/sprites/fisherman/fisherman-default.png'],
+        ['trapperman', 'assets/sprites/fisherman/fisherman-trapper.png'],
         ['scytheman', 'assets/sprites/scytheman/scytheman-default.png'],
         ['hammerman', 'assets/sprites/hammerman/hammerman-default.png'],
         ['sledgehammerman', 'assets/sprites/hammerman/hammerman-sledgehammer.png'],
@@ -363,6 +364,45 @@ export function preload() {
         }
     );
 
+    // TRAPPER
+    this.load.image(
+        'trapperman',
+        'assets/sprites/fisherman/fisherman-trapper.png'
+    );
+
+    // harpoonlessatk is the same swing with the harpoon left behind in the foe.
+    this.load.spritesheet(
+        'harpoonatk',
+        'assets/sprites/fisherman/harpoonatk.png',
+        {
+            frameWidth: 130,
+            frameHeight: 50
+        }
+    );
+
+    this.load.spritesheet(
+        'harpoonlessatk',
+        'assets/sprites/fisherman/harpoonlessatk.png',
+        {
+            frameWidth: 130,
+            frameHeight: 50
+        }
+    );
+
+    this.load.spritesheet(
+        'netthrow',
+        'assets/sprites/fisherman/net_throw.png',
+        {
+            frameWidth: 130,
+            frameHeight: 50
+        }
+    );
+
+    this.load.image('harpoon', 'assets/sprites/fisherman/harpoon.png');
+    this.load.image('netinair', 'assets/sprites/fisherman/netInAir.png');
+    this.load.image('netonground', 'assets/sprites/fisherman/netOnGround.png');
+    this.load.image('netted', 'assets/statusailments/netted.png');
+
     // =====================================================
     // SCYTHEMAN
     // =====================================================
@@ -511,21 +551,13 @@ export function preload() {
         'assets/sprites/slateman/slateman-default-4.png'
     );
 
+    // His arms: first punch, second punch and the third hit, one after another.
     this.load.spritesheet(
-        'slateatk',
-        'assets/sprites/slateman/slateatk.png',
+        'slateatk1',
+        'assets/sprites/slateman/slateatk1.1.png',
         {
-            frameWidth: 50,
-            frameHeight: 50
-        }
-    );
-
-    this.load.spritesheet(
-        'slateatkthird',
-        'assets/sprites/slateman/slateatkthird.png',
-        {
-            frameWidth: 50,
-            frameHeight: 50
+            frameWidth: 130,
+            frameHeight: 100
         }
     );
 
