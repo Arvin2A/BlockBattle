@@ -21,7 +21,7 @@ const neutralSpecial = () => {};
 
 const HARPOON_REACH = 120;
 
-const MAX_HARPOONS = 3;
+const MAX_HARPOONS = 5;
 const HARPOON_REGEN_MS = 3000;
 const HARPOON_TIP = 27;
 const STUCK_HARPOON_MS = 5000;
@@ -34,6 +34,9 @@ const PIN_MS = 1000;
 const PIN_SPIKE_SPEED = 1400;
 
 const PIN_IMMUNITY_MS = 1500;
+// A landed pin drags the foe this far along the stab before it holds them.
+const PIN_SHIFT = 150;
+const PIN_SHIFT_MS = 120;
 
 
 const PIN_FLOOR_REACH = 40;
@@ -57,13 +60,12 @@ function useHarpoon(scene, player) {
     player.nextHarpoonAt ||= scene.time.now + HARPOON_REGEN_MS;
 }
 
-// Out of harpoons the third hit is just a punch: a short, weak shove that's the
-// same at any KB% and never stuns.
+// Out of harpoons the third hit is just a punch: a short, weak shove that
+// grows with KB% like any other launch.
 const EMPTY_HANDED_FINISHER = {
     hitstun: 250,
-    hitstunGrowth: false,
     sound: 'slatelight1',
-    knockback: { x: 250, y: 250, growth: false, scaleWithDamage: false },
+    knockback: { x: 250, y: 250 },
     noDeathRay: true,
     decelerateAfter: 400
 };
@@ -116,9 +118,20 @@ function harpoonPin(api, scene, attacker, target, animKey, range) {
             if (!canPin) return;
             target.pinImmuneUntil = now + PIN_MS + PIN_IMMUNITY_MS;
             if (grounded) target.freezeUntil = now + PIN_MS;
+            shiftPinned(scene, attacker, target);
         }
     });
     return hit ? canPin : null;
+}
+
+function shiftPinned(scene, attacker, target) {
+    const facing = attacker.atk.flipX ? -1 : 1;
+    scene.tweens.add({
+        targets: target,
+        x: target.x + facing * PIN_SHIFT,
+        duration: PIN_SHIFT_MS,
+        ease: 'Cubic.easeOut'
+    });
 }
 
 function pinnedHarpoonAngle(attacker) {

@@ -1,0 +1,18 @@
+# BlockBattle — Copyright (C) 2026 Arvin Zaman
+# Original source: https://github.com/Arvin2A/BlockBattle
+# Licensed under the GNU GPL v3 only. See LICENSE.
+
+# One update check. Started by blockbattle-update.timer; see SERVER_SETUP.md.
+# Runs as root so it can restart the server; git and npm run as the server's user.
+
+[Unit]
+Description=BlockBattle auto-update check
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=/bin/bash /home/blockbattle/BlockBattle/server/deploy/autoupdate.sh
+Environment=APP_USER=blockbattle
+Environment=APP_DIR=/home/blockbattle/BlockBattle
+Environment=BRANCH=main
