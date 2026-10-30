@@ -72,7 +72,6 @@ export {
     setAttackSprite
 };
 
-// Shared helpers for the character scripts.
 function startSideSpecialCooldown(player, currentTime, duration) {
     player.hasUsedSideSpecial = true;
     player.sideSpecialCooldownDuration = duration;
@@ -137,10 +136,7 @@ function missCombo(attacker) {
     }
 }
 
-// The standard 3-hit combo as blueprint specs (see combat/blueprints.js).
-// Character scripts can spread one and change a few numbers.
 export const STANDARD_HITS = Object.freeze({
-    // Hits 1 and 2: a stun hit that holds both fighters in place.
     jab: {
         range: 100,
         damage: 0.03,
@@ -151,8 +147,6 @@ export const STANDARD_HITS = Object.freeze({
         sound: 'light',
         resetCombo: false
     },
-    // Attacking while running: a light launch that doesn't grow into a KO.
-    // Same reach as a jab, so running in doesn't outrange the chainsaw.
     push: {
         range: 100,
         damage: 0.05,
@@ -164,8 +158,6 @@ export const STANDARD_HITS = Object.freeze({
         knockback: { x: 400, y: 500, spike: { x: 325, y: -200 } },
         decelerateAfter: 600
     },
-    // Hit 3: the launcher. Speed and hitstun both grow with KB, so this is the
-    // reference KO curve other launchers are tuned against.
     finisher: {
         range: 100,
         damage: 0.07,
@@ -178,9 +170,7 @@ export const STANDARD_HITS = Object.freeze({
     }
 });
 
-// overrides replaces parts of STANDARD_HITS.jab, e.g. a different hit sound.
 export function attack(scene, attacker, target, animKey, overrides = {}) {
-    //the core attack function that is used as of now
     if (!attacker.canAttack || attacker.hitstun) return;
 
     setAttackSprite(attacker, animKey);
@@ -201,10 +191,7 @@ export function attack(scene, attacker, target, animKey, overrides = {}) {
     return hit;
 }
 
-// overrides replaces parts of STANDARD_HITS.push.
 export function pushAttack(scene, attacker, target, animKey, overrides = {}) {
-    //Push attacks happen if the player is at maximum velocity
-    //No animKey = invisible hit that leaves whatever the atk sprite is doing alone
     if (animKey) {
         setAttackSprite(attacker, animKey);
     } else {
@@ -214,15 +201,12 @@ export function pushAttack(scene, attacker, target, animKey, overrides = {}) {
     if (!hit) missCombo(attacker);
     clearQueuedStunTimers(scene, attacker, target);
 
-    // DAGGER's push keeps the full 400ms recovery; its fast cooldown is too strong here.
     const isDagger = attacker.name === "SWORDMAN" && attacker.variant === "DAGGER";
     recoverAfterAttack(scene, attacker, { recovery: isDagger ? 400 : getAttackCooldown(attacker) });
     return hit;
 }
 
-// overrides replaces parts of STANDARD_HITS.finisher, e.g. a stronger knockback.
 export function thirdAttack(scene, attacker, target, animKey, overrides = {}) {
-    // The third attack launches the target away
     setAttackSprite(attacker, animKey);
 
     const hit = strike(scene, attacker, target, { ...STANDARD_HITS.finisher, ...overrides });
@@ -238,13 +222,10 @@ export function thirdAttack(scene, attacker, target, animKey, overrides = {}) {
     }
     clearQueuedStunTimers(scene, attacker, target);
 
-    // Combo enders always keep the full 400ms recovery, even for fighters with
-    // fast cooldowns, so a mashed combo can't roll straight into the next one.
     recoverAfterAttack(scene, attacker, { recovery: 400 });
     return hit;
 }
 
-// Configurable tilt attack shared by character scripts.
 export function tiltAttack(scene, attacker, target, {
     animKey,
     kb = 0.1,
@@ -257,7 +238,6 @@ export function tiltAttack(scene, attacker, target, {
     onHit = null,
     onUse = null
 }) {
-    //they aren't really tilt attacks
     if (scene.time.now < attacker.nextAttackTime) return;
     if (!attacker.canAttack || attacker.hitstun) return;
     setAttackSprite(attacker, animKey);
@@ -272,7 +252,6 @@ export function tiltAttack(scene, attacker, target, {
         hitFreeze: freeze,
         sound: sfx,
         onHit,
-        // Tilts don't grow with KB: they reposition, they don't KO.
         knockback: {
             x: 1000 * xMul,
             y: 500 * yMul,
@@ -290,10 +269,7 @@ export function tiltAttack(scene, attacker, target, {
     return hit;
 }
 
-// Combo selection and shared attack cooldowns.
 export function tryAttack(scene, attacker, target, animKey, thirdAnimKey) {
-    //handles some other stuff before calling either attack functions
-    //such as checking if the attack is on cooldown, and whether to use the third attack or not
     if (scene.time.now < attacker.nextAttackTime) return;
     if (!attacker.canAttack || attacker.hitstun) return;
 
@@ -306,7 +282,7 @@ export function tryAttack(scene, attacker, target, animKey, thirdAnimKey) {
             attack(scene, attacker, target, animKey);
         }
     }
-    attacker.nextAttackTime = scene.time.now + getAttackCooldown(attacker); // Attack cooldown
+    attacker.nextAttackTime = scene.time.now + getAttackCooldown(attacker);
 }
 
 export function downslamAttack(scene, attacker, target) {
@@ -318,7 +294,6 @@ export function downslamAttack(scene, attacker, target) {
     const dy = target.y - attacker.y;
     if (Math.hypot(dx, dy) > 125 || isInvincible(target) || isBlockedByWall(attacker, target)) return false;
 
-    // Launches away from the landing spot, not the way the attacker faces.
     const direction = dx === 0 ? (attacker.lastDir.x || 1) : Math.sign(dx);
     target.flash();
     landHit(scene, attacker, target, {
@@ -335,7 +310,6 @@ export function downslamAttack(scene, attacker, target) {
 }
 
 const sharedAttackHelpers = {
-    // Blueprints: build new attacks from these.
     strike,
     landHit,
     STANDARD_HITS,
@@ -345,13 +319,11 @@ const sharedAttackHelpers = {
     clearQueuedStunTimers,
     queueStunRelease,
     playHitSound,
-    // Standard attacks.
     attack,
     pushAttack,
     thirdAttack,
     tiltAttack,
     tryAttack,
-    // Lower-level pieces.
     damagePlanksInAttack,
     addSceneUpdateListener,
     addProjectilePlatformColliders,
@@ -381,7 +353,6 @@ const sharedAttackHelpers = {
     )
 };
 
-// Public input handlers delegate character choices to their own scripts.
 export function handleAttack(scene, attacker, victim) {
     if (deathRayAttackLocked(scene)) return;
     return getCharacterScript(attacker)?.handleAttack(sharedAttackHelpers, scene, attacker, victim);
