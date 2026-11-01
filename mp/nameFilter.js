@@ -67,27 +67,79 @@ function normalize(text, iOrL) {
 
 const squash = text => text.replace(/[^a-z0-9]/g, '');
 
-// Each run of a letter may be stretched out ("niiice" still matches "nice"),
-// but never shortened, so a different word with fewer letters isn't caught.
-function stretchable(word) {
-    return word.replace(/(.)\1*/g, run => `${run[0]}{${run.length},}`);
+const WILD = '#';
+
+function normalizeWild(text) {
+    return toAsciiName(text)
+        .toLowerCase()
+        .replace(/[0-9*@$!+#%&|^~]/g, WILD)
+        .replace(/[^a-z#]/g, ' ');
+}
+
+const squashWild = text => text.replace(/ /g, '');
+
+function runPattern(text, wild) {
+    return text.replace(/(.)\1*/g, run => {
+        const count = `{${run.length},}`;
+        if (!'aeiou'.includes(run[0])) return run[0] + count;
+        return (wild ? `[${run[0]}${WILD}]` : run[0]) + count + 'h*';
+    });
+}
+
+function parseEntry(text) {
+    return text.split(/(\{[^}]*\})/).filter(Boolean).map(piece => piece.startsWith('{')
+        ? piece.slice(1, -1).split('|').map(alt => squash(normalize(alt, '$&')))
+        : [squash(normalize(piece, '$&'))]);
+}
+
+function entryPattern(pieces, wild) {
+    return pieces.map(alts => alts.length === 1
+        ? runPattern(alts[0], wild)
+        : `(?:${alts.map(alt => runPattern(alt, wild)).join('|')})`).join('');
 }
 
 export function createNameFilter(wordListText) {
     const wholeWords = [];
     const hiddenWords = [];
+    const wildWholeWords = [];
+    const wildHiddenWords = [];
     for (const line of String(wordListText ?? '').split(/\r?\n/)) {
         const anywhere = line.startsWith('*');
-        // List entries are spelled normally, so 1, l and | in them are themselves.
-        const word = squash(normalize(anywhere ? line.slice(1) : line, '$&'));
+        const wholeOnly = line.startsWith('=');
+        const pieces = parseEntry(anywhere || wholeOnly ? line.slice(1) : line);
+        const word = pieces.map(alts => alts[0]).join('');
         if (!word) continue;
-        const pattern = stretchable(word);
+        const hidden = !wholeOnly && (anywhere || word.length >= MIN_HIDDEN_WORD_LENGTH);
+        const pattern = entryPattern(pieces, false);
         // A plural s on the end still counts as the whole word.
         wholeWords.push(new RegExp(`^${pattern}s*$`));
-        if (anywhere || word.length >= MIN_HIDDEN_WORD_LENGTH) hiddenWords.push(new RegExp(pattern));
+        if (hidden) hiddenWords.push(new RegExp(pattern));
+        if (!pieces.some(alts => alts.some(alt => /[aeiou]/.test(alt)))) continue;
+        const wild = entryPattern(pieces, true);
+        wildWholeWords.push(new RegExp(`^${wild}s*$`));
+        if (hidden) wildHiddenWords.push(new RegExp(wild));
+    }
+
+    function hasWildWord(name) {
+        const normalized = normalizeWild(name);
+        const parts = normalized.split(/\s+/).filter(Boolean);
+        const candidates = [squashWild(normalized), ...parts];
+        for (let i = 0; i + 1 < parts.length; i++) {
+            if (parts[i].length > 1 || parts[i + 1].length > 1) {
+                candidates.push(parts[i] + WILD + parts[i + 1]);
+                candidates.push(parts.slice(0, i + 1).join('') + WILD + parts.slice(i + 1).join(''));
+            }
+        }
+        return candidates.some(candidate => {
+            if (!candidate.includes(WILD)) return false;
+            if (wildWholeWords.some(word => word.test(candidate))) return true;
+            const unsafe = SAFE_WORDS.reduce((text, safe) => text.replaceAll(safe, ' '), candidate);
+            return wildHiddenWords.some(word => word.test(unsafe));
+        });
     }
 
     return function isNameBlocked(name) {
+        if (hasWildWord(name)) return true;
         return ['i', 'l'].some(iOrL => {
             const normalized = normalize(name, iOrL);
             const whole = squash(normalized);

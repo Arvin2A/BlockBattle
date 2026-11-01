@@ -3,6 +3,7 @@
 // Licensed under the GNU GPL v3 only. See LICENSE.
 
 import { spawnDirtBurst } from './attacks.js';
+import { SQUASH, kickSquash } from './combat/squash.js';
 export const Commands = {
     LEFT: 0,
     RIGHT: 1,
@@ -62,6 +63,7 @@ export function executeStateCommand(scene, players, command) {
 
         case Commands.UP:
             attacker.setVelocityY(-400);
+            kickSquash(attacker, SQUASH.jump);
             
             break;
 
@@ -69,6 +71,7 @@ export function executeStateCommand(scene, players, command) {
             attacker.setVelocityY(-400);
             attacker.doubleJumpEffect.setAlpha(1);
             attacker.hasDoubleJumped = true;
+            kickSquash(attacker, SQUASH.jump);
             scene.tweens.add({targets: attacker.doubleJumpEffect,alpha: 0,duration: 200,ease: 'Cubic.easeOut'});
             spawnDirtBurst(scene, attacker.x, attacker.body.bottom, 6, 3, 5, 0.8, [0xffffff, 0xdddddd, 0xbbbbbb], 150, 230);
             
@@ -78,6 +81,7 @@ export function executeStateCommand(scene, players, command) {
             attacker.downslamming = true;
             attacker.afterimage = true;
             attacker.setVelocityY(800);
+            kickSquash(attacker, SQUASH.downslam);
             break;
         case Commands.NONE:
             attacker.horizontalMovementActive = false;

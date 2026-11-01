@@ -10,54 +10,56 @@ function tilt(api, scene, attacker, victim, xMul, yMul, kbTime) {
 }
 
 const neutralSpecial = () => {};
-function markPlunge(api, scene, attacker, target, dir) {
-    //Marks attack for plunge
-    const hit = api.strike(scene, attacker, target, {
-        range: 150,
-        bypass: { ignoreCanAttack: true },
-        direction: { x: dir, y: attacker.lastDir.y },
-        damage: 0.075,
-        plankDamage: 0.08,
-        hitstun: 450,
-        hitFreeze: 50,
-        sound: 'plunge',
-        knockback: { x: 300, y: 500, spike: { x: 325, y: -200 } },
-        decelerateAfter: 600
-    });
-    if (hit) {
-        // Marked after the launch, so the mark's own bonus doesn't apply to it.
-        target.plunged = true;
-        target.plungeEvent?.remove(false);
-        target.plungeEvent = scene.time.delayedCall(2500, () => {
-            target.plunged = false;
-            target.plungeEvent = null;
-        });
-    } else {
-        attacker.combo = 0;
-    }
-    api.clearQueuedStunTimers(scene, attacker, target);
-    api.recoverAfterAttack(scene, attacker, { hideAfter: null });
-    return hit;
+const PLUNGE_FRAMES = { bladeOut: 15, bladeIn: 33 };
+const PLUNGE_BLADE_SPEED_BOOST = 1.5;
+const PLUNGE_ARM_OFFSET = 38;
+const PLUNGE_DRAW_HIT = {
+    range: 150,
+    damage: 0.035,
+    hitstun: 900,
+    hitstunGrowth: false,
+    hitFreeze: 80,
+    sound: 'swosh',
+    knockback: { x: 600, y: 500, growth: false, maxDamageScale: 2, spike: { x: 325, y: -100 } },
+    decelerateAfter: 600
+};
+const PLUNGE_BLADE_HIT = {
+    range: 150,
+    damage: 0.075,
+    plankDamage: 0.08,
+    hitstun: 450,
+    hitFreeze: 50,
+    sound: 'plunge',
+    knockback: { x: 300, y: 500, spike: { x: 325, y: -200 } },
+    decelerateAfter: 600
+};
+
+function plungeHit(api, scene, attacker, target, dirX, spec) {
+    const bypass = { ignoreCanAttack: true, direction: { x: dirX, y: 0 } };
+    if (!api.attackIsElligible(attacker, target, spec.range, { ...bypass, silent: true })) return false;
+    return api.strike(scene, attacker, target, { ...spec, bypass, direction: bypass.direction });
 }
-// While plunging he drifts the way he dashed at the normal walking speed. Holding
-// left or right instead runs at that speed plus his own damage-scaled speed, so
-// the more hurt he is, the faster his plunge gets.
+
+function markPlunged(scene, target) {
+    target.plunged = true;
+    target.plungeEvent?.remove(false);
+    target.plungeEvent = scene.time.delayedCall(2500, () => {
+        target.plunged = false;
+        target.plungeEvent = null;
+    });
+}
+
 function updatePlungeMovement(api, scene, player) {
-    if (!player.isPlunging || player.hitstun || player.freeze) return;
-    if (player.horizontalMovementActive) {
-        player.movementSpeed = player.baseMovementSpeed * (1 + player.playerSpeedScaling);
-    } else {
-        // Held every frame, since landing the plunge turns floor slowdown back on.
-        player.willDecelerate = false;
-        player.setVelocityX(player.plungeDirX * player.baseMovementSpeed);
-    }
+    if (!player.isPlunging || player.hitstun || player.freeze || !player.horizontalMovementActive) return;
+    const boost = player.plungeBladeOut ? PLUNGE_BLADE_SPEED_BOOST : 1;
+    player.movementSpeed = player.baseMovementSpeed * (1 + player.playerSpeedScaling) * boost;
 }
 
 function tryPlunge(api, scene, player, target, direction, currentTime) {
     const dtapDelay = 250;
     const pullCD = player.dirSpecialCooldown;
 
-    if (player.hitstun || player.freeze) return;
+    if (player.isPlunging || player.hitstun || player.freeze) return;
     if (currentTime < player.nextSideSpecialTime) return;
 
     if (
@@ -71,94 +73,80 @@ function tryPlunge(api, scene, player, target, direction, currentTime) {
     api.startSideSpecialCooldown(player, currentTime, pullCD);
     player.attackBypassesHitstun = false;
     player.isAttacking = true;
-    // A new swing, so the plunge can damage a plank even if the last swing did.
     player.attackSequence = (player.attackSequence ?? 0) + 1;
 
-    const currentLastDir = player.lastDir.x;
+    const dirX = direction === 'left' ? -1 : 1;
+    const arm = scene.physics.add.sprite(player.x + dirX * PLUNGE_ARM_OFFSET, player.y, 'slateplunge');
+    arm.body.setAllowGravity(false);
+    arm.setFrame(0);
+    arm.setFlipX(dirX < 0);
+    scene.objs.add(arm);
 
-    const dagger = scene.physics.add.sprite(
-        player.x + currentLastDir * 25,
-        player.y,
-        'slateplunge'
-    );
+    player.atk.stop();
+    player.atk.setVisible(false);
 
-    dagger.setOrigin(0.5, 0.5);
-    dagger.setFrame(0);
-    dagger.setFlipX(-currentLastDir < 0);
-
-    scene.objs.add(dagger);
-
-    let plungeCanceled = false;
-    let attackActive = false;
+    const hits = { drawOut: false, blade: false, drawIn: false };
     let missPlayed = false;
 
-    const hitTargets = new Set();
-
-    const daggerTrack = () => {
-        dagger.x = player.x + currentLastDir * 25;
-        dagger.y = player.y;
-    };
-
     const plungeUpdate = () => {
-        if (!attackActive || plungeCanceled) return;
+        if (!arm.active || !arm.anims) {
+            finishPlunge();
+            return;
+        }
+        arm.setPosition(player.x + dirX * PLUNGE_ARM_OFFSET, player.y);
+        player.atk.setVisible(false);
+        const frame = arm.anims.currentFrame?.index - 1;
+        if (!(frame >= 0)) return;
 
-        // Prevent multiple hits on same target
-        if (hitTargets.has(target.id)) return;
+        player.plungeBladeOut = frame >= PLUNGE_FRAMES.bladeOut && frame < PLUNGE_FRAMES.bladeIn;
 
-        const plungeResult = markPlunge(api,
-            scene,
-            player,
-            target,
-            currentLastDir
-        );
-
-        if (plungeResult) {
-            plungeCanceled = true;
-            hitTargets.add(target.id);
+        if (frame < PLUNGE_FRAMES.bladeOut) {
+            if (!hits.drawOut) hits.drawOut = plungeHit(api, scene, player, target, dirX, PLUNGE_DRAW_HIT);
+        } else if (player.plungeBladeOut) {
+            if (!hits.blade && plungeHit(api, scene, player, target, dirX, PLUNGE_BLADE_HIT)) {
+                hits.blade = true;
+                markPlunged(scene, target);
+                api.clearQueuedStunTimers(scene, player, target);
+            }
+        } else {
+            if (!hits.blade && !missPlayed) {
+                missPlayed = true;
+                player.combo = 0;
+                scene.sound.play('miss');
+            }
+            if (!hits.blade && !hits.drawIn) hits.drawIn = plungeHit(api, scene, player, target, dirX, PLUNGE_DRAW_HIT);
         }
     };
 
-    const removeDaggerTrack = api.addSceneUpdateListener(scene, daggerTrack);
     const removePlungeUpdate = api.addSceneUpdateListener(scene, plungeUpdate);
 
-    dagger.play('slateplunge');
+    arm.play('slateplunge');
     player.afterimage = true;
     player.isPlunging = true;
-    player.plungeDirX = direction === 'left' ? -1 : 1;
-    const wasDecelerating = player.willDecelerate;
+    player.plungeBladeOut = false;
 
-
-    dagger.on('animationupdate', (animation, frame) => {
-        const currentFrame = frame.index;
-
-        attackActive = currentFrame >= 6 && currentFrame <= 10;
-
-        if (
-            currentFrame > 10 &&
-            !plungeCanceled &&
-            !missPlayed
-        ) {
-            missPlayed = true;
-            scene.sound.play('miss');
-        }
-    });
-
-    dagger.on('animationcomplete-slateplunge', () => {
-        removeDaggerTrack();
+    let finished = false;
+    const finishPlunge = () => {
+        if (finished) return;
+        finished = true;
         removePlungeUpdate();
         player.afterimage = false;
         player.isPlunging = false;
+        player.plungeBladeOut = false;
         player.isAttacking = false;
         player.attackBypassesHitstun = false;
-        // A hit taken mid-plunge already scheduled when he slows down.
-        if (!player.decelerateEvent) player.willDecelerate = wasDecelerating;
-
-
-        dagger.destroy();
-    });
+        api.hideAttackSprite(player);
+        if (arm.active) arm.destroy();
+    };
+    arm.once('animationcomplete-slateplunge', finishPlunge);
 
     player.lastTap[direction] = currentTime;
 }
+
+const unlessPlunging = handler => (api, scene, attacker, ...args) => {
+    if (attacker.isPlunging) return;
+    return handler(api, scene, attacker, ...args);
+};
 
 export default {
     hitSounds: {
@@ -167,20 +155,22 @@ export default {
     },
     // His arms are drawn facing right.
     rightFacingAttackSprites: ['slateatk1'],
-    textureAttackSpriteOffsets: { slateatk1: { x: 5, y: -10 } },
+    textureAttackSpriteOffsets: {
+        slateatk1: { x: 5, y: -10, up: { x: 28, y: 15 }, down: { x: -28, y: 15 } }
+    },
     // Second hit of the combo punches with the other arm, like SWORDMAN's back swing.
-    handleAttack: (api, scene, attacker, victim) =>
+    handleAttack: unlessPlunging((api, scene, attacker, victim) =>
         api.tryAttack(scene, attacker, victim,
-            attacker.combo === 1 ? 'slateatksecond' : 'slateatk', 'slateatkthird'),
+            attacker.combo === 1 ? 'slateatksecond' : 'slateatk', 'slateatkthird')),
     handleDirSpecial: (api, scene, attacker, direction, currentTime, victim) =>
         tryPlunge(api, scene, attacker, victim, direction, currentTime),
     update: updatePlungeMovement,
-    handleNeutralSpecial: neutralSpecial,
-    variantNeutralSpecials: { METAMORPHIC: neutralSpecial },
-    handleHorizantalTilt: (api, scene, attacker, victim) =>
-        tilt(api, scene, attacker, victim, 0.6, 1, 600),
-    handleDownTilt: (api, scene, attacker, victim) =>
-        tilt(api, scene, attacker, victim, 0, 2, 300),
-    handleUpTilt: (api, scene, attacker, victim) =>
-        tilt(api, scene, attacker, victim, 0, 0.88, 300)
+    handleNeutralSpecial: unlessPlunging(neutralSpecial),
+    variantNeutralSpecials: { METAMORPHIC: unlessPlunging(neutralSpecial) },
+    handleHorizantalTilt: unlessPlunging((api, scene, attacker, victim) =>
+        tilt(api, scene, attacker, victim, 0.6, 1, 600)),
+    handleDownTilt: unlessPlunging((api, scene, attacker, victim) =>
+        tilt(api, scene, attacker, victim, 0, 2, 300)),
+    handleUpTilt: unlessPlunging((api, scene, attacker, victim) =>
+        tilt(api, scene, attacker, victim, 0, 0.88, 300))
 };

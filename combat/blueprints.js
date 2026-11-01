@@ -2,47 +2,14 @@
 // Original source: https://github.com/Arvin2A/BlockBattle
 // Licensed under the GNU GPL v3 only. See LICENSE.
 
-// Attack blueprints. Every melee hit in the game is one of these with different
-// numbers, so a new move is a spec object, not another copy of the hit code.
-//
-//   strike(scene, attacker, target, spec)  checks range/facing, then lands the hit
-//   landHit(scene, attacker, target, spec) lands a hit that's already confirmed
-//                                          (projectiles, overlaps, explosions)
-//
-// Two kinds of hit come out of the same spec:
-//   stun hit:      give it `stun`. Both fighters freeze in place and the target
-//                  barely moves. Combo starters (attack(), the dagger jabs).
-//   knockback hit: no `stun`. The target is launched by `knockback` and can't act
-//                  for `hitstun`. Combo enders, tilts and specials; these KO.
-//
-// Spec fields (all optional):
-//   range, bypass       passed to attackIsElligible (strike only)
-//   direction           aim, defaults to attacker.lastDir
-//   damage              KB added to the target, times the attacker's damage scale
-//                       (0.07 = +7%)
-//   plankDamage         defaults to damage. strike() applies it when the swing
-//                       resolves, hit or miss, so windups hit planks on time.
-//   hitstun             ms the target can't act. With hitstunGrowth (default on)
-//                       it's multiplied by the target's KB, so launches get longer
-//                       as well as faster. Speed x time is what actually KOs.
-//   stun                { target, attacker } ms each fighter is frozen
-//   knockback           { x, y, ...see resolveLaunch } or a function returning {x, y}
-//   hitFreeze           ms of hitstop
-//   sound               a sound key, an array of keys, or 'light'/'finisher' for
-//                       the attacker's hitSounds
-//   decelerateAfter     ms (or target => ms) until the target slows down again
-//   resetCombo          default true
-//   noDeathRay          for pulls and the like
-//   onHit(scene)        runs after damage, before the launch
-
 import { attackIsElligible } from './eligibility.js';
 import { applyKnockback, hitFreeze } from './knockback.js';
 import { addSceneUpdateListener } from './effects.js';
 import { damagePlanksInAttack } from './planks.js';
+import { cutGrassInSwing } from './grass.js';
 import { hideAttackSprite } from './attackSprite.js';
 import { getAttackDamageScale, getHitSound } from './characterStats.js';
 
-// A plunged target (Slateman's mark) takes this much extra horizontal knockback.
 const PLUNGE_KNOCKBACK_BONUS = 1.0;
 
 export function clearQueuedStunTimers(scene, attacker, target) {
@@ -74,8 +41,6 @@ export function queueStunRelease(scene, attacker, target, attackerDelay = 400, v
     });
 }
 
-// Only the latest hit decides when the target slows down, so an old hit's timer
-// can't cut a newer launch short.
 export function scheduleDecelerate(scene, target, delay) {
     target.decelerateEvent?.remove(false);
     target.decelerateEvent = scene.time.delayedCall(delay, () => {
@@ -84,8 +49,6 @@ export function scheduleDecelerate(scene, target, delay) {
     });
 }
 
-// The usual end of a swing: locked out of attacking for `recovery` ms and the
-// weapon hidden after `hideAfter` ms (null keeps it out).
 export function recoverAfterAttack(scene, attacker, { hideAfter = 250, recovery = 400 } = {}) {
     attacker.canAttack = false;
     if (hideAfter !== null) scene.time.delayedCall(hideAfter, () => hideAttackSprite(attacker));
@@ -94,8 +57,6 @@ export function recoverAfterAttack(scene, attacker, { hideAfter = 250, recovery 
     });
 }
 
-// Runs onRelease after a windup. With interruptible, getting hit during the
-// windup cancels it and runs onInterrupt instead.
 export function afterWindup(scene, attacker, delay, onRelease, { interruptible = false, onInterrupt = null } = {}) {
     const windup = { interrupted: false };
     const removeCheck = interruptible
@@ -118,18 +79,6 @@ export function playHitSound(scene, attacker, sound) {
     if (key) scene.sound.play(key);
 }
 
-// Turns a knockback spec into a velocity.
-//   x, y            launch speed along the aim
-//   growth          multiply by the target's KB (default true). Without it the
-//                   move never gets stronger, so it can't KO on its own.
-//   scaleWithDamage multiply x by the attacker's damage scale (default true)
-//   maxDamageScale  cap on that damage scale
-//   lift            aim y used for a sideways hit (default -0.5, a little upward)
-//   onDown          'straight' (default) or 'popUp': aimed straight down, the
-//                   target pops up and away from the attacker instead
-//   spike           { x, y } used when aiming down at a grounded target, which
-//                   would otherwise be driven into the floor. Goes a random way.
-//   delay           ms before the launch; the target is stopped dead until then
 function resolveLaunch(attacker, target, knockback, direction, damageScale) {
     const kb = target.KBmultiplier;
     const grounded = target.body.touching.down;
@@ -182,11 +131,20 @@ export function landHit(scene, attacker, target, spec = {}) {
         noDeathRay = false,
         onHit = null
     } = spec;
-    const direction = spec.direction ?? attacker.lastDir;
     const now = scene.time.now;
+    const comboLocked = target.comboDirectionFrom === attacker && now < (target.freezeUntil ?? 0);
+    const direction = (comboLocked && target.comboDirection) || spec.direction || attacker.lastDir;
     const damageScale = getAttackDamageScale(attacker);
+    if (stun) {
+        target.comboDirection = { x: direction.x, y: direction.y };
+        target.comboDirectionFrom = attacker;
+    }
 
-    clearQueuedStunTimers(scene, attacker, target);
+    if (target.revokeVictimStun) {
+        scene.time.removeEvent(target.revokeVictimStun);
+        target.revokeVictimStun = null;
+    }
+    target.lastHitAt = now;
     target.hitstunUntil = now + hitstun * (hitstunGrowth ? target.KBmultiplier : 1);
     if (stun) {
         target.freezeUntil = now + (stun.target ?? 0);
@@ -231,12 +189,11 @@ export function landHit(scene, attacker, target, spec = {}) {
     }
 }
 
-// Checks the hit, then lands it. Planks in the swing are damaged either way.
-// A miss plays spec.missSound if there is one. Returns whether it hit.
 export function strike(scene, attacker, target, spec = {}) {
     const { range = 100, bypass = {}, direction = null, missSound = null } = spec;
     const plankDamage = spec.plankDamage ?? spec.damage ?? 0;
     damagePlanksInAttack(attacker, plankDamage * getAttackDamageScale(attacker));
+    cutGrassInSwing(attacker, range);
     const eligible = attackIsElligible(attacker, target, range, {
         ...bypass,
         direction: direction ?? bypass.direction ?? null

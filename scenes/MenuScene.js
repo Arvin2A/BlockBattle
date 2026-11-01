@@ -16,7 +16,7 @@ var navBox = null;
 var layout = []
 var selectedIndex = 0;
 var previousInput = {};
-const CHANGELOG_VERSION = "2026-10-30-2";
+const CHANGELOG_VERSION = "2026-10-31-16";
 
 function getVersionColor(version) {
     const [year, month, day, update] = version.split("-").map(Number);
@@ -73,6 +73,38 @@ export class MenuScene extends Phaser.Scene {
         this.input.topOnly = false;
 
         const changelogEntries = [
+            {
+                title: "PLUNGE IS NOW SLIDE",
+                body: "SLATEMAN's PLUNGE got reworked and renamed to SLIDE. His arm twists around, pulls out a dagger, then tucks it back in, and the whole thing lasts about 3 and a half seconds.\n The dagger only hurts (and still applies PLUNGED) while it's actually out, and holding left or right then sends him off at 1.5x speed. He doesn't move on his own anymore, so you steer the whole thing. Once he starts putting it away he slows back down.\n Pulling the dagger out and putting it back are little slashes of their own, so anyone who tries to punish him on either end gets swatted away. He can't do anything else until the whole SLIDE is over."
+            },
+            {
+                title: "CONTROL FIXES",
+                body: "Phone controls could suddenly stop responding until you switched tabs and came back. That's fixed, no tab hopping needed. Your thumb drifting off a button also doesn't drop the input anymore, and you can slide between buttons without lifting.\n Every now and then a fighter would just stop being able to attack for the rest of the match. That's fixed too, and as a safety net nobody can get locked out of attacking for more than a few seconds unless they're actually stunned."
+            },
+            {
+                title: "NAME FILTER FIXES",
+                body: "Swapping a vowel for a random number, symbol, dot or space doesn't get a bad name past the filter anymore, and neither does just leaving the vowel out or spelling it how it sounds. Keep it clean out there.\n If your name gets turned down, the name box now shakes and turns red instead of flashing a message you'd probably miss."
+            },
+            {
+                title: "COMBO FIXES",
+                body: "Push attacks can't fire the DEATH RAY anymore. Running into someone and swinging was never supposed to be a KO move.\n You also can't swap your launch direction mid-combo anymore. Once your jab stuns someone, the rest of the combo sends them the way it started instead of wherever you turn to at the last second. This was behind a lot of nasty combos, especially from the HARD CPU.\n SLATEMAN's rock now audibly breaks every time he cracks into a new phase, so you can hear when he's getting fragile. He also used to stay fragile after losing a stock. Now he's back to full toughness every respawn. His arms also come straight out of his body when he punches up or down instead of floating off to the side."
+            },
+            {
+                title: "DASH FIXES",
+                body: "AXEMAN's CLEAVE could sometimes hit twice in one dash. It only ever hits once now.\n LUNGE and QUICKSTEP were shredding through walls. If your opponent was hiding behind a plank, every dash would chew through it way faster than it should. Now a dash only damages a wall once."
+            },
+            {
+                title: "CPU DIFFICULTY",
+                body: "CPUs have difficulty levels now: EASY, NORMAL and HARD. Pick one above the CPU's box on character select (SIMULATION gets one for each CPU). EASY and NORMAL react slower, let some openings go, and don't edgeguard as hard. HARD is the same CPU you've been fighting.\n SIMULATION looks different too. Both CPUs are grey in the match, and on character select CPU 1 is black and CPU 2 is white so you can keep track of who's who.\n GUNMAN CPU stopped trying to point its minigun up and down. It only fires sideways, so now it waits until you're level with it."
+            },
+            {
+                title: "SCYTHEMAN REWORK",
+                body: "MOW is gone. SCYTHEMAN's DIR SPECIAL is now GRUELING SLAM: a giant white scythe rises over his head and whips down in front of him tip first, fast enough to actually connect. Land it and they take 20% and get PINNED to the ground for 1 second. Catch them in the air and they get slammed down way faster than a downslam first, then pinned for a whole 3 seconds. Hit them while they're pinned and they're free, so pick your moment.\n SOW is back as his NEUTRAL SPECIAL, and it's way better: every toss throws 7 seeds instead of 3, and you can throw them back to back as fast as you can press it. Every seed that lands on the ground or a platform grows grass right there.\n Grass cuts don't make him hit harder anymore. Instead every cut makes him 1% harder to launch, all the way up to twice as tough at 100 cuts, and a shield flashes on him that gets bluer the tougher he gets. Grass only grows on the ground and platforms now, and every normal swing cuts it, grown or not. Your opponent can mow your lawn too, but only your own cuts count for you."
+            },
+            {
+                title: "DROP-IN STARTS",
+                body: "Nobody just stands around at the start of a match anymore. Both fighters downslam in from above and crash right through any platforms in the way, then do their intro."
+            },
             {
                 title: "COMBAT + NAME FIXES",
                 body: "No more trading hits forever! Fighters could hit back the exact moment they got hit, so two fighters (bots especially) would stun each other over and over. Getting hit also sometimes ended your stun early, which is how people were breaking out of 3-hit combos. Both are fixed.\n Specials with a delayed hit, like PLUNGE and the QUICKSLAM follow-up, get cancelled if you're hit before they land.\n P1 can't fall through the floor at the start on DESERT ARENA anymore.\n Online names are plain English letters and numbers only now, and the name filter is a lot harder to sneak past."
@@ -153,10 +185,6 @@ export class MenuScene extends Phaser.Scene {
                 body: "A thumbstick for mobile players in online multiplayer."
             },
             {
-                title: "SLATEMAN PLUNGE REWORK",
-                body: "SLATEMAN's PLUNGE is getting reworked. Coming Oct 31, in the evening!"
-            },
-            {
                 title: "LAWNMOWER SCYTHEMAN",
                 body: "The LAWNMOWER variant of SCYTHEMAN."
             }
@@ -166,7 +194,7 @@ export class MenuScene extends Phaser.Scene {
             190, 300, 340, 450, 0x111111, 0.88
         ).setStrokeStyle(3, 0x686868);
 
-        const compactTitle = this.add.text(
+        const changelogBlurbTitle = this.add.text(
             40, 135, "LATEST UPDATE", {
                 fontFamily: "VCROSD",
                 fontSize: "24px",
@@ -176,9 +204,9 @@ export class MenuScene extends Phaser.Scene {
             }
         );
 
-        const compactText = this.add.text(
+        const changelogBlurb = this.add.text(
             40, 180,
-            "TRAPPER FISHERMAN is here, with harpoons that pin, javelin throws and nets. SLATEMAN got better arms, his speed finally scales with KB, and PLUNGE carries him forward. A full PLUNGE rework comes next: Oct 31, in the evening!",
+            "SLATEMAN's PLUNGE is now SLIDE: a dagger slide you steer yourself, with a speed burst while the blade is out and little slashes that guard him on either end. SCYTHEMAN got reworked too!",
             {
                 fontFamily: "VCROSD",
                 fontSize: "16px",
@@ -711,7 +739,7 @@ export class MenuScene extends Phaser.Scene {
         }}); 
 
         const introLength = slideInFromSides(this, [
-            [changelogBox, compactTitle, compactText, openChangelogText],
+            [changelogBox, changelogBlurbTitle, changelogBlurb, openChangelogText],
             [onlineBox, onlineText, onlineStatus, onlineCount],
             [botBox, botText, modeArrowBox, modeArrow],
             [startBox, startText]

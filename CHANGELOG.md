@@ -1,5 +1,46 @@
 # Changelog
 
+## 2026-10-31
+
+### Added
+- Fighters now downslam onto their spawn points at the start of a match, crashing straight through any platforms in the way. Their intro plays once they land.
+- SCYTHEMAN:
+  - DIR SPECIAL: GRUELING SLAM (replaces MOW). A giant white scythe starts upright over his head and whips down in front of him in a quick swing, blade tip first, with its own slam sound. A hit adds 20% KB and pins the opponent to the ground for 1 second. If they're in the air, they're slammed down much faster than a downslam first, then pinned where they land for 3 seconds. Hitting a pinned opponent frees them, and the cooldown only starts once the pin ends.
+  - A blue resistance shield flashes on him whenever his grass cuts go up, getting bluer as he gets closer to max resistance.
+- CPU difficulty: EASY, NORMAL or HARD, picked above the CPU's box on character select (one for each CPU in SIMULATION). Lower difficulties react slower, pass on some openings, swing less often, and skip edgeguarding, downslams and dodging specials. HARD is the same bot as before and is the default.
+
+### Changed
+- SLATEMAN's PLUNGE is now called SLIDE and was reworked with a new animation: his arm twists around, draws a dagger, then puts it away. The whole SLIDE lasts about 3.5 seconds.
+  - SLIDE no longer carries him forward on its own. Hold left or right to move, and while the dagger is out that speed is multiplied by 1.5.
+  - The dagger only hits (and applies PLUNGED) while it's out. The boost stops once he starts putting it away.
+  - Drawing the dagger and putting it away each work like a tilt: a small slash that knocks away anyone right in front of him.
+  - He can't attack, tilt or use another special until the SLIDE ends, and his normal arm is hidden during it.
+- SCYTHEMAN's NEUTRAL SPECIAL SOW is back. Each toss throws 7 seeds instead of 3, with only a short delay between tosses, and every seed that lands on the ground or a platform grows grass there.
+- SCYTHEMAN's grass cuts make him harder to launch (1% more knockback resistance per cut, so 100 cuts means double resistance) instead of making his hits stronger.
+- SCYTHEMAN's grass only grows on the ground and platforms.
+- SLATEMAN's rock cracks with a rock-break sound every time he reaches a new phase.
+- Picking a name that isn't allowed no longer flashes a message on the lobby screen. The name box stays open, shakes, turns red and tells you the name isn't allowed.
+- SIMULATION: both CPUs are grey in the match (name tags, KB boxes, ability meters, KO blasts and the results screen). On character select, CPU 1's select box, arrow buttons and ready button are black and CPU 2's are white so you can tell them apart.
+
+### Fixed
+- Mobile touch controls could stop responding mid-match until you switched tabs. Touches the browser lost track of are now cleared automatically.
+- Sliding your thumb off a touch button dropped the input. The button now stays held until you lift your finger, and sliding onto another button switches to it.
+- A fighter could permanently lose the ability to attack if one of their hits landed (a projectile, special or delayed swing) right after a jab. Fighters also can't stay locked out of attacking for more than 3 seconds while they aren't stunned or frozen.
+- Push attacks (attacking while moving) could fire the DEATH RAY. They can't anymore.
+- You could change which way your combo ender or tilt launched someone after your jab already stunned them, which made for unintended KO combos (the HARD CPU abused this a lot). Hits on a stunned opponent now launch the way the combo started.
+- SLATEMAN stayed fragile after losing a stock. His first phase now always has 2 knockback resistance, so he's back to full toughness every time his KB resets.
+- SLATEMAN's arms stuck out to the side of his body when he faced up or down. They now come straight out of him like they do when he faces sideways.
+- Online names could sneak bad words past the filter by swapping a vowel for any number, symbol, dot or space (F7CK, SH8T, F*CK, F.CK) by leaving the vowel out (FCK, SHT), or by spelling a vowel the way it sounds (FUHCK, FOCK, and "-IR" or "-UR" endings). All of these are blocked now.
+- AXEMAN's CLEAVE could hit twice in one dash.
+- SWORDMAN's LUNGE and QUICKSTEP damaged a wall over and over in one dash when the opponent was right behind it, shredding through walls. A dash now damages a wall only once.
+- The CPU's ability meter turned blue as soon as the match started instead of staying grey.
+- GUNMAN CPU tried to aim its minigun up and down, even though the minigun only fires sideways. It now only starts the minigun when the opponent is level with it, and it stops standing under or over the opponent while the minigun is firing.
+- Grass is cut by any basic attack or tilt swing, grown or not, and the opponent can clear it too. Only grass cut by the SCYTHEMAN who grew it counts toward his grass cuts.
+- Character select descriptions: SCYTHEMAN's now explains SOW and that his grass grows as he walks, and GUNMAN's said MINI had a 10 second cooldown (it has the same cooldown as everyone else).
+
+### Removed
+- SCYTHEMAN's MOW. It's gone completely, not moved to another button.
+
 ## 2026-10-30
 
 ### Fixed

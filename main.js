@@ -4,11 +4,12 @@
 
 import Phaser from 'phaser';
 import {handleAttack, handleDirSpecial, handleNeutralSpecial, handleDirSpecialAttack, handleHorizantalTilt, handleDownTilt, handleUpTilt, downslamAttack, updateScythemanGrass, updateChainsawWood, updateCharacter, toggleChainsawMode, tryQuickslamJump, positionAttackSprite, hasIdleAttackSprite, getAttackSpriteOffset, getAttackSpriteAngle, getAttackSpriteFlipX, triggerScreenShake, spawnDirtBurst, spawnExplosion} from './attacks.js';
-import { COLORS, FONTS, makePanel, playerColor, playerHex, textStyle } from './ui/theme.js';
+import { COLORS, FONTS, HEX, makePanel, playerColor, playerHex, textStyle } from './ui/theme.js';
 import { addTouchAssist, isPhoneScreen } from './ui/touchAssist.js';
 import { MAX_WOOD_COUNT } from './playerAttackScripts/axeman.js';
 import { initiatePlayers, updateCombo } from './players.js';
 import { Commands, executeStateCommand} from './commands.js';
+import { applySquash, restoreSquash, squashOnLanding } from './combat/squash.js';
 import { MenuScene } from './scenes/MenuScene.js';
 import { fadeOutTo } from './scenes/transitions.js';
 import { player1Character, player2Character, player1Variant, player2Variant, CharacterSelectScene } from './scenes/CharacterSelectScreen.js';
@@ -148,10 +149,15 @@ class GameScene extends Phaser.Scene {
 
     create() {
         create.call(this);
+        const fighters = () => Object.values(this.gameState.players ?? {});
+        const restore = () => restoreSquash(fighters());
+        this.events.on('preupdate', restore);
+        this.events.once('shutdown', () => this.events.off('preupdate', restore));
     }
 
     update() {
         update.call(this);
+        applySquash(this, Object.values(this.gameState.players ?? {}));
     }
 }
 
@@ -190,6 +196,14 @@ export var config = {
     },
     scene: [ControllerSetupScene, MenuScene, MapAndModifierSelectScene, CharacterSelectScene, GameScene, OnlineLobbyScene, OnlineGameScene, OnlineOverlayScene]
 };
+
+for (const Manager of [Phaser.Sound.WebAudioSoundManager, Phaser.Sound.HTML5AudioSoundManager]) {
+    const addSound = Manager.prototype.add;
+    Manager.prototype.add = function (key, config) {
+        if (!this.game.cache.audio.exists(key)) return new Phaser.Sound.NoAudioSound(this, key, config);
+        return addSound.call(this, key, config);
+    };
+}
 
 var game;
 
@@ -273,14 +287,18 @@ var restartBtnPressed;
 var homeBtn;
 var homeBtnPressed;
 
+// CPUs show in grey instead of their slot's red or blue.
+function isCpuSlot(scene, slot) {
+    return scene.simulationMode || (scene.botMode && slot === 'p2');
+}
+
 function createSpecialMeters(scene) {
     scene.specialMeters = {};
     const meterWidth = 160;
     const meterHeight = 18;
-    const p2MeterColor = scene.botMode ? 0x808080 : 0x00aaff;
     const meters = [
-        { key: 'p1', player: scene.gameState.players.player, x: 205, color: 0xf54242, label: 'P1 ABILITY' },
-        { key: 'p2', player: scene.gameState.players.player2, x: 795, color: p2MeterColor, label: 'P2 ABILITY' }
+        { key: 'p1', player: scene.gameState.players.player, x: 205, color: isCpuSlot(scene, 'p1') ? 0x808080 : 0xf54242, label: 'P1 ABILITY' },
+        { key: 'p2', player: scene.gameState.players.player2, x: 795, color: isCpuSlot(scene, 'p2') ? 0x808080 : 0x00aaff, label: 'P2 ABILITY' }
     ];
 
     meters.forEach(meter => {
@@ -308,7 +326,8 @@ function createSpecialMeters(scene) {
             player: meter.player,
             fill,
             status,
-            meterWidth
+            meterWidth,
+            color: meter.color
         };
     });
     meters.forEach(meter => {
@@ -412,7 +431,7 @@ function updateSpecialMeters(scene) {
         fill.setFillStyle(
             player.name === 'AXEMAN' && player.variant === 'CHAINSAW'
                 ? 0xff8c00
-                : meter.key === 'p1' ? 0xf54242 : 0x00aaff
+                : meter.color
         );
         status.setText(progress >= 1 ? 'READY' : `RECHARGING ${Math.ceil(remaining / 1000)}s`);
         status.setColor(progress >= 1 ? '#ffffff' : '#bbbbbb');
@@ -672,7 +691,7 @@ function create() {
 
 
 
-    const plr1StatImage = this.add.image(300, 65, 'redstat');
+    const plr1StatImage = this.add.image(300, 65, simulationMode ? 'botstat' : 'redstat');
     plr1StatImage.setScale(0.65);
     const plr2StatID  = botMode ? 'botstat' : 'bluestat';
     const plr2StatImage = this.add.image(700, 65, plr2StatID);
@@ -747,7 +766,6 @@ function create() {
 
             btn.on('pointerdown', press);
             btn.on('pointerup', release);
-            btn.on('pointerout', release);
             btn.on('pointerupoutside', release);
             touchButtons.push({ circle: btn, press, release });
 
@@ -844,7 +862,6 @@ function create() {
         }
     }
     createSpecialMeters(this);
-    startCharacterIntros(this);
 
     if (this.online) {
         const names = getOnlinePlayerNames();
@@ -910,6 +927,7 @@ function create() {
         });
         this.objs.addAt(player.ultraTrail, this.objs.getIndex(player));
     }
+    playEntranceSlams(this);
 
     const keys = Object.keys(this.gameState.players);
 
@@ -1190,6 +1208,7 @@ function spawnAfterimage(scene, player) {
     });
 }
 
+const MAX_ATTACK_LOCK_MS = 3000;
 const DANGER_KB = 2.0;
 const DUST_COLORS = [0xffffff, 0xdddddd, 0xbbbbbb];
 
@@ -1257,7 +1276,7 @@ function spawnKOBlast(scene, loser, scorer) {
     const angle = Math.atan2(view.centerY - edgeY, view.centerX - edgeX);
     const length = Math.hypot(view.width, view.height);
 
-    const beam = scene.add.rectangle(edgeX, edgeY, length, 120, playerHex(scorer.slot))
+    const beam = scene.add.rectangle(edgeX, edgeY, length, 120, isCpuSlot(scene, scorer.slot) ? HEX.cpu : playerHex(scorer.slot))
         .setOrigin(0, 0.5).setRotation(angle).setDepth(50).setScale(0.2, 1);
     const core = scene.add.rectangle(edgeX, edgeY, length, 40, 0xffffff)
         .setOrigin(0, 0.5).setRotation(angle).setDepth(51).setScale(0.2, 1);
@@ -1370,10 +1389,10 @@ function showResultsPanel(scene, winner) {
     const typed = [
         [scene.add.text(500, 145, '', textStyle('title', {
             fontSize: '40px',
-            fill: playerColor(winner.slot)
+            fill: isCpuSlot(scene, winner.slot) ? COLORS.cpu : playerColor(winner.slot)
         })).setOrigin(0.5), `${winner.name} WINS!`],
-        [scene.add.text(390, 195, '', textStyle('title', { fontSize: '18px', fill: COLORS.p1, strokeThickness: 3 })).setOrigin(0.5), p1.name],
-        [scene.add.text(610, 195, '', textStyle('title', { fontSize: '18px', fill: COLORS.p2, strokeThickness: 3 })).setOrigin(0.5), p2.name]
+        [scene.add.text(390, 195, '', textStyle('title', { fontSize: '18px', fill: isCpuSlot(scene, 'p1') ? COLORS.cpu : COLORS.p1, strokeThickness: 3 })).setOrigin(0.5), p1.name],
+        [scene.add.text(610, 195, '', textStyle('title', { fontSize: '18px', fill: isCpuSlot(scene, 'p2') ? COLORS.cpu : COLORS.p2, strokeThickness: 3 })).setOrigin(0.5), p2.name]
     ];
     rows.forEach(([label, value], index) => {
         const y = 240 + index * 40;
@@ -1459,26 +1478,56 @@ const INTRO_SOUNDS = {
 };
 
 
-function startCharacterIntros(scene) {
-    for (const player of Object.values(scene.gameState.players)) {
-        const key = `${player.texture.key}intro`;
-        if (!scene.anims.exists(key)) continue;
-        const intro = scene.add.sprite(player.x, player.y, key)
-            .setDepth(player.depth)
-            .setFlipX(player.lastDir.x < 0)
-            .setScale(INTRO_SCALES[player.texture.key] ?? 1);
-        scene.objs.add(intro);
-        const introSound = INTRO_SOUNDS[player.texture.key];
-        if (introSound) {
-            intro.on('animationupdate', (anim, frame) => {
-                if (frame.textureFrame === introSound.frame) scene.sound.play(introSound.key);
+// Fighters downslam onto their spawns at the start of a match, straight through
+// any platforms in the way, and play their intro once they land.
+const ENTRANCE = { height: 700, delays: [300, 420], duration: 380 };
+
+function playEntranceSlams(scene) {
+    const { player, player2 } = scene.gameState.players;
+    [player, player2].forEach((fighter, index) => {
+        const spawn = { x: fighter.x, y: fighter.y };
+        // With the body off, nothing collides with it while it falls.
+        fighter.body.enable = false;
+        fighter.setPosition(spawn.x, spawn.y - ENTRANCE.height);
+        scene.time.delayedCall(ENTRANCE.delays[index], () => {
+            fighter.afterimage = true;
+            scene.tweens.add({
+                targets: fighter,
+                y: spawn.y,
+                duration: ENTRANCE.duration,
+                ease: 'Quad.easeIn',
+                onComplete: () => {
+                    fighter.afterimage = false;
+                    fighter.body.enable = true;
+                    fighter.body.reset(spawn.x, spawn.y);
+                    spawnDirtBurst(scene, fighter.x, fighter.body.bottom, 16, 6, 10, 1.5);
+                    triggerScreenShake(scene, 8, 200);
+                    scene.sound.play('slamimpact');
+                    startCharacterIntro(scene, fighter);
+                }
             });
-        }
-        intro.play(key);
-        player.introSprite = intro;
-        player.atk.setVisible(false);
-        updateCharacterIntro(player);
+        });
+    });
+}
+
+function startCharacterIntro(scene, player) {
+    const key = `${player.texture.key}intro`;
+    if (!scene.anims.exists(key)) return;
+    const intro = scene.add.sprite(player.x, player.y, key)
+        .setDepth(player.depth)
+        .setFlipX(player.lastDir.x < 0)
+        .setScale(INTRO_SCALES[player.texture.key] ?? 1);
+    scene.objs.add(intro);
+    const introSound = INTRO_SOUNDS[player.texture.key];
+    if (introSound) {
+        intro.on('animationupdate', (anim, frame) => {
+            if (frame.textureFrame === introSound.frame) scene.sound.play(introSound.key);
+        });
     }
+    intro.play(key);
+    player.introSprite = intro;
+    player.atk.setVisible(false);
+    updateCharacterIntro(player);
 }
 
 function updateCharacterIntro(player) {
@@ -1539,7 +1588,7 @@ const IDLE_WEAPON_TEXTURES = {
 
 function updateWeaponIdle(player) {
     const idleTexture = player.idleWeaponTexture ?? IDLE_WEAPON_TEXTURES[player.variant];
-    if (!idleTexture || player.isAttacking || player.activeGrab) return;
+    if (!idleTexture || player.isAttacking || player.isPlunging || player.activeGrab) return;
     const sprite = player.atk;
 
     if (!player.idleWeaponTexture || sprite.texture.key !== idleTexture) {
@@ -1592,6 +1641,12 @@ function updateSledgehammerAnimation(player) {
 // SLATEMAN's speed at 0% KB, and how much faster each 100% KB makes him.
 const SLATEMAN_START_SPEED = 0.75;
 const SLATEMAN_SPEED_PER_KB = 0.5;
+const SLATEMAN_PHASES = [
+    { minKB: -Infinity, texture: 'slateman', resistance: 2 },
+    { minKB: 1.50, texture: 'slatemanphase1', resistance: 1.5 },
+    { minKB: 2.00, texture: 'slatemanphase2', resistance: 1 },
+    { minKB: 2.50, texture: 'slatemanphase3', resistance: 0.5 }
+];
 
 function updateKB(scene) {
     for (const key in scene.gameState.players) {
@@ -1657,20 +1712,12 @@ function updateKB(scene) {
         if (player.lastKBmultiplier !== player.KBmultiplier) {
 
             if (player.name === "SLATEMAN") {
-                if (player.KBmultiplier < 1.50) player.setTexture('slateman');
-                if (player.KBmultiplier >= 1.50) {
-                    player.setTexture('slatemanphase1');
-                    player.playerKBresistance = 1.5
-                }
-                if (player.KBmultiplier >= 2.00) {
-                    player.setTexture('slatemanphase2');
-                    player.playerKBresistance = 1
-                }
-                if (player.KBmultiplier >= 2.50) {
-                    player.setTexture('slatemanphase3');
-                    player.playerKBresistance = 0.5
-                };
-
+                const phase = SLATEMAN_PHASES.filter(({ minKB }) => player.KBmultiplier >= minKB).length - 1;
+                const { texture, resistance } = SLATEMAN_PHASES[phase];
+                player.setTexture(texture);
+                player.playerKBresistance = resistance;
+                if (phase > (player.slatePhase ?? 0)) scene.sound.play('rockbreak');
+                player.slatePhase = phase;
             }
         }
         player.plungeAura.setPosition(player.x, player.y);
@@ -1908,14 +1955,17 @@ function update() {
         }
 
         if (player.body.touching.down) {
+            if (player.airTime > 0) squashOnLanding(player, player.fallSpeed ?? 0);
             if (player.downslamming && player.airTime > 0) {
                 const target = key === 'player' ? p2 : p1;
                 downslamAttack(this, player, target);
                 player.downslamming = false;
             }
             player.airTime = 0;
+            player.fallSpeed = 0;
         } else {
             player.airTime += this.game.loop.delta;
+            player.fallSpeed = Math.max(0, player.body.velocity.y);
         }
         player.flashObject.setPosition(player.x, player.y);
 
@@ -1926,6 +1976,15 @@ function update() {
 
         player.freeze =
             this.time.now < player.freezeUntil;
+        if (player.canAttack || player.hitstun || player.freeze || player.activeGrab || player.grabbedBy) {
+            player.attackLockedFor = 0;
+        } else {
+            player.attackLockedFor = (player.attackLockedFor || 0) + this.game.loop.delta;
+            if (player.attackLockedFor > MAX_ATTACK_LOCK_MS) {
+                player.canAttack = true;
+                player.attackLockedFor = 0;
+            }
+        }
         player.chopped = this.time.now < player.choppedUntil;
         player.netted = player.hitstun && this.time.now < player.nettedUntil;
 

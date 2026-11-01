@@ -199,8 +199,8 @@ export function createGameAnimations(scene) {
     });
     scene.anims.create({
         key: 'slateplunge',
-        frames: scene.anims.generateFrameNumbers('slateplunge', { start: 0, end: 10 }),
-        frameRate: 12,
+        frames: scene.anims.generateFrameNumbers('slateplunge', { start: 0, end: 42 }),
+        duration: 2000,
         repeat: 0
     });
     scene.anims.create({

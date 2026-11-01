@@ -345,8 +345,8 @@ export function initiatePlayers(scene, p1Select = 'axeman', p2Select = 'swordman
         scene.objs.add(p.atk);
     }
 
-    players.player.header = scene.add.text(players.player.x, players.player.y - 50, scene.simulationMode ? 'CPU 1' : 'P1' ,{ fontFamily: FONTS.title, fontSize: '18px', fill: COLORS.p1 });
-    const headerFILL = scene.botMode ? '#686868' : COLORS.p2
+    players.player.header = scene.add.text(players.player.x, players.player.y - 50, scene.simulationMode ? 'CPU 1' : 'P1' ,{ fontFamily: FONTS.title, fontSize: '18px', fill: scene.simulationMode ? COLORS.cpu : COLORS.p1 });
+    const headerFILL = scene.botMode ? COLORS.cpu : COLORS.p2
     players.player2.header = scene.add.text(players.player2.x, players.player2.y - 50, scene.simulationMode ? 'CPU 2' : scene.botMode ? 'CPU' : 'P2' ,{ fontFamily: FONTS.title, fontSize: '18px', fill: headerFILL });
     scene.objs.add(players.player.header);
     scene.objs.add(players.player2.header);

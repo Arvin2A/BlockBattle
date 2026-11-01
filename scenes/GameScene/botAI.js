@@ -9,6 +9,40 @@ import { handleDirSpecial } from "../../attacks.js";
 import { handleDirSpecialAttack } from "../../attacks.js";
 import { toggleChainsawMode } from "../../attacks.js";
 import { isInvincible, attackIsElligible } from "../../attacks.js";
+import { botDifficulty } from "../../gameSettings.js";
+
+// How each difficulty holds back. HARD is the bot at full strength.
+//  thinkMs:       time between decisions; movement is held in between.
+//  attackDelayMs: extra wait on top of the attack cooldown after each swing.
+//  hesitate:      chance to pass on an open attack or special, and for how long.
+//  edgeguard / dodgeSpecials / downslam: whether it does these at all.
+const DIFFICULTY = {
+    EASY: {
+        thinkMs: 320, attackDelayMs: 450, hesitateChance: 0.55, hesitateMs: 500,
+        edgeguard: false, dodgeSpecials: false, downslam: false
+    },
+    NORMAL: {
+        thinkMs: 140, attackDelayMs: 150, hesitateChance: 0.25, hesitateMs: 300,
+        edgeguard: true, dodgeSpecials: false, downslam: true
+    },
+    HARD: {
+        thinkMs: 0, attackDelayMs: 0, hesitateChance: 0, hesitateMs: 0,
+        edgeguard: true, dodgeSpecials: true, downslam: true
+    }
+};
+
+function getDifficulty(bot) {
+    return DIFFICULTY[botDifficulty[bot.id]] ?? DIFFICULTY.HARD;
+}
+
+// Rolls whether the bot passes on an opening; a pass blocks it for hesitateMs
+// so it isn't rerolled every frame.
+function hesitates(bot, difficulty, now) {
+    if (now < (bot.botHesitateUntil ?? 0)) return true;
+    if (Math.random() >= difficulty.hesitateChance) return false;
+    bot.botHesitateUntil = now + difficulty.hesitateMs;
+    return true;
+}
 
 const MAX_CHAINSAW_WOOD = 225;
 const PLANK_WOOD_COST = 15;
@@ -40,6 +74,10 @@ const DASH_REACH = {
 };
 
 function send(scene, bot, type) {
+    // Walking is remembered so a slower bot keeps it up between decisions.
+    if (type === Commands.LEFT || type === Commands.RIGHT || type === Commands.NONE) {
+        bot.botHeldCommand = type;
+    }
     executeStateCommand(scene, scene.gameState.players, {
         playerID: bot.id,
         type
@@ -235,6 +273,7 @@ export function runBotAI(scene, bot, target, fiveframecount) {
     const side = Math.sign(dx) || 1;
     const targetHittable = target.active && !isInvincible(target);
     const targetOffStage = isOffStage(target, surfaces);
+    const difficulty = getDifficulty(bot);
     // ======================
     // DISABLED STATES
     // ======================
@@ -298,11 +337,19 @@ export function runBotAI(scene, bot, target, fiveframecount) {
         return;
     }
 
+    // Lower difficulties react slower: between decisions they keep walking
+    // the way they were.
+    if (now < (bot.botNextThinkAt ?? 0)) {
+        send(scene, bot, bot.botHeldCommand ?? Commands.NONE);
+        return;
+    }
+    bot.botNextThinkAt = now + difficulty.thinkMs;
+
     // ======================
     // DOWNSLAM (only over the stage)
     // ======================
 
-    if (!grounded && bot.airTime >= 1000 && dy > 0 && distance <= 125 &&
+    if (difficulty.downslam && !grounded && bot.airTime >= 1000 && dy > 0 && distance <= 125 &&
         targetHittable && now >= (bot.nextDownslamTime || 0)) {
         bot.nextDownslamTime = now + 1000;
         send(scene, bot, Commands.DOWNSLAM);
@@ -310,7 +357,7 @@ export function runBotAI(scene, bot, target, fiveframecount) {
     }
 
     // Back off from a dir special that's already coming at us.
-    if (target.isUsingSideSpecial && distance < 200 && !targetOffStage) {
+    if (difficulty.dodgeSpecials && target.isUsingSideSpecial && distance < 200 && !targetOffStage) {
         if (!walk(scene, bot, -side, surfaces) && grounded &&
             now - bot.lastJump > 500) {
             bot.lastJump = now;
@@ -323,17 +370,17 @@ export function runBotAI(scene, bot, target, fiveframecount) {
         const horizontalLane = Math.abs(dy + 10) <= target.body.height / 2 + 1;
         const verticalLane = Math.abs(dx) <= target.body.width / 2 + 1;
         const canShootHorizontally = horizontalLane && Math.abs(dx) > 50;
-        const canShootVertically = verticalLane && (dy <= -35 || dy >= 15);
+        // Basic shots are locked out during the minigun, so don't stand and aim
+        // up/down at them; let the movement below line the bot back up instead.
+        const canShootVertically = verticalLane && (dy <= -35 || dy >= 15) &&
+            !bot.gunmanSpecialActive;
+        // The minigun only fires sideways, so only start it with a horizontal line.
         const specialHorizontal = canShootHorizontally && Math.abs(dx) <= 1000;
-        const specialVertical = canShootVertically && Math.abs(dy) <= 1000;
 
-        if (targetHittable && (specialHorizontal || specialVertical) &&
+        if (targetHittable && specialHorizontal &&
             !bot.gunmanSpecialActive && now >= bot.nextSideSpecialTime) {
-            bot.lastDir = specialHorizontal
-                ? { x: Math.sign(dx), y: 0 }
-                : { x: 0, y: Math.sign(dy) };
-            const specialDirection = bot.lastDir.x < 0 ? 'left' : 'right';
-            handleDirSpecial(scene, bot, specialDirection, now, target);
+            bot.lastDir = { x: Math.sign(dx), y: 0 };
+            handleDirSpecial(scene, bot, dx < 0 ? 'left' : 'right', now, target);
         }
 
         if (canShootHorizontally || canShootVertically) {
@@ -341,7 +388,9 @@ export function runBotAI(scene, bot, target, fiveframecount) {
                 ? { x: Math.sign(dx), y: 0 }
                 : { x: 0, y: Math.sign(dy) };
 
-            if (targetHittable && now >= bot.nextAttackTime && bot.canAttack) {
+            if (targetHittable && now >= bot.nextAttackTime && bot.canAttack &&
+                now >= (bot.botNextAttackAt ?? 0) && !hesitates(bot, difficulty, now)) {
+                bot.botNextAttackAt = now + difficulty.attackDelayMs;
                 handleAttack(scene, bot, target);
             }
             send(scene, bot, Commands.NONE);
@@ -432,14 +481,16 @@ export function runBotAI(scene, bot, target, fiveframecount) {
     // ======================
 
     const usesBasicCombo = bot.name !== "GUNMAN" && !isChainsawAxeman;
-    const readyToAttack = bot.canAttack && now >= bot.nextAttackTime;
+    const readyToAttack = bot.canAttack && now >= bot.nextAttackTime &&
+        now >= (bot.botNextAttackAt ?? 0);
     if (usesBasicCombo && targetHittable && readyToAttack) {
         const isDagger = bot.name === 'SWORDMAN' && bot.variant === 'DAGGER';
         const lightRange = (isDagger ? DAGGER_RANGE : LIGHT_RANGE) - RANGE_MARGIN;
         const attackDir = chooseAttackDir(bot, target, lightRange, stageCenter);
-        if (attackDir) {
+        if (attackDir && !hesitates(bot, difficulty, now)) {
             bot.lastDir = attackDir;
             bot.lastAttack = now;
+            bot.botNextAttackAt = now + difficulty.attackDelayMs;
             // Standing still keeps tryAttack on the combo instead of pushAttack.
             send(scene, bot, Commands.NONE);
             handleAttack(scene, bot, target);
@@ -450,8 +501,10 @@ export function runBotAI(scene, bot, target, fiveframecount) {
         const runningIn = Math.sign(bot.body.velocity.x) === side &&
             Math.abs(bot.body.velocity.x) > 40;
         if (bot.combo === 0 && runningIn && Math.abs(dy) < 60 &&
-            wouldHit(bot, target, { x: side, y: 0 }, PUSH_RANGE - RANGE_MARGIN)) {
+            wouldHit(bot, target, { x: side, y: 0 }, PUSH_RANGE - RANGE_MARGIN) &&
+            !hesitates(bot, difficulty, now)) {
             bot.lastAttack = now;
+            bot.botNextAttackAt = now + difficulty.attackDelayMs;
             if (walk(scene, bot, side, surfaces)) {
                 handleAttack(scene, bot, target);
                 return;
@@ -463,7 +516,7 @@ export function runBotAI(scene, bot, target, fiveframecount) {
     // EDGEGUARD
     // ======================
 
-    if (targetOffStage && usesBasicCombo) {
+    if (targetOffStage && usesBasicCombo && difficulty.edgeguard) {
         edgeguard(scene, bot, target, surfaces, stageCenter);
         return;
     }
@@ -473,7 +526,8 @@ export function runBotAI(scene, bot, target, fiveframecount) {
     // ======================
 
     if (targetHittable && !targetOffStage && now >= bot.nextSideSpecialTime &&
-        now - bot.lastDirSpecial > 500 && specialFits(bot, dx, dy, grounded)) {
+        now - bot.lastDirSpecial > 500 && specialFits(bot, dx, dy, grounded) &&
+        !hesitates(bot, difficulty, now)) {
         // Don't dash off the end of the stage.
         const reach = DASH_REACH[bot.variant] ?? 0;
         if (!reach || surfaceBelow(surfaces, bot.x + side * reach, bot.body.bottom)) {
@@ -535,7 +589,8 @@ function specialFits(bot, dx, dy, grounded) {
             if (bot.variant === 'TRAPPER') return adx > 150 && adx < 400 && ady < 150;
             return adx > 250 && adx < 450 && ady < 80;
         case 'SCYTHEMAN':
-            return adx < 300 && ady < 125;
+            // GRUELING SLAM only reaches about one scythe length in front.
+            return adx < 140 && ady < 110;
         case 'HAMMERMAN':
             return adx < 80 && ady < 100;
         case 'SLATEMAN':

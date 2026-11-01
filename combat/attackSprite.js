@@ -30,6 +30,8 @@ export function getAttackSpriteOffset(player, textureKey = player.atk?.texture.k
     const offset = script?.textureAttackSpriteOffsets?.[textureKey] ??
         script?.variantAttackSpriteOffsets?.[player.variant] ??
         script?.attackSpriteOffset;
+    const vertical = player.lastDir.y < 0 ? offset?.up : player.lastDir.y > 0 ? offset?.down : null;
+    if (vertical) return { x: vertical.x ?? 0, y: vertical.y ?? 0 };
     return {
         x: (offset?.x ?? 0) * player.lastDir.x,
         y: (offset?.y ?? 0) + (offset?.x ?? 0) * player.lastDir.y

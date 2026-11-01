@@ -13,15 +13,21 @@ export const FONTS = {
 export const COLORS = {
     p1: '#ff4343',
     p2: '#3d8bff',
+    cpu: '#686868',
     accent: '#ffd34d',
     text: '#ffffff',
     muted: '#bbbbbb',
+    error: '#ff6b6b',
     stroke: '#000000'
 };
 
 export const HEX = {
     p1: 0xff4343,
     p2: 0x3d8bff,
+    cpu: 0x686868,
+    // Character select only: in SIMULATION the two CPUs are told apart by these.
+    simCpu1: 0x000000,
+    simCpu2: 0xffffff,
     accent: 0xffd34d,
     panel: 0x171717,
     panelHover: 0x444444,

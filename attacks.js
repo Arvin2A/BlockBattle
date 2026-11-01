@@ -28,7 +28,14 @@ import {
     VIOLENT_KB_PERCENT,
     ULTRA_KB_PERCENT
 } from './combat/knockback.js';
-import { removeGrass, cutNearbyGrass, updateScythemanGrass } from './combat/grass.js';
+import {
+    removeGrass,
+    cutNearbyGrass,
+    updateScythemanGrass,
+    plantGrass,
+    hasOwnGrassNear,
+    getGrassPlatform
+} from './combat/grass.js';
 import { damagePlank, damagePlanksInAttack, isBlockedByWall } from './combat/planks.js';
 import { attackIsElligible, DEFAULT_BYPASS_OPTIONS } from './combat/eligibility.js';
 import {
@@ -156,7 +163,8 @@ export const STANDARD_HITS = Object.freeze({
         hitFreeze: 50,
         sound: 'light',
         knockback: { x: 400, y: 500, spike: { x: 325, y: -200 } },
-        decelerateAfter: 600
+        decelerateAfter: 600,
+        noDeathRay: true
     },
     finisher: {
         range: 100,
@@ -348,6 +356,10 @@ const sharedAttackHelpers = {
     damagePlank,
     removeGrass,
     cutNearbyGrass,
+    plantGrass,
+    hasOwnGrassNear,
+    getGrassPlatform,
+    triggerScreenShake,
     distanceBetween: (first, second) => Phaser.Math.Distance.Between(
         first.x, first.y, second.x, second.y
     )

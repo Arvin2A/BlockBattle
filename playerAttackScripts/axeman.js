@@ -469,6 +469,7 @@ function superSwing(api, scene, attacker, target, animKey) {
     const hit = api.attackIsElligible(attacker, target, 150);
     if (hit) {
         api.setAttackSprite(attacker, animKey);
+        attacker.hasHitSideSpecial = true;
         api.landHit(scene, attacker, target, SUPER_SWING);
         target.choppedUntil = scene.time.now + 3000;
     }
