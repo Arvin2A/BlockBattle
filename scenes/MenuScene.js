@@ -79,7 +79,7 @@ export class MenuScene extends Phaser.Scene {
             },
             {
                 title: "CONTROL FIXES",
-                body: "Phone controls could suddenly stop responding until you switched tabs and came back. That's fixed, no tab hopping needed. Your thumb drifting off a button also doesn't drop the input anymore, and you can slide between buttons without lifting.\n Every now and then a fighter would just stop being able to attack for the rest of the match. That's fixed too, and as a safety net nobody can get locked out of attacking for more than a few seconds unless they're actually stunned."
+                body: "Phone controls could suddenly stop responding until you switched tabs and came back. That's fixed, no tab hopping needed. Your thumb drifting off a button also doesn't drop the input anymore, and you can slide between buttons without lifting.\n Every now and then a fighter would just stop being able to attack for the rest of the match. That's fixed too, and as a safety net nobody can get locked out of attacking for more than a few seconds unless they're actually stunned.\n You can aim each hit of a combo again, so your ender or tilt goes wherever you're holding instead of where the combo started."
             },
             {
                 title: "NAME FILTER FIXES",
