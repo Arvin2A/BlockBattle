@@ -184,6 +184,7 @@ export class OnlineGameScene extends Phaser.Scene {
         if (!this.matchOver) net.send({ t: 'forfeit' });
         this.matchOver = true;
         this.scene.stop('OnlineOverlayScene');
+        if (sceneKey === 'MenuScene') net.disconnect();
         this.scene.start(sceneKey, data);
     }
 
