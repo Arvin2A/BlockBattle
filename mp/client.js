@@ -60,6 +60,7 @@ class NetClient {
             });
 
             socket.addEventListener('message', event => {
+                if (this.socket !== socket) return;
                 let message;
                 try {
                     message = JSON.parse(event.data);
@@ -93,16 +94,28 @@ class NetClient {
 
             socket.addEventListener('close', () => {
                 clearTimeout(timeout);
+                if (!welcomed) reject(new Error('Could not reach the online server.'));
+                if (this.socket !== socket) return;
                 const wasConnected = this.connected;
                 this.connected = false;
                 this.socket = null;
                 this.connectPromise = null;
                 this.stopPing();
-                if (!welcomed) reject(new Error('Could not reach the online server.'));
                 if (wasConnected) this.emit('disconnected', {});
             });
         });
         return this.connectPromise;
+    }
+
+    disconnect() {
+        const socket = this.socket;
+        if (!socket) return;
+        this.socket = null;
+        this.connected = false;
+        this.connectPromise = null;
+        this.clientId = null;
+        this.stopPing();
+        socket.close();
     }
 
     sendNow(message) {

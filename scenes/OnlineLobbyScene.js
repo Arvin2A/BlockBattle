@@ -458,6 +458,7 @@ export class OnlineLobbyScene extends Phaser.Scene {
 
         net.connect()
             .then(() => {
+                if (!this.statusText?.active) return;
                 this.setStatus(`Connected to ${getOnlineServerHost()}`);
                 if (this.autoQueue) this.toggleQueue();
             })
@@ -468,6 +469,7 @@ export class OnlineLobbyScene extends Phaser.Scene {
     }
 
     setStatus(text, color = '#bbbbbb') {
+        if (!this.statusText?.active) return;
         this.statusText.setText(text).setColor(color);
     }
 
@@ -667,6 +669,9 @@ export class OnlineLobbyScene extends Phaser.Scene {
     goBack() {
         if (this.queueState === 'found' || this.closeNameBox) return;
         if (this.queueState === 'queued') net.send({ t: 'leave' });
-        fadeOutTo(this, () => this.scene.start('MenuScene'));
+        fadeOutTo(this, () => {
+            net.disconnect();
+            this.scene.start('MenuScene');
+        });
     }
 }
