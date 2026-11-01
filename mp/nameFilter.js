@@ -17,7 +17,12 @@ const MIN_HIDDEN_WORD_LENGTH = 6;
 const SAFE_WORDS = [
     'therapist', 'scraping', 'draping', 'trimming', 'brimming', 'thumping',
     'socialis', 'specialis', 'commercialis', 'provincialis', 'sclerotic', 'snigger',
-    'scunthorpe', 'shiitake', 'shitake'
+    'scunthorpe', 'shiitake', 'shitake',
+    'dickens', 'dickinson', 'dickson', 'dickey', 'dicker', 'benedick',
+    'cocktail', 'cockatoo', 'cockatiel', 'cockpit', 'cockroach', 'cockney', 'cockle', 'cockerel',
+    'cockade', 'cockamamie', 'cocky', 'cockier', 'cockiest', 'cockily', 'cockiness', 'cocksure', 'cockeyed',
+    'peacock', 'hancock', 'hitchcock', 'woodcock', 'shuttlecock', 'gamecock', 'babcock', 'stopcock',
+    'haycock', 'poppycock', 'weathercock'
 ];
 
 // Letters from other alphabets that look like English ones (an iota for an i).
@@ -138,7 +143,7 @@ export function createNameFilter(wordListText) {
         });
     }
 
-    return function isNameBlocked(name) {
+    function checkName(name) {
         if (hasWildWord(name)) return true;
         return ['i', 'l'].some(iOrL => {
             const normalized = normalize(name, iOrL);
@@ -146,8 +151,48 @@ export function createNameFilter(wordListText) {
             if (!whole) return false;
             const parts = normalized.split(/[^a-z0-9]+/).filter(Boolean);
             if ([whole, ...parts].some(candidate => wholeWords.some(word => word.test(candidate)))) return true;
-            const unsafe = SAFE_WORDS.reduce((text, safe) => text.replaceAll(safe, ' '), whole);
+            const unsafe = SAFE_WORDS.reduce((text, safe) => text.replaceAll(safe.replace(I_OR_L, iOrL), ' '), whole);
             return hiddenWords.some(word => word.test(unsafe));
         });
+    }
+
+    function isWholeWord(text) {
+        return ['i', 'l'].some(iOrL => {
+            const whole = squash(normalize(text, iOrL));
+            return Boolean(whole) && wholeWords.some(word => word.test(whole));
+        });
+    }
+
+    return function isNameBlocked(name) {
+        if (checkName(name)) return true;
+        return swappedStarts(name).some(([a, b]) => isWholeWord(a) || isWholeWord(b) || isWholeWord(`${a} ${b}`));
     };
+}
+
+function splitWords(name) {
+    return toAsciiName(name)
+        .replace(/([a-z])([A-Z])/g, '$1 $2')
+        .split(/[^a-zA-Z0-9@$!+|]+/)
+        .filter(Boolean);
+}
+
+function startLength(word) {
+    const letters = normalize(word, 'i');
+    for (let i = 0; i < letters.length; i++) {
+        if ('aeiou'.includes(letters[i]) || (i > 0 && letters[i] === 'y')) return i;
+    }
+    return -1;
+}
+
+function swappedStarts(name) {
+    const words = splitWords(name);
+    const pairs = [];
+    for (let i = 0; i + 1 < words.length; i++) {
+        const [a, b] = [words[i], words[i + 1]];
+        const [startA, startB] = [startLength(a), startLength(b)];
+        if (startA < 1 || startB < 1) continue;
+        const [newA, newB] = [b.slice(0, startB) + a.slice(startA), a.slice(0, startA) + b.slice(startB)];
+        if (newA.toLowerCase() !== a.toLowerCase()) pairs.push([newA, newB]);
+    }
+    return pairs;
 }
