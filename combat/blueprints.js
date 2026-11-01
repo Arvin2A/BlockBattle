@@ -132,13 +132,8 @@ export function landHit(scene, attacker, target, spec = {}) {
         onHit = null
     } = spec;
     const now = scene.time.now;
-    const comboLocked = target.comboDirectionFrom === attacker && now < (target.freezeUntil ?? 0);
-    const direction = (comboLocked && target.comboDirection) || spec.direction || attacker.lastDir;
+    const direction = spec.direction || attacker.lastDir;
     const damageScale = getAttackDamageScale(attacker);
-    if (stun) {
-        target.comboDirection = { x: direction.x, y: direction.y };
-        target.comboDirectionFrom = attacker;
-    }
 
     if (target.revokeVictimStun) {
         scene.time.removeEvent(target.revokeVictimStun);
