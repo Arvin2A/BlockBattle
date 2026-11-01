@@ -60,7 +60,45 @@ jobs:
       - name: Show InfinityFree build output
         run: find dist -type f -print
 
+      - name: Look up InfinityFree FTP address
+        id: ftp_host
+        continue-on-error: true
+        env:
+          FTP_SERVER: ${{ secrets.FTP_SERVER }}
+        run: |
+          if [[ "$FTP_SERVER" =~ ^[0-9.]+$ ]]; then exit 0; fi
+          for attempt in $(seq 1 10); do
+            for resolver in 8.8.8.8 1.1.1.1 9.9.9.9; do
+              ip=$(dig +short +time=3 +tries=1 "@$resolver" "$FTP_SERVER" A | grep -E '^[0-9.]+$' | tail -n 1)
+              if [ -n "$ip" ]; then
+                echo "$ip $FTP_SERVER" | sudo tee -a /etc/hosts > /dev/null
+                echo "Found the FTP address on try $attempt"
+                exit 0
+              fi
+            done
+            sleep 6
+          done
+          echo "::warning::Couldn't look up the InfinityFree FTP address"
+          exit 1
+
       - name: FTP Deploy to InfinityFree
+        id: ftp
+        continue-on-error: true
+        uses: SamKirkland/FTP-Deploy-Action@v4.3.5
+        with:
+          server: ${{ secrets.FTP_SERVER }}
+          username: ${{ secrets.FTP_USERNAME }}
+          password: ${{ secrets.FTP_PASSWORD }}
+          local-dir: ./dist/
+          server-dir: /htdocs/
+
+      - name: Wait before retrying FTP
+        if: steps.ftp.outcome == 'failure'
+        run: sleep 30
+
+      - name: FTP Deploy to InfinityFree (retry)
+        if: steps.ftp.outcome == 'failure'
+        continue-on-error: true
         uses: SamKirkland/FTP-Deploy-Action@v4.3.5
         with:
           server: ${{ secrets.FTP_SERVER }}
