@@ -17,7 +17,7 @@ import { cleanName, MAP_CHOICES, MAX_NAME_LENGTH } from '../mp/protocol.js';
 import { createNameFilter } from '../mp/nameFilter.js';
 import inappropriateWords from '../assets/inappropriate_words?raw';
 import { getOnlineServerHost, getServerName, isOnlineConfigured, usesRemoteServer } from '../mp/serverConfig.js';
-import { makeButton } from '../ui/theme.js';
+import { COLORS, makeButton } from '../ui/theme.js';
 
 const SETTINGS_KEY = 'blockBattleOnline';
 const MAP_LABELS = { RANDOM: 'RANDOM' };
@@ -43,7 +43,7 @@ function saveSettings(settings) {
 
 // A real text box over the game, so typing works with any keyboard (phones too).
 // Calls onDone with the new name, or null if cancelled.
-function openNameBox(current, onDone) {
+function openNameBox(current, onDone, getError = () => null) {
     const overlay = document.createElement('div');
     overlay.style.cssText = 'position:fixed;inset:0;z-index:1000;display:flex;align-items:center;' +
         'justify-content:center;background:rgba(0,0,0,0.6);padding:16px;box-sizing:border-box;';
@@ -61,8 +61,30 @@ function openNameBox(current, onDone) {
     input.spellcheck = false;
     input.style.cssText = 'font:inherit;font-size:22px;padding:8px;background:#000;color:#fff;border:2px solid #888;';
     const hint = document.createElement('div');
-    hint.textContent = `Up to ${MAX_NAME_LENGTH} letters/numbers. Enter to save, Esc to cancel.`;
+    const hintText = `Up to ${MAX_NAME_LENGTH} letters/numbers. Enter to save, Esc to cancel.`;
+    hint.textContent = hintText;
     hint.style.cssText = 'font-size:14px;color:#999;text-align:center;';
+    const showError = message => {
+        panel.style.borderColor = COLORS.error;
+        input.style.borderColor = COLORS.error;
+        hint.style.color = COLORS.error;
+        hint.textContent = message;
+        panel.animate([
+            { transform: 'translateX(0)' },
+            { transform: 'translateX(-12px)' },
+            { transform: 'translateX(10px)' },
+            { transform: 'translateX(-8px)' },
+            { transform: 'translateX(6px)' },
+            { transform: 'translateX(-3px)' },
+            { transform: 'translateX(0)' }
+        ], { duration: 350, easing: 'ease-out' });
+    };
+    const clearError = () => {
+        panel.style.borderColor = '#fff';
+        input.style.borderColor = '#888';
+        hint.style.color = '#999';
+        hint.textContent = hintText;
+    };
     const buttons = document.createElement('div');
     buttons.style.cssText = 'display:flex;gap:12px;';
     const makeDomButton = (text, type) => {
@@ -98,8 +120,15 @@ function openNameBox(current, onDone) {
     });
     panel.addEventListener('submit', event => {
         event.preventDefault();
+        const error = getError(input.value);
+        if (error) {
+            showError(error);
+            input.focus();
+            return;
+        }
         finish(input.value);
     });
+    input.addEventListener('input', clearError);
     cancel.addEventListener('click', () => finish(null));
     setTimeout(() => {
         input.focus();
@@ -495,14 +524,11 @@ export class OnlineLobbyScene extends Phaser.Scene {
             if (!this.sys.isActive()) return;
             this.input.keyboard.enabled = true;
             if (entered === null) return;
-            const name = cleanName(entered);
-            if (isNameBlocked(name)) {
-                this.setStatus('That name is not allowed. Pick a different one.', '#ff6b6b');
-                return;
-            }
-            this.selection.name = name;
+            this.selection.name = cleanName(entered);
             this.refreshSelection();
-        });
+        }, entered => isNameBlocked(cleanName(entered)) || isNameBlocked(entered)
+            ? 'That name is not allowed. Pick a different one.'
+            : null);
     }
 
     changeRoomPage(direction) {

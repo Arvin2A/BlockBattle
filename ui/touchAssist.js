@@ -5,18 +5,16 @@
 
 export const TOUCH_ASSIST_RANGE = 75;
 
-// Phones get the split layout (arrows left, up/down/A/S right); tablets and bigger keep the D-pad.
-// Uses the screen's short side so rotating the device doesn't change the answer.
 export function isPhoneScreen() {
     return Math.min(window.screen.width, window.screen.height) < 600;
 }
 
 
 export function addTouchAssist(scene, buttons) {
-    const onPointerDown = (pointer, over) => {
-        if (over.length) return;
+    const held = new Map();
+    const buttonAt = (pointer, range) => {
         let closest = null;
-        let closestGap = TOUCH_ASSIST_RANGE;
+        let closestGap = range;
         for (const button of buttons) {
             const { circle } = button;
             if (!circle.active || !circle.visible) continue;
@@ -26,16 +24,59 @@ export function addTouchAssist(scene, buttons) {
                 closestGap = gap;
             }
         }
-        closest?.press(pointer);
+        return closest;
     };
-    const onPointerUp = pointer => buttons.forEach(button => button.release(pointer));
+    const releasePointer = pointer => {
+        buttons.forEach(button => button.release(pointer));
+        held.delete(pointer.id);
+    };
+    const onPointerDown = (pointer, over) => {
+        if (over.length) {
+            held.set(pointer.id, buttons.find(button => over.includes(button.circle)) ?? null);
+            return;
+        }
+        const closest = buttonAt(pointer, TOUCH_ASSIST_RANGE);
+        closest?.press(pointer);
+        held.set(pointer.id, closest);
+    };
+    const onPointerMove = pointer => {
+        if (!pointer.isDown || !held.has(pointer.id)) return;
+        const next = buttonAt(pointer, 0);
+        const current = held.get(pointer.id);
+        if (!next || next === current) return;
+        current?.release(pointer);
+        next.press(pointer);
+        held.set(pointer.id, next);
+    };
+    const syncTouches = event => {
+        const live = new Set(Array.from(event.touches, touch => touch.identifier));
+        for (const pointer of scene.input.manager.pointers) {
+            if (!pointer.wasTouch) continue;
+            if (pointer.active && live.has(pointer.identifier)) continue;
+            if (pointer.active) {
+                pointer.active = false;
+                pointer.isDown = false;
+                pointer.primaryDown = false;
+                pointer.buttons = 0;
+            }
+            releasePointer(pointer);
+        }
+    };
 
     scene.input.on('pointerdown', onPointerDown);
-    scene.input.on('pointerup', onPointerUp);
-    scene.input.on('pointerupoutside', onPointerUp);
+    scene.input.on('pointermove', onPointerMove);
+    scene.input.on('pointerup', releasePointer);
+    scene.input.on('pointerupoutside', releasePointer);
+    window.addEventListener('touchstart', syncTouches, true);
+    window.addEventListener('touchend', syncTouches);
+    window.addEventListener('touchcancel', syncTouches);
     scene.events.once('shutdown', () => {
         scene.input.off('pointerdown', onPointerDown);
-        scene.input.off('pointerup', onPointerUp);
-        scene.input.off('pointerupoutside', onPointerUp);
+        scene.input.off('pointermove', onPointerMove);
+        scene.input.off('pointerup', releasePointer);
+        scene.input.off('pointerupoutside', releasePointer);
+        window.removeEventListener('touchstart', syncTouches, true);
+        window.removeEventListener('touchend', syncTouches);
+        window.removeEventListener('touchcancel', syncTouches);
     });
 }

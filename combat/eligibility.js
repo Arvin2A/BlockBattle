@@ -3,7 +3,6 @@
 // Licensed under the GNU GPL v3 only. See LICENSE.
 
 import { isInvincible } from './knockback.js';
-import { cutGrassBeforeMaturity } from './grass.js';
 import { isBlockedByWall } from './planks.js';
 
 // Every check attackIsElligible makes can be skipped with one of these.
@@ -68,9 +67,6 @@ export function attackIsElligible(attacker, target, range = 100, bypassOptions =
 
     const eligible = ignoreFacing ||
         isFacingTarget(direction ?? attacker.lastDir, dx, dy, distance, allowTargetBelow);
-    if (eligible && !silent) {
-        if (ignoreCanAttack) attacker.attackBypassesHitstun = true;
-        cutGrassBeforeMaturity(attacker);
-    }
+    if (eligible && !silent && ignoreCanAttack) attacker.attackBypassesHitstun = true;
     return eligible;
 }

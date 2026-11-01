@@ -185,7 +185,7 @@ export class Lobby {
             return false;
         }
         const name = cleanName(message.name);
-        if (isNameBlocked(name)) {
+        if (isNameBlocked(name) || isNameBlocked(String(message.name ?? ''))) {
             sendJson(client.ws, { t: 'error', msg: 'That name is not allowed. Pick a different one.' });
             return false;
         }

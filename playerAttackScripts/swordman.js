@@ -82,6 +82,7 @@ function lungePush(api, scene, attacker, target, animKey) {
         damage: 0.30,
         hitstun: 300,
         hitFreeze: 50,
+        plankDamage: 0,
         sound: 'swordslash1',
         knockback: { x: 250, y: 500, spike: { x: 275, y: -200 } },
         decelerateAfter: 1000,
@@ -102,6 +103,7 @@ function quickstepAttack(api, scene, attacker, target, animKey) {
         damage: 0.15,
         hitstun: 300,
         hitFreeze: 50,
+        plankDamage: 0,
         sound: 'swordslash1',
         knockback: { x: 125, y: 200, spike: { x: 137.5, y: -200 } },
         decelerateAfter: 1000,
@@ -131,6 +133,7 @@ function tryQuickstep(api, scene, player, direction, target, currentTime) {
         player.isUsingSideSpecial = true;
         player.afterimage = true;
         player.hasHitSideSpecial = false;
+        player.hasDamagedPlanksThisDash = false;
         player.clipThroughPlayers = true;
         player.invincibleUntil = currentTime + 425;
 
@@ -171,6 +174,7 @@ function tryLunge(api, scene, player, direction, currentTime, animKey = 'swordat
         player.isUsingSideSpecial = true;
         player.afterimage = true;
         player.hasHitSideSpecial = false;
+        player.hasDamagedPlanksThisDash = false;
 
         if (player.lastDir.y < 0) {
             player.atk.setAngle(90);
@@ -228,7 +232,10 @@ export default {
     handleDirSpecialAttack: (api, scene, attacker, victim) => {
         // Dashing through a plank damages it once per dash, near the victim or not.
         const dashPlankDamage = attacker.variant === 'DAGGER' ? 0.15 : 0.30;
-        api.damagePlanksInAttack(attacker, dashPlankDamage * api.getAttackDamageScale(attacker));
+        if (!attacker.hasDamagedPlanksThisDash) {
+            attacker.hasDamagedPlanksThisDash =
+                api.damagePlanksInAttack(attacker, dashPlankDamage * api.getAttackDamageScale(attacker));
+        }
         if (api.distanceBetween(attacker, victim) > 150) return;
         if (attacker.variant === 'DAGGER') {
             quickstepAttack(api, scene, attacker, victim, 'daggeratk');

@@ -7,7 +7,8 @@
     "preview": "vite preview",
     "add-audio": "node add-audio.js",
     "server": "node server/index.js",
-    "lan": "npm run build && node server/index.js"
+    "lan": "npm run build && node server/index.js",
+    "build:legacy": "vite build --config legacy/vite.config.js && node -e \"for (const dir of ['assets', 'audio']) require('fs').cpSync(dir, 'dist-legacy/' + dir, { recursive: true })\""
   },
   "dependencies": {
     "phaser": "^4.2.1",
@@ -15,7 +16,9 @@
     "unmute-ios-audio": "^3.3.0"
   },
   "devDependencies": {
+    "@vitejs/plugin-legacy": "^6.1.1",
     "esbuild": "^0.28.2",
+    "terser": "^5.51.2",
     "vite": "^6.3.5",
     "ws": "^8.22.0"
   }

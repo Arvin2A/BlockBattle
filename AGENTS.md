@@ -49,6 +49,7 @@ Bug fixes and balance changes on their own do **not** get a changelog entry. Whe
 
 2. **`scenes/MenuScene.js`**
    - Add `{ title, body }` objects to the **front** of `changelogEntries`.
+   - Rewrite the `changelogBlurb` text (the "LATEST UPDATE" box on the main menu) to sum up the latest update in 2-3 sentences. Keep it about as long as it is now so it fits the box.
    - If the item you shipped is listed in `upcomingEntries` (e.g. TRAPPER FISHERMAN), remove it from there.
    - Bump `CHANGELOG_VERSION` (format `YYYY-MM-DD-N`). For a new date use today with `-1`. If it's already today's date, add 1 to `N`. This changes the version color, and players see the changelog as new again (`blockBattleSeenChangelog`).
 
@@ -59,6 +60,9 @@ Bug fixes and balance changes on their own do **not** get a changelog entry. Whe
 - Describe what a player will notice, not implementation details.
 
 ## Code conventions
+
+### Comments
+- Don't write comments in code. The only exception is the 3-line GPL license header at the top of each file, which stays.
 
 ### Online compatibility
 - Gameplay code reads input from `scene.playerInputs`, never from the keyboard directly.

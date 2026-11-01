@@ -8,6 +8,7 @@ import {
     triggerScreenShake,
     DEATH_RAY_COLOR
 } from './effects.js';
+import { getKnockbackResistance } from './characterStats.js';
 
 export const HEAVY_KB_PERCENT = 100;
 export const VIOLENT_KB_PERCENT = 150;
@@ -129,9 +130,7 @@ export function deathRayAttackLocked(scene) {
 // Pass { noDeathRay: true } for hits that shouldn't ever fire the death ray,
 // like pulls and explosions.
 export function applyKnockback(scene, target, vx, vy, { noDeathRay = false } = {}) {
-    const resistance = Number.isFinite(target.playerKBresistance) && target.playerKBresistance > 0
-        ? target.playerKBresistance
-        : 1;
+    const resistance = getKnockbackResistance(target);
     const resistantVx = vx / resistance;
     const resistantVy = vy / resistance;
     target.setVelocity(resistantVx, resistantVy);

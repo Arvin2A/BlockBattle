@@ -263,7 +263,7 @@ function handleShot(api, scene, attacker, victim, options = {}) {
         attacker.canAttack = false;
         attacker.nextAttackTime = scene.time.now + cooldown;
         scene.time.delayedCall(cooldown, () => {
-            if (attacker.active) attacker.canAttack = true;
+            attacker.canAttack = true;
         });
     }
 }

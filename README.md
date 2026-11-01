@@ -18,4 +18,4 @@ The game's code and the art I drew are licensed under the GNU General Public Lic
 
 Sound effects in `audio/` are from [Pixabay](https://pixabay.com) and are used under the [Pixabay Content License](https://pixabay.com/service/license-summary/). They are **not** covered by the GPL, and you can't redistribute them on their own.
 
-[Phaser](https://phaser.io) (`phaser.js`) is © Phaser Studio Inc. and is used under the MIT License.
+[Phaser](https://phaser.io) (the `phaser` npm package) is © Phaser Studio Inc. and is used under the MIT License.

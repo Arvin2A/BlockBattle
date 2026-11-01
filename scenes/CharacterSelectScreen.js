@@ -3,7 +3,14 @@
 // Licensed under the GNU GPL v3 only. See LICENSE.
 
 import Phaser from 'phaser';
-import { botMode, simulationMode } from "../gameSettings.js";
+import {
+    botMode,
+    simulationMode,
+    BOT_DIFFICULTIES,
+    botDifficulty,
+    setBotDifficulty
+} from "../gameSettings.js";
+import { FONTS, COLORS, HEX } from "../ui/theme.js";
 import { preloadCharacterSelection } from "./GameScene/preload.js";
 import { getCharacterTexture } from "../characterTextures.js";
 import { fadeOutTo } from "./transitions.js";
@@ -76,6 +83,19 @@ export class CharacterSelectScene extends Phaser.Scene {
         this.p1IsReady = false;
         this.p2IsReady = false;
 
+        // Each slot's color for its select box, wheel arrows and ready button.
+        // A CPU is grey; in SIMULATION the two CPUs are black and white instead.
+        const slotColors = {
+            1: simulationMode
+                ? { fill: HEX.simCpu1, hover: 0x333333, text: COLORS.text }
+                : { fill: 0xf54242, hover: 0xff6666, text: COLORS.text },
+            2: simulationMode
+                ? { fill: HEX.simCpu2, hover: 0xdddddd, text: COLORS.stroke }
+                : botMode
+                    ? { fill: HEX.cpu, hover: 0x888888, text: COLORS.text }
+                    : { fill: 0x00aaff, hover: 0x48c2ff, text: COLORS.text }
+        };
+
         this.controllerPreviousInput = [{}, {}];
 
         // -----------------------------
@@ -106,14 +126,14 @@ export class CharacterSelectScene extends Phaser.Scene {
             0,
             60,
             60
-        ).setStrokeStyle(4, 0xf54242);
+        ).setStrokeStyle(4, slotColors[1].fill);
 
         this.p2SelectBox = this.add.rectangle(
             0,
             0,
             60,
             60
-        ).setStrokeStyle(4, botMode ? 0x686868 : 0x00aaff);
+        ).setStrokeStyle(4, slotColors[2].fill);
 
         // CHARACTER LIST
 
@@ -281,6 +301,38 @@ export class CharacterSelectScene extends Phaser.Scene {
             wordWrap: { width: 200 }
         }).setOrigin(0.5);
 
+        // CPU difficulty: "< NORMAL >" above each CPU's description box.
+        const createDifficultyPicker = (x, player) => {
+            const label = this.add.text(x, 82, '', {
+                fontFamily: FONTS.body,
+                fontSize: '18px',
+                fill: COLORS.text
+            }).setOrigin(0.5);
+            const show = () => label.setText(`CPU: ${botDifficulty[player]}`);
+
+            [-1, 1].forEach(direction => {
+                const arrow = this.add.text(x + direction * 90, 82, direction < 0 ? '<' : '>', {
+                    fontFamily: FONTS.body,
+                    fontSize: '26px',
+                    fill: COLORS.cpu
+                }).setOrigin(0.5).setInteractive({ useHandCursor: true });
+                arrow.on('pointerover', () => arrow.setColor(COLORS.text));
+                arrow.on('pointerout', () => arrow.setColor(COLORS.cpu));
+                arrow.on('pointerdown', () => {
+                    if (player === 1 && this.p1IsReady) return;
+                    if (player === 2 && this.p2IsReady) return;
+                    const count = BOT_DIFFICULTIES.length;
+                    const index = BOT_DIFFICULTIES.indexOf(botDifficulty[player]);
+                    setBotDifficulty(player, BOT_DIFFICULTIES[(index + direction + count) % count]);
+                    this.sound.play('hover2');
+                    show();
+                });
+            });
+            show();
+        };
+        if (simulationMode) createDifficultyPicker(130, 1);
+        if (botMode) createDifficultyPicker(870, 2);
+
         const p1BoxSelectedOverlay = this.add.image(
             0,
             0,
@@ -366,7 +418,7 @@ export class CharacterSelectScene extends Phaser.Scene {
             if (p1Icon === p2Icon) {
                 this.p2SelectBox.setStrokeStyle(4, 0xc300ff);
             } else {
-                this.p2SelectBox.setStrokeStyle(4, botMode ? 0x686868 : 0x00aaff);
+                this.p2SelectBox.setStrokeStyle(4, slotColors[2].fill);
             }
 
 
@@ -407,7 +459,8 @@ export class CharacterSelectScene extends Phaser.Scene {
 
         
         
-        const createCharacterWheel = (x, player, color) => {
+        const createCharacterWheel = (x, player) => {
+            const colors = slotColors[player];
             const wheelIcons = [-1, 0, 1].map(offset =>
                 this.add.image(
                     x,
@@ -526,14 +579,14 @@ export class CharacterSelectScene extends Phaser.Scene {
             };
 
             const createWheelButton = (y, label, direction) => {
-                const button = this.add.rectangle(x, y, 70, 45, color)
+                const button = this.add.rectangle(x, y, 70, 45, colors.fill)
                     .setStrokeStyle(3, 0xffffff)
                     .setInteractive({ useHandCursor: true });
 
                 this.add.text(x, y, label, {
                     fontFamily: 'VCROSD',
                     fontSize: '30px',
-                    fill: '#ffffff'
+                    fill: colors.text
                 }).setOrigin(0.5);
 
                 button.on('pointerover', () => button.setAlpha(0.8));
@@ -575,8 +628,8 @@ export class CharacterSelectScene extends Phaser.Scene {
 
         this.mobileWheels = isTouchDevice
             ? {
-                p1: createCharacterWheel(300, 1, 0xf54242),
-                p2: createCharacterWheel(700, 2, botMode ? 0x686868 : 0x00aaff)
+                p1: createCharacterWheel(300, 1),
+                p2: createCharacterWheel(700, 2)
             }
             : null;
 
@@ -638,7 +691,7 @@ export class CharacterSelectScene extends Phaser.Scene {
             550,
             150,
             50,
-            0xf54242
+            slotColors[1].fill
         ).setStrokeStyle(3, 0xffffff).setInteractive({ useHandCursor: true });
 
         const p1ReadyText = this.add.text(
@@ -648,13 +701,14 @@ export class CharacterSelectScene extends Phaser.Scene {
             {
                 fontFamily: 'VCROSD',
                 fontSize: '24px',
-                fill: '#ffffff'
+                fill: slotColors[1].text
             }
         ).setOrigin(0.5);
 
         p1ReadyButton.on('pointerdown', () => {
             this.sound.play('hover2');
             p1ReadyButton.setFillStyle(0x686868);
+            p1ReadyText.setColor(COLORS.text);
             p1ReadyButton.disableInteractive();
             DESCOVERLAY1.setAlpha(0.5);
             DESCIMAGE1.setAlpha(1);
@@ -667,11 +721,11 @@ export class CharacterSelectScene extends Phaser.Scene {
         });
 
         p1ReadyButton.on('pointerover', () => {
-            p1ReadyButton.setFillStyle(0xff6666);
+            p1ReadyButton.setFillStyle(slotColors[1].hover);
         });
 
         p1ReadyButton.on('pointerout', () => {
-            p1ReadyButton.setFillStyle(0xf54242);
+            p1ReadyButton.setFillStyle(slotColors[1].fill);
         });
 
         const p2ReadyButton = this.add.rectangle(
@@ -679,7 +733,7 @@ export class CharacterSelectScene extends Phaser.Scene {
             550,
             150,
             50,
-            botMode ? 0x686868 : 0x00aaff
+            slotColors[2].fill
         ).setStrokeStyle(3, 0xffffff).setInteractive({ useHandCursor: true });
 
         const p2ReadyText = this.add.text(
@@ -689,13 +743,14 @@ export class CharacterSelectScene extends Phaser.Scene {
             {
                 fontFamily: 'VCROSD',
                 fontSize: '24px',
-                fill: '#ffffff'
+                fill: slotColors[2].text
             }
         ).setOrigin(0.5);
 
         p2ReadyButton.on('pointerdown', () => {
             this.sound.play('hover2');
             p2ReadyButton.setFillStyle(0x686868);
+            p2ReadyText.setColor(COLORS.text);
             p2ReadyButton.disableInteractive();
             p2BoxSelectedOverlay.setAlpha(1);
             DESCOVERLAY2.setAlpha(0.5);
@@ -708,11 +763,11 @@ export class CharacterSelectScene extends Phaser.Scene {
         });
 
         p2ReadyButton.on('pointerover', () => {
-            p2ReadyButton.setFillStyle(0x48c2ff);
+            p2ReadyButton.setFillStyle(slotColors[2].hover);
         });
 
         p2ReadyButton.on('pointerout', () => {
-            p2ReadyButton.setFillStyle(0x00aaff);
+            p2ReadyButton.setFillStyle(slotColors[2].fill);
         });
 
 
