@@ -430,7 +430,6 @@ export class OnlineOverlayScene extends Phaser.Scene {
             };
             circle.on('pointerdown', press);
             circle.on('pointerup', release);
-            circle.on('pointerout', release);
             circle.on('pointerupoutside', release);
             touchButtons.push({ circle, press, release });
         }

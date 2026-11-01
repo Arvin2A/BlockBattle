@@ -39,9 +39,17 @@ export function getAttackDamageScale(attacker) {
     const grassDamageScale = attacker.inGrass && attacker.name !== 'SCYTHEMAN'
         ? 0.75
         : 1;
-    const scytheGrassCutScale = attacker.name === 'SCYTHEMAN'
-        ? 1 + (attacker.grassCutCount || 0) * 0.001
-        : 1;
 
-    return baseDamageScale * externalDamageScale * grassDamageScale * scytheGrassCutScale;
+    return baseDamageScale * externalDamageScale * grassDamageScale;
+}
+
+// How much a fighter's launches are divided by. Scripts with grassCutResistance
+// ({ perCut, max }) get more of it for every grass cut (SCYTHEMAN).
+export function getKnockbackResistance(target) {
+    const base = Number.isFinite(target.playerKBresistance) && target.playerKBresistance > 0
+        ? target.playerKBresistance
+        : 1;
+    const grass = getCharacterStat(target, 'grassCutResistance', null);
+    if (!grass) return base;
+    return base * (1 + Math.min((target.grassCutCount || 0) * grass.perCut, grass.max));
 }

@@ -418,6 +418,11 @@ export function preload() {
     );
 
     this.load.image(
+        'resistanceshield',
+        'assets/sprites/scytheman/resistanceshield.png'
+    );
+
+    this.load.image(
         'slasheffect',
         'assets/sprites/scytheman/slasheffect.png'
     );
@@ -572,10 +577,10 @@ export function preload() {
 
     this.load.spritesheet(
         'slateplunge',
-        'assets/sprites/slateman/slateplunge.png',
+        'assets/sprites/slateman/slateplunge1.1.png',
         {
-            frameWidth: 100,
-            frameHeight: 50
+            frameWidth: 130,
+            frameHeight: 100
         }
     );
 
@@ -672,7 +677,7 @@ export function preload() {
     // AUDIO - GLOBAL
     // =====================================================
 
-    this.load.audio('anyhit', ['audio/hit1.ogg', 'audio/hit1.mp3']);
+    this.load.audio('anyhit', 'audio/hit1.mp3');
     this.load.audio('miss', 'audio/swordslash.wav');
 
     this.load.audio('countdown', 'audio/countdown.wav');
@@ -680,6 +685,8 @@ export function preload() {
     this.load.audio('swosh', 'audio/swosh.wav');
 
     this.load.audio('slamimpact', 'audio/slamimpact.wav');
+
+    this.load.audio('scytheslam', 'audio/scytheslam.wav');
 
     // =====================================================
     // AUDIO - SWORDMAN
@@ -720,8 +727,8 @@ export function preload() {
     // =====================================================
 
     this.load.audio('scythethirdhitsfx', 'audio/scythethird.wav');
-    this.load.audio('slash', ['audio/slash.ogg', 'audio/slash.mp3']);
-    this.load.audio('twirl', ['audio/Twirling.ogg', 'audio/Twirling.mp3']);
+    this.load.audio('slash', 'audio/slash.mp3');
+    this.load.audio('twirl', 'audio/Twirling.mp3');
     this.load.audio('slice', 'audio/preslice.wav');
 
     // =====================================================
@@ -729,7 +736,7 @@ export function preload() {
     // =====================================================
 
     this.load.audio('hammerhit', 'audio/punch.wav');
-    this.load.audio('repair', ['audio/Hitwrench.ogg', 'audio/Hitwrench.mp3']);
+    this.load.audio('repair', 'audio/Hitwrench.mp3');
 
     this.load.audio('rocksliding', 'audio/rocksliding.wav');
     this.load.audio('sledgehammerhit', 'audio/sledgehammerhit.wav');
@@ -744,7 +751,8 @@ export function preload() {
     // =====================================================
 
     this.load.audio('slatepunch', 'audio/slatepunch.wav');
-    this.load.audio('plunge', ['audio/plunge.ogg', 'audio/plunge.mp3']);
+    this.load.audio('rockbreak', 'audio/rockbreak.wav');
+    this.load.audio('plunge', 'audio/plunge.mp3');
     this.load.audio('slatelight1', 'audio/slatelight1.wav');
     this.load.audio('slatelight2', 'audio/slatelight2.wav');
 
@@ -762,9 +770,9 @@ export function preload() {
     // =====================================================
 
     this.load.audio('gunshot', 'audio/fire.wav');
-    this.load.audio('reload', ['audio/reload.ogg', 'audio/reload.mp3']);
+    this.load.audio('reload', 'audio/reload.mp3');
     this.load.audio('explosion', 'audio/explosion.wav');
-    this.load.audio('gunspecialend', ['audio/gunspecialend.ogg', 'audio/gunspecialend.mp3'])
+    this.load.audio('gunspecialend', 'audio/gunspecialend.mp3')
 
 
     // =====================================================

@@ -9,7 +9,7 @@ export function removeGrass(scene, grass, cutter) {
     if (!grass || !grass.active) return;
     const index = scene.scytheGrass.indexOf(grass);
     if (index !== -1) scene.scytheGrass.splice(index, 1);
-    if (cutter && cutter.name === 'SCYTHEMAN') {
+    if (cutter && cutter === grass.owner) {
         cutter.grassCutCount += 1;
     }
     spawnDirtBurst(scene, grass.x, grass.y);
@@ -25,23 +25,55 @@ export function cutNearbyGrass(scene, x, y, range, cutter) {
     }
 }
 
-export function cutGrassBeforeMaturity(attacker) {
+export function cutGrassInSwing(attacker, range = 100, cutter = attacker) {
     const scene = attacker.scene;
     if (!scene || !scene.scytheGrass) return;
 
+    const reach = Math.min(range, 130);
+    const facingX = attacker.lastDir?.x ?? 0;
     for (const grass of [...scene.scytheGrass]) {
-        if (grass.grassStage < 2 && Phaser.Math.Distance.Between(
-            attacker.x,
-            attacker.y + 20,
-            grass.x,
-            grass.y
-        ) <= 90) {
-            removeGrass(scene, grass, attacker);
+        const dx = grass.x - attacker.x;
+        if (facingX !== 0 && dx * facingX < -25) continue;
+        if (Phaser.Math.Distance.Between(attacker.x, attacker.y + 20, grass.x, grass.y) <= reach) {
+            removeGrass(scene, grass, cutter);
         }
     }
 }
 
-// Scytheman grass tracking.
+export function getGrassPlatform(scene, x, feetY) {
+    const platforms = [
+        ...scene.gameState.map.platforms.getChildren(),
+        ...scene.gameState.map.topPlatforms.getChildren()
+    ];
+    return platforms.find(platform =>
+        platform.active && platform.body?.enable &&
+        x >= platform.body.left && x <= platform.body.right &&
+        Math.abs(platform.body.top - feetY) <= 8
+    ) ?? null;
+}
+
+export function plantGrass(scene, owner, x, y) {
+    if (!scene.scytheGrass) scene.scytheGrass = [];
+    const grass = scene.add.sprite(x, y, 'upgrassGrow');
+    grass.setDepth(3);
+    grass.grassStage = 0;
+    grass.owner = owner;
+    grass.on('animationupdate', (animation, frame) => {
+        grass.grassStage = frame.index;
+    });
+    grass.play('upgrassGrow');
+    scene.objs.add(grass);
+    scene.scytheGrass.push(grass);
+    return grass;
+}
+
+export function hasOwnGrassNear(scene, owner, x, y, distance) {
+    return (scene.scytheGrass ?? []).some(grass =>
+        grass.active && grass.owner === owner &&
+        Phaser.Math.Distance.Between(x, y, grass.x, grass.y) < distance
+    );
+}
+
 export function updateScythemanGrass(scene, players) {
     if (!scene.scytheGrass) scene.scytheGrass = [];
 
@@ -62,31 +94,13 @@ export function updateScythemanGrass(scene, players) {
         const scytheman = players[key];
         if (scytheman.name !== 'SCYTHEMAN' || !scytheman.body.blocked.down) continue;
 
-        const grassTooClose = scene.scytheGrass.some(grass =>
-            grass.active && grass.owner === scytheman &&
-            Phaser.Math.Distance.Between(
-                scytheman.x,
-                scytheman.y,
-                grass.x,
-                grass.y
-            ) < 45
-        );
-
-        if (grassTooClose) continue;
+        if (!getGrassPlatform(scene, scytheman.x, scytheman.body.bottom)) continue;
+        if (hasOwnGrassNear(scene, scytheman, scytheman.x, scytheman.y, 45)) continue;
         if (scytheman.grassTrailX !== null && Phaser.Math.Distance.Between(
             scytheman.x, scytheman.y, scytheman.grassTrailX, scytheman.grassTrailY
         ) < 45) continue;
 
-        const grass = scene.add.sprite(scytheman.x, scytheman.y, 'upgrassGrow');
-        grass.setDepth(3);
-        grass.grassStage = 0;
-        grass.owner = scytheman;
-        grass.on('animationupdate', (animation, frame) => {
-            grass.grassStage = frame.index;
-        });
-        grass.play('upgrassGrow');
-        scene.objs.add(grass);
-        scene.scytheGrass.push(grass);
+        plantGrass(scene, scytheman, scytheman.x, scytheman.y);
         scytheman.grassTrailX = scytheman.x;
         scytheman.grassTrailY = scytheman.y;
     }

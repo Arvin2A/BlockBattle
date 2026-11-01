@@ -62,8 +62,9 @@ export const CHARACTER_ROSTER = [
         variants: [
             {
                 name: 'LANDSCAPER',
-                desc: 'Built for my exact purpose, cutting them grass, each cut adds to the damage. \n\nDIR SPECIAL: MOW \n\n A quick grass cutting swipe that deals moderate damage. 2x more power when inside a grass patch.',
-                color: '#686868'
+                desc: 'Built for my exact purpose, cutting them grass. Grass grows wherever you walk, and each cut of your grass makes you harder to launch. \n\nNEUTRAL SPECIAL: SOW \n\n Toss out 7 seeds that grow grass where they land. Spam it as fast as you like. \n\nDIR SPECIAL: GRUELING SLAM \n\n A giant scythe crash that pins them down for 3 seconds.',
+                color: '#686868',
+                fontSize: 16
             }
         ]
     },
@@ -90,7 +91,7 @@ export const CHARACTER_ROSTER = [
         variants: [
             {
                 name: 'METAMORPHIC',
-                desc: 'Start with extra resistance to attacks. The more damage you take the faster you get, but deal less damage. \n\nDIR SPECIAL: PLUNGE \n\n Apply PLUNGED to your opponent, which makes the foe take 100% more knockback for the next hits within 2.5 seconds!',
+                desc: 'Start with extra resistance to attacks. The more damage you take the faster you get, but deal less damage. \n\nDIR SPECIAL: SLIDE \n\n Apply PLUNGED to your opponent, which makes the foe take 100% more knockback for the next hits within 2.5 seconds!',
                 color: '#ffffff',
                 fontSize: 17
             }
@@ -111,7 +112,7 @@ export const CHARACTER_ROSTER = [
         name: 'GUNMAN',
         variants: [{
             name: 'GRUNT',
-            desc: 'Modern conflicts need modern solutions, just use a gun! \n\n DIR SPECIAL: MINI \n\n This absolute beast shreds down your opponents at the cost of a 10 second cooldown.',
+            desc: 'Modern conflicts need modern solutions, just use a gun! \n\n DIR SPECIAL: MINI \n\n This absolute beast shreds down your opponents.',
             color: '#e2c542'
         }]
     }

@@ -31,18 +31,19 @@ export function damagePlank(scene, plank, damage) {
 // Each swing (attackSequence) damages a plank at most once.
 export function damagePlanksInAttack(attacker, damage) {
     const scene = attacker.scene;
-    if (!scene?.planks || !attacker.atk?.active || !(damage > 0)) return;
+    if (!scene?.planks || !attacker.atk?.active || !(damage > 0)) return false;
     damage *= getCharacterStat(attacker, 'plankDamageScale', 1);
 
     const attackSequence = attacker.attackSequence ?? 0;
-    if (attacker.lastPlankDamageSequence === attackSequence) return;
+    if (attacker.lastPlankDamageSequence === attackSequence) return false;
     const attackBounds = attacker.atk.getBounds();
     const intersectingPlanks = scene.planks.getChildren().filter(plank =>
         plank.active && plank.body?.enable &&
         Phaser.Geom.Intersects.RectangleToRectangle(attackBounds, plank.body)
     );
-    if (intersectingPlanks.length === 0) return;
+    if (intersectingPlanks.length === 0) return false;
 
     attacker.lastPlankDamageSequence = attackSequence;
     intersectingPlanks.forEach(plank => damagePlank(scene, plank, damage));
+    return true;
 }
