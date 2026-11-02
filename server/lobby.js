@@ -33,6 +33,8 @@ const MAX_PLAYER_MESSAGE_BYTES = 4096;
 const MAX_LISTED_ROOMS = 50;
 const MAX_RTC_SIGNALS_PER_MATCH = 64;
 const MAX_RTC_SIGNAL_BYTES = 16384;
+const LOOPBACK_ADDRESSES = new Set(['127.0.0.1', '::1', '::ffff:127.0.0.1']);
+const SAME_ADDRESS_MESSAGE = 'Someone on your connection is already hosting or playing. Only one player per connection can be in a match.';
 
 function loadNameFilter() {
     try {
@@ -89,6 +91,7 @@ export class Lobby {
             name: 'Player',
             choice: null,
             state: 'idle', // idle | queued (hosting an open match) | match
+            away: false,
             match: null,
             // The match that just ended, still shown behind the results screen.
             watching: null,
@@ -157,6 +160,12 @@ export class Lobby {
                 client.watching = null;
                 this.join(client, message);
                 break;
+            case 'away':
+                if (client.away !== Boolean(message.a)) {
+                    client.away = Boolean(message.a);
+                    this.broadcastStatus();
+                }
+                break;
             case 'leave':
                 client.watching = null;
                 this.dequeue(client);
@@ -213,8 +222,20 @@ export class Lobby {
         return true;
     }
 
+    addressBusy(client) {
+        if (LOOPBACK_ADDRESSES.has(client.address)) return false;
+        for (const other of this.clients.values()) {
+            if (other !== client && other.address === client.address && other.state !== 'idle') return true;
+        }
+        return false;
+    }
+
     enqueue(client, message) {
         if (client.state !== 'idle') return;
+        if (this.addressBusy(client)) {
+            sendJson(client.ws, { t: 'error', msg: SAME_ADDRESS_MESSAGE });
+            return;
+        }
         if (!this.readChoice(client, message)) return;
         client.state = 'queued';
         this.queue.push(client);
@@ -228,6 +249,10 @@ export class Lobby {
         const host = this.queue.find(other => other.id === message.room);
         if (!host || host === client) {
             sendJson(client.ws, { t: 'joinFailed', msg: 'That match is no longer open.' });
+            return;
+        }
+        if (this.addressBusy(client)) {
+            sendJson(client.ws, { t: 'joinFailed', msg: SAME_ADDRESS_MESSAGE });
             return;
         }
         if (this.matches.size >= this.maxMatches) {
@@ -501,7 +526,7 @@ export class Lobby {
         return {
             online: greeted.length,
             // In the online lobby (browsing or hosting), not in a match.
-            waiting: greeted.filter(client => client.state !== 'match').length,
+            waiting: greeted.filter(client => client.state !== 'match' && !client.away).length,
             queued: this.queue.length,
             matches: [...this.matches.values()].filter(match => match.state !== 'ended').length
         };

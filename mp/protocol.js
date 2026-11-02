@@ -3,14 +3,14 @@
 // Licensed under the GNU GPL v3 only. See LICENSE.
 
 // mp/protocol.js
-// Things the browser game and the LAN server (server/index.js) have to agree on.
+// Things the browser game and the online server (server/index.js) have to agree on.
 // Plain JS with no Phaser imports so Node can load it too.
 
 import { MAPS } from '../scenes/GameScene/MapDefinitions.js';
 import { toAsciiName } from './nameFilter.js';
 
 // Bump this whenever messages change so old tabs get a clear "refresh" error.
-export const PROTOCOL_VERSION = 6;
+export const PROTOCOL_VERSION = 7;
 
 export const MP_PATH = '/mp';
 export const DEFAULT_PORT = 8080;
@@ -44,7 +44,3 @@ export function getServerSocketUrl(location = globalThis.location) {
     const protocol = location.protocol === 'https:' ? 'wss:' : 'ws:';
     return `${protocol}//${location.host}${MP_PATH}`;
 }
-
-// The BlockBattle server adds this tag to the page it serves (server/static.js),
-// which is how a page knows a server is right there.
-export const SERVER_PAGE_MARKER = '<meta name="blockbattle-server" content="1">';

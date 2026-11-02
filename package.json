@@ -7,7 +7,6 @@
     "preview": "vite preview",
     "add-audio": "node add-audio.js",
     "server": "node server/index.js",
-    "lan": "npm run build && node server/index.js",
     "build:legacy": "vite build --config legacy/vite.config.js && node -e \"for (const dir of ['assets', 'audio']) require('fs').cpSync(dir, 'dist-legacy/' + dir, { recursive: true })\""
   },
   "dependencies": {

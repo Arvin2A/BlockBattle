@@ -3,7 +3,11 @@
 // Licensed under the GNU GPL v3 only. See LICENSE.
 
 import { net } from '../mp/client.js';
-import { QUICK_CHAT_CATEGORIES, QuickChatLimiter } from '../mp/quickChat.js';
+import { QUICK_CHAT_CATEGORIES, QUICK_CHAT_PHRASES, QuickChatLimiter } from '../mp/quickChat.js';
+import { COLORS } from '../ui/theme.js';
+
+const KEYBINDS_STORAGE_KEY = 'blockBattleChatKeybinds';
+const DIGIT_KEY = /^(?:Digit|Numpad)([0-9])$/;
 
 const ROW_HEIGHT = 26;
 const CATEGORY_WIDTH = 130;
@@ -27,6 +31,27 @@ const TEXT_STYLE = {
     fill: '#ffffff'
 };
 
+function loadKeybinds() {
+    try {
+        const saved = JSON.parse(localStorage.getItem(KEYBINDS_STORAGE_KEY));
+        const keybinds = {};
+        for (const [digit, phrase] of Object.entries(saved ?? {})) {
+            if (/^[0-9]$/.test(digit) && QUICK_CHAT_PHRASES.has(phrase)) keybinds[digit] = phrase;
+        }
+        return keybinds;
+    } catch {
+        return {};
+    }
+}
+
+function saveKeybinds(keybinds) {
+    try {
+        localStorage.setItem(KEYBINDS_STORAGE_KEY, JSON.stringify(keybinds));
+    } catch {
+        return;
+    }
+}
+
 export class QuickChat {
     constructor(scene, { slotColors, getPlayerObject, worldToScreen }) {
         this.scene = scene;
@@ -38,6 +63,8 @@ export class QuickChat {
         this.activeCategory = null;
         this.phraseRows = [];
         this.bubbles = new Map();
+        this.keybinds = loadKeybinds();
+        this.hoveredPhrase = null;
 
         this.toggleRow = this.createRow(MENU_LEFT, MENU_BOTTOM - ROW_HEIGHT, CATEGORY_WIDTH, 'chat  t', () => this.toggle());
         this.categoryRows = QUICK_CHAT_CATEGORIES.map((category, index) => {
@@ -52,7 +79,9 @@ export class QuickChat {
         this.onScenePointerDown = (pointer, over) => {
             if (this.isOpen && !over.length) this.close();
         };
+        this.onKeyDown = event => this.handleDigit(event);
         scene.input.keyboard.on('keydown-T', this.onToggleKey);
+        scene.input.keyboard.on('keydown', this.onKeyDown);
         scene.input.on('pointerdown', this.onScenePointerDown);
         this.removeChatListener = net.on('chat', message => this.showBubble(message.s, message.m));
     }
@@ -86,7 +115,53 @@ export class QuickChat {
         for (const row of rows) {
             row.box.destroy();
             row.label.destroy();
+            row.hint?.destroy();
         }
+    }
+
+    keyFor(phrase) {
+        return Object.keys(this.keybinds).find(digit => this.keybinds[digit] === phrase) ?? null;
+    }
+
+    handleDigit(event) {
+        const match = DIGIT_KEY.exec(event.code);
+        if (!match || event.repeat) return;
+        const digit = match[1];
+        if (this.hoveredPhrase) {
+            this.bindKey(digit, this.hoveredPhrase);
+        } else if (this.keybinds[digit]) {
+            this.send(this.keybinds[digit]);
+        }
+    }
+
+    bindKey(digit, phrase) {
+        const previous = this.keyFor(phrase);
+        if (previous !== null) delete this.keybinds[previous];
+        if (previous !== digit) this.keybinds[digit] = phrase;
+        saveKeybinds(this.keybinds);
+        this.refreshHints();
+    }
+
+    refreshHints() {
+        for (const row of this.phraseRows) {
+            const digit = this.keyFor(row.phrase);
+            row.hint.setText(digit === null ? '' : `[${digit}]`);
+        }
+    }
+
+    createPhraseRow(x, y, phrase) {
+        const row = this.createRow(x, y, PHRASE_WIDTH, phrase, () => this.send(phrase));
+        row.phrase = phrase;
+        row.hint = this.scene.add.text(x + PHRASE_WIDTH - 8, row.label.y, '', { ...TEXT_STYLE, fill: COLORS.accent })
+            .setOrigin(1, 0.5)
+            .setDepth(MENU_DEPTH);
+        row.box.on('pointerover', () => {
+            this.hoveredPhrase = phrase;
+        });
+        row.box.on('pointerout', () => {
+            if (this.hoveredPhrase === phrase) this.hoveredPhrase = null;
+        });
+        return row;
     }
 
     toggle() {
@@ -105,6 +180,7 @@ export class QuickChat {
         this.setRowsVisible(this.categoryRows, false);
         this.destroyRows(this.phraseRows);
         this.phraseRows = [];
+        this.hoveredPhrase = null;
         for (const row of this.categoryRows) {
             row.active = false;
             row.box.setFillStyle(ROW_COLOR, 0.9);
@@ -121,20 +197,20 @@ export class QuickChat {
         });
 
         this.destroyRows(this.phraseRows);
+        this.hoveredPhrase = null;
         const { phrases } = QUICK_CHAT_CATEGORIES[index];
         const height = phrases.length * ROW_HEIGHT;
         const anchorY = this.categoryRows[index].box.y;
         const top = Math.max(MENU_TOP, Math.min(anchorY, MENU_BOTTOM - height));
         const x = MENU_LEFT + CATEGORY_WIDTH + 4;
-        this.phraseRows = phrases.map((phrase, phraseIndex) =>
-            this.createRow(x, top + phraseIndex * ROW_HEIGHT, PHRASE_WIDTH, phrase, () => this.send(phrase))
-        );
+        this.phraseRows = phrases.map((phrase, phraseIndex) => this.createPhraseRow(x, top + phraseIndex * ROW_HEIGHT, phrase));
+        this.refreshHints();
     }
 
     send(phrase) {
         if (!this.limiter.tryUse(Date.now())) return;
         net.send({ t: 'chat', m: phrase });
-        this.close();
+        if (this.isOpen) this.close();
     }
 
     showBubble(slot, phrase) {
@@ -154,7 +230,10 @@ export class QuickChat {
         const wait = this.limiter.waitFor(Date.now());
         this.toggleRow.label.setText(wait > 0 ? `open chat -  ${Math.ceil(wait / 1000)}s` : 'open chat - t');
         const alpha = wait > 0 ? 0.4 : 1;
-        for (const row of this.phraseRows) row.label.setAlpha(alpha);
+        for (const row of this.phraseRows) {
+            row.label.setAlpha(alpha);
+            row.hint.setAlpha(alpha);
+        }
 
         const now = this.scene.time.now;
         for (const [slot, bubble] of this.bubbles) {
@@ -179,6 +258,7 @@ export class QuickChat {
 
     destroy() {
         this.scene.input.keyboard.off('keydown-T', this.onToggleKey);
+        this.scene.input.keyboard.off('keydown', this.onKeyDown);
         this.scene.input.off('pointerdown', this.onScenePointerDown);
         this.removeChatListener();
         for (const bubble of this.bubbles.values()) bubble.text.destroy();

@@ -8,7 +8,7 @@ BLOCK BATTLE!! is a 2D platform fighter built with Phaser 4 and Vite. Online pla
 
 | Path | What's there |
 | --- | --- |
-| `characterRoster.js` | Every fighter and variant (`CHARACTER_ROSTER`). The LAN server validates against it. |
+| `characterRoster.js` | Every fighter and variant (`CHARACTER_ROSTER`). The online server validates against it. |
 | `playerAttackScripts/*.js` | Per-character attacks, specials and tuning. |
 | `attacks.js`, `combat/` | Shared hit specs (`STANDARD_HITS`), blueprints, eligibility, knockback. |
 | `scenes/` | Phaser scenes. The menu changelog is in `scenes/MenuScene.js`. |
@@ -20,7 +20,7 @@ BLOCK BATTLE!! is a 2D platform fighter built with Phaser 4 and Vite. Online pla
 Commands:
 - `npm run dev`: Vite dev server
 - `npm run build`: production build into `dist/`
-- `npm run lan`: build, then run the LAN server (`npm run server` runs it without building)
+- `npm run server`: run the online server with the last build (it only listens on 127.0.0.1 and is reached through a tunnel)
 
 ## Hard rules
 
