@@ -53,7 +53,9 @@ function emptyNetStats() {
         lateOver: Object.fromEntries(LATE_BUCKETS_MS.map(ms => [ms, 0])),
         resyncs: 0,
         fastFirst: 0,
+        fastReceived: 0,
         fastConnected: false,
+        fastOpenMs: null,
         bufferMs: 0,
         maxBufferMs: 0
     };
@@ -104,6 +106,7 @@ export class OnlineGameScene extends Phaser.Scene {
         this.clockOffset = null;
         this.bufferMs = MAX_BUFFER_MS;
         this.playTime = null;
+        this.firstFrameAt = null;
         this.netStats = emptyNetStats();
         window.blockBattleNetStats = this.netStats;
         net.setFrameHandler((message, fast) => this.receiveFrame(message, fast));
@@ -207,6 +210,7 @@ export class OnlineGameScene extends Phaser.Scene {
     // ---- mirror frames ----
 
     receiveFrame(message, fast) {
+        this.trackFastPath(fast);
         if (this.seenFrames.has(message.f)) return;
         this.seenFrames.add(message.f);
         if (this.seenFrames.size > SEEN_FRAME_MEMORY) {
@@ -234,11 +238,21 @@ export class OnlineGameScene extends Phaser.Scene {
         }
         if (this.playTime !== null && message.ts < this.playTime) stats.missedSlot++;
         if (fast) stats.fastFirst++;
-        stats.fastConnected = net.fastConnected;
         const queue = this.frameQueue;
         let index = queue.length;
         while (index > 0 && queue[index - 1].f > message.f) index--;
         queue.splice(index, 0, message);
+    }
+
+    trackFastPath(fast) {
+        const stats = this.netStats;
+        const now = performance.now();
+        this.firstFrameAt ??= now;
+        if (fast) stats.fastReceived++;
+        stats.fastConnected = net.fastConnected;
+        if (stats.fastConnected && stats.fastOpenMs === null) {
+            stats.fastOpenMs = Math.round(now - this.firstFrameAt);
+        }
     }
 
     applyFrame(message) {
