@@ -32,14 +32,17 @@ const CAPTURED_KEYS = 'W,A,S,D,UP,DOWN,LEFT,RIGHT,E,SHIFT,ALT,Q,FORWARD_SLASH';
 
 const SLOT_COLORS = { p1: COLORS.p1, p2: COLORS.p2 };
 
-const TICK_MS = 1000 / 60;
-const MIN_BUFFER_TICKS = 2;
-const MAX_BUFFER_TICKS = 6;
+const FRAME_MS = 1000 / 60;
+const MIN_BUFFER_MS = 33;
+const MAX_BUFFER_MS = 100;
 const BUFFER_PERCENTILE = 0.9;
+const BUFFER_SHRINK_MS = 0.25;
 const CLOCK_WINDOW_MS = 2000;
-const RESYNC_TICKS = 12;
+const RESYNC_MS = 250;
 const CLOCK_CATCH_UP = 0.05;
+const MAX_CLOCK_ADJUST = 0.1;
 const MAX_STEP_MS = 100;
+const SEEN_FRAME_MEMORY = 1200;
 const LATE_BUCKETS_MS = [50, 100, 200, 500];
 
 function emptyNetStats() {
@@ -49,6 +52,8 @@ function emptyNetStats() {
         maxLateMs: 0,
         lateOver: Object.fromEntries(LATE_BUCKETS_MS.map(ms => [ms, 0])),
         resyncs: 0,
+        fastFirst: 0,
+        fastConnected: false,
         bufferMs: 0,
         maxBufferMs: 0
     };
@@ -93,13 +98,15 @@ export class OnlineGameScene extends Phaser.Scene {
             net.on('disconnected', () => this.endMatch({ reason: 'lost_connection', winner: null }))
         ];
         this.frameQueue = [];
+        this.seenFrames = new Set();
+        this.inputSeq = 0;
         this.clockSamples = [];
-        this.tickOffset = null;
-        this.bufferTicks = MAX_BUFFER_TICKS;
-        this.playTick = null;
+        this.clockOffset = null;
+        this.bufferMs = MAX_BUFFER_MS;
+        this.playTime = null;
         this.netStats = emptyNetStats();
         window.blockBattleNetStats = this.netStats;
-        net.setFrameHandler(message => this.receiveFrame(message));
+        net.setFrameHandler((message, fast) => this.receiveFrame(message, fast));
 
         this.scene.launch('OnlineOverlayScene', { gameScene: this });
         this.events.once('shutdown', () => this.cleanup());
@@ -184,7 +191,7 @@ export class OnlineGameScene extends Phaser.Scene {
             encodeButtons(this.touchInput.pressed);
 
         if (heldMask === this.lastSentHeld && pressedMask === 0) return;
-        net.send({ t: 'in', h: heldMask, p: pressedMask });
+        net.sendInput({ t: 'in', h: heldMask, p: pressedMask, q: this.inputSeq++ });
         this.lastSentHeld = heldMask;
         this.keyPresses = emptyButtons();
         this.padInput.pressed = emptyButtons();
@@ -199,28 +206,39 @@ export class OnlineGameScene extends Phaser.Scene {
 
     // ---- mirror frames ----
 
-    receiveFrame(message) {
+    receiveFrame(message, fast) {
+        if (this.seenFrames.has(message.f)) return;
+        this.seenFrames.add(message.f);
+        if (this.seenFrames.size > SEEN_FRAME_MEMORY) {
+            this.seenFrames.delete(this.seenFrames.values().next().value);
+        }
         const now = performance.now();
-        const sample = message.k - now / TICK_MS;
+        const sample = message.ts - now;
         const samples = this.clockSamples;
         samples.push({ time: now, sample });
         while (samples[0].time < now - CLOCK_WINDOW_MS) samples.shift();
-        this.tickOffset = Math.max(...samples.map(entry => entry.sample));
-        const lateness = samples.map(entry => this.tickOffset - entry.sample).sort((a, b) => a - b);
-        const jitterTicks = lateness[Math.floor((lateness.length - 1) * BUFFER_PERCENTILE)];
-        this.bufferTicks = Phaser.Math.Clamp(jitterTicks + 1, MIN_BUFFER_TICKS, MAX_BUFFER_TICKS);
+        this.clockOffset = Math.max(...samples.map(entry => entry.sample));
+        const lateness = samples.map(entry => this.clockOffset - entry.sample).sort((a, b) => a - b);
+        const jitterMs = lateness[Math.floor((lateness.length - 1) * BUFFER_PERCENTILE)];
+        const wantedMs = Phaser.Math.Clamp(jitterMs + FRAME_MS, MIN_BUFFER_MS, MAX_BUFFER_MS);
+        this.bufferMs = Math.max(wantedMs, this.bufferMs - BUFFER_SHRINK_MS);
 
         const stats = this.netStats;
-        const lateMs = (this.tickOffset - sample) * TICK_MS;
-        stats.bufferMs = Math.round(this.bufferTicks * TICK_MS);
+        const lateMs = this.clockOffset - sample;
+        stats.bufferMs = Math.round(this.bufferMs);
         stats.maxBufferMs = Math.max(stats.maxBufferMs, stats.bufferMs);
         stats.frames++;
         stats.maxLateMs = Math.max(stats.maxLateMs, Math.round(lateMs));
         for (const ms of LATE_BUCKETS_MS) {
             if (lateMs > ms) stats.lateOver[ms]++;
         }
-        if (this.playTick !== null && message.k < this.playTick) stats.missedSlot++;
-        this.frameQueue.push(message);
+        if (this.playTime !== null && message.ts < this.playTime) stats.missedSlot++;
+        if (fast) stats.fastFirst++;
+        stats.fastConnected = net.fastConnected;
+        const queue = this.frameQueue;
+        let index = queue.length;
+        while (index > 0 && queue[index - 1].f > message.f) index--;
+        queue.splice(index, 0, message);
     }
 
     applyFrame(message) {
@@ -229,17 +247,18 @@ export class OnlineGameScene extends Phaser.Scene {
     }
 
     playFrames(delta) {
-        if (this.tickOffset === null) return;
-        const target = performance.now() / TICK_MS + this.tickOffset - this.bufferTicks;
-        if (this.playTick === null || Math.abs(target - this.playTick) > RESYNC_TICKS) {
-            if (this.playTick !== null) this.netStats.resyncs++;
-            this.playTick = target;
+        if (this.clockOffset === null) return;
+        const target = performance.now() + this.clockOffset - this.bufferMs;
+        if (this.playTime === null || Math.abs(target - this.playTime) > RESYNC_MS) {
+            if (this.playTime !== null) this.netStats.resyncs++;
+            this.playTime = target;
         } else {
-            this.playTick += Math.min(delta, MAX_STEP_MS) / TICK_MS;
-            this.playTick += (target - this.playTick) * CLOCK_CATCH_UP;
+            const step = Math.min(delta, MAX_STEP_MS);
+            const limit = step * MAX_CLOCK_ADJUST;
+            this.playTime += step + Phaser.Math.Clamp((target - this.playTime) * CLOCK_CATCH_UP, -limit, limit);
         }
         const queue = this.frameQueue;
-        while (queue.length && queue[0].k <= this.playTick) this.applyFrame(queue.shift());
+        while (queue.length && queue[0].ts <= this.playTime) this.applyFrame(queue.shift());
     }
 
     logNetStats() {

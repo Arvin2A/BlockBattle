@@ -16,7 +16,7 @@ var navBox = null;
 var layout = []
 var selectedIndex = 0;
 var previousInput = {};
-const CHANGELOG_VERSION = "2026-11-01-1";
+const CHANGELOG_VERSION = "2026-11-01-2";
 
 function getVersionColor(version) {
     const [year, month, day, update] = version.split("-").map(Number);
@@ -75,7 +75,7 @@ export class MenuScene extends Phaser.Scene {
         const changelogEntries = [
             {
                 title: "SMOOTHER ONLINE",
-                body: "Online matches don't microfreeze anymore every time your connection hiccups. Your game now keeps a tiny buffer of what the server sends and plays it back at a steady pace, so things stay smooth instead of stopping and then jumping ahead.\n The buffer adapts to your connection. On good wifi it's barely there, and on a shaky one it grows a little to soak up the bumps. Leaving a match for the main menu also disconnects you properly now, so you don't count as online after you've left."
+                body: "Online matches don't microfreeze anymore every time your connection hiccups. Your game now keeps a tiny buffer of what the server sends and plays it back at a steady pace, so things stay smooth instead of stopping and then jumping ahead.\n There's also a brand new fast connection running next to the old one. When a bit of data gets lost, the game just skips past it instead of freezing until it shows up again, and the old connection quietly fills in the gaps. Your button presses use both too. It all goes through a relay, so nobody sees anyone's IP.\n Leaving a match for the main menu also disconnects you properly now, so you don't count as online after you've left."
             },
             {
                 title: "LIGHTER + NAME FILTER",
@@ -214,7 +214,7 @@ export class MenuScene extends Phaser.Scene {
 
         const changelogBlurb = this.add.text(
             40, 180,
-            "Online matches are way smoother: no more microfreezes when your connection hiccups. The game also uses less memory, and FISHERMAN's intro is gone. Check the full changelog for name filter fixes!",
+            "Online got a brand new fast connection: lost data gets skipped instead of freezing the match. The game also uses less memory, and FISHERMAN's intro is gone. Check the full changelog for more!",
             {
                 fontFamily: "VCROSD",
                 fontSize: "16px",

@@ -35,6 +35,7 @@ import { WebSocketServer } from 'ws';
 import { createStaticHandler } from './static.js';
 import { HeadlessChrome, findChrome } from './chrome.js';
 import { Lobby } from './lobby.js';
+import { createIceProvider, describeIceSetup } from './ice.js';
 import { DEFAULT_PORT, MP_PATH } from '../mp/protocol.js';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
@@ -77,6 +78,7 @@ function authorityUrl(match) {
 const lobby = new Lobby({
     maxMatches: MAX_MATCHES,
     log,
+    getIce: createIceProvider(process.env, log),
     async launchAuthority(match) {
         const url = authorityUrl(match);
         if (MANUAL_AUTHORITY) {
@@ -221,6 +223,7 @@ server.listen(PORT, HOST, () => {
     }
     if (ALLOWED_ORIGINS.length) console.log(`  Websites allowed to connect: ${ALLOWED_ORIGINS.join(', ')}`);
     if (!SERVE_GAME) console.log('  Connection-only: the game page is not served to visitors (BB_SERVE_GAME=false).');
+    console.log(`  Fast path (WebRTC): ${describeIceSetup(process.env)}`);
     console.log('');
     console.log('  Everyone opens that address, clicks ONLINE, then hosts or joins a match.');
     console.log('  If others can\'t connect, allow Node.js through this computer\'s firewall.');

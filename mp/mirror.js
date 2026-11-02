@@ -10,6 +10,7 @@
 // Players never run game logic, they only see the result and send inputs.
 
 const ROOT = 0;
+const LATE_SOUND_MS = 250;
 
 const SUPPORTED_TYPES = new Set([
     'Image', 'Sprite', 'Text', 'Rectangle', 'Arc', 'Ellipse', 'Graphics', 'Container',
@@ -346,6 +347,13 @@ export class MirrorView {
         this.objects = new Map();
         this.sounds = new Map();
         this.lastFrame = -1;
+        this.keyFrames = new Map();
+        this.pendingUpdates = new Map();
+        this.destroyedIds = new Set();
+        this.orderFrames = new Map();
+        this.cameraFrame = -1;
+        this.soundFrames = new Map();
+        this.nextSoundFrame = null;
     }
 
     get(id) {
@@ -353,47 +361,113 @@ export class MirrorView {
     }
 
     apply(message) {
-        this.lastFrame = message.f;
+        const frame = message.f;
+        this.lastFrame = Math.max(this.lastFrame, frame);
 
         if (message.d) {
-            for (const id of message.d) this.destroy(id);
+            for (const id of message.d) {
+                this.destroyedIds.add(id);
+                this.pendingUpdates.delete(id);
+                this.keyFrames.delete(id);
+                this.destroy(id);
+            }
         }
 
         const parents = [];
         if (message.c) {
-            for (const [id, state] of Object.entries(message.c)) {
+            for (const [key, state] of Object.entries(message.c)) {
+                const id = Number(key);
+                if (this.objects.has(id) || this.destroyedIds.has(id)) continue;
                 const obj = this.create(state);
                 if (!obj) continue;
-                this.objects.set(Number(id), obj);
-                this.applyState(obj, state);
-                parents.push([obj, state.p]);
+                this.objects.set(id, obj);
+                this.keyFrames.set(id, {});
+                this.applyNewer(id, obj, state, frame, parents);
+                this.applyPending(id, obj, parents);
             }
         }
         if (message.u) {
-            for (const [id, changes] of Object.entries(message.u)) {
-                const obj = this.objects.get(Number(id));
-                if (!obj) continue;
-                this.applyState(obj, changes);
-                if ('p' in changes) parents.push([obj, changes.p]);
+            for (const [key, changes] of Object.entries(message.u)) {
+                const id = Number(key);
+                const obj = this.objects.get(id);
+                if (obj) {
+                    this.applyNewer(id, obj, changes, frame, parents);
+                } else if (!this.destroyedIds.has(id)) {
+                    this.holdPending(id, changes, frame);
+                }
             }
         }
         for (const [obj, parentId] of parents) this.setParent(obj, parentId);
 
         if (message.o) {
-            for (const [parentId, ids] of Object.entries(message.o)) {
-                this.reorder(Number(parentId), ids);
+            for (const [key, ids] of Object.entries(message.o)) {
+                const parentId = Number(key);
+                if ((this.orderFrames.get(parentId) ?? -1) >= frame) continue;
+                this.orderFrames.set(parentId, frame);
+                this.reorder(parentId, ids);
             }
         }
 
-        if (message.cam) {
+        if (message.cam && frame > this.cameraFrame) {
+            this.cameraFrame = frame;
             const cam = this.scene.cameras.main;
             cam.scrollX = message.cam[0];
             cam.scrollY = message.cam[1];
             cam.setZoom(message.cam[2]);
         }
 
-        if (message.snd) {
-            for (const op of message.snd) this.playSound(op);
+        this.queueSounds(frame, message.snd ?? null);
+    }
+
+    applyNewer(id, obj, changes, frame, parents) {
+        const stamps = this.keyFrames.get(id);
+        let newer = null;
+        for (const key in changes) {
+            if ((stamps[key] ?? -1) >= frame) continue;
+            stamps[key] = frame;
+            newer ??= {};
+            newer[key] = changes[key];
+        }
+        if (!newer) return;
+        this.applyState(obj, newer);
+        if ('p' in newer) parents.push([obj, newer.p]);
+    }
+
+    holdPending(id, changes, frame) {
+        let pending = this.pendingUpdates.get(id);
+        if (!pending) {
+            pending = {};
+            this.pendingUpdates.set(id, pending);
+        }
+        for (const key in changes) {
+            if ((pending[key]?.frame ?? -1) < frame) pending[key] = { value: changes[key], frame };
+        }
+    }
+
+    applyPending(id, obj, parents) {
+        const pending = this.pendingUpdates.get(id);
+        if (!pending) return;
+        this.pendingUpdates.delete(id);
+        for (const [key, { value, frame }] of Object.entries(pending)) {
+            this.applyNewer(id, obj, { [key]: value }, frame, parents);
+        }
+    }
+
+    queueSounds(frame, ops) {
+        if (this.nextSoundFrame === null) this.nextSoundFrame = frame;
+        if (frame < this.nextSoundFrame) return;
+        this.soundFrames.set(frame, { ops, appliedAt: performance.now() });
+        const now = performance.now();
+        while (this.soundFrames.has(this.nextSoundFrame)) {
+            const { ops: frameOps, appliedAt } = this.soundFrames.get(this.nextSoundFrame);
+            this.soundFrames.delete(this.nextSoundFrame);
+            this.nextSoundFrame++;
+            if (!frameOps) continue;
+            const late = now - appliedAt > LATE_SOUND_MS;
+            for (const op of frameOps) {
+                if (late && op.o === 'play1') continue;
+                this.playSound(op);
+            }
         }
     }
 
@@ -595,5 +669,10 @@ export class MirrorView {
         for (const sound of this.sounds.values()) sound.destroy();
         this.sounds.clear();
         this.objects.clear();
+        this.keyFrames.clear();
+        this.pendingUpdates.clear();
+        this.destroyedIds.clear();
+        this.orderFrames.clear();
+        this.soundFrames.clear();
     }
 }

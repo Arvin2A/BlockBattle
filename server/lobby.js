@@ -28,9 +28,11 @@ const CHAT_LATENCY_SLACK_MS = 300;
 const BOOT_TIMEOUT_MS = 45000;
 const END_LINGER_MS = 4000;
 const MAX_MESSAGES_PER_SECOND = 300;
-const MAX_PLAYER_MESSAGE_BYTES = 2048;
+const MAX_PLAYER_MESSAGE_BYTES = 4096;
 // Only this many open matches are sent to each player.
 const MAX_LISTED_ROOMS = 50;
+const MAX_RTC_SIGNALS_PER_MATCH = 64;
+const MAX_RTC_SIGNAL_BYTES = 16384;
 
 function loadNameFilter() {
     try {
@@ -44,6 +46,15 @@ const isNameBlocked = loadNameFilter();
 
 const randomId = (bytes = 6) => crypto.randomBytes(bytes).toString('hex');
 
+function isSmallSignal(data) {
+    if (!data || typeof data !== 'object') return false;
+    try {
+        return JSON.stringify(data).length <= MAX_RTC_SIGNAL_BYTES;
+    } catch {
+        return false;
+    }
+}
+
 function sendJson(ws, message) {
     if (ws?.readyState === WebSocket.OPEN) ws.send(JSON.stringify(message));
 }
@@ -55,7 +66,8 @@ function resolveMap(choice) {
 }
 
 export class Lobby {
-    constructor({ launchAuthority, closeAuthority, maxMatches, log }) {
+    constructor({ launchAuthority, closeAuthority, maxMatches, log, getIce }) {
+        this.getIce = getIce ?? (async () => null);
         this.launchAuthority = launchAuthority;
         this.closeAuthority = closeAuthority;
         this.maxMatches = maxMatches;
@@ -155,6 +167,9 @@ export class Lobby {
                 break;
             case 'in':
                 this.forwardInput(client, message);
+                break;
+            case 'rtc':
+                this.forwardSignalToAuthority(client, message);
                 break;
             case 'chat':
                 this.forwardChat(client, message);
@@ -283,6 +298,7 @@ export class Lobby {
             client.state = 'match';
             client.match = match;
             client.slot = slot;
+            client.rtcSignals = 0;
             sendJson(client.ws, {
                 t: 'matchFound',
                 matchId: match.id,
@@ -351,12 +367,18 @@ export class Lobby {
             }
             if (message.t === 'hello') {
                 const { p1, p2 } = match.players;
-                sendJson(ws, {
-                    t: 'config',
-                    map: match.map,
-                    p1: { name: p1.name, ...p1.choice },
-                    p2: { name: p2.name, ...p2.choice }
+                this.getIce().then(ice => {
+                    if (match.state === 'ended') return;
+                    sendJson(ws, {
+                        t: 'config',
+                        map: match.map,
+                        p1: { name: p1.name, ...p1.choice },
+                        p2: { name: p2.name, ...p2.choice },
+                        ice
+                    });
                 });
+            } else if (message.t === 'rtc') {
+                this.forwardSignalToPlayer(match, message);
             } else if (message.t === 'ready') {
                 match.authorityReady = true;
                 this.log(`Match ${match.id}: game host ready after ${this.secondsSince(match)}s`);
@@ -406,8 +428,24 @@ export class Lobby {
             t: 'in',
             s: client.slot,
             h: held & ALL_BUTTONS_MASK,
-            p: pressed & ALL_BUTTONS_MASK
+            p: pressed & ALL_BUTTONS_MASK,
+            q: Number.isSafeInteger(message.q) ? message.q : undefined
         });
+    }
+
+    forwardSignalToAuthority(client, message) {
+        const match = client.match;
+        if (!match || match.state === 'ended' || !match.authority) return;
+        if (!isSmallSignal(message.d)) return;
+        client.rtcSignals = (client.rtcSignals ?? 0) + 1;
+        if (client.rtcSignals > MAX_RTC_SIGNALS_PER_MATCH) return;
+        sendJson(match.authority, { t: 'rtc', s: client.slot, d: message.d });
+    }
+
+    forwardSignalToPlayer(match, message) {
+        const player = match.players[message.s];
+        if (!player || player.match !== match || !isSmallSignal(message.d)) return;
+        sendJson(player.ws, { t: 'rtc', d: message.d });
     }
 
     forwardChat(client, message) {

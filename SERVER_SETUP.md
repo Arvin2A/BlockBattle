@@ -131,6 +131,10 @@ around values.
 | `HOST` | `0.0.0.0` | `127.0.0.1` when using a tunnel/Caddy (step 5), so only they can reach it |
 | `PORT` | `8080` | Port the server listens on |
 | `CHROME_PATH` | *(auto)* | Path to Chrome/Chromium/Edge if it isn't found automatically |
+| `BB_TURN_KEY_ID` | *(none)* | Cloudflare TURN key ID for the fast WebRTC path (see "Faster online play" below) |
+| `BB_TURN_API_TOKEN` | *(none)* | The API token that goes with that TURN key. Keep it secret |
+| `BB_TURN_RELAY_ONLY` | `true` | `true` = all WebRTC traffic goes through the relay, so players never see your server's real IP address (and you never see theirs) |
+| `BB_FAST_PATH` | `true` | `false` turns the WebRTC fast path off and uses only the WebSocket, like older versions |
 
 **`BB_ALLOWED_ORIGINS`** lists the websites that host your copy of the game. Write each one
 as `https://` + domain only, with **no path and no trailing slash**: browsers only report
@@ -139,6 +143,44 @@ the domain, so `https://<your-username>.github.io` covers
 different, so list both if your site uses both. Pages served by the server itself are always
 allowed. Leave the setting out to allow any website (fine for testing, not for a public
 server).
+
+### Faster online play (WebRTC + Cloudflare TURN)
+
+Match frames normally travel over the WebSocket, which uses TCP. TCP never skips a lost
+packet: everything waits until it's sent again, and players see that as a short freeze. The
+fast path also sends every frame over WebRTC (UDP), where a lost packet is simply skipped.
+The WebSocket still carries everything, so nothing is ever missed, and if WebRTC can't
+connect the game quietly keeps using the WebSocket alone.
+
+A Cloudflare Tunnel only carries the WebSocket, so on a public server WebRTC goes through a
+**TURN relay**. With the relay, players connect to Cloudflare, not to your machine, and no
+one sees anyone else's IP address. To set it up:
+
+1. In the Cloudflare dashboard, open **Realtime → TURN** and create a TURN key. Cloudflare
+   shows a **key ID** and an **API token**. Copy both (the token is only shown once).
+2. Add them to the service file:
+
+   ```ini
+   Environment=BB_TURN_KEY_ID=your-key-id
+   Environment=BB_TURN_API_TOKEN=your-api-token
+   ```
+
+3. `sudo systemctl daemon-reload && sudo systemctl restart blockbattle`, then check
+   `journalctl -u blockbattle -n 20`. The startup message should say
+   `Fast path (WebRTC): Cloudflare TURN, relay only`.
+
+For every match the server asks Cloudflare for credentials that expire after an hour. No
+ports need to be opened. If Cloudflare can't be reached, the log says so and that match uses
+the WebSocket only. Cloudflare's TURN service has a free monthly allowance and charges for
+traffic beyond it, so check their current pricing. Each match sends roughly the same amount
+of data over the relay as over the WebSocket.
+
+On a LAN server with no TURN key, players on the same Wi-Fi connect over WebRTC directly.
+Players elsewhere just use the WebSocket.
+
+After a match, each player's browser console (F12) shows
+`[BlockBattle] online match network stats`. `fastConnected: true` and a high `fastFirst`
+count mean the fast path is working.
 
 ## 5. Make it reachable from the internet (with HTTPS)
 
