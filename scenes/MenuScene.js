@@ -16,7 +16,7 @@ var navBox = null;
 var layout = []
 var selectedIndex = 0;
 var previousInput = {};
-const CHANGELOG_VERSION = "2026-11-01-2";
+const CHANGELOG_VERSION = "2026-11-02-1";
 
 function getVersionColor(version) {
     const [year, month, day, update] = version.split("-").map(Number);
@@ -73,6 +73,14 @@ export class MenuScene extends Phaser.Scene {
         this.input.topOnly = false;
 
         const changelogEntries = [
+            {
+                title: "GRUNT IS NOW CRAZER",
+                body: "GUNMAN's one and only variant has a new name: GRUNT is now CRAZER. Same gun, same MINI, same chaos, just a name that fits him better."
+            },
+            {
+                title: "CHAT KEYBINDS",
+                body: "You can bind quick chat messages to number keys now. Open chat, hover any message and press 0-9 to bind it, then press that number mid-match to send it instantly. Your key shows up next to the message so you don't forget, and only you can see it. Press the same number on it again to unbind. Your binds are saved, so they're still there next time.\n Online is a bit tighter too: only one player per connection can host or play at a time, and if you tab out you stop counting as WAITING. LAN play is gone for now, so online always uses the public server. The server also got lighter, so it can run more matches at once."
+            },
             {
                 title: "SMOOTHER ONLINE",
                 body: "Online matches don't microfreeze anymore every time your connection hiccups. Your game now keeps a tiny buffer of what the server sends and plays it back at a steady pace, so things stay smooth instead of stopping and then jumping ahead.\n There's also a brand new fast connection running next to the old one. When a bit of data gets lost, the game just skips past it instead of freezing until it shows up again, and the old connection quietly fills in the gaps. Your button presses use both too. It all goes through a relay, so nobody sees anyone's IP.\n Leaving a match for the main menu also disconnects you properly now, so you don't count as online after you've left."
@@ -214,7 +222,7 @@ export class MenuScene extends Phaser.Scene {
 
         const changelogBlurb = this.add.text(
             40, 180,
-            "Online got a brand new fast connection: lost data gets skipped instead of freezing the match. The game also uses less memory, and FISHERMAN's intro is gone. Check the full changelog for more!",
+            "Quick chat messages can now be bound to number keys: hover one and press 0-9. GUNMAN's GRUNT is now called CRAZER, and online is tighter with one player per connection. Check the full changelog for more!",
             {
                 fontFamily: "VCROSD",
                 fontSize: "16px",

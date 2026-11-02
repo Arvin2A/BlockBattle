@@ -413,7 +413,7 @@ export default {
     handleAttack: handleShot,
     handleDirSpecial: handleGunmanSpecial,
     handleNeutralSpecial: chuck,
-    variantNeutralSpecials: { GRUNT: chuck },
+    variantNeutralSpecials: { CRAZER: chuck },
     handleHorizantalTilt: handleShot,
     handleDownTilt: handleShot,
     handleUpTilt: handleShot

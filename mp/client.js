@@ -3,7 +3,7 @@
 // Licensed under the GNU GPL v3 only. See LICENSE.
 
 // mp/client.js
-// The player's connection to the LAN server. One connection is shared by the
+// The player's connection to the online server. One connection is shared by the
 // lobby and the online game scenes, so it lives here instead of in a scene.
 
 import { PROTOCOL_VERSION } from './protocol.js';
@@ -24,6 +24,13 @@ class NetClient {
         this.acceptFrames = false;
         this.frameBuffer = [];
         this.frameHandler = null;
+        this.away = null;
+        this.sendAway = () => {
+            const away = document.hidden || !document.hasFocus();
+            if (away === this.away) return;
+            this.away = away;
+            this.send({ t: 'away', a: away });
+        };
         this.fastPeer = new PlayerFastPeer(
             data => this.send({ t: 'rtc', d: data }),
             text => this.receiveFastMessage(text)
@@ -90,6 +97,7 @@ class NetClient {
                     this.connected = true;
                     this.clientId = message.id;
                     this.startPing();
+                    this.watchAway();
                     resolve();
                 } else if (message.t === 'pong') {
                     this.ping = Math.round(performance.now() - message.c);
@@ -110,6 +118,7 @@ class NetClient {
                 this.socket = null;
                 this.connectPromise = null;
                 this.stopPing();
+                this.unwatchAway();
                 this.fastPeer.close();
                 if (wasConnected) this.emit('disconnected', {});
             });
@@ -125,8 +134,23 @@ class NetClient {
         this.connectPromise = null;
         this.clientId = null;
         this.stopPing();
+        this.unwatchAway();
         this.fastPeer.close();
         socket.close();
+    }
+
+    watchAway() {
+        this.away = null;
+        this.sendAway();
+        document.addEventListener('visibilitychange', this.sendAway);
+        window.addEventListener('focus', this.sendAway);
+        window.addEventListener('blur', this.sendAway);
+    }
+
+    unwatchAway() {
+        document.removeEventListener('visibilitychange', this.sendAway);
+        window.removeEventListener('focus', this.sendAway);
+        window.removeEventListener('blur', this.sendAway);
     }
 
     sendInput(message) {

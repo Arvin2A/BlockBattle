@@ -1,5 +1,20 @@
 # Changelog
 
+## 2026-11-02
+
+### Added
+- Quick chat keybinds. Open the chat menu, hover any phrase and press a number (0-9) to bind it. Press that number during a match to send the phrase instantly. Your bound key shows next to the phrase in your own menu (your opponent only sees the message). Pressing the same number on a bound phrase unbinds it. Binds are saved in your browser.
+
+### Changed
+- GUNMAN's variant GRUNT is now called CRAZER.
+- Online: only one player per connection (IP address) can host or play a match at a time.
+- Online: players whose tab isn't focused no longer count as WAITING. They still count as online.
+- Online: the server uses about a third less memory per match.
+- The name filter blocks one more word.
+
+### Removed
+- LAN play. Online now always goes through the public server, and `npm run lan` is gone.
+
 ## 2026-11-01
 
 ### Changed

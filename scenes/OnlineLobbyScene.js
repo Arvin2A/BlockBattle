@@ -16,7 +16,7 @@ import { net } from '../mp/client.js';
 import { cleanName, MAP_CHOICES, MAX_NAME_LENGTH } from '../mp/protocol.js';
 import { createNameFilter } from '../mp/nameFilter.js';
 import inappropriateWords from '../assets/inappropriate_words?raw';
-import { getOnlineServerHost, getServerName, isOnlineConfigured, usesRemoteServer } from '../mp/serverConfig.js';
+import { getOnlineServerHost, getServerName, isOnlineConfigured } from '../mp/serverConfig.js';
 import { COLORS, makeButton } from '../ui/theme.js';
 
 const SETTINGS_KEY = 'blockBattleOnline';
@@ -191,7 +191,7 @@ export class OnlineLobbyScene extends Phaser.Scene {
             stroke: '#000000',
             strokeThickness: 6
         }).setOrigin(0.5);
-        this.add.text(500, 92, usesRemoteServer() ? `SERVER: ${getServerName()}` : 'LOCAL NETWORK (LAN)', {
+        this.add.text(500, 92, `SERVER: ${getServerName()}`, {
             fontFamily: 'GameFont',
             fontSize: '14px',
             fill: '#ffd34d'
@@ -251,13 +251,10 @@ export class OnlineLobbyScene extends Phaser.Scene {
             fill: '#ffffff'
         }).setOrigin(0.5);
         this.add.text(500, 330, [
-            'Online play needs the BlockBattle LAN server, and websites like',
-            'GitHub Pages can only hand out files, they cannot run it.',
+            'This copy of the game was built without an online server address,',
+            'so it has nowhere to connect.',
             '',
-            'To play: on one computer, download the game and run',
-            'npm install   then   npm run lan',
-            '',
-            'Then everyone on the same Wi-Fi opens the http:// address it prints.'
+            'Play online from the official BlockBattle website instead.'
         ].join('\n'), {
             fontFamily: 'GameFont',
             fontSize: '15px',
@@ -463,8 +460,7 @@ export class OnlineLobbyScene extends Phaser.Scene {
                 if (this.autoQueue) this.toggleQueue();
             })
             .catch(error => {
-                const hint = usesRemoteServer() ? 'It may be down right now, try again later.' : 'Start it with "npm run lan" on the host computer.';
-                this.setStatus(`${error.message} ${hint}`, '#ff6b6b');
+                this.setStatus(`${error.message} It may be down right now, try again later.`, '#ff6b6b');
             });
     }
 

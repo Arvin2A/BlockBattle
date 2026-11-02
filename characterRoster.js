@@ -3,7 +3,7 @@
 // Licensed under the GNU GPL v3 only. See LICENSE.
 
 // Every playable character and its variants, in character-select order.
-// Shared by the character select screen, the online lobby and the LAN server
+// Shared by the character select screen, the online lobby and the online server
 // (which uses it to reject made-up characters), so add new variants here.
 export const CHARACTER_ROSTER = [
     {
@@ -111,7 +111,7 @@ export const CHARACTER_ROSTER = [
         key: 'gunman',
         name: 'GUNMAN',
         variants: [{
-            name: 'GRUNT',
+            name: 'CRAZER',
             desc: 'Modern conflicts need modern solutions, just use a gun! \n\n DIR SPECIAL: MINI \n\n This absolute beast shreds down your opponents.',
             color: '#e2c542'
         }]

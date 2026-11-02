@@ -45,14 +45,14 @@ export function describeIceSetup(env) {
             ? 'Cloudflare TURN, direct connections allowed'
             : 'Cloudflare TURN, relay only (addresses stay hidden)';
     }
-    return 'direct, no TURN (works on the same network only)';
+    return 'off (no TURN key), WebSocket only';
 }
 
 export function createIceProvider(env, log) {
     if (isOff(env.BB_FAST_PATH)) return async () => null;
     const keyId = (env.BB_TURN_KEY_ID ?? '').trim();
     const token = (env.BB_TURN_API_TOKEN ?? '').trim();
-    if (!keyId || !token) return async () => ({ servers: [], relayOnly: false });
+    if (!keyId || !token) return async () => null;
     const relayOnly = !isOff(env.BB_TURN_RELAY_ONLY);
 
     return async () => {

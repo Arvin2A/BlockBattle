@@ -3,7 +3,7 @@
 // Licensed under the GNU GPL v3 only. See LICENSE.
 
 // mp/authority.js
-// The "authority" is the real game running in a hidden Chrome tab on the LAN server.
+// The "authority" is the real game running in a hidden Chrome tab on the online server.
 // It is the only place online game logic runs: hits, knockback, KOs, cooldowns, wins.
 // Players' browsers just send button presses here and draw what the mirror sends back.
 //
@@ -218,9 +218,70 @@ export function reportMatchEnd(winnerSlot) {
     send({ t: 'end', winner: winnerSlot });
 }
 
+function useSilentSounds(Phaser) {
+    const { NoAudioSound, NoAudioSoundManager } = Phaser.Sound;
+    class SilentSound extends NoAudioSound {
+        play() {
+            this.isPlaying = true;
+            this.isPaused = false;
+            return true;
+        }
+
+        stop() {
+            const wasActive = this.isPlaying || this.isPaused;
+            this.isPlaying = false;
+            this.isPaused = false;
+            return wasActive;
+        }
+
+        pause() {
+            if (!this.isPlaying) return false;
+            this.isPlaying = false;
+            this.isPaused = true;
+            return true;
+        }
+
+        resume() {
+            if (!this.isPaused) return false;
+            this.isPaused = false;
+            this.isPlaying = true;
+            return true;
+        }
+    }
+    Object.assign(NoAudioSoundManager.prototype, {
+        add(key, config) {
+            const sound = new SilentSound(this, key, config);
+            this.sounds.push(sound);
+            return sound;
+        },
+        stopAll() {
+            for (const sound of this.sounds) {
+                sound.isPlaying = false;
+                sound.isPaused = false;
+            }
+        },
+        pauseAll() {
+            for (const sound of this.sounds) {
+                if (!sound.isPlaying) continue;
+                sound.isPlaying = false;
+                sound.isPaused = true;
+            }
+        },
+        resumeAll() {
+            for (const sound of this.sounds) {
+                if (!sound.isPaused) continue;
+                sound.isPaused = false;
+                sound.isPlaying = true;
+            }
+        }
+    });
+}
+
 export function createAuthorityGame(Phaser, baseConfig, gameScene) {
+    useSilentSounds(Phaser);
     const config = {
         ...baseConfig,
+        audio: { ...baseConfig.audio, noAudio: true },
         type: authorityParams.render ? Phaser.AUTO : Phaser.HEADLESS,
         scene: [createAuthorityBootScene(gameScene.prototype.preload), gameScene],
         // Hidden tabs pause requestAnimationFrame, so drive the game with timers
@@ -237,8 +298,5 @@ export function createAuthorityGame(Phaser, baseConfig, gameScene) {
         onFocus() {}
     }
     const game = new AuthorityGame(config);
-    game.events.once('ready', () => {
-        game.sound.pauseOnBlur = false;
-    });
     return game;
 }
