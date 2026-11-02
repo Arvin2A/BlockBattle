@@ -2,11 +2,10 @@
 // Original source: https://github.com/Arvin2A/BlockBattle
 // Licensed under the GNU GPL v3 only. See LICENSE.
 
-// Serves the built game (dist/) so everyone on the LAN can open it in a browser.
+// Serves the built game (dist/) to the hidden match tabs on this computer.
 
 import fs from 'node:fs';
 import path from 'node:path';
-import { SERVER_PAGE_MARKER } from '../mp/protocol.js';
 
 const CONTENT_TYPES = {
     '.html': 'text/html; charset=utf-8',
@@ -70,17 +69,13 @@ export function createStaticHandler(distDir, basePath) {
                 if (error || !fileStats.isFile()) {
                     if (!fs.existsSync(path.join(root, 'index.html'))) {
                         response.writeHead(503, { 'Content-Type': 'text/plain' })
-                            .end('The game has not been built yet. Run "npm run build" (or start with "npm run lan").');
+                            .end('The game has not been built yet. Run "npm run build".');
                         return;
                     }
                     response.writeHead(404, { 'Content-Type': 'text/plain' }).end('Not found');
                     return;
                 }
                 const type = CONTENT_TYPES[path.extname(filePath).toLowerCase()] ?? 'application/octet-stream';
-                if (path.basename(filePath) === 'index.html') {
-                    servePage(filePath, request, response);
-                    return;
-                }
                 response.writeHead(200, {
                     'Content-Type': type,
                     'Content-Length': fileStats.size,
@@ -95,21 +90,4 @@ export function createStaticHandler(distDir, basePath) {
             });
         });
     };
-}
-
-// Tags the page so the game knows it can play online here (see mp/serverConfig.js).
-function servePage(filePath, request, response) {
-    fs.readFile(filePath, 'utf8', (error, html) => {
-        if (error) {
-            response.writeHead(500).end();
-            return;
-        }
-        const body = Buffer.from(html.replace('<head>', `<head>\n    ${SERVER_PAGE_MARKER}`));
-        response.writeHead(200, {
-            'Content-Type': CONTENT_TYPES['.html'],
-            'Content-Length': body.length,
-            'Cache-Control': 'no-cache'
-        });
-        response.end(request.method === 'HEAD' ? undefined : body);
-    });
 }

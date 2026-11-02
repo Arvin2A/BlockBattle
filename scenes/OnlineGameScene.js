@@ -12,6 +12,7 @@ import Phaser from 'phaser';
 import { preload } from './GameScene/preload.js';
 import { MirrorView } from '../mp/mirror.js';
 import { net } from '../mp/client.js';
+import { getServerName } from '../mp/serverConfig.js';
 import { END_REASONS } from '../mp/protocol.js';
 import { encodeButtons, readControllerInput, INPUT_BUTTONS } from '../input.js';
 import { QuickChat } from './OnlineQuickChat.js';
@@ -547,7 +548,7 @@ export class OnlineOverlayScene extends Phaser.Scene {
     }
 
     update() {
-        this.pingText.setText(net.ping === null ? 'LAN' : `LAN  ${net.ping} ms`);
+        this.pingText.setText(net.ping === null ? getServerName() : `${getServerName()}  ${net.ping} ms`);
         this.quickChat.update();
 
         // Little arrow over your own fighter so you never lose track of yourself.

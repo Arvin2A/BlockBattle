@@ -1,11 +1,9 @@
 # Hosting a BlockBattle online server
 
 This guide turns a Linux machine into a BlockBattle online server: the matchmaking queue,
-plus a hidden Chrome tab that runs each match. It works for:
-
-- **Your own copy of the game** (a fork) hosted on GitHub Pages or any other static site, or
-- **Just the server**: players open the game straight from it, with no website needed
-  (set `BB_SERVE_GAME=true`, see the settings table in step 4).
+plus a hidden Chrome tab that runs each match. Players open the game from a static site
+(GitHub Pages or similar) that was built with your server's address. The server itself
+never serves the game to players.
 
 Any always-on Linux machine works: a spare PC, a home server, or a cloud VPS. The commands
 are written for Debian/Ubuntu (`apt`); other distros work the same with their own package
@@ -16,9 +14,6 @@ static website (GitHub Pages, etc.) ── serves the game files
           player's browser          ── wss://your-server-address/mp ──►  your server
                                                                           (queue + one hidden Chrome tab per match)
 ```
-
-Just want to play with people on the same Wi-Fi? You don't need any of this. Run
-`npm install` and `npm run lan` (see the README).
 
 ## 0. Check the machine
 
@@ -77,7 +72,7 @@ git clone https://github.com/<OWNER>/BlockBattle.git    # this repo, or your for
 cd BlockBattle
 npm ci
 npm run build
-HOST=127.0.0.1 npm run server              # should print "BlockBattle LAN server is running!"
+npm run server                            # should print "BlockBattle online server is running!"
 ```
 
 In a second SSH window, `curl http://127.0.0.1:8080/mp/status` should print
@@ -126,9 +121,8 @@ around values.
 |---|---|---|
 | `BB_ALLOWED_ORIGINS` | *(anyone)* | Comma-separated websites allowed to use your server (see below) |
 | `BB_MAX_MATCHES` | `4` | Matches that can run at the same time |
-| `BB_SERVE_GAME` | `true` | `false` = connection-only: visitors to the server's address see a plain "Server online." notice instead of the game, and search engines are told not to list it. The included service file sets this to `false` |
 | `BB_MAX_PER_IP` | `8` | Connections allowed from one IP address |
-| `HOST` | `0.0.0.0` | `127.0.0.1` when using a tunnel/Caddy (step 5), so only they can reach it |
+| `HOST` | `127.0.0.1` | Leave it. Players reach the server through a tunnel/Caddy (step 5) |
 | `PORT` | `8080` | Port the server listens on |
 | `CHROME_PATH` | *(auto)* | Path to Chrome/Chromium/Edge if it isn't found automatically |
 | `BB_TURN_KEY_ID` | *(none)* | Cloudflare TURN key ID for the fast WebRTC path (see "Faster online play" below) |
@@ -175,8 +169,7 @@ the WebSocket only. Cloudflare's TURN service has a free monthly allowance and c
 traffic beyond it, so check their current pricing. Each match sends roughly the same amount
 of data over the relay as over the WebSocket.
 
-On a LAN server with no TURN key, players on the same Wi-Fi connect over WebRTC directly.
-Players elsewhere just use the WebSocket.
+With no TURN key, every match uses the WebSocket only.
 
 After a match, each player's browser console (F12) shows
 `[BlockBattle] online match network stats`. `fastConnected: true` and a high `fastFirst`
@@ -250,14 +243,10 @@ It prints an address like `https://random-words.trycloudflare.com`, so your serv
 is `wss://random-words.trycloudflare.com/mp`. The address **changes every time it restarts**
 and it stops when you close the SSH window, so don't put it on a public website long-term.
 
-With options A and B, set `HOST=127.0.0.1` in the service file so the server is only
-reachable through the tunnel or Caddy.
+The server listens on `127.0.0.1` by default, so it is only reachable through the tunnel
+or Caddy.
 
 ## 6. Connect your website to the server
-
-Skip this if players will only open the game from the server itself
-(`https://<your-server-address>/BlockBattle/`, needs `BB_SERVE_GAME=true`), which works
-without a website.
 
 If your copy of the game is deployed by this repo's GitHub Actions workflow
 (`.github/workflows/deploy.yml`), go to **your repo > Settings > Secrets and variables >
