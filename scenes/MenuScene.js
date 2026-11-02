@@ -16,7 +16,7 @@ var navBox = null;
 var layout = []
 var selectedIndex = 0;
 var previousInput = {};
-const CHANGELOG_VERSION = "2026-10-31-16";
+const CHANGELOG_VERSION = "2026-11-01-1";
 
 function getVersionColor(version) {
     const [year, month, day, update] = version.split("-").map(Number);
@@ -73,6 +73,14 @@ export class MenuScene extends Phaser.Scene {
         this.input.topOnly = false;
 
         const changelogEntries = [
+            {
+                title: "SMOOTHER ONLINE",
+                body: "Online matches don't microfreeze anymore every time your connection hiccups. Your game now keeps a tiny buffer of what the server sends and plays it back at a steady pace, so things stay smooth instead of stopping and then jumping ahead.\n The buffer adapts to your connection. On good wifi it's barely there, and on a shaky one it grows a little to soak up the bumps. Leaving a match for the main menu also disconnects you properly now, so you don't count as online after you've left."
+            },
+            {
+                title: "LIGHTER + NAME FILTER",
+                body: "The game uses a good chunk less memory, which helps on phones and older laptops. The sandstorm wind and AXEMAN's chainsaw are short seamless loops now, and a bunch of sounds that were stereo for no reason are mono. You won't hear a difference.\n FISHERMAN's match intro is gone. It didn't look great and it was the single biggest image in the game. He still slams down onto his spawn like everyone else.\n The name filter now catches names that swap the first letters of two words, and it stops blocking normal words like DICKENS, COCKTAIL and PEACOCK."
+            },
             {
                 title: "PLUNGE IS NOW SLIDE",
                 body: "SLATEMAN's PLUNGE got reworked and renamed to SLIDE. His arm twists around, pulls out a dagger, then tucks it back in, and the whole thing lasts about 3 and a half seconds.\n The dagger only hurts (and still applies PLUNGED) while it's actually out, and holding left or right then sends him off at 1.5x speed. He doesn't move on his own anymore, so you steer the whole thing. Once he starts putting it away he slows back down.\n Pulling the dagger out and putting it back are little slashes of their own, so anyone who tries to punish him on either end gets swatted away. He can't do anything else until the whole SLIDE is over."
@@ -206,7 +214,7 @@ export class MenuScene extends Phaser.Scene {
 
         const changelogBlurb = this.add.text(
             40, 180,
-            "SLATEMAN's PLUNGE is now SLIDE: a dagger slide you steer yourself, with a speed burst while the blade is out and little slashes that guard him on either end. SCYTHEMAN got reworked too!",
+            "Online matches are way smoother: no more microfreezes when your connection hiccups. The game also uses less memory, and FISHERMAN's intro is gone. Check the full changelog for name filter fixes!",
             {
                 fontFamily: "VCROSD",
                 fontSize: "16px",

@@ -134,13 +134,16 @@ export function beginAuthorityCapture(scene) {
 export function attachAuthority(scene) {
     const players = scene.gameState.players;
     const camera = scene.cameras.main;
+    let tick = 0;
 
     // postupdate runs after physics has moved everything for this frame.
     scene.events.on('postupdate', () => {
+        tick++;
         // Headless Phaser never renders, so clamp the camera like a render would.
         camera.preRender();
         const message = capture.capture();
         if (!message) return;
+        message.k = tick;
         if (message.f === 0) {
             message.meta = {
                 players: {

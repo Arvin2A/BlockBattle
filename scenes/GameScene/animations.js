@@ -47,12 +47,6 @@ export function createGameAnimations(scene) {
         frameRate: 20,
         repeat: 0
     });
-    scene.anims.create({
-        key: 'fishermanintro',
-        frames: scene.anims.generateFrameNumbers('fishermanintro', { start: 0, end: 75 }),
-        frameRate: 50,
-        repeat: 0
-    });
     // Frame 41 of the 42-frame sheet is blank, so stop on 40 to keep the mallet shown.
     scene.anims.create({
         key: 'hammermanintro',

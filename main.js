@@ -1461,16 +1461,9 @@ const SWORD_THIRD_HOLD_MS = 250;
 // Shifts each intro frame (drawn facing right) so it lines up with the player.
 // The swordman intro draws the fighter off-centre so the weapon has room; the
 // mallet intro only draws the mallet, matched to where the idle mallet sits.
-// The fisherman intro draws his arms centred in the frame instead of off to the
-// left like rodatk, so its last frame is matched to where the idle rod sits.
 const INTRO_OFFSETS = {
     swordman: { x: 31, y: 0 },
-    hammerman: { x: 20, y: -2 },
-    fisherman: { x: 0, y: 1 }
-};
-
-const INTRO_SCALES = {
-    fisherman: 0.6
+    hammerman: { x: 20, y: -2 }
 };
 
 const INTRO_SOUNDS = {
@@ -1515,8 +1508,7 @@ function startCharacterIntro(scene, player) {
     if (!scene.anims.exists(key)) return;
     const intro = scene.add.sprite(player.x, player.y, key)
         .setDepth(player.depth)
-        .setFlipX(player.lastDir.x < 0)
-        .setScale(INTRO_SCALES[player.texture.key] ?? 1);
+        .setFlipX(player.lastDir.x < 0);
     scene.objs.add(intro);
     const introSound = INTRO_SOUNDS[player.texture.key];
     if (introSound) {
