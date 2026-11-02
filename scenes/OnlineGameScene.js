@@ -32,6 +32,28 @@ const CAPTURED_KEYS = 'W,A,S,D,UP,DOWN,LEFT,RIGHT,E,SHIFT,ALT,Q,FORWARD_SLASH';
 
 const SLOT_COLORS = { p1: COLORS.p1, p2: COLORS.p2 };
 
+const TICK_MS = 1000 / 60;
+const MIN_BUFFER_TICKS = 2;
+const MAX_BUFFER_TICKS = 6;
+const BUFFER_PERCENTILE = 0.9;
+const CLOCK_WINDOW_MS = 2000;
+const RESYNC_TICKS = 12;
+const CLOCK_CATCH_UP = 0.05;
+const MAX_STEP_MS = 100;
+const LATE_BUCKETS_MS = [50, 100, 200, 500];
+
+function emptyNetStats() {
+    return {
+        frames: 0,
+        missedSlot: 0,
+        maxLateMs: 0,
+        lateOver: Object.fromEntries(LATE_BUCKETS_MS.map(ms => [ms, 0])),
+        resyncs: 0,
+        bufferMs: 0,
+        maxBufferMs: 0
+    };
+}
+
 function emptyButtons() {
     return Object.fromEntries(INPUT_BUTTONS.map(button => [button, false]));
 }
@@ -70,10 +92,14 @@ export class OnlineGameScene extends Phaser.Scene {
             net.on('matchEnd', message => this.endMatch(message)),
             net.on('disconnected', () => this.endMatch({ reason: 'lost_connection', winner: null }))
         ];
-        net.setFrameHandler(message => {
-            this.mirror.apply(message);
-            if (message.meta) this.playerIds = message.meta.players;
-        });
+        this.frameQueue = [];
+        this.clockSamples = [];
+        this.tickOffset = null;
+        this.bufferTicks = MAX_BUFFER_TICKS;
+        this.playTick = null;
+        this.netStats = emptyNetStats();
+        window.blockBattleNetStats = this.netStats;
+        net.setFrameHandler(message => this.receiveFrame(message));
 
         this.scene.launch('OnlineOverlayScene', { gameScene: this });
         this.events.once('shutdown', () => this.cleanup());
@@ -165,9 +191,59 @@ export class OnlineGameScene extends Phaser.Scene {
         this.touchInput.pressed = emptyButtons();
     }
 
-    update() {
+    update(_time, delta) {
         this.pollControllers();
         this.flushInput();
+        this.playFrames(delta);
+    }
+
+    // ---- mirror frames ----
+
+    receiveFrame(message) {
+        const now = performance.now();
+        const sample = message.k - now / TICK_MS;
+        const samples = this.clockSamples;
+        samples.push({ time: now, sample });
+        while (samples[0].time < now - CLOCK_WINDOW_MS) samples.shift();
+        this.tickOffset = Math.max(...samples.map(entry => entry.sample));
+        const lateness = samples.map(entry => this.tickOffset - entry.sample).sort((a, b) => a - b);
+        const jitterTicks = lateness[Math.floor((lateness.length - 1) * BUFFER_PERCENTILE)];
+        this.bufferTicks = Phaser.Math.Clamp(jitterTicks + 1, MIN_BUFFER_TICKS, MAX_BUFFER_TICKS);
+
+        const stats = this.netStats;
+        const lateMs = (this.tickOffset - sample) * TICK_MS;
+        stats.bufferMs = Math.round(this.bufferTicks * TICK_MS);
+        stats.maxBufferMs = Math.max(stats.maxBufferMs, stats.bufferMs);
+        stats.frames++;
+        stats.maxLateMs = Math.max(stats.maxLateMs, Math.round(lateMs));
+        for (const ms of LATE_BUCKETS_MS) {
+            if (lateMs > ms) stats.lateOver[ms]++;
+        }
+        if (this.playTick !== null && message.k < this.playTick) stats.missedSlot++;
+        this.frameQueue.push(message);
+    }
+
+    applyFrame(message) {
+        this.mirror.apply(message);
+        if (message.meta) this.playerIds = message.meta.players;
+    }
+
+    playFrames(delta) {
+        if (this.tickOffset === null) return;
+        const target = performance.now() / TICK_MS + this.tickOffset - this.bufferTicks;
+        if (this.playTick === null || Math.abs(target - this.playTick) > RESYNC_TICKS) {
+            if (this.playTick !== null) this.netStats.resyncs++;
+            this.playTick = target;
+        } else {
+            this.playTick += Math.min(delta, MAX_STEP_MS) / TICK_MS;
+            this.playTick += (target - this.playTick) * CLOCK_CATCH_UP;
+        }
+        const queue = this.frameQueue;
+        while (queue.length && queue[0].k <= this.playTick) this.applyFrame(queue.shift());
+    }
+
+    logNetStats() {
+        console.info('[BlockBattle] online match network stats', { ...this.netStats });
     }
 
     // ---- match flow ----
@@ -177,6 +253,7 @@ export class OnlineGameScene extends Phaser.Scene {
         this.matchOver = true;
         this.matchRunning = false;
         this.endMessage = message;
+        this.logNetStats();
         this.events.emit('online-end', message);
     }
 
