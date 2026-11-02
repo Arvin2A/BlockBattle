@@ -8,6 +8,7 @@
 
 import { PROTOCOL_VERSION } from './protocol.js';
 import { getOnlineServerUrl } from './serverConfig.js';
+import { PlayerFastPeer } from './rtc.js';
 
 class NetClient {
     constructor() {
@@ -23,6 +24,10 @@ class NetClient {
         this.acceptFrames = false;
         this.frameBuffer = [];
         this.frameHandler = null;
+        this.fastPeer = new PlayerFastPeer(
+            data => this.send({ t: 'rtc', d: data }),
+            text => this.receiveFastMessage(text)
+        );
     }
 
     on(type, handler) {
@@ -68,7 +73,11 @@ class NetClient {
                     return;
                 }
                 if (message.t === 'm') {
-                    this.receiveFrame(message);
+                    this.receiveFrame(message, false);
+                    return;
+                }
+                if (message.t === 'rtc') {
+                    if (this.acceptFrames) this.fastPeer.signal(message.d);
                     return;
                 }
                 if (message.t === 'matchFound') {
@@ -101,6 +110,7 @@ class NetClient {
                 this.socket = null;
                 this.connectPromise = null;
                 this.stopPing();
+                this.fastPeer.close();
                 if (wasConnected) this.emit('disconnected', {});
             });
         });
@@ -115,7 +125,17 @@ class NetClient {
         this.connectPromise = null;
         this.clientId = null;
         this.stopPing();
+        this.fastPeer.close();
         socket.close();
+    }
+
+    sendInput(message) {
+        this.send(message);
+        if (this.connected) this.fastPeer.send(JSON.stringify(message));
+    }
+
+    get fastConnected() {
+        return this.fastPeer.open;
     }
 
     sendNow(message) {
@@ -142,12 +162,22 @@ class NetClient {
 
     // ---- mirror frames ----
 
-    receiveFrame(message) {
+    receiveFastMessage(text) {
+        let message;
+        try {
+            message = JSON.parse(text);
+        } catch {
+            return;
+        }
+        if (message?.t === 'm') this.receiveFrame(message, true);
+    }
+
+    receiveFrame(message, fast) {
         if (!this.acceptFrames) return;
         if (this.frameHandler) {
-            this.frameHandler(message);
+            this.frameHandler(message, fast);
         } else {
-            this.frameBuffer.push(message);
+            this.frameBuffer.push([message, fast]);
         }
     }
 
@@ -157,13 +187,14 @@ class NetClient {
         if (!handler) return;
         const buffered = this.frameBuffer;
         this.frameBuffer = [];
-        for (const message of buffered) handler(message);
+        for (const [message, fast] of buffered) handler(message, fast);
     }
 
     clearFrames() {
         this.acceptFrames = false;
         this.frameBuffer = [];
         this.frameHandler = null;
+        this.fastPeer.close();
     }
 }
 
