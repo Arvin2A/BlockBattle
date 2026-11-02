@@ -150,7 +150,7 @@ export function preload() {
     this.load.spritesheet('sandstorm', 'assets/ingame/sandstorm.png', {frameWidth: 1000, frameHeight: 600});    
     this.load.spritesheet('blizzard', 'assets/ingame/blizzard.png', {frameWidth: 1000, frameHeight: 600});
 
-    this.load.audio('storm', 'audio/sandstorm.mp3');
+    this.load.audio('storm', 'audio/sandstorm.wav');
 
     // =====================================================
     // EFFECTS
@@ -330,15 +330,6 @@ export function preload() {
     this.load.image(
         'hook',
         'assets/sprites/fisherman/hook.png'
-    );
-
-    this.load.spritesheet(
-        'fishermanintro',
-        'assets/sprites/fisherman/intro.png',
-        {
-            frameWidth: 300,
-            frameHeight: 300
-        }
     );
 
     this.load.image(
