@@ -11,7 +11,8 @@
 
 import { MirrorCapture } from './mirror.js';
 import { getServerSocketUrl, PROTOCOL_VERSION } from './protocol.js';
-import { decodeButtons, INPUT_BUTTONS } from '../input.js';
+import { decodeButtons, INPUT_BUTTONS, ALL_BUTTONS_MASK } from '../input.js';
+import { AuthorityFastPeer } from './rtc.js';
 import { setSelectedCharacters } from '../scenes/CharacterSelectScreen.js';
 import { resetMapAndModifierSelection, setSelectedMap } from '../scenes/MapAndModifierSelect.js';
 import { getMap } from '../scenes/GameScene/MapDefinitions.js';
@@ -39,19 +40,67 @@ let socket = null;
 let matchConfig = null;
 let capture = null;
 let endReported = false;
+let matchStarted = false;
+const INPUT_SEQ_MEMORY = 256;
 const netInputs = {
-    p1: { held: decodeButtons(0), pressed: decodeButtons(0) },
-    p2: { held: decodeButtons(0), pressed: decodeButtons(0) }
+    p1: { held: decodeButtons(0), pressed: decodeButtons(0), lastSeq: -1, seenSeqs: new Set() },
+    p2: { held: decodeButtons(0), pressed: decodeButtons(0), lastSeq: -1, seenSeqs: new Set() }
 };
+const fastPeers = {};
 
 function send(message) {
     if (socket?.readyState === WebSocket.OPEN) socket.send(JSON.stringify(message));
 }
 
-function receiveInput(slot, heldMask, pressedMask) {
+function startFastPeers(ice) {
+    closeFastPeers();
+    if (!ice) return;
+    for (const slot of Object.keys(netInputs)) {
+        fastPeers[slot] = new AuthorityFastPeer(
+            ice,
+            data => send({ t: 'rtc', s: slot, d: data }),
+            text => receiveFastInput(slot, text)
+        );
+    }
+}
+
+function closeFastPeers() {
+    for (const slot of Object.keys(fastPeers)) {
+        fastPeers[slot].close();
+        delete fastPeers[slot];
+    }
+}
+
+function receiveFastInput(slot, text) {
+    if (!matchStarted) return;
+    let message;
+    try {
+        message = JSON.parse(text);
+    } catch {
+        return;
+    }
+    if (message?.t !== 'in') return;
+    const { h, p, q } = message;
+    if (!Number.isInteger(h) || !Number.isInteger(p) || !Number.isSafeInteger(q)) return;
+    receiveInput(slot, h & ALL_BUTTONS_MASK, p & ALL_BUTTONS_MASK, q);
+}
+
+function isNewInput(input, seq) {
+    if (!Number.isSafeInteger(seq)) return true;
+    if (input.seenSeqs.has(seq)) return false;
+    input.seenSeqs.add(seq);
+    if (input.seenSeqs.size > INPUT_SEQ_MEMORY) {
+        input.seenSeqs.delete(input.seenSeqs.values().next().value);
+    }
+    return true;
+}
+
+function receiveInput(slot, heldMask, pressedMask, seq) {
     const input = netInputs[slot];
-    if (!input) return;
-    input.held = decodeButtons(heldMask);
+    if (!input || !isNewInput(input, seq)) return;
+    const newest = !Number.isSafeInteger(seq) || seq > input.lastSeq;
+    if (Number.isSafeInteger(seq) && newest) input.lastSeq = seq;
+    if (newest) input.held = decodeButtons(heldMask);
     // Presses add up until the game reads them, so quick taps between frames still count.
     const pressed = decodeButtons(pressedMask);
     for (const button of INPUT_BUTTONS) {
@@ -95,7 +144,10 @@ function createAuthorityBootScene(preload) {
                 }
                 switch (message.t) {
                     case 'in':
-                        receiveInput(message.s, message.h, message.p);
+                        receiveInput(message.s, message.h, message.p, message.q);
+                        break;
+                    case 'rtc':
+                        fastPeers[message.s]?.signal(message.d);
                         break;
                     case 'config':
                         matchConfig = message;
@@ -106,9 +158,11 @@ function createAuthorityBootScene(preload) {
                             message.p1.character, message.p1.variant,
                             message.p2.character, message.p2.variant
                         );
+                        startFastPeers(message.ice);
                         send({ t: 'ready' });
                         break;
                     case 'start':
+                        matchStarted = true;
                         this.scene.start('GameScene');
                         break;
                 }
@@ -117,6 +171,7 @@ function createAuthorityBootScene(preload) {
             // The server closes this tab when the match is over, but if it goes away
             // first there is nothing left to do here.
             socket.addEventListener('close', () => {
+                closeFastPeers();
                 this.game.loop.stop();
             });
         }
@@ -134,16 +189,14 @@ export function beginAuthorityCapture(scene) {
 export function attachAuthority(scene) {
     const players = scene.gameState.players;
     const camera = scene.cameras.main;
-    let tick = 0;
 
     // postupdate runs after physics has moved everything for this frame.
     scene.events.on('postupdate', () => {
-        tick++;
         // Headless Phaser never renders, so clamp the camera like a render would.
         camera.preRender();
         const message = capture.capture();
         if (!message) return;
-        message.k = tick;
+        message.ts = Math.round(performance.now() * 10) / 10;
         if (message.f === 0) {
             message.meta = {
                 players: {
@@ -152,7 +205,10 @@ export function attachAuthority(scene) {
                 }
             };
         }
-        send(message);
+        if (socket?.readyState !== WebSocket.OPEN) return;
+        const text = JSON.stringify(message);
+        socket.send(text);
+        for (const peer of Object.values(fastPeers)) peer.send(text);
     });
 }
 

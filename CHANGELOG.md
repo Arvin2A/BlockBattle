@@ -4,6 +4,7 @@
 
 ### Changed
 - Online matches play back much smoother. Your game now keeps a tiny buffer of what the server sends and plays it at a steady pace, so small network hiccups no longer show up as microfreezes followed by everything jumping ahead. The buffer adapts to your connection: about 33 ms on a good one, up to 100 ms on a shaky one. Each online match also logs a short network report to the browser console when it ends.
+- Online matches also use a new fast connection (WebRTC) next to the old one. If a bit of data gets lost on the way, the game skips it and keeps going instead of freezing until it's sent again, and the old connection fills in anything missed a moment later. Your button presses go both ways too. On the public server this traffic goes through Cloudflare's relay, so nobody sees anyone else's IP address. If the fast connection can't be set up, the game quietly uses the old one like before.
 - The game uses less memory, so it runs better on phones and older computers. The sandstorm wind and AXEMAN's chainsaw are now short seamless loops instead of long recordings, and sounds that were saved in stereo but sounded the same in both ears are now mono. That's about 22 MB less RAM and a smaller download, with no difference you can hear.
 - The online name filter now catches names that swap the first letters of two words to sneak a bad word in, and it no longer blocks normal words like DICKENS, COCKTAIL or PEACOCK.
 
