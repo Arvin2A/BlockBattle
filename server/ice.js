@@ -6,6 +6,11 @@ const CLOUDFLARE_TURN_URL = 'https://rtc.live.cloudflare.com/v1/turn/keys';
 const CREDENTIAL_TTL_SECONDS = 3600;
 const REQUEST_TIMEOUT_MS = 5000;
 const BLOCKED_PORT = /:53(\?|$)/;
+const PREFERRED_RELAY_URLS = [
+    /^turn:[^?]+:3478\?transport=udp$/,
+    /^turn:[^?]+:443\?transport=udp$/,
+    /^turns:[^?]+:443\?transport=tcp$/
+];
 
 function isOff(value) {
     return ['false', '0', 'no', 'off'].includes((value ?? '').trim().toLowerCase());
@@ -20,6 +25,17 @@ function cleanIceServers(iceServers) {
             urls: (Array.isArray(server.urls) ? server.urls : [server.urls]).filter(url => !BLOCKED_PORT.test(url))
         }))
         .filter(server => server.urls.length > 0);
+}
+
+function keepPreferredRelays(servers) {
+    const picked = servers
+        .filter(server => server.username && server.credential)
+        .map(server => ({
+            ...server,
+            urls: server.urls.filter(url => PREFERRED_RELAY_URLS.some(pattern => pattern.test(url)))
+        }))
+        .filter(server => server.urls.length > 0);
+    return picked.length > 0 ? picked : servers.filter(server => server.username && server.credential);
 }
 
 export function describeIceSetup(env) {
@@ -48,7 +64,8 @@ export function createIceProvider(env, log) {
                 signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS)
             });
             if (!response.ok) throw new Error(`Cloudflare answered ${response.status}`);
-            const servers = cleanIceServers((await response.json()).iceServers);
+            const cleaned = cleanIceServers((await response.json()).iceServers);
+            const servers = relayOnly ? keepPreferredRelays(cleaned) : cleaned;
             if (servers.length === 0) throw new Error('Cloudflare sent no TURN servers');
             return { servers, relayOnly };
         } catch (error) {
