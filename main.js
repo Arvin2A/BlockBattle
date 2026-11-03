@@ -3,13 +3,15 @@
 // Licensed under the GNU GPL v3 only. See LICENSE.
 
 import Phaser from 'phaser';
-import {handleAttack, handleDirSpecial, handleNeutralSpecial, handleDirSpecialAttack, handleHorizantalTilt, handleDownTilt, handleUpTilt, downslamAttack, updateScythemanGrass, updateChainsawWood, updateCharacter, toggleChainsawMode, tryQuickslamJump, positionAttackSprite, hasIdleAttackSprite, getAttackSpriteOffset, getAttackSpriteAngle, getAttackSpriteFlipX, triggerScreenShake, spawnDirtBurst, spawnExplosion} from './attacks.js';
+import {handleAttack, handleDirSpecial, handleNeutralSpecial, handleDirSpecialAttack, handleHorizantalTilt, handleDownTilt, handleUpTilt, downslamAttack, updateScythemanGrass, updateChainsawWood, updateCharacter, handleMisc, hasMiscButton, usesToggleAttack, getSpecialMeter, tryQuickslamJump, positionAttackSprite, hasIdleAttackSprite, getAttackSpriteOffset, getAttackSpriteAngle, getAttackSpriteFlipX, triggerScreenShake, spawnDirtBurst, spawnExplosion} from './attacks.js';
 import { COLORS, FONTS, HEX, makePanel, playerColor, playerHex, textStyle } from './ui/theme.js';
 import { addTouchAssist, isPhoneScreen } from './ui/touchAssist.js';
+import { addThumbstick } from './ui/touchJoystick.js';
 import { MAX_WOOD_COUNT } from './playerAttackScripts/axeman.js';
 import { initiatePlayers, updateCombo } from './players.js';
 import { Commands, executeStateCommand} from './commands.js';
-import { applySquash, restoreSquash, squashOnLanding } from './combat/squash.js';
+import { applySquash, cancelDownslamFx, restoreSquash, squashOnLanding } from './combat/squash.js';
+import { updateLaunchArc } from './combat/knockback.js';
 import { MenuScene } from './scenes/MenuScene.js';
 import { fadeOutTo } from './scenes/transitions.js';
 import { player1Character, player2Character, player1Variant, player2Variant, CharacterSelectScene } from './scenes/CharacterSelectScreen.js';
@@ -386,6 +388,15 @@ function updateSpecialMeters(scene) {
             );
             meter.woodFill.setDisplaySize(meterWidth * woodProgress, 18);
             meter.woodStatus.setText(`${Math.floor(woodAmount)} / ${meter.woodMaxValue}`);
+        }
+
+        const customMeter = getSpecialMeter(scene, player);
+        if (customMeter) {
+            fill.setDisplaySize(meterWidth * Phaser.Math.Clamp(customMeter.progress, 0, 1), 18);
+            fill.setFillStyle(customMeter.color);
+            status.setText(customMeter.text);
+            status.setColor(customMeter.textColor);
+            return;
         }
 
         const isChainsawBuildMode =
@@ -777,11 +788,8 @@ function create() {
         const p1 = mobileControls.p1;
         const p2 = mobileControls.p2;
 
-        const p1Buttons = botMode ? (isPhoneScreen() ? [
-            [60, 420, '←', p1, 'left', 55],
-            [172, 420, '→', p1, 'right', 55],
-            [850, 330, '↑', p1, 'up'],
-            [850, 420, '↓', p1, 'down'],
+        const p1Thumbstick = botMode && !simulationMode && isPhoneScreen();
+        const p1Buttons = botMode ? (p1Thumbstick ? [
             [940, 420, 'A', p1, 'attack'],
             [940, 330, 'S', p1, 'special']
         ] : [
@@ -817,6 +825,23 @@ function create() {
             this.mobileButtons.p1.push(butn);
         });
 
+        if (p1Thumbstick) {
+            const stick = addThumbstick(this, {
+                x: 130,
+                y: 400,
+                container: this.hud,
+                onChange: (button, down) => {
+                    p1[button] = down;
+                    if (!down) return;
+                    p1[button + 'Pressed'] = true;
+                    inputMode.p1 = 'touch';
+                    this.mobileButtons.p1.forEach(obj => obj.setAlpha(1));
+                }
+            });
+            touchButtons.push(stick);
+            this.mobileButtons.p1.push(stick.circle, stick.knob);
+        }
+
         if (!botMode) p2Buttons.forEach(btn => {
             const butn = makeButton(this, btn[0], btn[1], btn[2], {
                 obj: btn[3],
@@ -836,7 +861,7 @@ function create() {
     );
     if (isMobile) {
         for (const player of Object.values(this.gameState.players)) {
-            if (player.name !== 'AXEMAN' || player.variant !== 'CHAINSAW') continue;
+            if (!hasMiscButton(player.name, player.variant)) continue;
             if (botMode && player.id === 2) continue;
             if (simulationMode) continue;
 
@@ -852,7 +877,8 @@ function create() {
             }).setOrigin(0.5).setScrollFactor(0).setDepth(1000);
             const toggleMode = () => {
                 inputMode[player.id === 1 ? 'p1' : 'p2'] = 'touch';
-                toggleChainsawMode(this, player);
+                const players = this.gameState.players;
+                handleMisc(this, player, player === players.player ? players.player2 : players.player);
             };
             button.on('pointerdown', toggleMode);
             touchButtons.push({ circle: button, press: toggleMode, release: () => {} });
@@ -1222,7 +1248,7 @@ function updateLaunchEffects(scene, player) {
         player.heavyLaunch = false;
         player.violentLaunch = false;
         player.ultraLaunch = false;
-        if (!player.downslamming && !player.isUsingSideSpecial) player.afterimage = false;
+        if (!player.downslamFx && !player.isUsingSideSpecial) player.afterimage = false;
     }
 
     const trailing = player.heavyLaunch && speed > 20;
@@ -1864,10 +1890,10 @@ function update() {
     }
 
     if (in1.miscPressed && !simulationMode) {
-        toggleChainsawMode(this, p1);
+        handleMisc(this, p1, p2);
     }
     if (in2.miscPressed) {
-        toggleChainsawMode(this, p2);
+        handleMisc(this, p2, p1);
     }
 
     p1.horizontalMovementActive = !simulationMode && (p1LeftDown || p1RightDown);
@@ -1876,8 +1902,8 @@ function update() {
     );
     
     
-    const p1Chainsaw = p1.name === 'AXEMAN' && p1.variant === 'CHAINSAW';
-    const p1AttackPressed = p1Chainsaw
+    const p1ToggleAttack = usesToggleAttack(p1);
+    const p1AttackPressed = p1ToggleAttack
         ? in1.attackPressed
         : in1.attack || in1.attackPressed;
     if (p1AttackPressed && (!p1.hitstun || p1.activeGrab) && !simulationMode) {
@@ -1887,7 +1913,7 @@ function update() {
                 obj.setAlpha(0.25);
             });
         }        
-        if (p1Chainsaw) {
+        if (p1ToggleAttack) {
             handleAttack(this, p1, p2);
         } else if (now - p1.lastInput.up < tiltThreshold) {
             handleUpTilt(this, p1, p2);
@@ -1901,8 +1927,8 @@ function update() {
             handleAttack(this, p1, p2);
         }
     }
-    const p2Chainsaw = p2.name === 'AXEMAN' && p2.variant === 'CHAINSAW';
-    const p2AttackPressed = p2Chainsaw
+    const p2ToggleAttack = usesToggleAttack(p2);
+    const p2AttackPressed = p2ToggleAttack
         ? in2.attackPressed
         : in2.attack || in2.attackPressed;
     if (p2AttackPressed && (!p2.hitstun || p2.activeGrab) && !botMode) {
@@ -1912,7 +1938,7 @@ function update() {
                 obj.setAlpha(0.25);
             });
         }
-        if (p2Chainsaw) {
+        if (p2ToggleAttack) {
             handleAttack(this, p2, p1);
         } else if (now - p2.lastInput.up < tiltThreshold) {
             handleUpTilt(this, p2, p1);
@@ -1952,6 +1978,7 @@ function update() {
                 const target = key === 'player' ? p2 : p1;
                 downslamAttack(this, player, target);
                 player.downslamming = false;
+                player.downslamFx = false;
             }
             player.airTime = 0;
             player.fallSpeed = 0;
@@ -1968,6 +1995,8 @@ function update() {
 
         player.freeze =
             this.time.now < player.freezeUntil;
+        if (player.isAttacking || player.hitstun || player.freeze) cancelDownslamFx(player);
+        updateLaunchArc(player);
         if (player.canAttack || player.hitstun || player.freeze || player.activeGrab || player.grabbedBy) {
             player.attackLockedFor = 0;
         } else {

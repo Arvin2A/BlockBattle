@@ -10,13 +10,13 @@ import { getCharacterStat } from './characterStats.js';
 const plankApi = { spawnDirtBurst };
 
 // True when a wall stands between attacker and target. Fighters hit through
-// the walls they placed themselves, never through anyone else's.
+// the walls they placed themselves, unless the wall blocks its owner too.
 export function isBlockedByWall(attacker, target) {
     const planks = attacker.scene?.planks;
     if (!planks) return false;
     const line = new Phaser.Geom.Line(attacker.x, attacker.y, target.x, target.y);
     return planks.getChildren().some(plank =>
-        plank.active && plank.body?.enable && plank.owner !== attacker &&
+        plank.active && plank.body?.enable && (plank.owner !== attacker || plank.blocksOwner) &&
         Phaser.Geom.Intersects.LineToRectangle(line, plank.body)
     );
 }

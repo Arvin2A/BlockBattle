@@ -43,7 +43,7 @@ export function addTouchAssist(scene, buttons) {
         if (!pointer.isDown || !held.has(pointer.id)) return;
         const next = buttonAt(pointer, 0);
         const current = held.get(pointer.id);
-        if (!next || next === current) return;
+        if (current?.sticky || !next || next === current) return;
         current?.release(pointer);
         next.press(pointer);
         held.set(pointer.id, next);

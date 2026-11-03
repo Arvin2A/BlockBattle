@@ -28,8 +28,15 @@ export function kickSquash(player, amount) {
     squash.speed = 0;
 }
 
+export function cancelDownslamFx(player) {
+    if (!player.downslamFx) return;
+    player.downslamFx = false;
+    kickSquash(player, 0);
+    if (!player.heavyLaunch && !player.isUsingSideSpecial) player.afterimage = false;
+}
+
 export function squashOnLanding(player, fallSpeed) {
-    if (player.downslamming) {
+    if (player.downslamming && player.downslamFx) {
         kickSquash(player, SQUASH.downslamLand);
         return;
     }
@@ -53,7 +60,7 @@ export function applySquash(scene, players) {
         if (!player?.active) continue;
         const squash = getSquash(player);
         if (!frozen) {
-            const target = player.downslamming ? SQUASH.downslamHold : 0;
+            const target = player.downslamming && player.downslamFx ? SQUASH.downslamHold : 0;
             squash.speed += (-(squash.value - target) * SQUASH.stiffness - squash.speed * SQUASH.damping) * dt;
             squash.value = Phaser.Math.Clamp(squash.value + squash.speed * dt, -SQUASH.limit, SQUASH.limit);
         }

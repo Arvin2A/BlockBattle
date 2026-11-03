@@ -100,6 +100,7 @@ function steelPlank(
     plank.maxHealth = plank.health;
 
     plank.owner = attacker;
+    plank.blocksOwner = attacker.variant === 'SLEDGEHAMMER';
     scene.objs.add(plank);
     scene.planks.add(plank);
     attacker.steelPlanks.push(plank);

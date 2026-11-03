@@ -2,6 +2,8 @@
 // Original source: https://github.com/Arvin2A/BlockBattle
 // Licensed under the GNU GPL v3 only. See LICENSE.
 
+import { grindExplosion, grindTick, setGrindFloat } from '../combat/grinder.js';
+
 export const MAX_WOOD_COUNT = 225;
 
 function tilt(api, scene, attacker, victim, xMul, yMul, kbTime) {
@@ -10,24 +12,10 @@ function tilt(api, scene, attacker, victim, xMul, yMul, kbTime) {
         range: 150, freeze: 80, sfx: 'swosh', kbTime
     });
 }
-// While the saw is cutting someone, the chainsaw axeman floats instead of
-// freezing in the air like other fighters do: gravity drops to a fraction and his
-// fall speed is capped, but he can still move, so he can keep building platforms.
-const SAW_CONTACT_GRAVITY_SCALE = 0.3;
-const SAW_CONTACT_MAX_FALL_SPEED = 120;
-
-function setSawFloat(scene, attacker, floating) {
-    if (!attacker.body) return;
-    const worldGravity = scene.physics.world.gravity.y;
-    attacker.body.gravity.y = floating ? -worldGravity * (1 - SAW_CONTACT_GRAVITY_SCALE) : 0;
-    if (floating && attacker.body.velocity.y > SAW_CONTACT_MAX_FALL_SPEED) {
-        attacker.setVelocityY(SAW_CONTACT_MAX_FALL_SPEED);
-    }
-}
 
 function deactivateChainsaw(scene, attacker) {
     if (!attacker.chainsawActive) return false;
-    setSawFloat(scene, attacker, false);
+    setGrindFloat(scene, attacker, false);
     attacker.chainsawSFX.stop();
     attacker.clearTint();
     attacker.chainsawSFX.setRate(1);
@@ -127,20 +115,13 @@ function explodeChainsaw(api, scene, attacker, victim, options = {}) {
     attacker.rampageExplosionUntil = 0;
     const force = (options.explosionKnockback ?? 450) *
         (rampaging ? RAMPAGE_EXPLOSION_KNOCKBACK_SCALE : 1);
-    api.landHit(scene, attacker, victim, {
+    grindExplosion(api, scene, attacker, victim, {
         damage: (options.explosionDamage ?? 0.25) * (rampaging ? RAMPAGE_EXPLOSION_DAMAGE_SCALE : 1),
-        plankDamage: 0,
+        force,
         hitstun: options.explosionHitstun ?? 400,
         hitFreeze: options.hitFreezeDuration ?? 60,
-        sound: 'explosion',
-        // Harvesting points the saw down, so a grounded victim gets thrown
-        // sideways instead of being pushed into the floor.
-        knockback: { x: force, y: force, lift: -0.25, spike: { x: force * 0.9, y: -force * 0.55 } },
-        decelerateAfter: victim => (options.explosionHitstun ?? 400) * victim.KBmultiplier,
-        resetCombo: false
+        explosionScale: rampaging ? 0.9 : 0.7
     });
-    victim.flash();
-    api.spawnExplosion(scene, victim, (rampaging ? 0.9 : 0.7) * victim.KBmultiplier);
     deactivateChainsaw(scene, attacker);
 }
 
@@ -223,39 +204,19 @@ function updateChainsaw(api, scene, attacker, victim, options = {}) {
     }
     api.positionAttackSprite(attacker, 'activechainsaw');
     breakPlanksWithChainsaw(api, scene, attacker);
-    // Same reach as everyone's basic attack: range and facing from the body,
-    // blocked by walls. silent, because chip hits flash the victim themselves.
-    const inReach = victim.active && api.attackIsElligible(
-        attacker, victim, options.range ?? api.STANDARD_HITS.jab.range,
-        { ignoreCanAttack: true, silent: true }
-    );
-    if (!inReach) {
+    const contact = grindTick(api, scene, attacker, victim, attacker.chainsawLastContactTime, {
+        range: options.range,
+        chipDamage: options.chipDamage,
+        hitstun: options.hitstunDuration,
+        freeze: options.freezeDuration
+    });
+    if (contact === null) {
         attacker.chainsawLastContactTime = 0;
-        setSawFloat(scene, attacker, false);
         return;
     }
-    setSawFloat(scene, attacker, true);
-
-    const now = scene.time.now;
-    if (attacker.chainsawLastContactTime > 0) {
-        const contactRate = isRampaging(scene, attacker) ? 2 : 1;
-        attacker.chainsawContactDuration += (now - attacker.chainsawLastContactTime) * contactRate;
-    }
-    attacker.chainsawLastContactTime = now;
-
-    const damageScale = api.getAttackDamageScale(attacker);
-    victim.KBmultiplier += (options.chipDamage ?? 0.01) * damageScale;
-    const hitstunDuration = options.hitstunDuration ?? 150;
-    victim.hitstunUntil = now + hitstunDuration;
-    victim.freezeUntil = now + (options.freezeDuration ?? 60);
-    victim.willDecelerate = false;
-    victim.flash();
-    scene.sound.play('anyhit');
-    scene.time.delayedCall(hitstunDuration, () => {
-        if (victim.active && scene.time.now >= victim.hitstunUntil) {
-            victim.willDecelerate = true;
-        }
-    });
+    const contactRate = isRampaging(scene, attacker) ? 2 : 1;
+    attacker.chainsawContactDuration += contact * contactRate;
+    attacker.chainsawLastContactTime = scene.time.now;
 
     if (!attacker.chainsawHasExploded &&
         attacker.chainsawContactDuration >= (options.duration ?? 2000)) {
@@ -533,6 +494,9 @@ export default {
     handleAttack,
     updateChainsawWood,
     toggleChainsawMode,
+    miscVariants: ['CHAINSAW'],
+    toggleAttackVariants: ['CHAINSAW'],
+    handleMisc: (api, scene, attacker) => toggleChainsawMode(scene, attacker),
     handleDirSpecial,
     handleNeutralSpecial: neutralSpecial,
     variantNeutralSpecials: {

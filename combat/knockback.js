@@ -17,6 +17,7 @@ const ULTRA_FREEZE_BONUS = 300;
 // Attacks stay locked through the death ray freeze and this long after it.
 const DEATH_RAY_ATTACK_LOCK_MS = 150;
 const ULTRA_MIN_SPEED = 400;
+const LAUNCH_ARC_HEIGHT = 0.08;
 
 export function isInvincible(player) {
     return player.scene.time.now < (player.invincibleUntil ?? 0);
@@ -129,11 +130,37 @@ export function deathRayAttackLocked(scene) {
 
 // Pass { noDeathRay: true } for hits that shouldn't ever fire the death ray,
 // like pulls and explosions.
+function clearLaunchArc(target) {
+    if (!target.launchArc) return;
+    target.launchArc = false;
+    target.body?.setGravityY(0);
+}
+
+function startLaunchArc(scene, target, vx, vy) {
+    clearLaunchArc(target);
+    if (!isFighter(scene, target) || !target.body) return vy;
+    const seconds = ((target.hitstunUntil ?? 0) - scene.time.now) / 1000;
+    const speed = Math.abs(vx);
+    const grounded = target.body.blocked.down || target.body.touching.down;
+    if (seconds <= 0 || speed < 1 || vy > 0 || (vy === 0 && grounded)) return vy;
+    const height = LAUNCH_ARC_HEIGHT * speed * seconds;
+    target.launchArc = true;
+    target.body.setGravityY(8 * height / (seconds * seconds));
+    return vy - 4 * height / seconds;
+}
+
+export function updateLaunchArc(player) {
+    if (!player.launchArc) return;
+    const body = player.body;
+    const landed = (body.blocked.down || body.touching.down) && body.velocity.y >= 0;
+    if (!player.hitstun || player.freeze || player.grabbedBy || landed) clearLaunchArc(player);
+}
+
 export function applyKnockback(scene, target, vx, vy, { noDeathRay = false } = {}) {
     const resistance = getKnockbackResistance(target);
     const resistantVx = vx / resistance;
     const resistantVy = vy / resistance;
-    target.setVelocity(resistantVx, resistantVy);
+    target.setVelocity(resistantVx, startLaunchArc(scene, target, resistantVx, resistantVy));
 
     const speed = Math.hypot(resistantVx, resistantVy);
     if (isFighter(scene, target)) {

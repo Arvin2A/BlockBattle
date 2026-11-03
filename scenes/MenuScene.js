@@ -16,7 +16,7 @@ var navBox = null;
 var layout = []
 var selectedIndex = 0;
 var previousInput = {};
-const CHANGELOG_VERSION = "2026-11-02-1";
+const CHANGELOG_VERSION = "2026-11-02-2";
 
 function getVersionColor(version) {
     const [year, month, day, update] = version.split("-").map(Number);
@@ -73,6 +73,10 @@ export class MenuScene extends Phaser.Scene {
         this.input.topOnly = false;
 
         const changelogEntries = [
+            {
+                title: "THUMBSTICK + TUNING",
+                body: "Phones get a real thumbstick now instead of the four arrow buttons, both online and against the CPU. Attack and special stay right where they were.\n Getting launched has a slight upward curve while you're in hitstun now, so it doesn't look like you're gliding in a straight line anymore. GUNMAN's MINI does 0.7% a bullet and he barely falls while it's landing. CHUCK hits way harder, stuns for a moment, and comes back twice as fast. SLEDGEHAMMER can't swing through his own steel wall anymore, and the downslam afterimage stops the moment you attack or get hit."
+            },
             {
                 title: "GRUNT IS NOW CRAZER",
                 body: "GUNMAN's one and only variant has a new name: GRUNT is now CRAZER. Same gun, same MINI, same chaos, just a name that fits him better."
@@ -197,10 +201,6 @@ export class MenuScene extends Phaser.Scene {
 
         const upcomingEntries = [
             {
-                title: "MOBILE THUMBSTICK FOR MULTIPLAYER",
-                body: "A thumbstick for mobile players in online multiplayer."
-            },
-            {
                 title: "LAWNMOWER SCYTHEMAN",
                 body: "The LAWNMOWER variant of SCYTHEMAN."
             }
@@ -222,7 +222,7 @@ export class MenuScene extends Phaser.Scene {
 
         const changelogBlurb = this.add.text(
             40, 180,
-            "Quick chat messages can now be bound to number keys: hover one and press 0-9. GUNMAN's GRUNT is now called CRAZER, and online is tighter with one player per connection. Check the full changelog for more!",
+            "Phones get a real thumbstick instead of the four arrow buttons, online and against the CPU. Launches curve a little now, and GUNMAN's CHUCK hits way harder. Check the full changelog for more!",
             {
                 fontFamily: "VCROSD",
                 fontSize: "16px",

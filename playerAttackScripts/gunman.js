@@ -2,6 +2,9 @@
 // Original source: https://github.com/Arvin2A/BlockBattle
 // Licensed under the GNU GPL v3 only. See LICENSE.
 
+const MINI_DAMAGE = 0.007;
+const MINI_FALL_SPEED = 60;
+
 function playShotAnimation(
     scene,
     attacker,
@@ -238,6 +241,9 @@ function handleShot(api, scene, attacker, victim, options = {}) {
             shotDir.x * knockback,
             verticalKick
         );
+        if (options.attackerFallSpeed !== undefined) {
+            attacker.setVelocityY(Math.min(attacker.body.velocity.y, options.attackerFallSpeed));
+        }
         if (isExplosion) scene.sound.play('explosion');
         scene.time.delayedCall(isExplosion ? 800 : 0, () => {
             if (victim.active) victim.willDecelerate = true;
@@ -307,9 +313,10 @@ function handleGunmanSpecial(api, scene, attacker, direction, currentTime, victi
             attacker.lastDir.y = 0;
 
             handleShot(api, scene, attacker, victim, {
-                damageIncrement: 0.007,
+                damageIncrement: MINI_DAMAGE,
                 hitstunDuration: 100,
                 freezeDuration: 50,
+                attackerFallSpeed: MINI_FALL_SPEED,
                 ignoreCooldown: true,
                 ignoreCombo: true,
                 sprite: specialSprite,
@@ -332,7 +339,10 @@ function handleGunmanSpecial(api, scene, attacker, direction, currentTime, victi
     attacker.lastTap[direction] = currentTime;
 }
 
-const GRENADE_COOLDOWN = 500;
+const GRENADE_COOLDOWN = 250;
+const GRENADE_KNOCKBACK = 750;
+const GRENADE_LIFT = 300;
+const GRENADE_HITSTUN = 500;
 
 function chuck(api, scene, attacker, victim) {
     if (attacker.hitstun || attacker.freeze ||
@@ -366,10 +376,11 @@ function chuck(api, scene, attacker, victim) {
         if (hitVictim && victim.active && !api.isInvincible(victim)) {
             const damageScale = api.getAttackDamageScale(attacker);
             victim.KBmultiplier += 0.08 * damageScale;
+            victim.hitstunUntil = Math.max(victim.hitstunUntil ?? 0, scene.time.now + GRENADE_HITSTUN);
             victim.willDecelerate = false;
-            const knockback = 400 * victim.KBmultiplier * damageScale;
+            const knockback = GRENADE_KNOCKBACK * victim.KBmultiplier * damageScale;
             const verticalKick = direction.y === 0
-                ? -200 * victim.KBmultiplier
+                ? -GRENADE_LIFT * victim.KBmultiplier
                 : direction.y * knockback;
             api.applyKnockback(
                 scene,

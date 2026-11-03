@@ -382,6 +382,22 @@ export function toggleChainsawMode(scene, attacker) {
     return getCharacterScript(attacker)?.toggleChainsawMode?.(scene, attacker);
 }
 
+export function usesToggleAttack(attacker) {
+    return getCharacterScript(attacker)?.toggleAttackVariants?.includes(attacker.variant) ?? false;
+}
+
+export function getSpecialMeter(scene, player) {
+    return getCharacterScript(player)?.specialMeter?.(scene, player) ?? null;
+}
+
+export function hasMiscButton(name, variant) {
+    return getCharacterScript({ name: name.toUpperCase() })?.miscVariants?.includes(variant) ?? false;
+}
+
+export function handleMisc(scene, attacker, victim) {
+    return getCharacterScript(attacker)?.handleMisc?.(sharedAttackHelpers, scene, attacker, victim);
+}
+
 export function tryQuickslamJump(scene, attacker, currentTime) {
     return getCharacterScript(attacker)?.tryQuickslamJump?.(
         sharedAttackHelpers, scene, attacker, currentTime
