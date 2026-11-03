@@ -18,6 +18,8 @@ import { encodeButtons, readControllerInput, INPUT_BUTTONS } from '../input.js';
 import { QuickChat } from './OnlineQuickChat.js';
 import { COLORS, FONTS, makeButton, makePanel } from '../ui/theme.js';
 import { addTouchAssist, isPhoneScreen } from '../ui/touchAssist.js';
+import { addThumbstick } from '../ui/touchJoystick.js';
+import { hasMiscButton } from '../attacks.js';
 
 // Online you control one fighter, so both keyboard layouts work.
 const KEY_BINDINGS = {
@@ -497,11 +499,8 @@ export class OnlineOverlayScene extends Phaser.Scene {
         // Phaser only tracks one finger by default; allow multi-touch like the local game does.
         const extraPointers = 6 - this.input.manager.pointersTotal;
         if (extraPointers > 0) this.input.addPointer(extraPointers);
-        const layout = isPhoneScreen() ? [
-            [60, 420, '←', 'left', 55],
-            [172, 420, '→', 'right', 55],
-            [850, 330, '↑', 'up'],
-            [850, 420, '↓', 'down'],
+        const phone = isPhoneScreen();
+        const layout = phone ? [
             [940, 420, 'A', 'attack'],
             [940, 330, 'S', 'special']
         ] : [
@@ -513,11 +512,22 @@ export class OnlineOverlayScene extends Phaser.Scene {
             [940, 330, 'S', 'special']
         ];
         const self = this.match.self;
-        if (self?.character === 'axeman' && self.variant === 'CHAINSAW') {
+        if (self && hasMiscButton(self.character, self.variant)) {
             layout.push([760, 420, 'ALT', 'misc']);
         }
         const touchButtons = [];
         addTouchAssist(this, touchButtons);
+        if (phone) {
+            touchButtons.push(addThumbstick(this, {
+                x: 130,
+                y: 400,
+                onChange: (button, down) => {
+                    touch.held[button] = down;
+                    if (down) touch.pressed[button] = true;
+                    this.gameScene.flushInput();
+                }
+            }));
+        }
         for (const [x, y, label, button, radius = 45] of layout) {
             const circle = this.add.circle(x, y, radius, 0x000000, 0.45).setInteractive();
             this.add.text(x, y, label, {
