@@ -11,6 +11,7 @@ export function removeGrass(scene, grass, cutter) {
     if (index !== -1) scene.scytheGrass.splice(index, 1);
     if (cutter && cutter === grass.owner) {
         cutter.grassCutCount += 1;
+        cutter.onGrassCut?.();
     }
     spawnDirtBurst(scene, grass.x, grass.y);
     grass.destroy();
@@ -92,7 +93,7 @@ export function updateScythemanGrass(scene, players) {
 
     for (const key in players) {
         const scytheman = players[key];
-        if (scytheman.name !== 'SCYTHEMAN' || !scytheman.body.blocked.down) continue;
+        if (scytheman.name !== 'SCYTHEMAN' || scytheman.noGrassTrail || !scytheman.body.blocked.down) continue;
 
         if (!getGrassPlatform(scene, scytheman.x, scytheman.body.bottom)) continue;
         if (hasOwnGrassNear(scene, scytheman, scytheman.x, scytheman.y, 45)) continue;

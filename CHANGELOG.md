@@ -3,6 +3,7 @@
 ## 2026-11-02
 
 ### Added
+- A thumbstick for phones, replacing the four arrow buttons in online and vs CPU matches. Attack and special stay where they were.
 - Quick chat keybinds. Open the chat menu, hover any phrase and press a number (0-9) to bind it. Press that number during a match to send the phrase instantly. Your bound key shows next to the phrase in your own menu (your opponent only sees the message). Pressing the same number on a bound phrase unbinds it. Binds are saved in your browser.
 
 ### Changed
@@ -11,6 +12,12 @@
 - Online: players whose tab isn't focused no longer count as WAITING. They still count as online.
 - Online: the server uses about a third less memory per match.
 - The name filter blocks one more word.
+- Getting launched now follows a slight upward curve while you're in hitstun instead of a straight line.
+- GUNMAN: MINI does 0.7% per bullet, and GUNMAN falls very slowly while his bullets are landing. CHUCK launches much harder, adds 300 ms of hitstun, and can be thrown again twice as fast after it explodes.
+
+### Fixed
+- The downslam afterimage and squash now stop the moment you attack, get hit or get frozen.
+- SLEDGEHAMMER can no longer attack through his own thick steel wall.
 
 ### Removed
 - LAN play. Online now always goes through the public server, and `npm run lan` is gone.

@@ -94,6 +94,7 @@ export function initiatePlayers(scene, p1Select = 'axeman', p2Select = 'swordman
             outOfBounds: false,
             airTime: 0,
             downslamming: false,
+            downslamFx: false,
             KBmultiplier: 1.00
         });
         if (modifierOptions.SUDDEN_DEATH.enabled) {

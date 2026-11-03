@@ -79,6 +79,7 @@ export function executeStateCommand(scene, players, command) {
 
         case Commands.DOWNSLAM:
             attacker.downslamming = true;
+            attacker.downslamFx = true;
             attacker.afterimage = true;
             attacker.setVelocityY(800);
             kickSquash(attacker, SQUASH.downslam);
