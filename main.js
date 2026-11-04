@@ -1806,6 +1806,33 @@ function getMapPlatforms(scene) {
         ...scene.gameState.map.topPlatforms.getChildren()
     ].filter(platform => platform.active && platform.body?.enable);
 }
+const TUNNEL_LAND_SLOP = 2;
+const TUNNEL_MAX_FRAME_DROP = 600;
+
+function catchPlatformTunneling(scene, player) {
+    const body = player.body;
+    const previousBottom = player.lastFrameBottom;
+    player.lastFrameBottom = body?.bottom;
+    if (!body?.enable || body.checkCollision.none || previousBottom === undefined) return;
+    if (player.ledge || player.smackedBy || player.grabbedBy) return;
+    const drop = body.bottom - previousBottom;
+    if (drop <= 0 || drop > TUNNEL_MAX_FRAME_DROP) return;
+
+    let landing = null;
+    for (const platform of getMapPlatforms(scene)) {
+        const top = platform.body.top;
+        const crossed = previousBottom <= top + TUNNEL_LAND_SLOP && body.bottom > top + TUNNEL_LAND_SLOP;
+        const overlapsX = body.right > platform.body.left && body.left < platform.body.right;
+        if (crossed && overlapsX && (!landing || top < landing)) landing = top;
+    }
+    if (landing === null) return;
+
+    const velocityX = body.velocity.x;
+    body.reset(player.x, player.y - (body.bottom - landing));
+    player.setVelocity(velocityX, 0);
+    player.lastFrameBottom = body.bottom;
+}
+
 function processPlatformCollide(player, platform) {
   return true;
 }
@@ -1989,6 +2016,7 @@ function update() {
 
     for (const key in this.gameState.players) {
         const player = this.gameState.players[key];
+        catchPlatformTunneling(this, player);
 
         if (player.activeGrab) {
             const grab = player.activeGrab;

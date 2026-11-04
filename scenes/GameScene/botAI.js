@@ -23,24 +23,50 @@ const DIFFICULTY = {
     EASY: {
         thinkMs: 320, attackDelayMs: 450, hesitateChance: 0.55, hesitateMs: 500,
         edgeguard: false, dodgeSpecials: false, downslam: false,
-        smack: false, ledge: true, blockChance: 0
+        smack: false, ledge: true, blockChance: 0, dodgeMinigun: false
     },
     NORMAL: {
         thinkMs: 140, attackDelayMs: 150, hesitateChance: 0.25, hesitateMs: 300,
         edgeguard: true, dodgeSpecials: false, downslam: true,
-        smack: true, ledge: true, blockChance: 0.25
+        smack: true, ledge: true, blockChance: 0.25, dodgeMinigun: false
     },
     HARD: {
         thinkMs: 0, attackDelayMs: 0, hesitateChance: 0, hesitateMs: 0,
         edgeguard: false, dodgeSpecials: true, downslam: true,
-        smack: false, ledge: false, blockChance: 0
+        smack: false, ledge: false, blockChance: 0.5, dodgeMinigun: true, predictBlock: false
     },
     'VERY HARD': {
         thinkMs: 0, attackDelayMs: 0, hesitateChance: 0, hesitateMs: 0,
         edgeguard: true, dodgeSpecials: true, downslam: true,
-        smack: true, ledge: true, blockChance: 0.5
+        smack: true, ledge: true, blockChance: 0.5, dodgeMinigun: true, predictBlock: true
     }
 };
+
+const SPECIAL_REACH = {
+    LONGSWORD: 330,
+    DAGGER: 200,
+    LUMBERER: 170,
+    METAMORPHIC: 150,
+    LANDSCAPER: 170,
+    MALLET: 110,
+    SLEDGEHAMMER: 260,
+    HOOKER: 220
+};
+const SPECIAL_BLOCK_MS = 600;
+const SPECIAL_WATCH_RANGE = 450;
+const GUARD_ROLL_MS = 500;
+const GUARD_CHANCE = 0.3;
+const GUARD_MS = 350;
+const GUARD_MIN_SHIELD = 0.6;
+const FINISHER_GUARD_RANGE = 130;
+const FINISHER_GUARD_MS = 300;
+const AFTER_SMACK_BLOCK_MS = 600;
+const SPECIAL_DODGE_MS = 450;
+
+const MINI_LANE_HALF = 45;
+const MINI_ESCAPE_MS = 900;
+const MINI_LEVEL_GAP = 60;
+const MINI_MAX_CLIMB = 300;
 
 const QUICKSLAM_FOLLOW_DELAY = 400;
 const QUICKSLAM_JUMP_WINDOW = 1000;
@@ -64,11 +90,62 @@ const BOT_BLOCK_MS = 350;
 const BOT_BLOCK_RANGE = 160;
 const BOT_BLOCK_MIN_SHIELD = 0.35;
 
+function dodgesInsteadOfBlocking(target) {
+    return target.name === 'FISHERMAN' || (target.name === 'GUNMAN' && target.gunmanSpecialActive);
+}
+
+function specialJustStarted(bot, target) {
+    const cooldownEnd = target.nextSideSpecialTime ?? 0;
+    const started = bot.botSeenSpecialEnd !== undefined && cooldownEnd > bot.botSeenSpecialEnd;
+    bot.botSeenSpecialEnd = cooldownEnd;
+    return started;
+}
+
+function blockFor(bot, now, ms) {
+    bot.botBlockUntil = Math.max(bot.botBlockUntil ?? 0, now + ms);
+}
+
+function predictBlocks(bot, target, distance, now, specialStarted) {
+    if (bot.smackedBy || bot.smackArc || bot.flatSquash) bot.botBlockAfterSmack = true;
+    if (bot.botBlockAfterSmack && !bot.hitstun && !bot.smackedBy) {
+        bot.botBlockAfterSmack = false;
+        blockFor(bot, now, AFTER_SMACK_BLOCK_MS);
+    }
+    if (dodgesInsteadOfBlocking(target)) return;
+
+    if (specialStarted && distance < SPECIAL_WATCH_RANGE) blockFor(bot, now, SPECIAL_BLOCK_MS);
+
+    const reach = SPECIAL_REACH[target.variant];
+    const facingBot = Math.sign(bot.x - target.x) === Math.sign(target.lastDir?.x ?? 0);
+    const specialReady = now >= (target.nextSideSpecialTime ?? 0);
+    if (reach && specialReady && facingBot && distance <= reach && Math.abs(bot.y - target.y) < 80 &&
+        (bot.shield ?? 1) > GUARD_MIN_SHIELD && now >= (bot.botNextGuardRoll ?? 0)) {
+        bot.botNextGuardRoll = now + GUARD_ROLL_MS;
+        if (Math.random() < GUARD_CHANCE) blockFor(bot, now, GUARD_MS);
+    }
+
+    const finisherNext = (target.combo ?? 0) >= 2 && distance < FINISHER_GUARD_RANGE;
+    if (finisherNext && !bot.botFinisherGuarded && now >= (target.nextAttackTime ?? 0) - 100) {
+        bot.botFinisherGuarded = true;
+        blockFor(bot, now, FINISHER_GUARD_MS);
+    } else if (!finisherNext) {
+        bot.botFinisherGuarded = false;
+    }
+}
+
 function updateBotBlock(bot, target, distance, difficulty, now) {
-    const threat = (target.isAttacking || target.isUsingSideSpecial) && distance < BOT_BLOCK_RANGE;
+    const specialStarted = specialJustStarted(bot, target);
+    if (specialStarted && difficulty.dodgeSpecials && target.name === 'FISHERMAN' &&
+        distance < SPECIAL_WATCH_RANGE) {
+        bot.botDodgeUntil = now + SPECIAL_DODGE_MS;
+    }
+    if (difficulty.predictBlock) predictBlocks(bot, target, distance, now, specialStarted);
+
+    const threat = (target.isAttacking || target.isUsingSideSpecial) && distance < BOT_BLOCK_RANGE &&
+        !dodgesInsteadOfBlocking(target);
     if (threat && !bot.botThreatSeen) {
         bot.botThreatSeen = true;
-        if (Math.random() < difficulty.blockChance) bot.botBlockUntil = now + BOT_BLOCK_MS;
+        if (Math.random() < difficulty.blockChance) blockFor(bot, now, BOT_BLOCK_MS);
     } else if (!threat) {
         bot.botThreatSeen = false;
     }
@@ -337,6 +414,7 @@ export function runBotAI(scene, bot, target, fiveframecount) {
     }
 
     updateBotBlock(bot, target, distance, difficulty, now);
+    if (bot.hitstun && target.name === 'GUNMAN' && target.gunmanSpecialActive) bot.botMiniHitAt = now;
     if (isUniversalBusy(bot)) {
         if (bot.ledge && !bot.ledge.climbing && now >= (bot.botLedgeClimbAt ?? 0)) ledgeClimb(scene, bot);
         return;
@@ -397,6 +475,8 @@ export function runBotAI(scene, bot, target, fiveframecount) {
         recover(scene, bot, target, surfaces);
         return;
     }
+
+    if (dodgeMinigun(scene, bot, target, surfaces, grounded, difficulty, now)) return;
 
     // Lower difficulties react slower: between decisions they keep walking
     // the way they were.
@@ -927,5 +1007,53 @@ function planHammerSwing(scene, bot, target, surfaces, swing, readyToAttack, dif
     bot.botNextAttackAt = now + difficulty.attackDelayMs;
     send(scene, bot, Commands.NONE);
     handleAttack(scene, bot, target);
+    return true;
+}
+
+function pickMinigunEscape(bot, target, surfaces) {
+    let best = null;
+    for (const surface of surfaces) {
+        if (Math.abs(surface.top - target.body.bottom) < MINI_LEVEL_GAP) continue;
+        if (surface.top < bot.body.bottom - MINI_MAX_CLIMB) continue;
+        const x = Math.min(Math.max(bot.x, surface.left + 40), surface.right - 40);
+        const awayBonus = Math.sign(x - target.x) === Math.sign(bot.x - target.x) ? 0 : 150;
+        const score = Math.abs(x - bot.x) + Math.abs(surface.top - bot.body.bottom) * 0.5 + awayBonus;
+        if (!best || score < best.score) best = { x, top: surface.top, score };
+    }
+    return best;
+}
+
+function dodgeMinigun(scene, bot, target, surfaces, grounded, difficulty, now) {
+    const dodgingSpecial = now < (bot.botDodgeUntil ?? 0);
+    const firing = difficulty.dodgeMinigun && target.name === 'GUNMAN' && target.gunmanSpecialActive;
+    const recovering = difficulty.dodgeMinigun && target.name === 'GUNMAN' &&
+        now - (bot.botMiniHitAt ?? -Infinity) < MINI_ESCAPE_MS;
+    if (!firing && !recovering && !dodgingSpecial) return false;
+
+    const inLane = Math.abs(bot.y - target.y) < MINI_LANE_HALF;
+    const onOtherLevel = grounded && Math.abs(bot.body.bottom - target.body.bottom) >= MINI_LEVEL_GAP;
+    if (onOtherLevel && !recovering && !dodgingSpecial) {
+        bot.lastDir = { x: Math.sign(target.x - bot.x) || 1, y: 0 };
+        send(scene, bot, Commands.NONE);
+        return true;
+    }
+
+    const escape = pickMinigunEscape(bot, target, surfaces);
+    const away = Math.sign(bot.x - target.x) || 1;
+    const dirX = escape && Math.abs(escape.x - bot.x) > CHASE_DEADZONE ? Math.sign(escape.x - bot.x) : away;
+    if (grounded) {
+        walk(scene, bot, dirX, surfaces);
+    } else {
+        bot.lastDir = { x: dirX, y: 0 };
+        send(scene, bot, dirX < 0 ? Commands.LEFT : Commands.RIGHT);
+    }
+
+    const needsHeight = inLane || dodgingSpecial || (escape && escape.top < bot.body.bottom - 10);
+    if (grounded && needsHeight && now - bot.lastJump > 250) {
+        bot.lastJump = now;
+        send(scene, bot, Commands.UP);
+    } else if (!grounded && needsHeight && bot.body.velocity.y > -60) {
+        tryDoubleJump(scene, bot);
+    }
     return true;
 }
