@@ -38,7 +38,7 @@ import {
 } from './combat/grass.js';
 import { damagePlank, damagePlanksInAttack, isBlockedByWall } from './combat/planks.js';
 import { attackIsElligible, DEFAULT_BYPASS_OPTIONS } from './combat/eligibility.js';
-import { blocksHit } from './combat/block.js';
+import { blocksHit, attackLockedByBlock } from './combat/block.js';
 import {
     hasIdleAttackSprite,
     hideAttackSprite,
@@ -368,7 +368,7 @@ const sharedAttackHelpers = {
 };
 
 export function handleAttack(scene, attacker, victim) {
-    if (deathRayAttackLocked(scene)) return;
+    if (deathRayAttackLocked(scene) || attackLockedByBlock(scene, attacker)) return;
     return getCharacterScript(attacker)?.handleAttack(sharedAttackHelpers, scene, attacker, victim);
 }
 
@@ -428,18 +428,18 @@ export function handleDirSpecialAttack(scene, attacker, victim) {
 }
 
 export function handleHorizantalTilt(scene, attacker, victim, direction) {
-    if (deathRayAttackLocked(scene)) return;
+    if (deathRayAttackLocked(scene) || attackLockedByBlock(scene, attacker)) return;
     return getCharacterScript(attacker)?.handleHorizantalTilt(
         sharedAttackHelpers, scene, attacker, victim, direction
     );
 }
 
 export function handleDownTilt(scene, attacker, victim) {
-    if (deathRayAttackLocked(scene)) return;
+    if (deathRayAttackLocked(scene) || attackLockedByBlock(scene, attacker)) return;
     return getCharacterScript(attacker)?.handleDownTilt(sharedAttackHelpers, scene, attacker, victim);
 }
 
 export function handleUpTilt(scene, attacker, victim) {
-    if (deathRayAttackLocked(scene)) return;
+    if (deathRayAttackLocked(scene) || attackLockedByBlock(scene, attacker)) return;
     return getCharacterScript(attacker)?.handleUpTilt(sharedAttackHelpers, scene, attacker, victim);
 }

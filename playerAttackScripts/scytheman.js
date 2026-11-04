@@ -47,7 +47,7 @@ const SLAM = {
     range: 150,
     damage: 0.20,
     groundPinMs: 1000,
-    airPinMs: 3000,
+    airPinMs: 2000,
     crashSpeed: 2200,
     crashTimeoutMs: 1500,
     recoveryMs: 350

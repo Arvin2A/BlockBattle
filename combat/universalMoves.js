@@ -8,7 +8,7 @@ import { getCharacterStat } from './characterStats.js';
 import { isInvincible } from './knockback.js';
 import { isBlockedByWall } from './planks.js';
 import { spawnDirtBurst, triggerScreenShake } from './effects.js';
-import { updateBlock, stopBlock } from './block.js';
+import { updateBlock, blocksHit } from './block.js';
 import { consumePress } from '../input.js';
 
 export const SMACK = {
@@ -36,9 +36,9 @@ export const FLAT_SQUASH = {
 };
 
 export const LEDGE = {
-    reachX: 60,
+    reachX: 150,
     aboveY: 30,
-    belowY: 90,
+    belowY: 150,
     hangMs: 1500,
     climbMs: 400,
     regrabMs: 1000,
@@ -142,7 +142,13 @@ export function smackDown(scene, attacker, target) {
         holdX = Phaser.Math.Clamp(holdX, platform.body.left + halfWidth, platform.body.right - halfWidth);
     }
 
-    stopBlock(scene, target);
+    if (blocksHit(scene, target, attacker, SMACK.damage)) {
+        attacker.nextSmackAt = scene.time.now + SMACK.cooldownMs;
+        attacker.lastDir = { x: dir, y: 0 };
+        attacker.setVelocityX(0);
+        playArm(scene, attacker, 'uni-slam', dir);
+        return true;
+    }
     target.smackedBy = attacker;
     target.weaponHiddenBySmack = { impacted: false };
     target.hitstunUntil = Math.max(target.hitstunUntil ?? 0, scene.time.now + SMACK.grabMs + SMACK.slamMs + 500);
@@ -224,8 +230,7 @@ function stepSmack(scene, attacker, dt) {
         hitFreeze: 60,
         sound: 'slamimpact',
         noDeathRay: true,
-        resetCombo: false,
-        unblockable: true
+        resetCombo: false
     });
     target.weaponHiddenBySmack = {
         impacted: true,
