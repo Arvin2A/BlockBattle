@@ -17,7 +17,7 @@
 //   BB_ALLOWED_ORIGINS=  comma-separated websites allowed to connect, e.g.
 //                        https://arvin2a.github.io,https://yoursite.infinityfreeapp.com
 //                        (empty = anyone; pages served by this server are always allowed)
-//   BB_MAX_PER_IP=8      connections allowed from one IP address
+//   BB_MAX_PER_IP=32     connections allowed from one IP address (flood guard only)
 //   BB_MAX_MATCHES=4     matches that can run at the same time
 //   CHROME_PATH=...      Chrome/Chromium/Edge to use if it isn't found automatically
 //   BB_GAME_URL=...      page the hidden tabs load (e.g. a Vite dev server, see README)
@@ -41,7 +41,7 @@ const ALLOWED_ORIGINS = (process.env.BB_ALLOWED_ORIGINS ?? '')
     .split(',')
     .map(origin => origin.trim().replace(/\/$/, ''))
     .filter(Boolean);
-const MAX_PER_IP = Math.max(1, Number(process.env.BB_MAX_PER_IP) || 8);
+const MAX_PER_IP = Math.max(1, Number(process.env.BB_MAX_PER_IP) || 32);
 const MAX_MATCHES = Math.max(1, Number(process.env.BB_MAX_MATCHES) || 4);
 const GAME_URL = process.env.BB_GAME_URL || `http://127.0.0.1:${PORT}${BASE_PATH}`;
 const MANUAL_AUTHORITY = process.env.BB_AUTHORITY === 'manual';

@@ -121,7 +121,7 @@ around values.
 |---|---|---|
 | `BB_ALLOWED_ORIGINS` | *(anyone)* | Comma-separated websites allowed to use your server (see below) |
 | `BB_MAX_MATCHES` | `4` | Matches that can run at the same time |
-| `BB_MAX_PER_IP` | `8` | Connections allowed from one IP address |
+| `BB_MAX_PER_IP` | `32` | Connections allowed from one IP address (flood guard only; the one-match-at-a-time rule is per device) |
 | `HOST` | `127.0.0.1` | Leave it. Players reach the server through a tunnel/Caddy (step 5) |
 | `PORT` | `8080` | Port the server listens on |
 | `CHROME_PATH` | *(auto)* | Path to Chrome/Chromium/Edge if it isn't found automatically |

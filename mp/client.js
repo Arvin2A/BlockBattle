@@ -6,7 +6,20 @@
 // The player's connection to the online server. One connection is shared by the
 // lobby and the online game scenes, so it lives here instead of in a scene.
 
-import { PROTOCOL_VERSION } from './protocol.js';
+import { PROTOCOL_VERSION, DEVICE_ID_STORAGE_KEY, cleanDeviceId } from './protocol.js';
+
+function getDeviceId() {
+    try {
+        const saved = cleanDeviceId(localStorage.getItem(DEVICE_ID_STORAGE_KEY));
+        if (saved) return saved;
+        const id = crypto.randomUUID?.() ??
+            Array.from(crypto.getRandomValues(new Uint8Array(16)), byte => byte.toString(16).padStart(2, '0')).join('');
+        localStorage.setItem(DEVICE_ID_STORAGE_KEY, id);
+        return id;
+    } catch {
+        return null;
+    }
+}
 import { getOnlineServerUrl } from './serverConfig.js';
 import { PlayerFastPeer } from './rtc.js';
 
@@ -68,7 +81,7 @@ class NetClient {
             }, 5000);
 
             socket.addEventListener('open', () => {
-                this.sendNow({ t: 'hello', v: PROTOCOL_VERSION });
+                this.sendNow({ t: 'hello', v: PROTOCOL_VERSION, d: getDeviceId() });
             });
 
             socket.addEventListener('message', event => {
