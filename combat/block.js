@@ -3,12 +3,14 @@
 // Licensed under the GNU GPL v3 only. See LICENSE.
 
 import { HEX } from '../ui/theme.js';
+import { getAttackCooldown } from './characterStats.js';
 
 export const BLOCK = {
     minStart: 0.3,
     drainPerSec: 0.35,
     hitCostScale: 4,
     minHitCost: 0.08,
+    maxHitCost: 0.5,
     regrowPerSec: 0.25,
     regrowDelayMs: 500,
     breakStunMs: 1500,
@@ -20,6 +22,7 @@ export const BLOCK = {
     fillAlpha: 0.35,
     hitFillAlpha: 0.6,
     soundGapMs: 120,
+    attackerOpeningMs: 150,
     cueScale: 1.8,
     cueEndScale: 2.3,
     cueAlpha: 0.9,
@@ -157,7 +160,7 @@ export function updateBlock(scene, player, wantsBlock) {
 export function blocksHit(scene, target, attacker, damage = 0, { minCost = BLOCK.minHitCost } = {}) {
     if (!target?.blocking) return false;
     const now = scene.time.now;
-    target.shield -= Math.max(minCost, damage * BLOCK.hitCostScale);
+    target.shield -= Phaser.Math.Clamp(damage * BLOCK.hitCostScale, minCost, BLOCK.maxHitCost);
     target.shieldHitUntil = now + 80;
     target.freezeUntil = Math.max(target.freezeUntil ?? 0, now + BLOCK.blockstunMs);
     const away = Math.sign(target.x - attacker.x) || (attacker.lastDir?.x ?? 1);
@@ -167,6 +170,15 @@ export function blocksHit(scene, target, attacker, damage = 0, { minCost = BLOCK
         scene.sound.play('block');
         showBlockCue(scene, target);
     }
+    if (attacker.isUsingSideSpecial) attacker.hasHitSideSpecial = true;
+    attacker.blockPenaltyUntil = Math.max(
+        attacker.blockPenaltyUntil ?? 0,
+        now + getAttackCooldown(attacker) + BLOCK.attackerOpeningMs
+    );
     if (target.shield <= 0) breakShield(scene, target);
     return true;
+}
+
+export function attackLockedByBlock(scene, attacker) {
+    return scene.time.now < (attacker.blockPenaltyUntil ?? 0);
 }

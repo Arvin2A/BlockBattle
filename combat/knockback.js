@@ -18,7 +18,8 @@ const VIOLENT_FREEZE_BONUS = 150;
 const HEAVY_FREEZE_BONUS = 80;
 // Attacks stay locked through the death ray freeze and this long after it.
 const DEATH_RAY_ATTACK_LOCK_MS = 150;
-const ULTRA_MIN_SPEED = 400;
+const ULTRA_MIN_SPEED = 800;
+const LAUNCH_FREEZE_MIN_SPEED = 400;
 const LAUNCH_ARC_HEIGHT = 0.08;
 
 export function isInvincible(player) {
@@ -128,7 +129,7 @@ function launchDeathRay(scene, target, vx, vy) {
 }
 
 function launchFreeze(scene, ms, speed) {
-    if (speed < ULTRA_MIN_SPEED) return;
+    if (speed < LAUNCH_FREEZE_MIN_SPEED) return;
     const now = scene.time.now;
     scene.launchFreeze = { at: now, ms };
     const last = scene.lastHitFreeze;
