@@ -12,8 +12,8 @@ export function changeBotMode(newBotMode, newSimulationMode = false) {
 }
 
 // How well each CPU plays, by player id. Kept until the page is reloaded.
-// HARD is the full-strength bot from before the tiers existed.
-export const BOT_DIFFICULTIES = ['EASY', 'NORMAL', 'HARD'];
+// VERY HARD is the full-strength bot.
+export const BOT_DIFFICULTIES = ['EASY', 'NORMAL', 'HARD', 'VERY HARD'];
 export const botDifficulty = { 1: 'HARD', 2: 'HARD' };
 
 export function setBotDifficulty(playerID, difficulty) {

@@ -48,7 +48,7 @@ function tryGrab(api, scene, attacker, target, direction, currentTime, animKey =
             const grabLands = api.attackIsElligible(attacker, target, 200, { ignoreCanAttack: true });
             attacker.attackBypassesHitstun = false;
             api.damagePlanksInAttack(attacker, 0.03 * api.getAttackDamageScale(attacker));
-            if (grabLands) {
+            if (grabLands && !api.blocksHit(scene, target, attacker, 0.03)) {
                 const grabOffset = {
                     x: Math.sign(target.x - attacker.x) * 150,
                     y: Math.min(target.y - attacker.y, 0)
@@ -146,6 +146,7 @@ function releaseGrab(api, scene, attacker, currentTime, fling = true) {
 }
 
 export default {
+    armColor: 0x1a1a1a,
     hitSounds: {
         light: ['crowbarclang1', 'crowbarclang2'],
         finisher: 'crowbarhit'

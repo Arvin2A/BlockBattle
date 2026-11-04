@@ -9,6 +9,7 @@ import { damagePlanksInAttack } from './planks.js';
 import { cutGrassInSwing } from './grass.js';
 import { hideAttackSprite } from './attackSprite.js';
 import { getAttackDamageScale, getHitSound } from './characterStats.js';
+import { blocksHit } from './block.js';
 
 const PLUNGE_KNOCKBACK_BONUS = 1.0;
 
@@ -129,8 +130,11 @@ export function landHit(scene, attacker, target, spec = {}) {
         decelerateAfter = null,
         resetCombo = true,
         noDeathRay = false,
-        onHit = null
+        onHit = null,
+        unblockable = false
     } = spec;
+    if (target.uninterruptible) return false;
+    if (!unblockable && blocksHit(scene, target, attacker, damage)) return false;
     const now = scene.time.now;
     const direction = spec.direction || attacker.lastDir;
     const damageScale = getAttackDamageScale(attacker);
@@ -140,6 +144,7 @@ export function landHit(scene, attacker, target, spec = {}) {
         target.revokeVictimStun = null;
     }
     target.lastHitAt = now;
+    attacker.lastLandedHitAt = now;
     target.hitstunUntil = now + hitstun * (hitstunGrowth ? target.KBmultiplier : 1);
     if (stun) {
         target.freezeUntil = now + (stun.target ?? 0);
@@ -182,6 +187,7 @@ export function landHit(scene, attacker, target, spec = {}) {
         attacker.combo = 0;
         attacker.comboTimer = 0;
     }
+    return true;
 }
 
 export function strike(scene, attacker, target, spec = {}) {
@@ -197,6 +203,5 @@ export function strike(scene, attacker, target, spec = {}) {
         if (missSound) scene.sound.play(missSound);
         return false;
     }
-    landHit(scene, attacker, target, spec);
-    return true;
+    return landHit(scene, attacker, target, spec);
 }

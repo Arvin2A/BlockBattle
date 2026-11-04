@@ -485,6 +485,8 @@ function tryCleave(api, scene, player, direction, currentTime) {
 }
 
 export default {
+    armColor: 0xc81e1e,
+    variantStats: { CHAINSAW: { armColor: 0xffc600 } },
     hitSounds: {
         light: ['axeslash1', 'axeslash2'],
         finisher: 'axethirdhitsfx'

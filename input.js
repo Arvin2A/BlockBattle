@@ -7,13 +7,13 @@
 // come from this keyboard, a touch screen, a controller, or (online) the network.
 // The game only ever reads these states, so it doesn't care where inputs came from.
 
-export const INPUT_BUTTONS = ['left', 'right', 'up', 'down', 'attack', 'special', 'misc'];
+export const INPUT_BUTTONS = ['left', 'right', 'up', 'down', 'attack', 'special', 'misc', 'block'];
 
 // Movement presses stay saved until the game uses them (same as Phaser's JustDown),
 // so a tap during hitstun still counts once hitstun ends.
 const SAVED_PRESSES = ['left', 'right', 'up', 'down'];
 // Attack/special/misc presses only count on the frame they happen.
-const FRAME_PRESSES = ['attack', 'special', 'misc'];
+const FRAME_PRESSES = ['attack', 'special', 'misc', 'block'];
 
 export function createInputState() {
     const state = { touchPressed: {} };
@@ -86,6 +86,8 @@ export function emptyControllerInput() {
         specialPressed: false,
         misc: false,
         miscPressed: false,
+        block: false,
+        blockPressed: false,
         pausePressed: false
     };
 }
@@ -107,6 +109,7 @@ export function readControllerInput(pad, previous) {
     const attack = controllerButtonPressed(pad, 0);
     const special = controllerButtonPressed(pad, 1);
     const misc = controllerButtonPressed(pad, 2);
+    const block = controllerButtonPressed(pad, 4) || controllerButtonPressed(pad, 5);
 
     return {
         left,
@@ -122,6 +125,8 @@ export function readControllerInput(pad, previous) {
         special,
         specialPressed: special && !previous.special,
         misc,
-        miscPressed: misc && !previous.misc
+        miscPressed: misc && !previous.misc,
+        block,
+        blockPressed: block && !previous.block
     };
 }

@@ -14,6 +14,8 @@ export const HEAVY_KB_PERCENT = 100;
 export const VIOLENT_KB_PERCENT = 150;
 export const ULTRA_KB_PERCENT = 200;
 const ULTRA_FREEZE_BONUS = 300;
+const VIOLENT_FREEZE_BONUS = 150;
+const HEAVY_FREEZE_BONUS = 80;
 // Attacks stay locked through the death ray freeze and this long after it.
 const DEATH_RAY_ATTACK_LOCK_MS = 150;
 const ULTRA_MIN_SPEED = 400;
@@ -37,7 +39,8 @@ export function hitFreeze(scene, ms = 50) {
     const now = scene.time.now;
     scene.lastHitFreeze = { at: now, ms };
     // A 200%+ launch earlier this frame stretches this attack's freeze.
-    const bonus = scene.ultraHitAt === now ? ULTRA_FREEZE_BONUS : 0;
+    const bonus = scene.ultraHitAt === now ? ULTRA_FREEZE_BONUS
+        : scene.launchFreeze?.at === now ? scene.launchFreeze.ms : 0;
     freezeUntil(scene, now + ms + bonus);
 }
 
@@ -124,6 +127,15 @@ function launchDeathRay(scene, target, vx, vy) {
     });
 }
 
+function launchFreeze(scene, ms, speed) {
+    if (speed < ULTRA_MIN_SPEED) return;
+    const now = scene.time.now;
+    scene.launchFreeze = { at: now, ms };
+    const last = scene.lastHitFreeze;
+    const attackFreeze = last?.at === now ? last.ms : 0;
+    freezeUntil(scene, now + attackFreeze + ms);
+}
+
 export function deathRayAttackLocked(scene) {
     return scene.hitFreezeUltra || scene.time.now < (scene.deathRayAttackLockUntil ?? 0);
 }
@@ -180,8 +192,10 @@ export function applyKnockback(scene, target, vx, vy, { noDeathRay = false } = {
                 launchDeathRay(scene, target, resistantVx, resistantVy);
             } else if (violent) {
                 triggerScreenShake(scene, 26, 600);
+                launchFreeze(scene, VIOLENT_FREEZE_BONUS, speed);
             } else {
                 triggerScreenShake(scene, Phaser.Math.Clamp(6 + (kbPercent - HEAVY_KB_PERCENT) / 16, 6, 12));
+                launchFreeze(scene, HEAVY_FREEZE_BONUS, speed);
             }
         }
     }

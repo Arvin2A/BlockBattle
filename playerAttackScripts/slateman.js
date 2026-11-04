@@ -149,6 +149,7 @@ const unlessPlunging = handler => (api, scene, attacker, ...args) => {
 };
 
 export default {
+    armColor: 0x2c2d31,
     hitSounds: {
         light: ['slatelight1', 'slatelight2'],
         finisher: 'slatepunch'
