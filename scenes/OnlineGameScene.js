@@ -29,9 +29,10 @@ const KEY_BINDINGS = {
     KeyS: 'down', ArrowDown: 'down',
     KeyE: 'attack', ShiftLeft: 'attack', ShiftRight: 'attack',
     KeyQ: 'special', Slash: 'special',
-    AltLeft: 'misc', AltRight: 'misc'
+    AltLeft: 'misc', AltRight: 'misc',
+    KeyR: 'block', Period: 'block'
 };
-const CAPTURED_KEYS = 'W,A,S,D,UP,DOWN,LEFT,RIGHT,E,SHIFT,ALT,Q,FORWARD_SLASH';
+const CAPTURED_KEYS = 'W,A,S,D,UP,DOWN,LEFT,RIGHT,E,SHIFT,ALT,Q,FORWARD_SLASH,R,PERIOD';
 
 const SLOT_COLORS = { p1: COLORS.p1, p2: COLORS.p2 };
 
@@ -502,14 +503,16 @@ export class OnlineOverlayScene extends Phaser.Scene {
         const phone = isPhoneScreen();
         const layout = phone ? [
             [940, 420, 'A', 'attack'],
-            [940, 330, 'S', 'special']
+            [940, 330, 'S', 'special'],
+            [850, 420, 'B', 'block']
         ] : [
             [60, 420, '←', 'left'],
             [240, 420, '→', 'right'],
             [150, 330, '↑', 'up'],
             [150, 420, '↓', 'down'],
             [850, 420, 'A', 'attack'],
-            [940, 330, 'S', 'special']
+            [940, 330, 'S', 'special'],
+            [940, 240, 'B', 'block']
         ];
         const self = this.match.self;
         if (self && hasMiscButton(self.character, self.variant)) {

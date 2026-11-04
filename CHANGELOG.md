@@ -1,5 +1,23 @@
 # Changelog
 
+## 2026-11-03
+
+### Added
+- BLOCK, a new move for every fighter. Hold R (P1) or Period (P2), LB/RB on a controller, or the new B button on phones. A shield in your player color (red for P1, blue for P2, grey for the CPU) surrounds you and stops all damage and knockback. Every hit it stops flashes a big shield and makes a block sound. It shrinks while you hold it and shrinks more with every hit it takes; let go and it grows back. If it runs out, it breaks and you're stunned for 1.5 seconds, with a cracked shield (in your player color) over your fighter. You can't move or attack while blocking. CPUs on NORMAL and VERY HARD block sometimes too.
+- SMACK DOWN, a new move for every fighter. Tap down on the ground with your opponent close by (in the air or on the ground) to grab them and slam them into the floor. It does 3%, goes through blocks, and leaves them flattened and floating up and away from you for about a second. You need a moment to recover after slamming, so chase them down for the follow-up.
+- LEDGE GRAB, a new move for every fighter. When you're off the stage, press attack near a platform's edge to grab on. You can still be hit while hanging, which knocks you off. Press any button except down (or wait 1.5 seconds) to pull yourself up and dash forward, shoving anyone guarding the edge out of the way. The climb and the dash can't be interrupted. Press down to let go. You get one grab per jump.
+
+### Changed
+- MALLET's swing reaches a bit further (100 → 110).
+- SLEDGEHAMMER: the QUICKSLAM follow-up jump now tracks your target while you're flying at them, so it stops whiffing when they're launched high.
+- HAMMERMAN CPUs play smarter: MALLET heals from a safe distance or behind its walls, both variants put up walls to block you off (and at the ledge to stop your recovery), SLEDGEHAMMER does the QUICKSLAM follow-up, and both time their swings around their windup instead of swinging at point-blank and getting interrupted. Every CPU now knows how to deal with a wall in its way: hold behind its own, smash it, or jump over it.
+- New CPU difficulty: VERY HARD. It's the old HARD CPU at full strength, using BLOCK, SMACK DOWN, LEDGE GRAB and edgeguarding. HARD is now a step below it: same speed, but it doesn't use BLOCK, SMACK DOWN or LEDGE GRAB, and it doesn't chase you off the stage.
+- Heavy (100%+) and violent (150%+) launches now freeze the game for a split second on hit, like the death ray does, so big hits land harder. Violent ones freeze a bit longer.
+- Online quick chat: up to 3 messages can be on screen at once, stacked above your fighter. You can send 4 messages every 12 seconds.
+
+### Fixed
+- TRAPPER: netted fighters can no longer be shoved around by walking into them, and they don't slide across the floor while stuck in the net.
+
 ## 2026-11-02
 
 ### Added

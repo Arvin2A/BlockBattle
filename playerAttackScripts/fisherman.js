@@ -818,10 +818,11 @@ function updateTrapper(api, scene, player) {
 }
 
 export default {
+    armColor: 0x0a0a0a,
     attackCooldown: 275,
     hitSounds: { finisher: 'rodthirdhitsfx' },
     variantStats: {
-        TRAPPER: { hitSounds: { light: 'axeslash1', finisher: 'slash' } }
+        TRAPPER: { hitSounds: { light: 'axeslash1', finisher: 'slash' }, armColor: 0x4b4d5a }
     },
     // The rod and harpoon sheets are drawn facing right with the arms on the left of each frame.
     rightFacingAttackSprites: ['rodatk', 'linelessrod', 'reelin', 'harpoonatk', 'harpoonlessatk', 'netthrow'],

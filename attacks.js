@@ -38,6 +38,7 @@ import {
 } from './combat/grass.js';
 import { damagePlank, damagePlanksInAttack, isBlockedByWall } from './combat/planks.js';
 import { attackIsElligible, DEFAULT_BYPASS_OPTIONS } from './combat/eligibility.js';
+import { blocksHit } from './combat/block.js';
 import {
     hasIdleAttackSprite,
     hideAttackSprite,
@@ -85,7 +86,7 @@ function startSideSpecialCooldown(player, currentTime, duration) {
     player.nextSideSpecialTime = currentTime + duration;
 }
 
-function getMapPlatforms(scene) {
+export function getMapPlatforms(scene) {
     return [
         ...scene.gameState.map.platforms.getChildren(),
         ...scene.gameState.map.topPlatforms.getChildren()
@@ -319,6 +320,7 @@ export function downslamAttack(scene, attacker, target) {
 
 const sharedAttackHelpers = {
     strike,
+    blocksHit,
     landHit,
     STANDARD_HITS,
     recoverAfterAttack,

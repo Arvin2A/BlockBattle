@@ -2,6 +2,8 @@
 // Original source: https://github.com/Arvin2A/BlockBattle
 // Licensed under the GNU GPL v3 only. See LICENSE.
 
+import { getFlatSquash, FLAT_SQUASH } from './universalMoves.js';
+
 export const SQUASH = {
     jump: 0.22,
     downslam: 0.3,
@@ -64,9 +66,10 @@ export function applySquash(scene, players) {
             squash.speed += (-(squash.value - target) * SQUASH.stiffness - squash.speed * SQUASH.damping) * dt;
             squash.value = Phaser.Math.Clamp(squash.value + squash.speed * dt, -SQUASH.limit, SQUASH.limit);
         }
-        if (Math.abs(squash.value) < 0.002) continue;
-        const scaleY = 1 + squash.value;
-        const scaleX = 1 - squash.value * SQUASH.widthPerStretch;
+        const flat = getFlatSquash(player, scene.time.now);
+        if (Math.abs(squash.value) < 0.002 && flat <= 0) continue;
+        const scaleY = flat > 0 ? 1 - FLAT_SQUASH.height * flat : 1 + squash.value;
+        const scaleX = flat > 0 ? 1 + FLAT_SQUASH.width * flat : 1 - squash.value * SQUASH.widthPerStretch;
         const offsetY = player.displayHeight * 0.5 * (1 - scaleY);
         squash.applied = [
             stretchObject(player, scaleX, scaleY, offsetY),

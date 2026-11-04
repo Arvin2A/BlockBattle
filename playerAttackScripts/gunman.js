@@ -221,10 +221,11 @@ function handleShot(api, scene, attacker, victim, options = {}) {
     const hitCount = api.isInvincible(victim)
         ? 0
         : beams.filter(beam => beam.hit).length;
-    if (hitCount > 0) {
+    const shotDamage = options.damageIncrement ?? (isExplosion ? 0.10 : 0.02);
+    if (hitCount > 0 && !api.blocksHit(scene, victim, attacker, shotDamage * hitCount)) {
         victim.flash();
         const damageScale = api.getAttackDamageScale(attacker);
-        victim.KBmultiplier += (options.damageIncrement ?? (isExplosion ? 0.10 : 0.02)) * damageScale * hitCount;
+        victim.KBmultiplier += shotDamage * damageScale * hitCount;
         const hitstunDuration = options.hitstunDuration ?? (isExplosion ? 300 : -1);
         victim.hitstunUntil = scene.time.now + hitstunDuration * victim.KBmultiplier;
         if (options.freezeDuration !== undefined) {
@@ -373,7 +374,8 @@ function chuck(api, scene, attacker, victim) {
         if (detonated || !grenade.active) return;
         detonated = true;
 
-        if (hitVictim && victim.active && !api.isInvincible(victim)) {
+        if (hitVictim && victim.active && !api.isInvincible(victim) &&
+            !api.blocksHit(scene, victim, attacker, 0.08)) {
             const damageScale = api.getAttackDamageScale(attacker);
             victim.KBmultiplier += 0.08 * damageScale;
             victim.hitstunUntil = Math.max(victim.hitstunUntil ?? 0, scene.time.now + GRENADE_HITSTUN);
@@ -421,6 +423,7 @@ function chuck(api, scene, attacker, victim) {
 }
 
 export default {
+    armColor: 0x383838,
     handleAttack: handleShot,
     handleDirSpecial: handleGunmanSpecial,
     handleNeutralSpecial: chuck,

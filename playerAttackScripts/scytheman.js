@@ -302,7 +302,11 @@ function tryMowLegacy(api, scene, player, target, direction, currentTime) {
         let dir = (direction === 'left') ? -1 : 1
         scene.physics.add.overlap(fakescythe, target, () => {
             if (player.hasHitSideSpecial) return;
-            if (!canhit) return;
+            if (!canhit || api.isInvincible(target)) return;
+            if (api.blocksHit(scene, target, player, 0.08)) {
+                player.hasHitSideSpecial = true;
+                return;
+            }
             target.hitstunUntil = 100 + scene.time.now;
             const slash = scene.add.image(target.x, target.y, 'slasheffect');
             slash.setScale(1.5);
@@ -864,6 +868,7 @@ function forVariant(lawnmower, landscaper) {
 }
 
 export default {
+    armColor: 0x1e1e1e,
     hitSounds: {
         light: ['axeslash1', 'axeslash2'],
         finisher: 'scythethirdhitsfx'

@@ -259,4 +259,22 @@ export function createGameAnimations(scene) {
         frameRate: 35,
         repeat: -1
     });
+    scene.anims.create({
+        key: 'uni-ledgehang',
+        frames: scene.anims.generateFrameNumbers('uni-ledgepull', { start: 0, end: 0 }),
+        frameRate: 1,
+        repeat: 0
+    });
+    scene.anims.create({
+        key: 'uni-ledgepull',
+        frames: scene.anims.generateFrameNumbers('uni-ledgepull', { start: 0, end: 15 }),
+        frameRate: 40,
+        repeat: 0
+    });
+    scene.anims.create({
+        key: 'uni-slam',
+        frames: scene.anims.generateFrameNumbers('uni-slam', { start: 0, end: 10 }),
+        frameRate: 36,
+        repeat: 0
+    });
 }

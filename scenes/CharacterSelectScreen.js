@@ -311,7 +311,7 @@ export class CharacterSelectScene extends Phaser.Scene {
             const show = () => label.setText(`CPU: ${botDifficulty[player]}`);
 
             [-1, 1].forEach(direction => {
-                const arrow = this.add.text(x + direction * 90, 82, direction < 0 ? '<' : '>', {
+                const arrow = this.add.text(x + direction * 110, 82, direction < 0 ? '<' : '>', {
                     fontFamily: FONTS.body,
                     fontSize: '26px',
                     fill: COLORS.cpu

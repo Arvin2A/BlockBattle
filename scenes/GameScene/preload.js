@@ -160,6 +160,16 @@ export function preload() {
     this.load.image('plungedAura', 'assets/statusailments/plungedAura.png');
 
     // =====================================================
+    // UNIVERSAL
+    // =====================================================
+
+    this.load.spritesheet('uni-ledgepull', 'assets/sprites/universal/uni-ledgepull.png', { frameWidth: 100, frameHeight: 100 });
+    this.load.spritesheet('uni-slam', 'assets/sprites/universal/uni-slam.png', { frameWidth: 100, frameHeight: 100 });
+    this.load.image('p1shieldbreak', 'assets/ingame/p1shieldbreak.png');
+    this.load.image('blockshield', 'assets/ingame/resistanceshield.png');
+    this.load.image('p2shieldbreak', 'assets/ingame/p2shieldbreak.png');
+
+    // =====================================================
     // AXEMAN
     // =====================================================
 
@@ -773,6 +783,7 @@ export function preload() {
     this.load.audio('harvest', 'audio/harvest.wav');
     this.load.audio('damn', 'audio/daaaaaamn.wav');
     this.load.audio('glassbreak', 'audio/glassbreak.wav');
+    this.load.audio('block', 'audio/block.wav');
 
     // =====================================================
     // AUDIO - AUTOMATICALLY ADDED

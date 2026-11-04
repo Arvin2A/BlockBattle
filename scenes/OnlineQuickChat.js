@@ -20,6 +20,8 @@ const BUBBLE_DEPTH = 900;
 const BUBBLE_MS = 3000;
 const BUBBLE_FADE_MS = 400;
 const BUBBLE_HEIGHT_ABOVE_PLAYER = 95;
+const MAX_BUBBLES = 3;
+const BUBBLE_GAP = 4;
 
 const ROW_COLOR = 0x171717;
 const ROW_HOVER_COLOR = 0x444444;
@@ -215,7 +217,8 @@ export class QuickChat {
 
     showBubble(slot, phrase) {
         if (!this.slotColors[slot]) return;
-        this.bubbles.get(slot)?.text.destroy();
+        const stack = this.bubbles.get(slot) ?? [];
+        while (stack.length >= MAX_BUBBLES) stack.shift().text.destroy();
         const text = this.scene.add.text(0, 0, phrase, {
             ...TEXT_STYLE,
             fontSize: '15px',
@@ -223,7 +226,8 @@ export class QuickChat {
             fill: this.slotColors[slot],
             padding: { x: 8, y: 5 }
         }).setOrigin(0.5, 1).setDepth(BUBBLE_DEPTH).setVisible(false);
-        this.bubbles.set(slot, { text, expiresAt: this.scene.time.now + BUBBLE_MS });
+        stack.push({ text, expiresAt: this.scene.time.now + BUBBLE_MS });
+        this.bubbles.set(slot, stack);
     }
 
     update() {
@@ -236,23 +240,27 @@ export class QuickChat {
         }
 
         const now = this.scene.time.now;
-        for (const [slot, bubble] of this.bubbles) {
-            const remaining = bubble.expiresAt - now;
-            if (remaining <= 0) {
-                bubble.text.destroy();
+        for (const [slot, stack] of this.bubbles) {
+            while (stack.length && stack[0].expiresAt <= now) stack.shift().text.destroy();
+            if (!stack.length) {
                 this.bubbles.delete(slot);
                 continue;
             }
             const player = this.getPlayerObject(slot);
             if (!player?.visible) {
-                bubble.text.setVisible(false);
+                for (const bubble of stack) bubble.text.setVisible(false);
                 continue;
             }
             const point = this.worldToScreen(player.x, player.y - BUBBLE_HEIGHT_ABOVE_PLAYER);
-            bubble.text
-                .setPosition(point.x, point.y)
-                .setAlpha(Math.min(1, remaining / BUBBLE_FADE_MS))
-                .setVisible(true);
+            let bottom = point.y;
+            for (let index = stack.length - 1; index >= 0; index--) {
+                const bubble = stack[index];
+                bubble.text
+                    .setPosition(point.x, bottom)
+                    .setAlpha(Math.min(1, (bubble.expiresAt - now) / BUBBLE_FADE_MS))
+                    .setVisible(true);
+                bottom -= bubble.text.height + BUBBLE_GAP;
+            }
         }
     }
 
@@ -261,7 +269,9 @@ export class QuickChat {
         this.scene.input.keyboard.off('keydown', this.onKeyDown);
         this.scene.input.off('pointerdown', this.onScenePointerDown);
         this.removeChatListener();
-        for (const bubble of this.bubbles.values()) bubble.text.destroy();
+        for (const stack of this.bubbles.values()) {
+            for (const bubble of stack) bubble.text.destroy();
+        }
         this.bubbles.clear();
     }
 }

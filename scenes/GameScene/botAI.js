@@ -9,30 +9,74 @@ import { handleDirSpecial } from "../../attacks.js";
 import { handleDirSpecialAttack } from "../../attacks.js";
 import { toggleChainsawMode } from "../../attacks.js";
 import { isInvincible, attackIsElligible } from "../../attacks.js";
+import { handleNeutralSpecial, tryQuickslamJump } from "../../attacks.js";
+import { isBlockedByWall } from "../../combat/planks.js";
 import { botDifficulty } from "../../gameSettings.js";
+import { isUniversalBusy, tryLedgeGrab, ledgeClimb, smackDown, canSmackDown } from "../../combat/universalMoves.js";
 
-// How each difficulty holds back. HARD is the bot at full strength.
+// How each difficulty holds back. VERY HARD is the bot at full strength.
 //  thinkMs:       time between decisions; movement is held in between.
 //  attackDelayMs: extra wait on top of the attack cooldown after each swing.
 //  hesitate:      chance to pass on an open attack or special, and for how long.
-//  edgeguard / dodgeSpecials / downslam: whether it does these at all.
+//  edgeguard / dodgeSpecials / downslam / smack / ledge: whether it does these at all.
 const DIFFICULTY = {
     EASY: {
         thinkMs: 320, attackDelayMs: 450, hesitateChance: 0.55, hesitateMs: 500,
-        edgeguard: false, dodgeSpecials: false, downslam: false
+        edgeguard: false, dodgeSpecials: false, downslam: false,
+        smack: false, ledge: true, blockChance: 0
     },
     NORMAL: {
         thinkMs: 140, attackDelayMs: 150, hesitateChance: 0.25, hesitateMs: 300,
-        edgeguard: true, dodgeSpecials: false, downslam: true
+        edgeguard: true, dodgeSpecials: false, downslam: true,
+        smack: true, ledge: true, blockChance: 0.25
     },
     HARD: {
         thinkMs: 0, attackDelayMs: 0, hesitateChance: 0, hesitateMs: 0,
-        edgeguard: true, dodgeSpecials: true, downslam: true
+        edgeguard: false, dodgeSpecials: true, downslam: true,
+        smack: false, ledge: false, blockChance: 0
+    },
+    'VERY HARD': {
+        thinkMs: 0, attackDelayMs: 0, hesitateChance: 0, hesitateMs: 0,
+        edgeguard: true, dodgeSpecials: true, downslam: true,
+        smack: true, ledge: true, blockChance: 0.5
     }
 };
 
+const QUICKSLAM_FOLLOW_DELAY = 400;
+const QUICKSLAM_JUMP_WINDOW = 1000;
+const MALLET_HEAL_KB = 1.35;
+const MALLET_SAFE_HEAL_RANGE = 260;
+const WALL_RANGE = { min: 110, max: 320 };
+const WALL_BREAK_HEALTH = 0.15;
+const OWN_WALL_HOLD_RANGE = 300;
+const WALL_JUMP_GAP = 90;
+const OWN_WALL_SETTLE_MS = 1500;
+const HAMMER_SWINGS = {
+    MALLET: { range: 110, windupMs: 150 },
+    SLEDGEHAMMER: { range: 150, windupMs: 800 }
+};
+const HAMMER_SPACING_MARGIN = 15;
+const SLEDGE_TOO_CLOSE = 95;
+const QUICKSLAM_REACH = 240;
+const QUICKSLAM_MAX_DY = 60;
+
+const BOT_BLOCK_MS = 350;
+const BOT_BLOCK_RANGE = 160;
+const BOT_BLOCK_MIN_SHIELD = 0.35;
+
+function updateBotBlock(bot, target, distance, difficulty, now) {
+    const threat = (target.isAttacking || target.isUsingSideSpecial) && distance < BOT_BLOCK_RANGE;
+    if (threat && !bot.botThreatSeen) {
+        bot.botThreatSeen = true;
+        if (Math.random() < difficulty.blockChance) bot.botBlockUntil = now + BOT_BLOCK_MS;
+    } else if (!threat) {
+        bot.botThreatSeen = false;
+    }
+    bot.botWantsBlock = now < (bot.botBlockUntil ?? 0) && (bot.shield ?? 1) > BOT_BLOCK_MIN_SHIELD;
+}
+
 function getDifficulty(bot) {
-    return DIFFICULTY[botDifficulty[bot.id]] ?? DIFFICULTY.HARD;
+    return DIFFICULTY[botDifficulty[bot.id]] ?? DIFFICULTY['VERY HARD'];
 }
 
 // Rolls whether the bot passes on an opening; a pass blocks it for hesitateMs
@@ -62,6 +106,7 @@ const PUSH_RANGE = 100;
 // Swing a little inside the real range so hits don't miss on its edge.
 const RANGE_MARGIN = 8;
 const CHASE_DEADZONE = 12;
+const FLANK_OFFSET = 70;
 // How far from a drop the bot will walk.
 const LEDGE_MARGIN = 30;
 // From this KB on, a launch back toward the stage is wasted, so launch upward instead.
@@ -291,8 +336,20 @@ export function runBotAI(scene, bot, target, fiveframecount) {
         return;
     }
 
+    updateBotBlock(bot, target, distance, difficulty, now);
+    if (isUniversalBusy(bot)) {
+        if (bot.ledge && !bot.ledge.climbing && now >= (bot.botLedgeClimbAt ?? 0)) ledgeClimb(scene, bot);
+        return;
+    }
+
     if (bot.hitstun || bot.freeze || bot.isUsingSideSpecial) {
         send(scene, bot, Commands.NONE);
+        return;
+    }
+
+    if (bot.quickslamJumpTarget && now < bot.quickslamJumpUntil &&
+        now >= bot.quickslamJumpUntil - QUICKSLAM_JUMP_WINDOW + QUICKSLAM_FOLLOW_DELAY &&
+        tryQuickslamJump(scene, bot, now)) {
         return;
     }
 
@@ -333,6 +390,10 @@ export function runBotAI(scene, bot, target, fiveframecount) {
     // Standing on a plank with no stage under it (CHAINSAW's clutch) counts too.
     const onPlankOffStage = grounded && !surfaceBelow(surfaces, bot.x, bot.body.bottom);
     if (isOffStage(bot, surfaces) || onPlankOffStage) {
+        if (difficulty.ledge && tryLedgeGrab(scene, bot, target)) {
+            bot.botLedgeClimbAt = now + 100 + Math.random() * 500;
+            return;
+        }
         recover(scene, bot, target, surfaces);
         return;
     }
@@ -353,6 +414,12 @@ export function runBotAI(scene, bot, target, fiveframecount) {
         targetHittable && now >= (bot.nextDownslamTime || 0)) {
         bot.nextDownslamTime = now + 1000;
         send(scene, bot, Commands.DOWNSLAM);
+        return;
+    }
+
+    if (difficulty.smack && grounded && !isGrounded(target) && targetHittable &&
+        canSmackDown(scene, bot, target) && !hesitates(bot, difficulty, now)) {
+        smackDown(scene, bot, target);
         return;
     }
 
@@ -483,7 +550,12 @@ export function runBotAI(scene, bot, target, fiveframecount) {
     const usesBasicCombo = bot.name !== "GUNMAN" && !isChainsawAxeman;
     const readyToAttack = bot.canAttack && now >= bot.nextAttackTime &&
         now >= (bot.botNextAttackAt ?? 0);
-    if (usesBasicCombo && targetHittable && readyToAttack) {
+    const hammerSwing = bot.name === 'HAMMERMAN' ? HAMMER_SWINGS[bot.variant] : null;
+    if (hammerSwing && targetHittable &&
+        planHammerSwing(scene, bot, target, surfaces, hammerSwing, readyToAttack, difficulty, now)) {
+        return;
+    }
+    if (!hammerSwing && usesBasicCombo && targetHittable && readyToAttack) {
         const isDagger = bot.name === 'SWORDMAN' && bot.variant === 'DAGGER';
         const lightRange = (isDagger ? DAGGER_RANGE : LIGHT_RANGE) - RANGE_MARGIN;
         const attackDir = chooseAttackDir(bot, target, lightRange, stageCenter);
@@ -511,6 +583,9 @@ export function runBotAI(scene, bot, target, fiveframecount) {
             }
         }
     }
+
+    if (tryMalletSafeHeal(scene, bot, target, distance, side, grounded, difficulty, now)) return;
+    if (tryPlaceWall(scene, bot, target, surfaces, dx, dy, grounded, targetOffStage, difficulty, now)) return;
 
     // ======================
     // EDGEGUARD
@@ -541,6 +616,8 @@ export function runBotAI(scene, bot, target, fiveframecount) {
     // MOVEMENT
     // ======================
 
+    if (handleWallInWay(scene, bot, target, surfaces, grounded, now)) return;
+
     // Target above: jump, and save the double jump for the top of the first one.
     if (dy < -90 && Math.abs(dx) < 300) {
         if (grounded && now - bot.lastJump > 400) {
@@ -567,11 +644,20 @@ export function runBotAI(scene, bot, target, fiveframecount) {
         return;
     }
 
-    if (Math.abs(dx) > CHASE_DEADZONE) {
-        walk(scene, bot, side, surfaces);
-    } else {
-        send(scene, bot, Commands.NONE);
+    const flankOffset = hammerSwing ? hammerSwing.range - HAMMER_SPACING_MARGIN : FLANK_OFFSET;
+    if (walkTo(scene, bot, flankX(bot, target, stageCenter, surfaces, flankOffset), surfaces)) {
+        bot.lastDir = { x: side, y: 0 };
     }
+}
+
+function flankX(bot, target, stageCenter, surfaces, offset = FLANK_OFFSET) {
+    const onSide = Math.sign(bot.x - target.x) || Math.sign(stageCenter - target.x) || 1;
+    const feet = Math.max(bot.body.bottom, target.body.bottom);
+    for (const flank of [onSide, -onSide]) {
+        const x = target.x + flank * offset;
+        if (surfaceBelow(surfaces, x, feet - 4)) return x;
+    }
+    return target.x + onSide * offset;
 }
 
 // Whether this character's dir special is worth using from here.
@@ -592,6 +678,7 @@ function specialFits(bot, dx, dy, grounded) {
             // GRUELING SLAM only reaches about one scythe length in front.
             return adx < 140 && ady < 110;
         case 'HAMMERMAN':
+            if (bot.variant === 'SLEDGEHAMMER') return false;
             return adx < 80 && ady < 100;
         case 'SLATEMAN':
             return adx < 130 && ady < 50;
@@ -697,4 +784,148 @@ function finishAirPlankSequence(scene, bot) {
     if (bot.active && !bot.chainsawMode) {
         bot.plankModeReturnAt = scene.time.now + 350;
     }
+}
+
+function tryMalletSafeHeal(scene, bot, target, distance, side, grounded, difficulty, now) {
+    if (bot.name !== 'HAMMERMAN' || bot.variant !== 'MALLET' || !grounded) return false;
+    if (bot.KBmultiplier < MALLET_HEAL_KB || now < bot.nextSideSpecialTime) return false;
+    const safe = distance > MALLET_SAFE_HEAL_RANGE || isBlockedByWall(target, bot);
+    if (!safe || hesitates(bot, difficulty, now)) return false;
+    useDirSpecial(scene, bot, target, side);
+    send(scene, bot, Commands.NONE);
+    return true;
+}
+
+function tryPlaceWall(scene, bot, target, surfaces, dx, dy, grounded, targetOffStage, difficulty, now) {
+    if (bot.name !== 'HAMMERMAN' || !grounded || now < (bot.botNextWallAt ?? 0)) return false;
+    const sledge = bot.variant === 'SLEDGEHAMMER';
+    const activeWalls = (bot.steelPlanks ?? []).filter(plank => plank.active).length;
+    if (activeWalls >= (sledge ? 1 : 2) || isBlockedByWall(target, bot)) return false;
+
+    const side = Math.sign(dx) || bot.lastDir.x || 1;
+    const adx = Math.abs(dx);
+    const vx = target.body.velocity.x;
+    const approaching = Math.sign(vx) === -side && Math.abs(vx) > 60;
+    const threatened = approaching || target.isUsingSideSpecial || target.name === 'GUNMAN';
+    const wantsHealCover = !sledge && bot.KBmultiplier >= MALLET_HEAL_KB;
+    const blockOff = !targetOffStage && adx > WALL_RANGE.min && adx < WALL_RANGE.max &&
+        Math.abs(dy) < 100 && (threatened || wantsHealCover);
+    const atLedge = !surfaceBelow(surfaces, bot.x + side * 90, bot.body.bottom);
+    const edgeWall = targetOffStage && difficulty.edgeguard && atLedge && adx < 260 && dy > -150;
+    if ((!blockOff && !edgeWall) || hesitates(bot, difficulty, now)) return false;
+
+    bot.lastDir = { x: side, y: 0 };
+    handleNeutralSpecial(scene, bot, target);
+    bot.botNextWallAt = now + (sledge ? 6000 : 2500) + Math.random() * 2000;
+    bot.botWallPlacedAt = now;
+    send(scene, bot, Commands.NONE);
+    return true;
+}
+
+function findWallInWay(scene, bot, target) {
+    const left = Math.min(bot.x, target.x);
+    const right = Math.max(bot.x, target.x);
+    const walls = (scene.planks?.getChildren() ?? []).filter(plank =>
+        plank.active && plank.body?.enable &&
+        plank.body.height > plank.body.width &&
+        plank.body.center.x > left && plank.body.center.x < right &&
+        plank.body.top < bot.body.bottom - 4 && plank.body.bottom > bot.body.top + 4
+    );
+    return walls.sort((a, b) => Math.abs(a.body.center.x - bot.x) - Math.abs(b.body.center.x - bot.x))[0] ?? null;
+}
+
+function handleWallInWay(scene, bot, target, surfaces, grounded, now) {
+    const wall = findWallInWay(scene, bot, target);
+    if (!wall) return false;
+    const toWall = Math.sign(wall.body.center.x - bot.x) || 1;
+    const gap = toWall > 0 ? wall.body.left - bot.body.right : bot.body.left - wall.body.right;
+
+    const ownWall = wall.owner === bot;
+    const holdBehind = ownWall && Math.abs(target.x - bot.x) < OWN_WALL_HOLD_RANGE &&
+        (!wall.blocksOwner || now - (bot.botWallPlacedAt ?? 0) < OWN_WALL_SETTLE_MS);
+    if (holdBehind) {
+        bot.lastDir = { x: toWall, y: 0 };
+        send(scene, bot, Commands.NONE);
+        return true;
+    }
+
+    const canBreak = !ownWall && (bot.name === 'HAMMERMAN' || (wall.health ?? Infinity) <= WALL_BREAK_HEALTH);
+    if (canBreak && grounded) {
+        if (gap > 25) {
+            walk(scene, bot, toWall, surfaces);
+            return true;
+        }
+        bot.lastDir = { x: toWall, y: 0 };
+        send(scene, bot, Commands.NONE);
+        if (bot.canAttack && now >= bot.nextAttackTime && !bot.isAttacking) handleAttack(scene, bot, target);
+        return true;
+    }
+
+    walk(scene, bot, toWall, surfaces);
+    if (grounded && gap < WALL_JUMP_GAP && now - bot.lastJump > 400) {
+        bot.lastJump = now;
+        send(scene, bot, Commands.UP);
+    } else if (!grounded && bot.body.velocity.y > -60 && bot.body.bottom > wall.body.top - 10) {
+        tryDoubleJump(scene, bot);
+    }
+    return true;
+}
+
+function predictTarget(target, ms) {
+    const t = ms / 1000;
+    const airborne = !isGrounded(target);
+    const gravity = target.scene.physics.world.gravity.y;
+    return {
+        x: target.x + target.body.velocity.x * t,
+        y: target.y + (airborne ? target.body.velocity.y * t + 0.5 * gravity * t * t : 0)
+    };
+}
+
+function canQuickslam(bot, target, dx, dy, distance, now) {
+    return now >= bot.nextSideSpecialTime && !bot.isAttacking && isGrounded(bot) &&
+        distance <= QUICKSLAM_REACH && Math.abs(dy) < QUICKSLAM_MAX_DY && Math.abs(dx) > 20 &&
+        !isBlockedByWall(bot, target);
+}
+
+function planHammerSwing(scene, bot, target, surfaces, swing, readyToAttack, difficulty, now) {
+    const sledge = bot.variant === 'SLEDGEHAMMER';
+    const dx = target.x - bot.x;
+    const dy = target.y - bot.y;
+    const side = Math.sign(dx) || bot.lastDir.x || 1;
+    const distance = Math.hypot(dx, dy);
+
+    if (sledge && canQuickslam(bot, target, dx, dy, distance, now) && !hesitates(bot, difficulty, now)) {
+        useDirSpecial(scene, bot, target, side);
+        send(scene, bot, Commands.NONE);
+        return true;
+    }
+
+    if (sledge && distance < SLEDGE_TOO_CLOSE && !target.hitstun && readyToAttack) {
+        if (walk(scene, bot, -side, surfaces)) {
+            bot.lastDir = { x: side, y: 0 };
+            return true;
+        }
+    }
+    if (!readyToAttack || isBlockedByWall(bot, target)) return false;
+
+    const reach = swing.range - RANGE_MARGIN;
+    const predicted = predictTarget(target, swing.windupMs);
+    const pdx = predicted.x - bot.x;
+    const pdy = predicted.y - bot.y;
+    const predictedDistance = Math.hypot(pdx, pdy);
+    const swingSide = Math.sign(pdx) || side;
+    let dir = null;
+    if (predictedDistance <= reach && Math.abs(pdy) < 90 && Math.abs(pdx) > 20) {
+        dir = { x: swingSide, y: 0 };
+    } else if (predictedDistance <= reach && pdy < -30 && Math.abs(pdx) < 60) {
+        dir = { x: 0, y: -1 };
+    }
+    if (!dir || hesitates(bot, difficulty, now)) return false;
+
+    bot.lastDir = dir;
+    bot.lastAttack = now;
+    bot.botNextAttackAt = now + difficulty.attackDelayMs;
+    send(scene, bot, Commands.NONE);
+    handleAttack(scene, bot, target);
+    return true;
 }

@@ -11,6 +11,7 @@ import { MAX_WOOD_COUNT } from './playerAttackScripts/axeman.js';
 import { initiatePlayers, updateCombo } from './players.js';
 import { Commands, executeStateCommand} from './commands.js';
 import { applySquash, cancelDownslamFx, restoreSquash, squashOnLanding } from './combat/squash.js';
+import { updateUniversalMoves, isUniversalBusy, tryLedgeGrab, hideWeaponsForUniversalMoves, restoreHiddenWeapons } from './combat/universalMoves.js';
 import { updateLaunchArc } from './combat/knockback.js';
 import { MenuScene } from './scenes/MenuScene.js';
 import { fadeOutTo } from './scenes/transitions.js';
@@ -59,7 +60,7 @@ unmuteAudio();
 //NOTE: mohsina007 and arvin2a are the same person
 // its just that mohsina007 is the account that was hard-set as the account for VSCode, the application I used to make this game.
 // and the sound effects were taken from various games as listed in the preload function.
-//WASD and arrow keys control the players; E/SHIFT attack, Q / FORWARD SLASH use special and LEFT ALT / RIGHT ALT switch chainsaw mode.
+//WASD and arrow keys control the players; E/SHIFT attack, Q / FORWARD SLASH use special, R / PERIOD block and LEFT ALT / RIGHT ALT switch chainsaw mode.
 
 
 function interpolateColor(startColor, endColor, amount) {
@@ -152,7 +153,10 @@ class GameScene extends Phaser.Scene {
     create() {
         create.call(this);
         const fighters = () => Object.values(this.gameState.players ?? {});
-        const restore = () => restoreSquash(fighters());
+        const restore = () => {
+            restoreSquash(fighters());
+            restoreHiddenWeapons(fighters());
+        };
         this.events.on('preupdate', restore);
         this.events.once('shutdown', () => this.events.off('preupdate', restore));
     }
@@ -160,6 +164,7 @@ class GameScene extends Phaser.Scene {
     update() {
         update.call(this);
         applySquash(this, Object.values(this.gameState.players ?? {}));
+        hideWeaponsForUniversalMoves(Object.values(this.gameState.players ?? {}));
     }
 }
 
@@ -240,6 +245,8 @@ var attackKey1;
 var attackKey2;
 var chainsawModeKey1;
 var chainsawModeKey2;
+var blockKey1;
+var blockKey2;
 var winNumber = 3; //number of rounds needed to win as of now
 var lastWinState = {
     p1: 0,
@@ -262,7 +269,9 @@ var mobileControls = {
         attack: false,
         attackPressed: false,
         special: false,
-        specialPressed: false
+        specialPressed: false,
+        block: false,
+        blockPressed: false
     },
     p2: {
         left: false,
@@ -276,7 +285,9 @@ var mobileControls = {
         attack: false,
         attackPressed: false,
         special: false,
-        specialPressed: false
+        specialPressed: false,
+        block: false,
+        blockPressed: false
     }
 };
 
@@ -475,6 +486,7 @@ function pollLocalInput(scene, slot) {
     const keys = isP1 ? wasd : cursors;
     const attackKey = isP1 ? attackKey1 : attackKey2;
     const modeKey = isP1 ? chainsawModeKey1 : chainsawModeKey2;
+    const blockKey = isP1 ? blockKey1 : blockKey2;
     const mobile = mobileControls[slot];
     const pad = !isP1 && botMode ? emptyControllerInput() : controllerInputs[slot];
     const altDown = isP1 ? scene.p1LeftAltDown : scene.p2RightAltDown;
@@ -488,7 +500,8 @@ function pollLocalInput(scene, slot) {
         down: mobile.downPressed,
         attack: mobile.attackPressed,
         special: mobile.specialPressed,
-        misc: false
+        misc: false,
+        block: mobile.blockPressed
     };
     const frame = {
         held: {
@@ -498,7 +511,8 @@ function pollLocalInput(scene, slot) {
             down: keys.down.isDown || mobile.down || pad.down,
             attack: attackKey.isDown || mobile.attack || pad.attack,
             special: modeKey.isDown || mobile.special || pad.special,
-            misc: altDown || pad.misc
+            misc: altDown || pad.misc,
+            block: blockKey.isDown || mobile.block || pad.block
         },
         pressed: {
             left: JustDown(keys.left) || touch.left || pad.leftPressed,
@@ -507,7 +521,8 @@ function pollLocalInput(scene, slot) {
             down: JustDown(keys.down) || touch.down || pad.downPressed,
             attack: JustDown(attackKey) || touch.attack || pad.attackPressed,
             special: JustDown(modeKey) || touch.special || pad.specialPressed,
-            misc: altPressed || pad.miscPressed
+            misc: altPressed || pad.miscPressed,
+            block: JustDown(blockKey) || touch.block || pad.blockPressed
         },
         touch
     };
@@ -791,21 +806,24 @@ function create() {
         const p1Thumbstick = botMode && !simulationMode && isPhoneScreen();
         const p1Buttons = botMode ? (p1Thumbstick ? [
             [940, 420, 'A', p1, 'attack'],
-            [940, 330, 'S', p1, 'special']
+            [940, 330, 'S', p1, 'special'],
+            [850, 420, 'B', p1, 'block']
         ] : [
             [60, 420, '←', p1, 'left'],
             [240, 420, '→', p1, 'right'],
             [150, 330, '↑', p1, 'up'],
             [150, 420, '↓', p1, 'down'],
             [850, 420, 'A', p1, 'attack'],
-            [940, 330, 'S', p1, 'special']
+            [940, 330, 'S', p1, 'special'],
+            [940, 240, 'B', p1, 'block']
         ]) : [
             [60, 420, '←', p1, 'left'],
             [240, 420, '→', p1, 'right'],
             [150, 330, '↑', p1, 'up'],
             [150, 420, '↓', p1, 'down'],
             [240, 330, 'A', p1, 'attack'],
-            [60, 330, 'S', p1, 'special']
+            [60, 330, 'S', p1, 'special'],
+            [330, 330, 'B', p1, 'block', 34]
         ];
 
         const p2Buttons = [
@@ -814,7 +832,8 @@ function create() {
             [830, 330, '↑', p2, 'up'],
             [830, 420, '↓', p2, 'down'],
             [740, 330, 'A', p2, 'attack'],
-            [920, 330, 'S', p2, 'special']
+            [920, 330, 'S', p2, 'special'],
+            [650, 330, 'B', p2, 'block', 34]
         ];
 
         if (!simulationMode) p1Buttons.forEach(btn => {
@@ -846,7 +865,7 @@ function create() {
             const butn = makeButton(this, btn[0], btn[1], btn[2], {
                 obj: btn[3],
                 key: btn[4]
-            });
+            }, btn[5]);
             this.mobileButtons.p2.push(butn);
         });
 
@@ -989,6 +1008,8 @@ function create() {
     attackKey2 = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.SHIFT);
     chainsawModeKey1 = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.Q);
     chainsawModeKey2 = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.FORWARD_SLASH);
+    blockKey1 = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.R);
+    blockKey2 = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.PERIOD);
 
     cursors = this.input.keyboard.createCursorKeys();
     wasd = this.input.keyboard.addKeys({ up: 'W', left: 'A', down: 'S', right: 'D' });
@@ -1889,15 +1910,24 @@ function update() {
         return;
     }
 
-    if (in1.miscPressed && !simulationMode) {
+    updateUniversalMoves(this, p1, p2, simulationMode ? null : in1);
+    updateUniversalMoves(this, p2, p1, botMode ? null : in2);
+    const p1Busy = isUniversalBusy(p1);
+    const p2Busy = isUniversalBusy(p2);
+    for (const [busy, input] of [[p1Busy, in1], [p2Busy, in2]]) {
+        if (!busy) continue;
+        for (const button of ['left', 'right', 'up', 'down']) consumePress(input, button);
+    }
+
+    if (in1.miscPressed && !simulationMode && !p1Busy) {
         handleMisc(this, p1, p2);
     }
-    if (in2.miscPressed) {
+    if (in2.miscPressed && !p2Busy) {
         handleMisc(this, p2, p1);
     }
 
-    p1.horizontalMovementActive = !simulationMode && (p1LeftDown || p1RightDown);
-    p2.horizontalMovementActive = !botMode && (
+    p1.horizontalMovementActive = !simulationMode && !p1Busy && (p1LeftDown || p1RightDown);
+    p2.horizontalMovementActive = !botMode && !p2Busy && (
         p2LeftDown || p2RightDown
     );
     
@@ -1906,7 +1936,8 @@ function update() {
     const p1AttackPressed = p1ToggleAttack
         ? in1.attackPressed
         : in1.attack || in1.attackPressed;
-    if (p1AttackPressed && (!p1.hitstun || p1.activeGrab) && !simulationMode) {
+    const p1LedgeGrab = in1.attackPressed && !simulationMode && tryLedgeGrab(this, p1, p2);
+    if (p1AttackPressed && !p1LedgeGrab && !isUniversalBusy(p1) && (!p1.hitstun || p1.activeGrab) && !simulationMode) {
         const now = this.time.now;
         if (inputMode.p1 !== "keyboard" && !mobileControls.p1.attack) {
             this.mobileButtons.p1.forEach(obj => {
@@ -1931,7 +1962,8 @@ function update() {
     const p2AttackPressed = p2ToggleAttack
         ? in2.attackPressed
         : in2.attack || in2.attackPressed;
-    if (p2AttackPressed && (!p2.hitstun || p2.activeGrab) && !botMode) {
+    const p2LedgeGrab = in2.attackPressed && !botMode && tryLedgeGrab(this, p2, p1);
+    if (p2AttackPressed && !p2LedgeGrab && !isUniversalBusy(p2) && (!p2.hitstun || p2.activeGrab) && !botMode) {
         const now = this.time.now;
         if (inputMode.p2 !== "keyboard" && !mobileControls.p2.attack) {
             this.mobileButtons.p2.forEach(obj => {
@@ -2008,6 +2040,10 @@ function update() {
         }
         player.chopped = this.time.now < player.choppedUntil;
         player.netted = player.hitstun && this.time.now < player.nettedUntil;
+        player.body.pushable = !player.netted;
+        if (player.netted && (player.body.blocked.down || player.body.touching.down)) {
+            player.setVelocityX(Math.abs(player.body.velocity.x) > 10 ? player.body.velocity.x * 0.8 : 0);
+        }
 
         if (!player.body.touching.down) player.currentPlatform = null;
         const platforms = getMapPlatforms(this);
@@ -2131,7 +2167,7 @@ function update() {
         }
     }
 
-    if (!p1.hitstun && !simulationMode) {
+    if (!p1.hitstun && !simulationMode && !isUniversalBusy(p1)) {
         const p1LeftPressed = in1.leftPressed;
         const p1RightPressed = in1.rightPressed;
         const p1SpecialPressed = in1.specialPressed;
@@ -2259,7 +2295,7 @@ function update() {
     }
 
 
-    if (!p2.hitstun && !botMode) {
+    if (!p2.hitstun && !botMode && !isUniversalBusy(p2)) {
 
         const p2LeftPressed = in2.leftPressed;
         const p2RightPressed = in2.rightPressed;

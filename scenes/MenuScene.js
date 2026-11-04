@@ -16,7 +16,7 @@ var navBox = null;
 var layout = []
 var selectedIndex = 0;
 var previousInput = {};
-const CHANGELOG_VERSION = "2026-11-02-2";
+const CHANGELOG_VERSION = "2026-11-03-2";
 
 function getVersionColor(version) {
     const [year, month, day, update] = version.split("-").map(Number);
@@ -73,6 +73,10 @@ export class MenuScene extends Phaser.Scene {
         this.input.topOnly = false;
 
         const changelogEntries = [
+            {
+                title: "BLOCK, LEDGES + SMACK DOWN",
+                body: "Every fighter just got three new moves.\n BLOCK: hold R (P1) or Period (P2), the shoulder buttons on a controller, or the new B button on phones. A shield in your color pops up and eats every hit, with a big shield flash and a clang so you know it worked. It shrinks the longer you hold it and every hit takes a chunk out of it, so don't turtle forever. If it runs out it shatters, a cracked shield shows up on you, and you're stunned for a second and a half. The CPU knows how to block now too, but only on NORMAL and the new VERY HARD. HARD got a little easier: it skips all three new moves and won't chase you off the stage. VERY HARD is the old full-strength CPU with everything turned on.\n HAMMERMAN got some love too: MALLET's swing reaches a little further, SLEDGEHAMMER's QUICKSLAM follow-up chases the target now so it stops whiffing, and HAMMERMAN CPUs finally use walls, heal from a safe spot and time their swings properly.\n SMACK DOWN: tap down on the ground when your opponent is close and you'll grab them and slam them into the floor. They get squashed flat and float up and away from you, and you need a second to recover, so chase them down for the follow-up. Blocking won't save them from this one.\n LEDGE GRAB: knocked off the stage? Press attack near a platform's edge to hang on. Hanging is risky since you can still get hit off, but press any button (except down) to climb up and dash forward, and nothing can stop that climb and dash. It shoves whoever's camping the edge out of your way. Press down to let go.\n Big launches at 100%+ and 150%+ now freeze the screen for a moment on hit, so they feel way heavier. Online chat also lets you stack up to 3 messages at once now, and TRAPPER's netted victims can't be shoved across the floor anymore."
+            },
             {
                 title: "THUMBSTICK + TUNING",
                 body: "Phones get a real thumbstick now instead of the four arrow buttons, both online and against the CPU. Attack and special stay right where they were.\n Getting launched has a slight upward curve while you're in hitstun now, so it doesn't look like you're gliding in a straight line anymore. GUNMAN's MINI does 0.7% a bullet and he barely falls while it's landing. CHUCK hits way harder, stuns for a moment, and comes back twice as fast. SLEDGEHAMMER can't swing through his own steel wall anymore, and the downslam afterimage stops the moment you attack or get hit."
@@ -222,7 +226,7 @@ export class MenuScene extends Phaser.Scene {
 
         const changelogBlurb = this.add.text(
             40, 180,
-            "Phones get a real thumbstick instead of the four arrow buttons, online and against the CPU. Launches curve a little now, and GUNMAN's CHUCK hits way harder. Check the full changelog for more!",
+            "Every fighter can BLOCK (R or Period), SMACK DOWN a foe by tapping down next to them, and LEDGE GRAB by pressing attack near an edge. Check the full changelog for more!",
             {
                 fontFamily: "VCROSD",
                 fontSize: "16px",

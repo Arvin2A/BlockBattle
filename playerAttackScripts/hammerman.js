@@ -125,7 +125,7 @@ function steelPlank(
 }
 
 const MALLET_SWING = {
-    range: 100,
+    range: 110,
     damage: 0.13,
     plankDamage: 0.5,
     hitstun: 600,
@@ -357,8 +357,9 @@ function tryQuickslamJump(api, scene, attacker, currentTime) {
 
     const startX = attacker.x;
     const startY = attacker.y;
-    const endX = target.x - (attacker.lastDir.x * 100);
-    const endY = target.y - 200;
+    const sideX = attacker.lastDir.x || 1;
+    const endX = () => target.x - sideX * 100;
+    const endY = () => target.y - 200;
     const movement = { progress: 0 };
     const originalGravity = attacker.body.allowGravity;
     const wasUsingSideSpecial = attacker.isUsingSideSpecial;
@@ -378,13 +379,13 @@ function tryQuickslamJump(api, scene, attacker, currentTime) {
         onUpdate: () => {
             if (!attacker.active) return;
             attacker.setPosition(
-                Phaser.Math.Linear(startX, endX, movement.progress),
-                Phaser.Math.Linear(startY, endY, movement.progress)
+                Phaser.Math.Linear(startX, endX(), movement.progress),
+                Phaser.Math.Linear(startY, endY(), movement.progress)
             );
         },
         onComplete: () => {
             if (!attacker.active) return;
-            attacker.setPosition(endX, endY);
+            attacker.setPosition(endX(), endY());
             attacker.setVelocity(0, 0);
             attacker.body.allowGravity = originalGravity;
             attacker.isUsingSideSpecial = wasUsingSideSpecial;
@@ -433,6 +434,8 @@ function tryQuickslam(api, scene, attacker, target, direction, currentTime) {
 }
 
 export default {
+    armColor: 0x072900,
+    variantStats: { SLEDGEHAMMER: { armColor: 0x8a8a8a } },
     hitSounds: { light: 'hammerhit' },
     // Mallet swing sheets are drawn facing right and need their own nudge so
     // the arm sits behind the body with the handle out the front.
