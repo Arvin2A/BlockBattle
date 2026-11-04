@@ -20,7 +20,7 @@ import { WebSocket } from 'ws';
 import { createNameFilter } from '../mp/nameFilter.js';
 import { ALL_BUTTONS_MASK } from '../input.js';
 import { isValidSelection } from '../characterRoster.js';
-import { cleanName, END_REASONS, MAP_CHOICES, PROTOCOL_VERSION } from '../mp/protocol.js';
+import { cleanName, cleanDeviceId, END_REASONS, MAP_CHOICES, PROTOCOL_VERSION } from '../mp/protocol.js';
 import { QUICK_CHAT_PHRASES, QuickChatLimiter } from '../mp/quickChat.js';
 
 const CHAT_LATENCY_SLACK_MS = 300;
@@ -33,8 +33,7 @@ const MAX_PLAYER_MESSAGE_BYTES = 4096;
 const MAX_LISTED_ROOMS = 50;
 const MAX_RTC_SIGNALS_PER_MATCH = 64;
 const MAX_RTC_SIGNAL_BYTES = 16384;
-const LOOPBACK_ADDRESSES = new Set(['127.0.0.1', '::1', '::ffff:127.0.0.1']);
-const SAME_ADDRESS_MESSAGE = 'Someone on your connection is already hosting or playing. Only one player per connection can be in a match.';
+const SAME_DEVICE_MESSAGE = 'You are already hosting or playing in another tab. Only one match per device at a time.';
 
 function loadNameFilter() {
     try {
@@ -142,6 +141,7 @@ export class Lobby {
                 return;
             }
             client.greeted = true;
+            client.deviceId = cleanDeviceId(message.d);
             sendJson(client.ws, { t: 'welcome', id: client.id });
             this.sendStatus(client);
             this.sendRooms(client);
@@ -222,18 +222,18 @@ export class Lobby {
         return true;
     }
 
-    addressBusy(client) {
-        if (LOOPBACK_ADDRESSES.has(client.address)) return false;
+    deviceBusy(client) {
+        if (!client.deviceId) return false;
         for (const other of this.clients.values()) {
-            if (other !== client && other.address === client.address && other.state !== 'idle') return true;
+            if (other !== client && other.deviceId === client.deviceId && other.state !== 'idle') return true;
         }
         return false;
     }
 
     enqueue(client, message) {
         if (client.state !== 'idle') return;
-        if (this.addressBusy(client)) {
-            sendJson(client.ws, { t: 'error', msg: SAME_ADDRESS_MESSAGE });
+        if (this.deviceBusy(client)) {
+            sendJson(client.ws, { t: 'error', msg: SAME_DEVICE_MESSAGE });
             return;
         }
         if (!this.readChoice(client, message)) return;
@@ -251,8 +251,8 @@ export class Lobby {
             sendJson(client.ws, { t: 'joinFailed', msg: 'That match is no longer open.' });
             return;
         }
-        if (this.addressBusy(client)) {
-            sendJson(client.ws, { t: 'joinFailed', msg: SAME_ADDRESS_MESSAGE });
+        if (this.deviceBusy(client)) {
+            sendJson(client.ws, { t: 'joinFailed', msg: SAME_DEVICE_MESSAGE });
             return;
         }
         if (this.matches.size >= this.maxMatches) {

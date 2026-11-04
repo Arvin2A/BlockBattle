@@ -13,6 +13,7 @@
 - HAMMERMAN CPUs play smarter: MALLET heals from a safe distance or behind its walls, both variants put up walls to block you off (and at the ledge to stop your recovery), SLEDGEHAMMER does the QUICKSLAM follow-up, and both time their swings around their windup instead of swinging at point-blank and getting interrupted. Every CPU now knows how to deal with a wall in its way: hold behind its own, smash it, or jump over it.
 - New CPU difficulty: VERY HARD. It's the old HARD CPU at full strength, using BLOCK, SMACK DOWN, LEDGE GRAB and edgeguarding. HARD is now a step below it: same speed, but it doesn't use BLOCK, SMACK DOWN or LEDGE GRAB, and it doesn't chase you off the stage.
 - Heavy (100%+) and violent (150%+) launches now freeze the game for a split second on hit, like the death ray does, so big hits land harder. Violent ones freeze a bit longer.
+- Online: the one-match-at-a-time limit is now per device instead of per internet connection, so people on the same wifi can host and play each other again. You still can't be in two matches at once from two tabs on the same device.
 - Online quick chat: up to 3 messages can be on screen at once, stacked above your fighter. You can send 4 messages every 12 seconds.
 
 ### Fixed
