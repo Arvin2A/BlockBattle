@@ -31,7 +31,13 @@ export const HEX = {
     accent: 0xffd34d,
     panel: 0x171717,
     panelHover: 0x444444,
-    border: 0xffffff
+    border: 0xffffff,
+    shieldP1: 0xff4343,
+    shieldP1Stroke: 0xa01c1c,
+    shieldP2: 0x3d8bff,
+    shieldP2Stroke: 0x1a4fa8,
+    shieldCpu: 0x8a8a8a,
+    shieldCpuStroke: 0x444444
 };
 
 export function playerColor(slot) {

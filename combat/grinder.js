@@ -2,6 +2,8 @@
 // Original source: https://github.com/Arvin2A/BlockBattle
 // Licensed under the GNU GPL v3 only. See LICENSE.
 
+import { blocksHit } from './block.js';
+
 const CONTACT_GRAVITY_SCALE = 0.3;
 const CONTACT_MAX_FALL_SPEED = 120;
 
@@ -30,6 +32,9 @@ export function grindTick(api, scene, attacker, victim, lastContactAt, {
     setGrindFloat(scene, attacker, true);
 
     const now = scene.time.now;
+    if (blocksHit(scene, victim, attacker, chipDamage, { minCost: 0.02 })) {
+        return lastContactAt > 0 ? now - lastContactAt : 0;
+    }
     victim.KBmultiplier += chipDamage * api.getAttackDamageScale(attacker);
     victim.hitstunUntil = now + hitstun;
     victim.freezeUntil = now + freeze;

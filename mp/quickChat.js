@@ -23,9 +23,9 @@ export const QUICK_CHAT_CATEGORIES = [
 
 export const QUICK_CHAT_PHRASES = new Set(QUICK_CHAT_CATEGORIES.flatMap(category => category.phrases));
 
-export const QUICK_CHAT_COOLDOWN_MS = 2000;
+export const QUICK_CHAT_COOLDOWN_MS = 700;
 export const QUICK_CHAT_BURST_LIMIT = 4;
-export const QUICK_CHAT_BURST_WINDOW_MS = 15000;
+export const QUICK_CHAT_BURST_WINDOW_MS = 12000;
 
 export class QuickChatLimiter {
     constructor(slackMs = 0) {

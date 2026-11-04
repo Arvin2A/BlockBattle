@@ -207,6 +207,7 @@ function tryLunge(api, scene, player, direction, currentTime, animKey = 'swordat
 }
 
 export default {
+    armColor: 0x1e0f2d,
     hitSounds: {
         light: ['swordslash1', 'swordslash2'],
         finisher: 'swordthirdhitsfx',
@@ -214,7 +215,7 @@ export default {
         finisherMiss: 'swordthirdhitsfx'
     },
     variantStats: {
-        DAGGER: { attackCooldown: 100 }
+        DAGGER: { attackCooldown: 100, armColor: 0x222222 }
     },
     // Nudges the attack sprite: x along the facing direction, y down the screen.
     variantAttackSpriteOffsets: { LONGSWORD: { x: 0, y: 8 } },
