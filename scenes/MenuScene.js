@@ -9,6 +9,7 @@ import { preloadMenu } from "./GameScene/preload.js";
 import { fadeOutTo, slideInFromSides } from "./transitions.js";
 import { fetchServerStatus, getServerName, isOnlineConfigured } from "../mp/serverConfig.js";
 import { FONTS, COLORS } from "../ui/theme.js";
+import { clipScrollablePanel } from "../ui/clipScroll.js";
 import { getNavigationBounds, wrapIndex, moveSelection, createNavigationBox, moveNavigationBox, getConnectedControllers, getMenuGamepadInput} from "../navigation.js"
 var currentControllers = [];
 var primaryController = null;
@@ -379,7 +380,7 @@ export class MenuScene extends Phaser.Scene {
 
                     panel: {
                         child: content,
-                        mask: { padding: 0, maskType: 'layer' }
+                        mask: false
                     },
 
                     sliderY: {
@@ -413,6 +414,7 @@ export class MenuScene extends Phaser.Scene {
                 });
 
                 changelogPanel.layout();
+                clipScrollablePanel(this, changelogPanel, { inset: 4 });
                 changelogPanel.setDepth(2002);
             };
 
