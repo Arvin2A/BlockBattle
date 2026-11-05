@@ -277,4 +277,16 @@ export function createGameAnimations(scene) {
         frameRate: 36,
         repeat: 0
     });
+    scene.anims.create({
+        key: 'lawnmowerrun',
+        frames: scene.anims.generateFrameNumbers('lawnmowerrun', { start: 0, end: 1 }),
+        frameRate: 18,
+        repeat: -1
+    });
+    scene.anims.create({
+        key: 'pullcord',
+        frames: scene.anims.generateFrameNumbers('pullcord', { start: 0, end: 5 }),
+        frameRate: 30,
+        repeat: 0
+    });
 }

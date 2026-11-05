@@ -2,7 +2,7 @@
 // Original source: https://github.com/Arvin2A/BlockBattle
 // Licensed under the GNU GPL v3 only. See LICENSE.
 
-import { grindExplosion, grindTick, setGrindFloat } from '../combat/grinder.js';
+import { grindExplosion, grindTick, setGrindFloat, ALWAYS_ON_GRINDERS, interruptGrinder, grinderCanResume, holdGrinderInPlace } from '../combat/grinder.js';
 
 export const MAX_WOOD_COUNT = 225;
 
@@ -200,6 +200,7 @@ function breakPlanksWithChainsaw(api, scene, attacker) {
 function updateChainsaw(api, scene, attacker, victim, options = {}) {
     if (!attacker.active || attacker.hitstun || attacker.freeze) {
         deactivateChainsaw(scene, attacker);
+        interruptGrinder(scene, attacker);
         return;
     }
     api.positionAttackSprite(attacker, 'activechainsaw');
@@ -364,12 +365,21 @@ function toggleChainsawMode(scene, attacker) {
 
 function toggleChainsaw(api, scene, attacker, victim, options = {}) {
     if (!attacker.chainsawMode || attacker.hitstun || attacker.freeze) return;
+    if (ALWAYS_ON_GRINDERS) return;
     if (attacker.chainsawActive || scene.time.now < (attacker.chainsawCooldownUntil ?? 0)) {
         deactivateChainsaw(scene, attacker);
         return;
     }
     if (scene.time.now < (attacker.chainsawCooldownUntil ?? 0)) return;
     activateChainsaw(api, scene, attacker, victim, options);
+}
+
+function keepChainsawRunning(api, scene, attacker, victim) {
+    if (attacker.variant !== 'CHAINSAW') return;
+    holdGrinderInPlace(scene, attacker, attacker.chainsawActive ? attacker.chainsawLastContactTime : 0);
+    if (!attacker.chainsawMode || attacker.chainsawActive) return;
+    if (scene.time.now < (attacker.chainsawCooldownUntil ?? 0) || !grinderCanResume(scene, attacker)) return;
+    activateChainsaw(api, scene, attacker, victim);
 }
 
 function handleAttack(api, scene, attacker, victim) {
@@ -494,6 +504,12 @@ export default {
     // Axes are made for chopping wood.
     plankDamageScale: 3,
     handleAttack,
+    onMatchEnd: (scene, attacker) => {
+        attacker.chainsawHitEvent?.remove(false);
+        attacker.chainsawHitEvent = null;
+        attacker.chainsawSFX?.stop();
+    },
+    update: (api, scene, attacker, victim) => keepChainsawRunning(api, scene, attacker, victim),
     updateChainsawWood,
     toggleChainsawMode,
     miscVariants: ['CHAINSAW'],

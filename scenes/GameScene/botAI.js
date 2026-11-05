@@ -4,7 +4,7 @@
 
 import { Commands } from "../../commands.js";
 import { executeStateCommand } from "../../commands.js";
-import { handleAttack } from "../../attacks.js";
+import { handleAttack, handleMisc } from "../../attacks.js";
 import { handleDirSpecial } from "../../attacks.js";
 import { handleDirSpecialAttack } from "../../attacks.js";
 import { toggleChainsawMode } from "../../attacks.js";
@@ -513,6 +513,11 @@ export function runBotAI(scene, bot, target, fiveframecount) {
         return;
     }
 
+    if (bot.name === 'SCYTHEMAN' && bot.variant === 'LAWNMOWER' &&
+        runLawnmowerBot(scene, bot, target, surfaces, grounded, difficulty, now)) {
+        return;
+    }
+
     if (bot.name === "GUNMAN") {
         const horizontalLane = Math.abs(dy + 10) <= target.body.height / 2 + 1;
         const verticalLane = Math.abs(dx) <= target.body.width / 2 + 1;
@@ -755,6 +760,7 @@ function specialFits(bot, dx, dy, grounded) {
             if (bot.variant === 'TRAPPER') return adx > 150 && adx < 400 && ady < 150;
             return adx > 250 && adx < 450 && ady < 80;
         case 'SCYTHEMAN':
+            if (bot.variant === 'LAWNMOWER') return false;
             // GRUELING SLAM only reaches about one scythe length in front.
             return adx < 140 && ady < 110;
         case 'HAMMERMAN':
@@ -1055,5 +1061,100 @@ function dodgeMinigun(scene, bot, target, surfaces, grounded, difficulty, now) {
     } else if (!grounded && needsHeight && bot.body.velocity.y > -60) {
         tryDoubleJump(scene, bot);
     }
+    return true;
+}
+
+const MOWER_BOT = {
+    ejectMin: 250,
+    ejectMax: 800,
+    ejectMaxDy: 50,
+    rideFrom: 450,
+    dismountAt: 170,
+    plowStop: 55,
+    plowMaxDy: 80,
+    cordReach: 115,
+    cordSpacing: 200,
+    clipRange: 380,
+    clipMinRange: 120,
+    clipMinAmmo: 5,
+    clipBurst: 6,
+    clipCooldownMs: 2500
+};
+
+function lawnmowerClipBurst(scene, bot, target, adx, dy, side, hittable, now) {
+    if ((bot.botClipBurst ?? 0) > 0) {
+        if (now >= (bot.nextClippingsTime ?? 0)) {
+            bot.lastDir = { x: side, y: 0 };
+            handleNeutralSpecial(scene, bot, target);
+            bot.botClipBurst -= 1;
+        }
+        return;
+    }
+    if (hittable && (bot.clippings ?? 0) >= MOWER_BOT.clipMinAmmo && adx > MOWER_BOT.clipMinRange &&
+        adx < MOWER_BOT.clipRange && Math.abs(dy) < 60 && now >= (bot.botNextClipAt ?? 0)) {
+        bot.botClipBurst = MOWER_BOT.clipBurst;
+        bot.botNextClipAt = now + MOWER_BOT.clipCooldownMs;
+    }
+}
+
+function runLawnmowerBot(scene, bot, target, surfaces, grounded, difficulty, now) {
+    const dx = target.x - bot.x;
+    const dy = target.y - bot.y;
+    const adx = Math.abs(dx);
+    const side = Math.sign(dx) || bot.lastDir.x || 1;
+    const state = bot.mowerState ?? 'ready';
+    const hittable = target.active && !isInvincible(target);
+    const targetOffStage = isOffStage(target, surfaces);
+    const lineClear = !isBlockedByWall(bot, target);
+    const mowerOut = state === 'ready' || state === 'plow' || state === 'ride';
+
+    if (hittable && lineClear && mowerOut && Math.abs(dy) < MOWER_BOT.ejectMaxDy &&
+        adx > MOWER_BOT.ejectMin && adx < MOWER_BOT.ejectMax && now >= bot.nextSideSpecialTime &&
+        !hesitates(bot, difficulty, now)) {
+        useDirSpecial(scene, bot, target, side);
+        send(scene, bot, Commands.NONE);
+        return true;
+    }
+
+    lawnmowerClipBurst(scene, bot, target, adx, dy, side, hittable, now);
+
+    if (state === 'ride') {
+        if (adx < MOWER_BOT.dismountAt || targetOffStage) {
+            handleMisc(scene, bot, target);
+            return false;
+        }
+        walk(scene, bot, side, surfaces);
+        return true;
+    }
+    if (mowerOut && grounded && adx > MOWER_BOT.rideFrom && !targetOffStage && !hesitates(bot, difficulty, now)) {
+        handleMisc(scene, bot, target);
+        walk(scene, bot, side, surfaces);
+        return true;
+    }
+
+    if (state === 'cord' || state === 'dismounted') {
+        if (hittable && adx < MOWER_BOT.cordReach && Math.abs(dy) < 60 &&
+            bot.canAttack && now >= bot.nextAttackTime) {
+            bot.lastDir = { x: side, y: 0 };
+            send(scene, bot, Commands.NONE);
+            handleAttack(scene, bot, target);
+            return true;
+        }
+        if (targetOffStage || Math.abs(dy) > MOWER_BOT.plowMaxDy) return false;
+        if (adx < MOWER_BOT.cordSpacing - 40) {
+            if (!walk(scene, bot, -side, surfaces)) send(scene, bot, Commands.NONE);
+        } else if (adx > MOWER_BOT.cordSpacing + 60) {
+            walk(scene, bot, side, surfaces);
+        } else {
+            send(scene, bot, Commands.NONE);
+        }
+        bot.lastDir = { x: side, y: 0 };
+        return true;
+    }
+
+    if (targetOffStage || Math.abs(dy) > MOWER_BOT.plowMaxDy) return false;
+    if (adx > MOWER_BOT.plowStop) walk(scene, bot, side, surfaces);
+    else send(scene, bot, Commands.NONE);
+    bot.lastDir = { x: side, y: 0 };
     return true;
 }

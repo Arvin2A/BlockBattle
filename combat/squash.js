@@ -67,10 +67,12 @@ export function applySquash(scene, players) {
             squash.value = Phaser.Math.Clamp(squash.value + squash.speed * dt, -SQUASH.limit, SQUASH.limit);
         }
         const flat = getFlatSquash(player, scene.time.now);
-        if (Math.abs(squash.value) < 0.002 && flat <= 0) continue;
-        const scaleY = flat > 0 ? 1 - FLAT_SQUASH.height * flat : 1 + squash.value;
-        const scaleX = flat > 0 ? 1 + FLAT_SQUASH.width * flat : 1 - squash.value * SQUASH.widthPerStretch;
-        const offsetY = player.displayHeight * 0.5 * (1 - scaleY);
+        const lift = player.renderLiftY ?? 0;
+        const squashed = Math.abs(squash.value) >= 0.002 || flat > 0;
+        if (!squashed && !lift) continue;
+        const scaleY = flat > 0 ? 1 - FLAT_SQUASH.height * flat : squashed ? 1 + squash.value : 1;
+        const scaleX = flat > 0 ? 1 + FLAT_SQUASH.width * flat : squashed ? 1 - squash.value * SQUASH.widthPerStretch : 1;
+        const offsetY = player.displayHeight * 0.5 * (1 - scaleY) - lift;
         squash.applied = [
             stretchObject(player, scaleX, scaleY, offsetY),
             stretchObject(player.flashObject, scaleX, scaleY, offsetY)

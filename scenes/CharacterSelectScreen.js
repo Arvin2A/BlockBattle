@@ -301,6 +301,43 @@ export class CharacterSelectScene extends Phaser.Scene {
             wordWrap: { width: 200 }
         }).setOrigin(0.5);
 
+        this.descAdvanced = { 1: false, 2: false };
+        const createDescToggle = (x, player) => {
+            const toggle = this.add.text(x, 482, '', {
+                fontFamily: FONTS.body,
+                fontSize: '16px',
+                fill: COLORS.accent
+            }).setOrigin(0.5).setInteractive({ useHandCursor: true });
+            toggle.on('pointerover', () => toggle.setColor(COLORS.text));
+            toggle.on('pointerout', () => toggle.setColor(COLORS.accent));
+            toggle.on('pointerdown', () => {
+                this.descAdvanced[player] = !this.descAdvanced[player];
+                this.sound.play('hover2');
+                this.updateCharacterDescriptions();
+            });
+            return toggle;
+        };
+        this.descToggles = { 1: createDescToggle(130, 1), 2: createDescToggle(870, 2) };
+        const DESC_BASIC_SIZE = 20;
+        const DESC_ADVANCED_SIZE = 17;
+        const DESC_ADVANCED_MIN_SIZE = 11;
+        const DESC_ADVANCED_MAX_HEIGHT = 250;
+        this.showDescription = (player, variant) => {
+            const text = player === 1 ? this.p1DescText : this.p2DescText;
+            const advanced = this.descAdvanced[player] && Boolean(variant.abilities);
+            this.descToggles[player]
+                .setText(this.descAdvanced[player] ? 'BASIC VIEW' : 'ADVANCED VIEW')
+                .setVisible(Boolean(variant.abilities));
+            if (!advanced) {
+                text.setFontSize(DESC_BASIC_SIZE).setText(variant.desc).setY(330);
+                return;
+            }
+            text.setFontSize(DESC_ADVANCED_SIZE).setText(variant.abilities).setY(330);
+            for (let size = DESC_ADVANCED_SIZE - 1; size >= DESC_ADVANCED_MIN_SIZE && text.height > DESC_ADVANCED_MAX_HEIGHT; size--) {
+                text.setFontSize(size);
+            }
+        };
+
         // CPU difficulty: "< NORMAL >" above each CPU's description box.
         const createDifficultyPicker = (x, player) => {
             const label = this.add.text(x, 82, '', {
@@ -400,12 +437,7 @@ export class CharacterSelectScene extends Phaser.Scene {
             this.p1VariantText.setText(p1Variant.name);
             this.p1VariantText.setColor(p1Variant.color);
 
-            this.p1DescText.setText(p1Variant.desc);
-            if (p1Variant.fontSize) {
-                this.p1DescText.setFontSize(p1Variant.fontSize);
-            } else {
-                this.p1DescText.setFontSize(20);
-            }
+            this.showDescription(1, p1Variant);
 
             this.p2NameText.setText(p2.name);
             this.p2NameText.setColor(p2Variant.color);
@@ -444,12 +476,7 @@ export class CharacterSelectScene extends Phaser.Scene {
             }
 
 
-            this.p2DescText.setText(p2Variant.desc);
-            if (p2Variant.fontSize) {
-                this.p2DescText.setFontSize(p2Variant.fontSize);
-            } else {
-                this.p2DescText.setFontSize(20);
-            }
+            this.showDescription(2, p2Variant);
 
             if (this.mobileWheels) {
                 this.mobileWheels.p1.refresh(this.p1Index, p1Direction);
