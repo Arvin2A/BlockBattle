@@ -4,7 +4,7 @@
 
 import { Commands } from "../../commands.js";
 import { executeStateCommand } from "../../commands.js";
-import { handleAttack, handleMisc } from "../../attacks.js";
+import { handleAttack, handleMisc, tryExtraJump, canExtraJump } from "../../attacks.js";
 import { handleDirSpecial } from "../../attacks.js";
 import { handleDirSpecialAttack } from "../../attacks.js";
 import { toggleChainsawMode } from "../../attacks.js";
@@ -346,6 +346,11 @@ function recover(scene, bot, target, surfaces) {
 
     if (!bot.hasDoubleJumped && (nearLevel || goal.gap > 250)) {
         tryDoubleJump(scene, bot);
+        return;
+    }
+    const needsLift = feet > goal.top + 20 || goal.gap > 250;
+    if (bot.hasDoubleJumped && needsLift && bot.body.velocity.y > 40 && canExtraJump(bot)) {
+        tryExtraJump(scene, bot, target);
         return;
     }
     if (!nearLevel || goal.gap < 20) return;

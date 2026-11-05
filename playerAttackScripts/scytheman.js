@@ -509,7 +509,8 @@ const RIDE_PUSH = {
 };
 
 const CLIPPINGS = {
-    max: 30,
+    max: 45,
+    perCut: 3,
     perSpray: 5,
     cooldownMs: 50,
     spreadDeg: 18,
@@ -567,7 +568,7 @@ function setupMower(scene, player) {
 }
 
 function onGrassCut(scene, player) {
-    player.clippings = Math.min(CLIPPINGS.max, player.clippings + 1);
+    player.clippings = Math.min(CLIPPINGS.max, player.clippings + CLIPPINGS.perCut);
     if (player.mowerState === 'cord') player.mowerCordUntil -= MOWER.fuelPerCutMs;
     if (player.mowerState === 'ride') player.mowerBoostUntil = scene.time.now + MOWER.boostMs;
 }
@@ -964,6 +965,8 @@ function holdClippings(api, scene, player, victim) {
 function updateLawnmower(api, scene, player, victim) {
     if (!isMower(player)) return;
     setupMower(scene, player);
+    player.mowerApi = api;
+    if (player.body.touching.down || player.body.blocked.down) player.sacrificeJumpUsed = false;
     holdClippings(api, scene, player, victim);
     const now = scene.time.now;
     const facing = facingOf(player);
@@ -1050,6 +1053,80 @@ function silenceLawnmower(scene, player) {
     updateMowerDirt(player, facingOf(player), false);
 }
 
+const SACRIFICE = {
+    jumpSpeed: 400,
+    dropSpeed: 250,
+    splashRange: 110,
+    worldWidth: 2000,
+    worldHeight: 1200,
+    lifetimeMs: 4000
+};
+
+function canSacrificeMower(player) {
+    return isMower(player) && player.mower &&
+        ['ready', 'plow', 'ride'].includes(player.mowerState) &&
+        player.hasDoubleJumped && !player.doubleJumpClipped && !player.sacrificeJumpUsed &&
+        !player.body.touching.down && !player.body.blocked.down;
+}
+
+function sacrificeJump(scene, player, victim) {
+    if (!canSacrificeMower(player)) return false;
+    if (player.mowerState === 'ride') stopRide(player, 'ready', { quiet: true });
+    if (player.mowerState === 'plow') stopPlow(scene, player);
+    startCord(scene, player, { quiet: true });
+    player.sacrificeJumpUsed = true;
+    player.setVelocityY(-SACRIFICE.jumpSpeed);
+    player.doubleJumpEffect?.setAlpha(1);
+    scene.tweens.add({ targets: player.doubleJumpEffect, alpha: 0, duration: 200, ease: 'Cubic.easeOut' });
+    scene.sound.play('whoosh');
+    dropMower(scene, player, victim);
+    return true;
+}
+
+function dropMower(scene, player, victim) {
+    const api = player.mowerApi;
+    const { mower, solid, thin, landsFromAbove } = addMowerBody(scene, player, player.x, 'lawnmower-only');
+    mower.setFlipX(facingOf(player) < 0);
+    mower.setVelocity(player.body.velocity.x * 0.3, SACRIFICE.dropSpeed);
+    let exploded = false;
+    const colliders = [];
+    const explode = () => {
+        if (exploded || !mower.active) return;
+        exploded = true;
+        colliders.forEach(collider => collider.destroy());
+        removeUpdate();
+        expire.remove(false);
+        const near = victim?.active &&
+            Phaser.Math.Distance.Between(mower.x, mower.y, victim.x, victim.y) <= SACRIFICE.splashRange;
+        if (near && !api.isInvincible(victim)) {
+            grindExplosion(api, scene, player, victim, {
+                ...PLOW_EXPLOSION,
+                ranged: true,
+                direction: { x: Math.sign(victim.x - mower.x) || facingOf(player), y: 0 }
+            });
+        } else {
+            api.spawnExplosion(scene, mower, 0.9);
+            scene.sound.play('explosion');
+        }
+        mower.destroy();
+    };
+    colliders.push(
+        scene.physics.add.collider(mower, solid, explode),
+        scene.physics.add.collider(mower, thin, explode, landsFromAbove),
+        scene.physics.add.collider(mower, scene.planks, (_mower, plank) => {
+            if (plank.health > 0) api.damagePlank(scene, plank, plank.health);
+            explode();
+        })
+    );
+    if (victim) colliders.push(scene.physics.add.overlap(mower, victim, explode));
+    const removeUpdate = api.addSceneUpdateListener(scene, () => {
+        if (!mower.active) return;
+        const out = mower.x < 0 || mower.x > SACRIFICE.worldWidth || mower.y > SACRIFICE.worldHeight;
+        if (out) explode();
+    });
+    const expire = scene.time.delayedCall(SACRIFICE.lifetimeMs, explode);
+}
+
 function forVariant(lawnmower, landscaper) {
     return (api, scene, attacker, ...rest) => attacker.variant === 'LAWNMOWER'
         ? lawnmower(api, scene, attacker, ...rest)
@@ -1071,6 +1148,8 @@ export default {
     handleMisc: lawnmowerMisc,
     specialMeter: lawnmowerMeter,
     onMatchEnd: silenceLawnmower,
+    tryExtraJump: (scene, player, victim) => sacrificeJump(scene, player, victim),
+    canExtraJump: canSacrificeMower,
     handleAttack: forVariant(lawnmowerAttack, (api, scene, attacker, victim) =>
         tryAttack2(api, scene, attacker, victim, 'scytheatk', 'scytheatk')),
     handleDirSpecial: forVariant(lawnmowerDirSpecial, (api, scene, attacker, direction, currentTime, victim) =>

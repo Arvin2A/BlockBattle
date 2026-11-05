@@ -3,7 +3,7 @@
 // Licensed under the GNU GPL v3 only. See LICENSE.
 
 import Phaser from 'phaser';
-import {handleAttack, handleMatchEnd, handleDirSpecial, handleNeutralSpecial, handleDirSpecialAttack, handleHorizantalTilt, handleDownTilt, handleUpTilt, downslamAttack, updateScythemanGrass, updateChainsawWood, updateCharacter, handleMisc, hasMiscButton, usesToggleAttack, getSpecialMeter, tryQuickslamJump, positionAttackSprite, hasIdleAttackSprite, getAttackSpriteOffset, getAttackSpriteAngle, getAttackSpriteFlipX, triggerScreenShake, spawnDirtBurst, spawnExplosion} from './attacks.js';
+import {handleAttack, handleMatchEnd, tryExtraJump, handleDirSpecial, handleNeutralSpecial, handleDirSpecialAttack, handleHorizantalTilt, handleDownTilt, handleUpTilt, downslamAttack, updateScythemanGrass, updateChainsawWood, updateCharacter, handleMisc, hasMiscButton, usesToggleAttack, getSpecialMeter, tryQuickslamJump, positionAttackSprite, hasIdleAttackSprite, getAttackSpriteOffset, getAttackSpriteAngle, getAttackSpriteFlipX, triggerScreenShake, spawnDirtBurst, spawnExplosion} from './attacks.js';
 import { COLORS, FONTS, HEX, makePanel, playerColor, playerHex, textStyle } from './ui/theme.js';
 import { addTouchAssist, isPhoneScreen } from './ui/touchAssist.js';
 import { addThumbstick } from './ui/touchJoystick.js';
@@ -2342,6 +2342,8 @@ function update() {
                     type: Commands.DOUBLE_UP
                 });
                 
+            } else if (!quickslamJumped && !p1.body.touching.down) {
+                tryExtraJump(this, p1, p2);
             }
         }
         if (in1.downPressed) {
@@ -2475,6 +2477,8 @@ function update() {
                     playerID: p2.id,
                     type: Commands.DOUBLE_UP
                 });
+            } else if (!quickslamJumped && !p2.body.touching.down) {
+                tryExtraJump(this, p2, p1);
             }
             p2.lastInput.up = this.time.now;
             if (!upFromTouch && inputMode.p2 !== "keyboard") {
@@ -2594,7 +2598,6 @@ function update() {
             if (this.online && this.gameEnded) reportMatchEnd(p1.outOfBounds ? 'p2' : 'p1');
         }
     }
-    updateKB(this);
     const pickAI = slot => window.__legacySlot === slot ? runLegacyBotAI : runBotAI;
     if (botMode) {
         pickAI('p2')(this, p2, p1, fiveframecount);
@@ -2602,6 +2605,7 @@ function update() {
     if (simulationMode) {
         pickAI('p1')(this, p1, p2, fiveframecount);
     }
+    updateKB(this);
     updateMapHazard(this);
     if (fiveframecount >= 5) {
         fiveframecount = 0;
