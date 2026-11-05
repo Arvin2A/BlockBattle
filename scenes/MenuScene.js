@@ -80,7 +80,7 @@ export class MenuScene extends Phaser.Scene {
             },
             {
                 title: "LAWNMOWER SCYTHEMAN",
-                body: "SCYTHEMAN's new variant is here, and he's here to run you over. Press attack to shove his mower into you and grind until it blows up, hit ALT to ride it around way faster, or double-tap a direction to EJECT it, sending it off on its own, speeding up until it explodes on whatever it hits.\n Once it blows up he's stuck with a PULL CORD for 6 seconds, so mow some grass to get it back sooner. Every bit of grass he cuts also turns into CLIPPINGS you can spray back with neutral special."
+                body: "SCYTHEMAN's new variant is here, and he's here to run you over. Press attack to shove his mower into you and grind until it blows up, hit ALT to ride it around way faster, or double-tap a direction to EJECT it, sending it off on its own, speeding up until it explodes on whatever it hits.\n Once it blows up he's stuck with a PULL CORD for 8 seconds, so mow some grass to get it back sooner. Every bit of grass he cuts also turns into CLIPPINGS you can spray back with neutral special."
             },
             {
                 title: "BLOCK",
