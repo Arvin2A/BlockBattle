@@ -40,6 +40,7 @@ export function preloadCharacterSelection() {
         ['fisherman', 'assets/sprites/fisherman/fisherman-default.png'],
         ['trapperman', 'assets/sprites/fisherman/fisherman-trapper.png'],
         ['scytheman', 'assets/sprites/scytheman/scytheman-default.png'],
+        ['lawnmowerman', 'assets/sprites/scytheman/scytheman-lawnmower.png'],
         ['hammerman', 'assets/sprites/hammerman/hammerman-default.png'],
         ['sledgehammerman', 'assets/sprites/hammerman/hammerman-sledgehammer.png'],
         ['slateman', 'assets/sprites/slateman/slateman-default-1.png'],
@@ -412,6 +413,14 @@ export function preload() {
         'scytheman',
         'assets/sprites/scytheman/scytheman-default.png'
     );
+
+    this.load.image('lawnmowerman', 'assets/sprites/scytheman/scytheman-lawnmower.png');
+    this.load.image('lawnmower-held', 'assets/sprites/scytheman/lawnmower-held.png');
+    this.load.image('lawnmower-only', 'assets/sprites/scytheman/lawnmower-only.png');
+    this.load.spritesheet('lawnmowerrun', 'assets/sprites/scytheman/lawnmowerrun.png', { frameWidth: 130, frameHeight: 75 });
+    this.load.spritesheet('pullcord', 'assets/sprites/scytheman/pullcord.png', { frameWidth: 130, frameHeight: 75 });
+    this.load.audio('lawnmower-loop', 'audio/lawnmower-loop.wav');
+    this.load.audio('lawnmower-end', 'audio/lawnmower-end.wav');
 
     this.load.image(
         'whitescythe',

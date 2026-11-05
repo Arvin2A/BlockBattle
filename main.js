@@ -3,7 +3,7 @@
 // Licensed under the GNU GPL v3 only. See LICENSE.
 
 import Phaser from 'phaser';
-import {handleAttack, handleDirSpecial, handleNeutralSpecial, handleDirSpecialAttack, handleHorizantalTilt, handleDownTilt, handleUpTilt, downslamAttack, updateScythemanGrass, updateChainsawWood, updateCharacter, handleMisc, hasMiscButton, usesToggleAttack, getSpecialMeter, tryQuickslamJump, positionAttackSprite, hasIdleAttackSprite, getAttackSpriteOffset, getAttackSpriteAngle, getAttackSpriteFlipX, triggerScreenShake, spawnDirtBurst, spawnExplosion} from './attacks.js';
+import {handleAttack, handleMatchEnd, handleDirSpecial, handleNeutralSpecial, handleDirSpecialAttack, handleHorizantalTilt, handleDownTilt, handleUpTilt, downslamAttack, updateScythemanGrass, updateChainsawWood, updateCharacter, handleMisc, hasMiscButton, usesToggleAttack, getSpecialMeter, tryQuickslamJump, positionAttackSprite, hasIdleAttackSprite, getAttackSpriteOffset, getAttackSpriteAngle, getAttackSpriteFlipX, triggerScreenShake, spawnDirtBurst, spawnExplosion} from './attacks.js';
 import { COLORS, FONTS, HEX, makePanel, playerColor, playerHex, textStyle } from './ui/theme.js';
 import { addTouchAssist, isPhoneScreen } from './ui/touchAssist.js';
 import { addThumbstick } from './ui/touchJoystick.js';
@@ -1373,6 +1373,7 @@ function playRespawn(scene, player) {
 
 function showMatchEnd(scene, winner, loser) {
     for (const player of [winner, loser]) {
+        handleMatchEnd(scene, player);
         player.launchTrail.stop();
         player.violentTrail.stop();
         player.ultraTrail.stop();
@@ -1687,6 +1688,40 @@ const SLATEMAN_PHASES = [
     { minKB: 2.50, texture: 'slatemanphase3', resistance: 0.5 }
 ];
 
+const CLIPPED_SPEED_SCALE = 0.35;
+
+function updateClippedStatus(scene, player, clipped) {
+    if (clipped && !player.hasDoubleJumped) {
+        player.hasDoubleJumped = true;
+        player.doubleJumpClipped = true;
+    } else if (!clipped && player.doubleJumpClipped) {
+        player.hasDoubleJumped = false;
+        player.doubleJumpClipped = false;
+    }
+    if (!player.clippedShed && clipped) {
+        player.clippedShed = scene.add.particles(player.x, player.y, '__WHITE', {
+            x: { min: -18, max: 18 },
+            y: { min: -18, max: 18 },
+            speedY: { min: 20, max: 70 },
+            speedX: { min: -25, max: 25 },
+            gravityY: 300,
+            scale: { start: 2.2, end: 0.6 },
+            alpha: { start: 0.9, end: 0 },
+            tint: [0x2f7d1f, 0x3f9a2a, 0x255f18],
+            lifespan: 450,
+            frequency: 45,
+            quantity: 1,
+            emitting: false
+        });
+        scene.objs.add(player.clippedShed);
+    }
+    const shed = player.clippedShed;
+    if (!shed) return;
+    shed.setPosition(player.x, player.y);
+    if (clipped && !shed.emitting) shed.start();
+    else if (!clipped && shed.emitting) shed.stop();
+}
+
 function updateKB(scene) {
     for (const key in scene.gameState.players) {
         const player = scene.gameState.players[key];
@@ -1743,6 +1778,9 @@ function updateKB(scene) {
             speedScaling *= 0.5;
             damageScale *= 0.5;
         }
+        const clipped = scene.time.now < (player.clippedUntil ?? 0);
+        if (clipped) speedScaling *= CLIPPED_SPEED_SCALE;
+        updateClippedStatus(scene, player, clipped);
         player.playerSpeedScaling = speedScaling;
         player.baseDamageScale = damageScale;
         player.choppedMark.visible = player.chopped;
@@ -1806,6 +1844,21 @@ function getMapPlatforms(scene) {
         ...scene.gameState.map.topPlatforms.getChildren()
     ].filter(platform => platform.active && platform.body?.enable);
 }
+const STALE_FLOAT_MS = 200;
+
+function gravityHeldOff(player) {
+    return Boolean(player.ledge || player.smackedBy || player.grabbedBy ||
+        player.isUsingSideSpecial || !player.body.enable);
+}
+
+function restoreGroundFriction(player) {
+    if (player.willDecelerate || player.hitstun || player.freeze) return;
+    if (!(player.body.blocked.down || player.body.touching.down)) return;
+    if (player.isUsingSideSpecial || player.ledgeSlide || player.smackArc ||
+        player.activeGrab || player.grabbedBy || player.smackedBy) return;
+    player.willDecelerate = true;
+}
+
 const TUNNEL_LAND_SLOP = 2;
 const TUNNEL_MAX_FRAME_DROP = 600;
 
@@ -2055,6 +2108,7 @@ function update() {
 
         player.freeze =
             this.time.now < player.freezeUntil;
+        restoreGroundFriction(player);
         if (player.isAttacking || player.hitstun || player.freeze) cancelDownslamFx(player);
         updateLaunchArc(player);
         if (player.canAttack || player.hitstun || player.freeze || player.activeGrab || player.grabbedBy) {
@@ -2462,14 +2516,17 @@ function update() {
     }
     for (const player of [p1, p2]) {
         if (player.freeze) {
-            if (player.freezeGravity === null) {
-                player.freezeGravity = player.body.allowGravity;
-            }
+            player.freezeGravity = true;
             player.body.allowGravity = false;
             player.setVelocity(0, -1);
-        } else if (player.freezeGravity !== null) {
-            player.body.allowGravity = player.freezeGravity;
+        } else if (player.freezeGravity) {
             player.freezeGravity = null;
+            player.body.allowGravity = !gravityHeldOff(player);
+        } else if (!player.body.allowGravity && !gravityHeldOff(player)) {
+            player.body.allowGravity = true;
+        }
+        if (player.body.gravity.y < 0 && this.time.now - (player.grindFloatAt || -Infinity) > STALE_FLOAT_MS) {
+            player.body.gravity.y = 0;
         }
     }
 

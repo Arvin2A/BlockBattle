@@ -12,12 +12,14 @@ export const CHARACTER_ROSTER = [
         variants: [
             {
                 name: 'LONGSWORD',
-                desc: 'Beware of the slashing sword. \n\nDIR SPECIAL: LUNGE \n\n Mediocre knockback on hit, however it has insane clutch potential.',
+                desc: 'Beware of the slashing sword.',
+                abilities: 'DIR SPECIAL: LUNGE \n\n Mediocre knockback on hit, however it has insane clutch potential.',
                 color: '#0080ff'
             },
             {
                 name: 'DAGGER',
-                desc: 'Wow, you can stab faster now isn\'t that cool. \n\nDIR SPECIAL: QUICKSTEP \n\n Use it to phase through your opponent',
+                desc: 'Wow, you can stab faster now isn\'t that cool.',
+                abilities: 'DIR SPECIAL: QUICKSTEP \n\n Use it to phase through your opponent.',
                 color: '#004b95'
             },
         ]
@@ -28,14 +30,15 @@ export const CHARACTER_ROSTER = [
         variants: [
             {
                 name: 'LUMBERER',
-                desc: 'Beware of the chopping axe. \n\nDIR SPECIAL: POWER SWING \n\n Deal a 34% KB medium knockback strike, weakens your opponent for a bit!',
+                desc: 'Beware of the chopping axe.',
+                abilities: 'DIR SPECIAL: POWER SWING \n\n Deal a 34% KB medium knockback strike, weakens your opponent for a bit!',
                 color: '#ff4444'
             },
             {
                 name: 'CHAINSAW',
-                desc: 'Whats better than brutally grinding down your opponent? Building. Press ALT to switch between build and chainsaw mode. Gain wood by digging down. \n\n DIR SPECIAL: RAMPAGE \n\n Doubles your damage output for 1 second.',
-                color: '#ffae00',
-                fontSize: 17
+                desc: 'Whats better than brutally grinding down your opponent? Building.',
+                abilities: 'ALT: BUILD MODE \n\n Switch between build and chainsaw mode. Gain wood by digging down. \n\nDIR SPECIAL: RAMPAGE \n\n Doubles your damage output for 1 second.',
+                color: '#ffae00'
             }
         ]
     },
@@ -45,14 +48,15 @@ export const CHARACTER_ROSTER = [
         variants: [
             {
                 name: 'ANGLER',
-                desc: 'Using a fishing rod as a whip?? \n\nDIR SPECIAL: GRAPPLE \n\n Throw your hook far for the chance to reel your opponent in.',
+                desc: 'Using a fishing rod as a whip??',
+                abilities: 'DIR SPECIAL: GRAPPLE \n\n Throw your hook far for the chance to reel your opponent in.',
                 color: '#00318d'
             },
             {
                 name: 'TRAPPER',
-                desc: 'Why catch one fish when you can catch them all? Your third stab pins them to the floor. \n\nDIR SPECIAL: THROW NET \n\n Stuns for 3 seconds, whether it lands on them or they walk into it on the ground.',
-                color: '#e0661b',
-                fontSize: 17
+                desc: 'Why catch one fish when you can catch them all? Your third stab pins them to the floor.',
+                abilities: 'DIR SPECIAL: THROW NET \n\n Stuns for 3 seconds, whether it lands on them or they walk into it on the ground.',
+                color: '#e0661b'
             }
         ]
     },
@@ -62,9 +66,15 @@ export const CHARACTER_ROSTER = [
         variants: [
             {
                 name: 'LANDSCAPER',
-                desc: 'Built for my exact purpose, cutting them grass. Grass grows wherever you walk, and each cut of your grass makes you harder to launch. \n\nNEUTRAL SPECIAL: SOW \n\n Toss out 7 seeds that grow grass where they land. Spam it as fast as you like. \n\nDIR SPECIAL: GRUELING SLAM \n\n A giant scythe crash that pins them down for 3 seconds.',
-                color: '#686868',
-                fontSize: 16
+                desc: 'Built for my exact purpose, cutting them grass. Grass grows wherever you walk, and each cut of your grass makes you harder to launch.',
+                abilities: 'NEUTRAL SPECIAL: SOW \n\n Toss out 7 seeds that grow grass where they land. Spam it as fast as you like. \n\nDIR SPECIAL: GRUELING SLAM \n\n A giant scythe crash that pins them down.',
+                color: '#686868'
+            },
+            {
+                name: 'LAWNMOWER',
+                desc: 'Mow them down. Push it, ride it or launch it, and cut grass to keep it running.',
+                abilities: 'ATTACK: PLOW \n\n Push your mower into them and grind until it blows up. Then you only have a PULL CORD for 6 seconds. \n\nALT: RIDE \n\n Hop on for a big speed boost. \n\nNEUTRAL SPECIAL: CLIPPINGS \n\n Spray the grass you cut back at them. Anyone hit is slowed way down and can\'t double jump for a moment. Hold it to keep spraying. \n\nDIR SPECIAL: EJECT \n\n Launch the mower, faster and faster, until it explodes on whatever it hits.',
+                color: '#7d9474'
             }
         ]
     },
@@ -74,14 +84,15 @@ export const CHARACTER_ROSTER = [
         variants: [
             {
                 name: 'MALLET',
-                desc: 'EVERY hit is a knockback attack. \n\nDIR SPECIAL: SIPHONING REPAIR \n\n Let out a flurry of 3 strikes that siphon KB from your foe!.',
+                desc: 'EVERY hit is a knockback attack.',
+                abilities: 'NEUTRAL SPECIAL: STEEL PLANK \n\n Put up a steel wall in front of you, up to 2 at a time. Your swings go right through your own walls. \n\nDIR SPECIAL: SIPHONING REPAIR \n\n Let out a flurry of 3 strikes that siphon KB from your foe!',
                 color: '#3da115'
             },
             {
                 name: 'SLEDGEHAMMER',
-                    desc: "Now its hammer is REALLY heavy, KILLER damage ouput, at the cost of speed and attack speed. \n\nDIR SPECIAL: QUICKSLAM \n\n A powerful slam attack that sends the opponent flying up. Jumping immediately after will perform a follow-up attack.",
-                color: '#a5a5a5',
-                fontSize: 16
+                desc: 'Now its hammer is REALLY heavy, KILLER damage output, at the cost of speed and attack speed.',
+                abilities: 'NEUTRAL SPECIAL: THICK STEEL PLANK \n\n One extra tough wall at a time. It blocks your swings too. \n\nDIR SPECIAL: QUICKSLAM \n\n A powerful slam attack that sends the opponent flying up. Jumping immediately after will perform a follow-up attack.',
+                color: '#a5a5a5'
             }
         ]
     },
@@ -91,9 +102,9 @@ export const CHARACTER_ROSTER = [
         variants: [
             {
                 name: 'METAMORPHIC',
-                desc: 'Start with extra resistance to attacks. The more damage you take the faster you get, but deal less damage. \n\nDIR SPECIAL: SLIDE \n\n Apply PLUNGED to your opponent, which makes the foe take 100% more knockback for the next hits within 2.5 seconds!',
-                color: '#ffffff',
-                fontSize: 17
+                desc: 'Start with extra resistance to attacks. The more damage you take the faster you get, but deal less damage.',
+                abilities: 'DIR SPECIAL: SLIDE \n\n Apply PLUNGED to your opponent, which makes the foe take 100% more knockback for the next hits within 2.5 seconds!',
+                color: '#ffffff'
             }
         ]
 
@@ -103,7 +114,8 @@ export const CHARACTER_ROSTER = [
         name: 'CROWBARMAN',
         variants: [{
             name: 'HOOKER',
-            desc: 'Not for cutting weeds bro. \n\nDIR SPECIAL: GRAB \n\n Grab your opponent and hold them in place for 3 seconds. Press attack again to fling them away. Has a stupidly long range.',
+            desc: 'Not for cutting weeds bro.',
+            abilities: 'DIR SPECIAL: GRAB \n\n Grab your opponent and hold them in place for 3 seconds. Press attack again to fling them away. Has a stupidly long range.',
             color: '#68b96b'
         }]
     },
@@ -112,7 +124,8 @@ export const CHARACTER_ROSTER = [
         name: 'GUNMAN',
         variants: [{
             name: 'CRAZER',
-            desc: 'Modern conflicts need modern solutions, just use a gun! \n\n DIR SPECIAL: MINI \n\n This absolute beast shreds down your opponents.',
+            desc: 'Modern conflicts need modern solutions, just use a gun!',
+            abilities: 'NEUTRAL SPECIAL: CHUCK \n\n Lob a grenade that explodes when it hits. \n\nDIR SPECIAL: MINI \n\n This absolute beast shreds down your opponents.',
             color: '#e2c542'
         }]
     }

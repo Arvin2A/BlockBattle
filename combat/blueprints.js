@@ -12,6 +12,7 @@ import { getAttackDamageScale, getHitSound } from './characterStats.js';
 import { blocksHit } from './block.js';
 
 const PLUNGE_KNOCKBACK_BONUS = 1.0;
+const MIN_DEFAULT_DECELERATE_MS = 100;
 
 export function clearQueuedStunTimers(scene, attacker, target) {
     if (attacker.revokeAggressorStun) {
@@ -182,6 +183,8 @@ export function landHit(scene, attacker, target, spec = {}) {
     if (decelerateAfter !== null) {
         const delay = typeof decelerateAfter === 'function' ? decelerateAfter(target) : decelerateAfter;
         scheduleDecelerate(scene, target, delay);
+    } else if (!target.willDecelerate) {
+        scheduleDecelerate(scene, target, Math.max(MIN_DEFAULT_DECELERATE_MS, target.hitstunUntil - now));
     }
     if (resetCombo) {
         attacker.combo = 0;

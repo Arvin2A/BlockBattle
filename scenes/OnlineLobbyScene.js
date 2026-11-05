@@ -593,7 +593,7 @@ export class OnlineLobbyScene extends Phaser.Scene {
         this.fighterIcon.setTexture(getCharacterTexture(character.key, variant.name)).setDisplaySize(120, 120);
         this.fighterName.setText(character.name);
         this.variantText.setText(variant.name).setColor(variant.color ?? '#ffffff');
-        this.fighterDesc.setFontSize(15).setText(variant.desc ?? '');
+        this.fighterDesc.setFontSize(15).setText([variant.desc, variant.abilities].filter(Boolean).join(' \n\n'));
         for (let size = 14; size >= 10 && this.fighterDesc.height > 280; size--) {
             this.fighterDesc.setFontSize(size);
         }

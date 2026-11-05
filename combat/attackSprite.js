@@ -12,7 +12,8 @@ export function hasIdleAttackSprite(player) {
         player.variant === 'ANGLER' ||
         player.variant === 'TRAPPER' ||
         player.variant === 'METAMORPHIC' ||
-        (player.name === 'SWORDMAN' && player.variant !== 'DAGGER');
+        (player.name === 'SWORDMAN' && player.variant !== 'DAGGER') ||
+        player.idleWeaponTexture === 'pullcord';
 }
 
 export function hideAttackSprite(attacker) {

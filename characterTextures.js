@@ -15,6 +15,10 @@ export const CHARACTER_VARIANT_TEXTURES = {
         ANGLER: 'fisherman',
         TRAPPER: 'trapperman'
     },
+    scytheman: {
+        LANDSCAPER: 'scytheman',
+        LAWNMOWER: 'lawnmowerman'
+    },
     hammerman: {
         MALLET: 'hammerman',
         SLEDGEHAMMER: 'sledgehammerman'
