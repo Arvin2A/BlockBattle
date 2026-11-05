@@ -8,7 +8,8 @@
   - ALT: RIDE. Hop on for a big speed boost. Driving into someone bumps them up and away, but you can't attack while riding, and getting hit knocks you off.
   - Double-tap a direction: EJECT. The mower launches by itself, speeds up to cross the whole screen in about half a second, flies straight through the air and explodes on whatever it hits, harder than PLOW.
   - After the mower blows up, LAWNMOWER is stuck with a PULL CORD for 6 seconds: a long-reach shove with strong fixed knockback to keep people off you. Cutting grass shortens the wait.
-  - Neutral special: CLIPPINGS. Every grass you cut gives you a clipping; spray them back as chip damage. Each hit slows your opponent to about a third of their speed and stops them from double jumping for 1.2 seconds. Hold the button to keep spraying.
+  - Triple jump: jump a third time in the air by ditching the mower. It crashes down and explodes on whatever it hits (or when it falls off the map), and the PULL CORD starts.
+  - Neutral special: CLIPPINGS. Every grass you cut gives you 3 clippings (up to 45); spray them back as chip damage. Each hit slows your opponent to about a third of their speed and stops them from double jumping for 1.2 seconds. Hold the button to keep spraying.
   - Cutting grass also gives a short speed burst while riding. Unlike LANDSCAPER, cutting grass doesn't make him harder to launch.
 
 ### Changed
@@ -17,6 +18,7 @@
 ### Fixed
 - Getting hit by push attacks and several other moves no longer leaves you sliding across the floor once the hit wears off.
 - The changelog and modifier lists should no longer flash white or flicker on some devices while scrolling.
+- CPUs now actually get their speed boosts, like riding LAWNMOWER's mower or SLATEMAN's SLIDE. They were always moving at normal speed.
 - Fixed fighters sometimes floating in mid-air and walking on nothing, usually after getting hit while hanging on a ledge or while grabbed.
 
 ## 2026-11-03
