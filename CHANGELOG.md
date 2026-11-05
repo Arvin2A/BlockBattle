@@ -1,5 +1,19 @@
 # Changelog
 
+## 2026-11-05
+
+### Added
+- INFINITE BRIDGE, a new modifier. Turn it on and the match takes place on a snowy bridge that never ends, with no platforms and no side blast zones, made for seeing how fast every fighter can go.
+  - Speedometers for both fighters in blocks per second (1 block = one fighter wide), with top speed, average speed, distance traveled and your saved best per fighter. RESET RUN starts a fresh run.
+  - Distance signs on the bridge every 50 blocks.
+  - The camera follows P1 from the start; press V or click VIEW to switch between P1, P2 and both.
+- When fighters get far apart on any map, a VIEW button appears to switch who the camera follows.
+
+### Changed
+- Map select got a redesign: maps are now a vertical card wheel with wide cards (scroll, arrow keys or W/S to browse), and modifiers moved to their own page. NEXT swipes down to the modifiers, BACK swipes back up. The faded background behind map select, modifiers and character select now shows the map you picked.
+- Modifiers are bigger and easier to read, sorted from most to least chaotic and colored by how chaotic they are: purple, red, orange, then yellow.
+- MAP HAZARDS is now called WEATHER HAZARDS.
+
 ## 2026-11-04
 
 ### Added

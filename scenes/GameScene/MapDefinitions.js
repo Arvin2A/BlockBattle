@@ -264,6 +264,44 @@ const JUNGLE_MAP = {
     }
 };
 
+const BRIDGE_MAP = {
+    id: 'BRIDGE',
+    name: 'INFINITE BRIDGE',
+    preview: 'snowypreview',
+    maxZoom: 0.8,
+    background: 'snowy_background',
+    groundVisual: 'snowy_betterground',
+    groundVisualPosition: { x: 1000, y: 1200 },
+    mainGround: {
+        x: 1000,
+        y: 835,
+        texture: 'thickgroundhitbox',
+        width: 6000,
+        height: 55,
+        visible: false
+    },
+    platforms: [],
+    platformVisuals: [],
+    platformDepthOrder: ['main'],
+    playerSpawns: [
+        { x: 550, y: 780 },
+        { x: 1300, y: 780 }
+    ],
+    tint: '#2b6335',
+    infinite: {
+        segmentWidth: 1730,
+        recenterDistance: 1000,
+        parallax: 0.9,
+        markerSpacing: 2500,
+        blockSize: 50,
+        markerY: 760
+    }
+};
+
+export const SECRET_MAPS = {
+    BRIDGE: BRIDGE_MAP
+};
+
 export const MAPS = {
     DESERT: DESERT_MAP,
     SNOWY: SNOWY_MAP,

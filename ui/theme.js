@@ -40,6 +40,13 @@ export const HEX = {
     shieldCpuStroke: 0x444444
 };
 
+export const CHAOS_TIERS = {
+    purple: { rank: 0, hex: 0xb46bff, css: '#b46bff' },
+    red: { rank: 1, hex: 0xff4d4d, css: '#ff4d4d' },
+    orange: { rank: 2, hex: 0xff9a2e, css: '#ff9a2e' },
+    yellow: { rank: 3, hex: 0xffde4d, css: '#ffde4d' }
+};
+
 export function playerColor(slot) {
     return slot === 'p2' ? COLORS.p2 : COLORS.p1;
 }

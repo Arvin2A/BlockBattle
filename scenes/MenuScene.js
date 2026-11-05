@@ -17,7 +17,7 @@ var navBox = null;
 var layout = []
 var selectedIndex = 0;
 var previousInput = {};
-const CHANGELOG_VERSION = "2026-11-04-1";
+const CHANGELOG_VERSION = "2026-11-05-1";
 
 function getVersionColor(version) {
     const [year, month, day, update] = version.split("-").map(Number);
@@ -74,6 +74,10 @@ export class MenuScene extends Phaser.Scene {
         this.input.topOnly = false;
 
         const changelogEntries = [
+            {
+                title: "INFINITE BRIDGE",
+                body: "New modifier! Turn on INFINITE BRIDGE and you fight on a snowy bridge that never ends. No platforms, no side blast zones, just road. Speedometers show how fast you're going in blocks per second, plus your top speed, average, distance and your best ever run with each fighter. Press V or click VIEW to switch the camera between P1, P2 and both.\n Map select also got a makeover: maps scroll on a vertical wheel with big cards, and pressing NEXT swipes down to a bigger, easier to read modifier page. Modifiers are now sorted and colored by how chaotic they are, and MAP HAZARDS is now WEATHER HAZARDS."
+            },
             {
                 title: "LAWNMOWER SCYTHEMAN",
                 body: "SCYTHEMAN's new variant is here, and he's here to run you over. Press attack to shove his mower into you and grind until it blows up, hit ALT to ride it around way faster, or double-tap a direction to EJECT it, sending it off on its own, speeding up until it explodes on whatever it hits.\n Once it blows up he's stuck with a PULL CORD for 6 seconds, so mow some grass to get it back sooner. Every bit of grass he cuts also turns into CLIPPINGS you can spray back with neutral special."
@@ -259,7 +263,7 @@ export class MenuScene extends Phaser.Scene {
 
         const changelogBlurb = this.add.text(
             40, 180,
-            "LAWNMOWER SCYTHEMAN is out: plow, ride or EJECT his mower. Every fighter can also BLOCK, SMACK DOWN and LEDGE GRAB now. Check the full changelog for more!",
+            "New INFINITE BRIDGE modifier: race down an endless snowy bridge with speedometers to see who's fastest. Map select got a redesign too, with a map wheel and a colorful modifier page. Check the full changelog for more!",
             {
                 fontFamily: "VCROSD",
                 fontSize: "16px",

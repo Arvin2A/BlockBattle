@@ -24,6 +24,9 @@ export function preloadMapSelection() {
 
 export function preloadCharacterSelection() {
     this.load.image('desertpreview', 'assets/menu/arenapreview.png');
+    this.load.image('snowypreview', 'assets/menu/snowy_preview.png');
+    this.load.image('randompreview', 'assets/menu/random_preview.png');
+    this.load.image('jungle_preview', 'assets/menu/jungle_preview.png');
     this.load.image('selectedoverlay', 'assets/menu/selectedOverlay.png');
     this.load.image('ready', 'assets/menu/READY.png');
     this.load.audio('hover', 'audio/hover.wav');
