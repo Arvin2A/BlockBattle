@@ -222,7 +222,7 @@ function handleShot(api, scene, attacker, victim, options = {}) {
         ? 0
         : beams.filter(beam => beam.hit).length;
     const shotDamage = options.damageIncrement ?? (isExplosion ? 0.10 : 0.02);
-    if (hitCount > 0 && !api.blocksHit(scene, victim, attacker, shotDamage * hitCount)) {
+    if (hitCount > 0 && !api.blocksHit(scene, victim, attacker, shotDamage * hitCount, { ranged: true })) {
         victim.flash();
         const damageScale = api.getAttackDamageScale(attacker);
         victim.KBmultiplier += shotDamage * damageScale * hitCount;
@@ -375,7 +375,7 @@ function chuck(api, scene, attacker, victim) {
         detonated = true;
 
         if (hitVictim && victim.active && !api.isInvincible(victim) &&
-            !api.blocksHit(scene, victim, attacker, 0.08)) {
+            !api.blocksHit(scene, victim, attacker, 0.08, { ranged: true })) {
             const damageScale = api.getAttackDamageScale(attacker);
             victim.KBmultiplier += 0.08 * damageScale;
             victim.hitstunUntil = Math.max(victim.hitstunUntil ?? 0, scene.time.now + GRENADE_HITSTUN);

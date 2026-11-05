@@ -303,7 +303,7 @@ function tryMowLegacy(api, scene, player, target, direction, currentTime) {
         scene.physics.add.overlap(fakescythe, target, () => {
             if (player.hasHitSideSpecial) return;
             if (!canhit || api.isInvincible(target)) return;
-            if (api.blocksHit(scene, target, player, 0.08)) {
+            if (api.blocksHit(scene, target, player, 0.08, { ranged: true })) {
                 player.hasHitSideSpecial = true;
                 return;
             }
@@ -730,6 +730,7 @@ function spawnLooseMower(api, scene, player, victim, direction) {
                 hitstun: 300,
                 hitstunGrowth: false,
                 sound: 'anyhit',
+                ranged: true,
                 knockback: { x: 300, y: 200, growth: false, scaleWithDamage: false },
                 decelerateAfter: 300,
                 resetCombo: false,
@@ -788,6 +789,7 @@ function eject(api, scene, player, victim, direction) {
             grindExplosion(api, scene, player, victim, {
                 ...PLOW_EXPLOSION,
                 force: PLOW_EXPLOSION.force * MOWER.ejectKbScale,
+                ranged: true,
                 explosionScale: 0.9,
                 direction: { x: Math.sign(victim.x - mower.x) || direction, y: 0 }
             });
@@ -928,6 +930,7 @@ function throwClipping(api, scene, player, victim, dirX, dirY) {
                 hitstunGrowth: false,
                 sound: 'anyhit',
                 resetCombo: false,
+                ranged: true,
                 onHit: () => {
                     victim.clippedUntil = scene.time.now + CLIPPINGS.slowMs;
                 }

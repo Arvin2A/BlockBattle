@@ -132,10 +132,11 @@ export function landHit(scene, attacker, target, spec = {}) {
         resetCombo = true,
         noDeathRay = false,
         onHit = null,
-        unblockable = false
+        unblockable = false,
+        ranged = false
     } = spec;
     if (target.uninterruptible) return false;
-    if (!unblockable && blocksHit(scene, target, attacker, damage)) return false;
+    if (!unblockable && blocksHit(scene, target, attacker, damage, { ranged })) return false;
     const now = scene.time.now;
     const direction = spec.direction || attacker.lastDir;
     const damageScale = getAttackDamageScale(attacker);

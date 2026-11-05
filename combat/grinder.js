@@ -98,10 +98,12 @@ export function grindExplosion(api, scene, attacker, victim, {
     hitFreeze = 60,
     explosionScale = 0.7,
     noDeathRay = false,
-    direction = null
+    direction = null,
+    ranged = false
 } = {}) {
     api.landHit(scene, attacker, victim, {
         direction,
+        ranged,
         damage,
         plankDamage: 0,
         hitstun,

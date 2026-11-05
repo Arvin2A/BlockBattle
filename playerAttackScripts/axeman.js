@@ -5,6 +5,7 @@
 import { grindExplosion, grindTick, setGrindFloat, ALWAYS_ON_GRINDERS, interruptGrinder, grinderCanResume, holdGrinderInPlace } from '../combat/grinder.js';
 
 export const MAX_WOOD_COUNT = 225;
+const WOOD_PER_TICK = 10;
 
 function tilt(api, scene, attacker, victim, xMul, yMul, kbTime) {
     api.tiltAttack(scene, attacker, victim, {
@@ -272,7 +273,7 @@ function updateChainsawWood(scene, attacker, victim) {
         );
         if (collectionTicks > 0) {
             const nextWoodCount = Math.min(
-                attacker.woodCount + collectionTicks * 5,
+                attacker.woodCount + collectionTicks * WOOD_PER_TICK,
                 MAX_WOOD_COUNT
             );
             if (nextWoodCount > attacker.woodCount) {
