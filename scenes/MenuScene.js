@@ -79,8 +79,24 @@ export class MenuScene extends Phaser.Scene {
                 body: "SCYTHEMAN's new variant is here, and he's here to run you over. Press attack to shove his mower into you and grind until it blows up, hit ALT to ride it around way faster, or double-tap a direction to EJECT it, sending it off on its own, speeding up until it explodes on whatever it hits.\n Once it blows up he's stuck with a PULL CORD for 6 seconds, so mow some grass to get it back sooner. Every bit of grass he cuts also turns into CLIPPINGS you can spray back with neutral special."
             },
             {
-                title: "BLOCK, LEDGES + SMACK DOWN",
-                body: "Every fighter just got three new moves.\n BLOCK: hold R (P1) or Period (P2), the shoulder buttons on a controller, or the new B button on phones. A shield in your color pops up and eats every hit, with a big shield flash and a clang so you know it worked, and whoever you blocked has to wait a moment before swinging again. It shrinks the longer you hold it and every hit takes a chunk out of it, so don't turtle forever. If it runs out it shatters, a cracked shield shows up on you, and you're stunned for a second and a half. The CPU knows how to block now too, and on the new VERY HARD it reads your specials and combos and blocks them before they land. HARD got a little easier: it blocks, but skips SMACK DOWN and LEDGE GRAB and won't chase you off the stage. VERY HARD is the old full-strength CPU with everything turned on. HARD and VERY HARD CPUs also know to jump out of GUNMAN's MINI now. The DEATH RAY also needs a harder launch to fire.\n HAMMERMAN got some love too: MALLET's swing reaches a little further, SLEDGEHAMMER's QUICKSLAM follow-up chases the target now so it stops whiffing, and HAMMERMAN CPUs finally use walls, heal from a safe spot and time their swings properly.\n SMACK DOWN: tap down on the ground when your opponent is close and you'll grab them and slam them into the floor. They get squashed flat and float up and away from you, and you need a second to recover, so chase them down for the follow-up. Blocking stops it, though.\n LEDGE GRAB: knocked off the stage? Press attack near a platform's edge to hang on. Hanging is risky since you can still get hit off, but press any button (except down) to climb up and dash forward, and nothing can stop that climb and dash. It shoves whoever's camping the edge out of your way. Press down to let go.\n Big launches at 100%+ and 150%+ now freeze the screen for a moment on hit, so they feel way heavier. Friends on the same wifi can play each other online again, since the one-match limit is per device now instead of per connection. Online chat also lets you stack up to 3 messages at once now, TRAPPER's netted victims can't be shoved across the floor anymore, big spikes don't send you through platforms, and GRUELING SLAM's air pin is down to 2 seconds."
+                title: "BLOCK",
+                body: "Every fighter can block now. Hold R (P1) or Period (P2), the shoulder buttons on a controller, or the new B button on phones. A shield in your color pops up and eats every hit, with a big shield flash and a clang so you know it worked. Whoever you blocked freezes for a split second and has to wait a moment before swinging again, so hit back.\n It shrinks the longer you hold it and every hit takes a chunk out of it, so don't turtle forever. If it runs out it shatters, a cracked shield shows up on you, and you're stunned for a second and a half."
+            },
+            {
+                title: "SMACK DOWN",
+                body: "Tap down on the ground when your opponent is close and you'll grab them and slam them into the floor. They get squashed flat and float up and away from you, and you need a second to recover, so chase them down for the follow-up. Blocking stops it, though."
+            },
+            {
+                title: "LEDGE GRAB",
+                body: "Knocked off the stage? Press attack near a platform's edge to hang on. Hanging is risky since you can still get hit off, but press any button (except down) to climb up and dash forward, and nothing can stop that climb and dash. It shoves whoever's camping the edge out of your way. Press down to let go."
+            },
+            {
+                title: "SMARTER CPUS",
+                body: "The CPU knows how to block now too, and on the new VERY HARD it reads your specials and combos and blocks them before they land. VERY HARD is the old full-strength CPU with everything turned on. HARD got a little easier: it blocks, but skips SMACK DOWN and LEDGE GRAB and won't chase you off the stage. HARD and VERY HARD CPUs also know to jump out of GUNMAN's MINI now.\n HAMMERMAN CPUs finally use walls, heal from a safe spot and time their swings properly."
+            },
+            {
+                title: "MORE CHANGES",
+                body: "MALLET's swing reaches a little further, and SLEDGEHAMMER's QUICKSLAM follow-up chases the target now so it stops whiffing. Big launches at 100%+ and 150%+ freeze the screen for a moment on hit, so they feel way heavier, and the DEATH RAY needs a harder launch to fire. GRUELING SLAM's air pin is down to 2 seconds.\n Friends on the same wifi can play each other online again, since the one-match limit is per device now instead of per connection. Online chat lets you stack up to 3 messages at once. TRAPPER's netted victims can't be shoved across the floor anymore, and big spikes don't send you through platforms."
             },
             {
                 title: "THUMBSTICK + TUNING",
@@ -208,7 +224,24 @@ export class MenuScene extends Phaser.Scene {
             }
         ];
 
-        const upcomingEntries = [];
+        const upcomingEntries = [
+            {
+                title: "HOOKER REWORK",
+                body: "CROWBARMAN's HOOKER is getting reworked and redesigned."
+            },
+            {
+                title: "DEMOLITIONIST CROWBARMAN",
+                body: "A brand new CROWBARMAN variant: DEMOLITIONIST."
+            },
+            {
+                title: "LUMBERER + DAGGER REDESIGNS",
+                body: "AXEMAN's LUMBERER and SWORDMAN's DAGGER are getting redesigned."
+            },
+            {
+                title: "NEW GUNMAN VARIANT",
+                body: "GUNMAN is getting a new variant, and a redesign too."
+            }
+        ];
 
         const changelogBox = this.add.rectangle(
             190, 300, 340, 450, 0x111111, 0.88

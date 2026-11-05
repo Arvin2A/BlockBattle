@@ -23,6 +23,7 @@ export const BLOCK = {
     hitFillAlpha: 0.6,
     soundGapMs: 120,
     attackerOpeningMs: 150,
+    attackerFreezeMs: 150,
     cueScale: 1.8,
     cueEndScale: 2.3,
     cueAlpha: 0.9,
@@ -157,7 +158,7 @@ export function updateBlock(scene, player, wantsBlock) {
     drawBreakMark(scene, player);
 }
 
-export function blocksHit(scene, target, attacker, damage = 0, { minCost = BLOCK.minHitCost } = {}) {
+export function blocksHit(scene, target, attacker, damage = 0, { minCost = BLOCK.minHitCost, ranged = false } = {}) {
     if (!target?.blocking) return false;
     const now = scene.time.now;
     target.shield -= Phaser.Math.Clamp(damage * BLOCK.hitCostScale, minCost, BLOCK.maxHitCost);
@@ -171,6 +172,7 @@ export function blocksHit(scene, target, attacker, damage = 0, { minCost = BLOCK
         showBlockCue(scene, target);
     }
     if (attacker.isUsingSideSpecial) attacker.hasHitSideSpecial = true;
+    if (!ranged) attacker.freezeUntil = Math.max(attacker.freezeUntil ?? 0, now + BLOCK.attackerFreezeMs);
     attacker.blockPenaltyUntil = Math.max(
         attacker.blockPenaltyUntil ?? 0,
         now + getAttackCooldown(attacker) + BLOCK.attackerOpeningMs
