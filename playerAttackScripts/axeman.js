@@ -3,6 +3,7 @@
 // Licensed under the GNU GPL v3 only. See LICENSE.
 
 import { grindExplosion, grindTick, setGrindFloat, ALWAYS_ON_GRINDERS, interruptGrinder, grinderCanResume, holdGrinderInPlace } from '../combat/grinder.js';
+import { MIN_ABILITY_COOLDOWN_MS } from '../gameSettings.js';
 
 export const MAX_WOOD_COUNT = 225;
 const WOOD_PER_TICK = 10;
@@ -111,7 +112,7 @@ function explodeChainsaw(api, scene, attacker, victim, options = {}) {
     if (attacker.chainsawHasExploded || !victim.active || api.isInvincible(victim)) return;
 
     attacker.chainsawHasExploded = true;
-    attacker.chainsawCooldownUntil = scene.time.now + 5000;
+    attacker.chainsawCooldownUntil = scene.time.now + (attacker.noAbilityCooldown ? MIN_ABILITY_COOLDOWN_MS : 5000);
     const rampaging = scene.time.now < (attacker.rampageExplosionUntil ?? 0);
     attacker.rampageExplosionUntil = 0;
     const force = (options.explosionKnockback ?? 450) *

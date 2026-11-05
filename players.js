@@ -210,7 +210,8 @@ export function initiatePlayers(scene, p1Select = 'axeman', p2Select = 'swordman
         if (modifierOptions.HYPERACTIVE.enabled) {
             p.dirSpecialCooldown = 1750;
         }
-        if (modifierOptions.NO_ABILITY_COOLDOWN.enabled) {
+        p.noAbilityCooldown = modifierOptions.NO_ABILITY_COOLDOWN.enabled;
+        if (p.noAbilityCooldown) {
             p.dirSpecialCooldown = 0;
         }
         if (p.variant === 'SLEDGEHAMMER') {

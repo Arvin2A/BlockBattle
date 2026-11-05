@@ -3,6 +3,7 @@
 // Licensed under the GNU GPL v3 only. See LICENSE.
 
 import { grindExplosion, grindTick, setGrindFloat, ALWAYS_ON_GRINDERS, interruptGrinder, grinderCanResume, holdGrinderInPlace } from '../combat/grinder.js';
+import { MIN_ABILITY_COOLDOWN_MS } from '../gameSettings.js';
 
 function tilt(api, scene, attacker, victim, xMul, yMul, kbTime) {
     api.tiltAttack(scene, attacker, victim, {
@@ -446,12 +447,13 @@ const MOWER = {
     backWheel: { x: 64, y: 22 },
     body: { width: 110, height: 50, offsetX: 10, offsetY: 23 },
     engineVolume: 0.6,
-    cordMs: 6000,
+    cordMs: 8000,
     fuelPerCutMs: 250,
     plowTickMs: 50,
     plowExplodeMs: 2000,
     plowCutRange: 45,
     plowGrindRange: 110,
+    steelPlankDamage: 0.01,
     rideLift: 14,
     rideMowerDrop: 4,
     botPlowIdleMs: 800,
@@ -589,7 +591,7 @@ function stopEngine(player, { quiet = false } = {}) {
 
 function startCord(scene, player, { quiet = false } = {}) {
     player.mowerState = 'cord';
-    player.mowerCordUntil = scene.time.now + MOWER.cordMs;
+    player.mowerCordUntil = scene.time.now + (player.noAbilityCooldown ? MIN_ABILITY_COOLDOWN_MS : MOWER.cordMs);
     player.mower.stop().setVisible(false);
     stopEngine(player, { quiet });
 }
@@ -640,6 +642,16 @@ function stopPlow(scene, player, nextState = 'ready') {
     player.mowerState = nextState;
 }
 
+function plowThroughPlanks(api, scene, player) {
+    const bounds = player.mower.getBounds();
+    for (const plank of [...(scene.planks?.getChildren() ?? [])]) {
+        if (!plank.active || !plank.body?.enable) continue;
+        if (!Phaser.Geom.Intersects.RectangleToRectangle(bounds, plank.body)) continue;
+        const steel = plank.texture.key === 'strongsteel' || plank.texture.key === 'lightsteel';
+        api.damagePlank(scene, plank, steel ? MOWER.steelPlankDamage : plank.health);
+    }
+}
+
 function heldCutPoint(player) {
     return { x: player.x + facingOf(player) * MOWER.heldCutReach, y: player.body.bottom - 15 };
 }
@@ -652,6 +664,7 @@ function plowTick(api, scene, player, victim) {
         return;
     }
     if (player.ledge || player.blocking) return;
+    plowThroughPlanks(api, scene, player);
     const cut = heldCutPoint(player);
     api.cutNearbyGrass(scene, cut.x, cut.y, MOWER.plowCutRange, player);
     const contact = grindTick(api, scene, player, victim, player.plowLastContactAt, {
@@ -694,7 +707,7 @@ function stopRide(player, nextState = 'ready', { quiet = false } = {}) {
 function knockOffMower(api, scene, player, victim) {
     const direction = Math.sign(player.body.velocity.x) || facingOf(player);
     stopRide(player, 'dismounted');
-    player.mowerRemountAt = scene.time.now + MOWER.remountMs;
+    player.mowerRemountAt = scene.time.now + (player.noAbilityCooldown ? MIN_ABILITY_COOLDOWN_MS : MOWER.remountMs);
     spawnLooseMower(api, scene, player, victim, direction);
 }
 
