@@ -14,6 +14,7 @@ import { FONTS, COLORS, HEX } from "../ui/theme.js";
 import { preloadCharacterSelection } from "./GameScene/preload.js";
 import { getCharacterTexture } from "../characterTextures.js";
 import { fadeOutTo } from "./transitions.js";
+import { addMapBackdrop, getSelectedMapPreview } from "./MapAndModifierSelect.js";
 import { CHARACTER_ROSTER } from "../characterRoster.js";
 import {
     getConnectedControllers,
@@ -68,15 +69,7 @@ export class CharacterSelectScene extends Phaser.Scene {
         // background
         this.cameras.main.setBackgroundColor('#1b1b1b');
 
-        this.add.image(500, 300, 'desertpreview');
-        const overlay = this.add.rectangle(
-            500,
-            300,
-            1000,
-            600,
-            0x1b1b1b,
-            0.90
-        );
+        addMapBackdrop(this, getSelectedMapPreview());
 
         
 
@@ -847,7 +840,7 @@ export class CharacterSelectScene extends Phaser.Scene {
         backBox.on('pointerover', () => backBox.setFillStyle(0x888888));
         backBox.on('pointerout', () => backBox.setFillStyle(0x686868));
         backBox.on('pointerdown', () => {
-            fadeOutTo(this, () => this.scene.start('MapAndModifierSelectScene'));
+            fadeOutTo(this, () => this.scene.start('MapAndModifierSelectScene', { page: 'modifiers' }));
         });
 
         // -----------------------------
