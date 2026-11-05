@@ -13,6 +13,11 @@
 - Map select got a redesign: maps are now a vertical card wheel with wide cards (scroll, arrow keys or W/S to browse), and modifiers moved to their own page. NEXT swipes down to the modifiers, BACK swipes back up. The faded background behind map select, modifiers and character select now shows the map you picked.
 - Modifiers are bigger and easier to read, sorted from most to least chaotic and colored by how chaotic they are: purple, red, orange, then yellow.
 - MAP HAZARDS is now called WEATHER HAZARDS.
+- LAWNMOWER's PULL CORD wait is 8 seconds (up from 6).
+
+### Fixed
+- NO ABILITY COOLDOWNS now also applies to CHAINSAW's burnout after its saw explodes and LAWNMOWER's PULL CORD wait and remount delay. Those two keep a short 0.5 second cooldown, since their grinders hold you in place and could otherwise stunlock (or freeze their own user) forever.
+- LAWNMOWER's plow now damages walls like CHAINSAW does: it chews through steel walls and wrecks wooden planks instantly.
 
 ## 2026-11-04
 
@@ -21,7 +26,7 @@
   - Attack: PLOW. Push the mower into your opponent to grind them down. After about 2 seconds of contact it explodes.
   - ALT: RIDE. Hop on for a big speed boost. Driving into someone bumps them up and away, but you can't attack while riding, and getting hit knocks you off.
   - Double-tap a direction: EJECT. The mower launches by itself, speeds up to cross the whole screen in about half a second, flies straight through the air and explodes on whatever it hits, harder than PLOW.
-  - After the mower blows up, LAWNMOWER is stuck with a PULL CORD for 6 seconds: a long-reach shove with strong fixed knockback to keep people off you. Cutting grass shortens the wait.
+  - After the mower blows up, LAWNMOWER is stuck with a PULL CORD for 8 seconds: a long-reach shove with strong fixed knockback to keep people off you. Cutting grass shortens the wait.
   - Triple jump: jump a third time in the air by ditching the mower. It crashes down and explodes on whatever it hits (or when it falls off the map), and the PULL CORD starts.
   - Neutral special: CLIPPINGS. Every grass you cut gives you 3 clippings (up to 45); spray them back as chip damage. Each hit slows your opponent to about a third of their speed and stops them from double jumping for 1.2 seconds. Hold the button to keep spraying.
   - Cutting grass also gives a short speed burst while riding. Unlike LANDSCAPER, cutting grass doesn't make him harder to launch.
