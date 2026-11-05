@@ -6,6 +6,7 @@ import Phaser from 'phaser';
 import { DEFAULT_MAP, MAP_LIST, getRandomMap } from './GameScene/MapDefinitions.js';
 import { preloadMapSelection } from './GameScene/preload.js';
 import { fadeOutTo } from './transitions.js';
+import { clipScrollablePanel } from '../ui/clipScroll.js';
 import { getNavigationBounds, wrapIndex, moveSelection, createNavigationBox, moveNavigationBox, getConnectedControllers, getMenuGamepadInput} from "../navigation.js"
 
 
@@ -151,10 +152,7 @@ export class MapAndModifierSelectScene extends Phaser.Scene {
 
 			panel: {
 				child: content,
-				mask: {
-					padding: 0,
-					maskType: 'layer'
-				}
+				mask: false
 			},
 
 			sliderY: {
@@ -280,6 +278,7 @@ export class MapAndModifierSelectScene extends Phaser.Scene {
         });
 
 		panel.layout();
+		clipScrollablePanel(this, panel, { inset: 6 });
 
 		this.selectedMapIndex = selectedMapIsRandom
 			? maps.findIndex(map => map.random)
