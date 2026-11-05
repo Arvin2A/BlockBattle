@@ -205,6 +205,7 @@ const THROWN_HARPOON_MS = 2500;
 const HARPOON_PLANK_DAMAGE = 0.13;
 const HARPOON_PIERCE_FALLOFF = 0.02;
 const THROWN_HARPOON_HIT = {
+    ranged: true,
     damage: 0.06,
     plankDamage: 0,
     hitstun: 450,
@@ -334,6 +335,7 @@ const NET_GROUND_HALF_WIDTH = 128;
 function netFoe(api, scene, owner, target, duration, holdInPlace) {
     const now = scene.time.now;
     api.landHit(scene, owner, target, {
+        ranged: true,
         damage: 0.02,
         plankDamage: 0,
         hitstun: duration,
@@ -703,6 +705,7 @@ function tryPull(api, scene, player, target, direction, currentTime) {
                 const pullStrength = 900;
 
                 api.landHit(scene, player, target, {
+                    ranged: true,
                     damage: 0.22,
                     plankDamage: 0,
                     hitstun: 550,
