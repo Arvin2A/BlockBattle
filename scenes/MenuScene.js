@@ -16,7 +16,7 @@ var navBox = null;
 var layout = []
 var selectedIndex = 0;
 var previousInput = {};
-const CHANGELOG_VERSION = "2026-11-03-2";
+const CHANGELOG_VERSION = "2026-11-04-1";
 
 function getVersionColor(version) {
     const [year, month, day, update] = version.split("-").map(Number);
@@ -73,6 +73,10 @@ export class MenuScene extends Phaser.Scene {
         this.input.topOnly = false;
 
         const changelogEntries = [
+            {
+                title: "LAWNMOWER SCYTHEMAN",
+                body: "SCYTHEMAN's new variant is here, and he's here to run you over. Press attack to shove his mower into you and grind until it blows up, hit ALT to ride it around way faster, or double-tap a direction to EJECT it, sending it off on its own, speeding up until it explodes on whatever it hits.\n Once it blows up he's stuck with a PULL CORD for 6 seconds, so mow some grass to get it back sooner. Every bit of grass he cuts also turns into CLIPPINGS you can spray back with neutral special."
+            },
             {
                 title: "BLOCK, LEDGES + SMACK DOWN",
                 body: "Every fighter just got three new moves.\n BLOCK: hold R (P1) or Period (P2), the shoulder buttons on a controller, or the new B button on phones. A shield in your color pops up and eats every hit, with a big shield flash and a clang so you know it worked, and whoever you blocked has to wait a moment before swinging again. It shrinks the longer you hold it and every hit takes a chunk out of it, so don't turtle forever. If it runs out it shatters, a cracked shield shows up on you, and you're stunned for a second and a half. The CPU knows how to block now too, and on the new VERY HARD it reads your specials and combos and blocks them before they land. HARD got a little easier: it blocks, but skips SMACK DOWN and LEDGE GRAB and won't chase you off the stage. VERY HARD is the old full-strength CPU with everything turned on. HARD and VERY HARD CPUs also know to jump out of GUNMAN's MINI now. The DEATH RAY also needs a harder launch to fire.\n HAMMERMAN got some love too: MALLET's swing reaches a little further, SLEDGEHAMMER's QUICKSLAM follow-up chases the target now so it stops whiffing, and HAMMERMAN CPUs finally use walls, heal from a safe spot and time their swings properly.\n SMACK DOWN: tap down on the ground when your opponent is close and you'll grab them and slam them into the floor. They get squashed flat and float up and away from you, and you need a second to recover, so chase them down for the follow-up. Blocking stops it, though.\n LEDGE GRAB: knocked off the stage? Press attack near a platform's edge to hang on. Hanging is risky since you can still get hit off, but press any button (except down) to climb up and dash forward, and nothing can stop that climb and dash. It shoves whoever's camping the edge out of your way. Press down to let go.\n Big launches at 100%+ and 150%+ now freeze the screen for a moment on hit, so they feel way heavier. Friends on the same wifi can play each other online again, since the one-match limit is per device now instead of per connection. Online chat also lets you stack up to 3 messages at once now, TRAPPER's netted victims can't be shoved across the floor anymore, big spikes don't send you through platforms, and GRUELING SLAM's air pin is down to 2 seconds."
@@ -203,12 +207,7 @@ export class MenuScene extends Phaser.Scene {
             }
         ];
 
-        const upcomingEntries = [
-            {
-                title: "LAWNMOWER SCYTHEMAN",
-                body: "The LAWNMOWER variant of SCYTHEMAN."
-            }
-        ];
+        const upcomingEntries = [];
 
         const changelogBox = this.add.rectangle(
             190, 300, 340, 450, 0x111111, 0.88
@@ -226,7 +225,7 @@ export class MenuScene extends Phaser.Scene {
 
         const changelogBlurb = this.add.text(
             40, 180,
-            "Every fighter can BLOCK (R or Period), SMACK DOWN a foe by tapping down next to them, and LEDGE GRAB by pressing attack near an edge. Check the full changelog for more!",
+            "LAWNMOWER SCYTHEMAN is out: plow, ride or EJECT his mower. Every fighter can also BLOCK, SMACK DOWN and LEDGE GRAB now. Check the full changelog for more!",
             {
                 fontFamily: "VCROSD",
                 fontSize: "16px",
@@ -380,7 +379,7 @@ export class MenuScene extends Phaser.Scene {
 
                     panel: {
                         child: content,
-                        mask: { padding: 0 }
+                        mask: { padding: 0, maskType: 'layer' }
                     },
 
                     sliderY: {

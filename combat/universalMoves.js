@@ -45,6 +45,7 @@ export const LEDGE = {
     slideMs: 240,
     slideSpeed: 900,
     slideRange: 90,
+    flash: { scale: 2, alpha: 0.9, ms: 260 },
     slideHit: {
         damage: 0.02,
         plankDamage: 0,
@@ -266,6 +267,10 @@ export function hideWeaponsForUniversalMoves(players) {
         if (!atk || !weaponHidden(player)) continue;
         player.atkHiddenWas = atk.visible;
         atk.setVisible(false);
+        if (player.mower) {
+            player.mowerHiddenWas = player.mower.visible;
+            player.mower.setVisible(false);
+        }
     }
 }
 
@@ -274,6 +279,10 @@ export function restoreHiddenWeapons(players) {
         if (player?.atkHiddenWas === undefined) continue;
         player.atk?.setVisible(player.atkHiddenWas);
         player.atkHiddenWas = undefined;
+        if (player.mowerHiddenWas !== undefined) {
+            player.mower?.setVisible(player.mowerHiddenWas);
+            player.mowerHiddenWas = undefined;
+        }
     }
 }
 
@@ -472,6 +481,22 @@ function startLedgeSlide(scene, player, toward, invincibleBefore) {
     player.willDecelerate = false;
     player.setVelocityX(toward * LEDGE.slideSpeed);
     scene.sound.play('lunge');
+    showRegainFlash(scene, player);
+}
+
+function showRegainFlash(scene, player) {
+    const flash = scene.add.rectangle(player.x, player.y, player.width, player.height, 0xffffff, LEDGE.flash.alpha)
+        .setDepth((player.depth ?? 5) + 2);
+    scene.objs?.add(flash);
+    scene.tweens.add({
+        targets: flash,
+        scale: LEDGE.flash.scale,
+        alpha: 0,
+        duration: LEDGE.flash.ms,
+        ease: 'Quad.Out',
+        onUpdate: () => flash.setPosition(player.x, player.y),
+        onComplete: () => flash.destroy()
+    });
 }
 
 function stepLedgeSlide(scene, player, opponent, dt) {

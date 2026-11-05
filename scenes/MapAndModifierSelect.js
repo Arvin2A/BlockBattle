@@ -152,7 +152,8 @@ export class MapAndModifierSelectScene extends Phaser.Scene {
 			panel: {
 				child: content,
 				mask: {
-					padding: 0
+					padding: 0,
+					maskType: 'layer'
 				}
 			},
 

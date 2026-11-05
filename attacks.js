@@ -376,6 +376,10 @@ export function updateChainsawWood(scene, attacker, victim) {
     return getCharacterScript(attacker)?.updateChainsawWood?.(scene, attacker, victim);
 }
 
+export function handleMatchEnd(scene, player) {
+    return getCharacterScript(player)?.onMatchEnd?.(scene, player);
+}
+
 export function updateCharacter(scene, player, victim) {
     return getCharacterScript(player)?.update?.(sharedAttackHelpers, scene, player, victim);
 }
