@@ -7,6 +7,8 @@ import {handleAttack, handleMatchEnd, tryExtraJump, handleDirSpecial, handleNeut
 import { COLORS, FONTS, HEX, makePanel, playerColor, playerHex, textStyle } from './ui/theme.js';
 import { addTouchAssist, isPhoneScreen } from './ui/touchAssist.js';
 import { addThumbstick } from './ui/touchJoystick.js';
+import { createSpeedometers, updateSpeedometers } from './ui/speedometer.js';
+import { createPerspectiveSwitch, updatePerspective } from './ui/perspective.js';
 import { MAX_WOOD_COUNT } from './playerAttackScripts/axeman.js';
 import { initiatePlayers, updateCombo } from './players.js';
 import { Commands, executeStateCommand} from './commands.js';
@@ -916,8 +918,14 @@ function create() {
         }
     }
 
-    this.physics.world.setBounds(0, 0, 2000, 1200);
-    this.cameras.main.setBounds(0, 0, 2000, 1200);
+    if (this.gameState.map.infinite) {
+        this.physics.world.setBounds(-INFINITE_SPAN, 0, INFINITE_SPAN * 2, 1200);
+        this.cameras.main.setBounds(-INFINITE_SPAN, 0, INFINITE_SPAN * 2, 1200);
+        this.speedometers = createSpeedometers(this, this.gameState.players);
+    } else {
+        this.physics.world.setBounds(0, 0, 2000, 1200);
+        this.cameras.main.setBounds(0, 0, 2000, 1200);
+    }
     this.cameras.main.ignore(this.hud);
     this.objcam.ignore(this.objs);
 
@@ -1130,6 +1138,9 @@ function create() {
     this.hud.add(this.pauseResumeButton);
     this.hud.add(this.pauseMenuButton);
     this.hud.add(this.pauseButton);
+    this.perspective = this.online ? null : createPerspectiveSwitch(this, this.gameState.map.infinite
+        ? { alwaysOn: true, startMode: 'p1' }
+        : {});
 
     this.resumeGame = () => {
         if (!this.gamePaused) return;
@@ -1209,10 +1220,12 @@ function updateWins(scene) {
     }
 
 }
-function teleportBackToArena(player) {
+const INFINITE_SPAN = 10000000;
+
+function teleportBackToArena(player, x = 1000) {
     player.activeHookCleanup?.();
     player.nettedUntil = 0;
-    player.setPosition(1000, 0);
+    player.setPosition(x, 0);
     player.setVelocityY(0);
     player.setVelocityX(0);
 }
@@ -1942,6 +1955,14 @@ function update() {
     }
 
     var distance = Math.max(distX, distY);
+    const perspectiveFocus = this.perspective && !this.gameEnded
+        ? updatePerspective(this, this.perspective, Math.abs(p1.x - p2.x))
+        : null;
+    if (perspectiveFocus) {
+        midX = perspectiveFocus.x;
+        midY = perspectiveFocus.y;
+        distance = 0;
+    }
     
 
     let zoom = this.baseZoom - (distance / 2000);
@@ -1984,6 +2005,8 @@ function update() {
         zoom - this.cameras.main.zoom
     ) * zoomRate;
 
+    this.gameState.map.update();
+    if (this.speedometers) updateSpeedometers(this, this.speedometers);
     if (this.gameEnded) {
         p1.setVelocity(0, 0);
         p2.setVelocity(0, 0);
@@ -2064,8 +2087,9 @@ function update() {
             handleAttack(this, p2, p1);
         }
     }
-    p1.outOfBounds = p1.y > 1600 || p1.x < -400 || p1.x > 2400 || p1.y < -400;
-    p2.outOfBounds = p2.y > 1600 || p2.x < -400 || p2.x > 2400 || p2.y < -400;
+    const sideBlastZones = !this.gameState.map.infinite;
+    p1.outOfBounds = p1.y > 1600 || p1.y < -400 || (sideBlastZones && (p1.x < -400 || p1.x > 2400));
+    p2.outOfBounds = p2.y > 1600 || p2.y < -400 || (sideBlastZones && (p2.x < -400 || p2.x > 2400));
 
     for (const key in this.gameState.players) {
         const player = this.gameState.players[key];
@@ -2561,7 +2585,7 @@ function update() {
             console.log(p2.winNumber)
             updateWins(this);
             spawnKOBlast(this, p1, p2);
-            teleportBackToArena(p1);
+            teleportBackToArena(p1, this.gameState.map.getRespawnX(p2));
             if (p2.winNumber < winNumber) playRespawn(this, p1);
             
             this.time.delayedCall(1500, () => {
@@ -2579,7 +2603,7 @@ function update() {
             p1.stats.kos += 1;
             updateWins(this);
             spawnKOBlast(this, p2, p1);
-            teleportBackToArena(p2);
+            teleportBackToArena(p2, this.gameState.map.getRespawnX(p1));
             if (p1.winNumber < winNumber) playRespawn(this, p2);
             
             this.time.delayedCall(1500, () => {

@@ -1057,8 +1057,6 @@ const SACRIFICE = {
     jumpSpeed: 400,
     dropSpeed: 250,
     splashRange: 110,
-    worldWidth: 2000,
-    worldHeight: 1200,
     lifetimeMs: 4000
 };
 
@@ -1121,7 +1119,8 @@ function dropMower(scene, player, victim) {
     if (victim) colliders.push(scene.physics.add.overlap(mower, victim, explode));
     const removeUpdate = api.addSceneUpdateListener(scene, () => {
         if (!mower.active) return;
-        const out = mower.x < 0 || mower.x > SACRIFICE.worldWidth || mower.y > SACRIFICE.worldHeight;
+        const bounds = scene.physics.world.bounds;
+        const out = mower.x < bounds.left || mower.x > bounds.right || mower.y > bounds.bottom;
         if (out) explode();
     });
     const expire = scene.time.delayedCall(SACRIFICE.lifetimeMs, explode);
