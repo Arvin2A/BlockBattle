@@ -73,7 +73,7 @@ export const CHARACTER_ROSTER = [
             {
                 name: 'LAWNMOWER',
                 desc: 'Mow them down. Push it, ride it or launch it, and cut grass to keep it running.',
-                abilities: 'ATTACK: PLOW \n\n Push your mower into them and grind until it blows up. Then you only have a PULL CORD for 6 seconds. \n\nALT: RIDE \n\n Hop on for a big speed boost. \n\nNEUTRAL SPECIAL: CLIPPINGS \n\n Spray the grass you cut back at them. Anyone hit is slowed way down and can\'t double jump for a moment. Hold it to keep spraying. \n\nDIR SPECIAL: EJECT \n\n Launch the mower, faster and faster, until it explodes on whatever it hits.',
+                abilities: 'ATTACK: PLOW \n\n Push your mower into them and grind until it blows up. Then you only have a PULL CORD for 6 seconds. \n\nALT: RIDE \n\n Hop on for a big speed boost. \n\nNEUTRAL SPECIAL: CLIPPINGS \n\n Spray the grass you cut back at them. Anyone hit is slowed way down and can\'t double jump for a moment. Hold it to keep spraying. \n\nDIR SPECIAL: EJECT \n\n Launch the mower, faster and faster, until it explodes on whatever it hits. \n\nTRIPLE JUMP \n\n Jump a third time by ditching your mower. It crashes down and explodes on whatever it lands on.',
                 color: '#7d9474'
             }
         ]
