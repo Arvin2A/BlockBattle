@@ -82,7 +82,6 @@ export function executeStateCommand(scene, players, command) {
             attacker.downslamFx = true;
             attacker.afterimage = true;
             attacker.setVelocityY(800);
-            kickSquash(attacker, SQUASH.downslam);
             break;
         case Commands.NONE:
             attacker.horizontalMovementActive = false;

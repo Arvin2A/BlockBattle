@@ -55,7 +55,7 @@ export const CHARACTER_ROSTER = [
             {
                 name: 'TRAPPER',
                 desc: 'Why catch one fish when you can catch them all? Your third stab pins them to the floor.',
-                abilities: 'DIR SPECIAL: THROW NET \n\n Stuns for 3 seconds, whether it lands on them or they walk into it on the ground.',
+                abilities: 'DIR SPECIAL: THROW NET \n\n Stuns for 3 seconds, whether it lands on them or they walk into it on the ground. You move 1.8x faster while they\'re trapped, but hitting them breaks the net.',
                 color: '#e0661b'
             }
         ]

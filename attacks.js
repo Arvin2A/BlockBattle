@@ -49,6 +49,7 @@ import {
     setAttackSprite
 } from './combat/attackSprite.js';
 import {
+    NET_IMMUNITY_MS,
     strike,
     landHit,
     queueStunRelease,
@@ -319,6 +320,7 @@ export function downslamAttack(scene, attacker, target) {
 }
 
 const sharedAttackHelpers = {
+    NET_IMMUNITY_MS,
     strike,
     blocksHit,
     landHit,
@@ -418,7 +420,12 @@ export function tryQuickslamJump(scene, attacker, currentTime) {
     ) ?? false;
 }
 
+function specialLockedBySmack(scene, attacker) {
+    return scene.time.now < (attacker.smackEndlagUntil ?? 0);
+}
+
 export function handleDirSpecial(scene, attacker, direction, currentTime, victim, force = false) {
+    if (specialLockedBySmack(scene, attacker)) return;
     const characterScript = getCharacterScript(attacker);
     if (force) attacker.lastTap[direction] = currentTime - 1;
     return characterScript?.handleDirSpecial(
@@ -427,6 +434,7 @@ export function handleDirSpecial(scene, attacker, direction, currentTime, victim
 }
 
 export function handleNeutralSpecial(scene, attacker, victim) {
+    if (specialLockedBySmack(scene, attacker)) return;
     const characterScript = getCharacterScript(attacker);
     const variantHandler = characterScript?.variantNeutralSpecials?.[attacker.variant];
     const handler = variantHandler ?? characterScript?.handleNeutralSpecial;

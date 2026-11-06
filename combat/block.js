@@ -137,8 +137,17 @@ function drawShield(scene, player) {
         .setVisible(true);
 }
 
+export function canBreakGrab(player) {
+    return Boolean(player.wantsBlock) && (player.shield ?? 1) >= BLOCK.minStart;
+}
+
+export function raiseBlock(player) {
+    player.blocking = true;
+}
+
 export function updateBlock(scene, player, wantsBlock) {
     player.shield ??= 1;
+    player.wantsBlock = wantsBlock;
     if (!isFrozen(scene)) {
         const dt = Math.min(scene.game.loop.delta, 50) / 1000;
         if (player.blocking && (!wantsBlock || !canHoldBlock(player))) {
