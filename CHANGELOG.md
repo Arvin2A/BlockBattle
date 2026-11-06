@@ -12,9 +12,15 @@
 - Map select got a redesign: maps are now a vertical card wheel with wide cards (scroll, arrow keys or W/S to browse), and modifiers moved to their own page. NEXT swipes down to the modifiers, BACK swipes back up. The faded background behind map select, modifiers and character select now shows the map you picked.
 - Modifiers are bigger and easier to read, sorted from most to least chaotic and colored by how chaotic they are: purple, red, orange, then yellow.
 - MAP HAZARDS is now called WEATHER HAZARDS.
+- You can't be hit while falling back in after a KO, or for a moment after you land.
+- Fighters who can't be hit, or who are immune to nets, now flash so you can tell.
+- TRAPPER moves 1.8x faster while their net has someone trapped, but hitting a netted fighter breaks the net.
+- SMACK DOWN: you can't use specials until the victim's stun is over, same as attacks.
+- SMACK DOWN can be blocked during its pull-in, so you have a moment to react instead of needing block up beforehand.
 - LAWNMOWER's PULL CORD wait is 8 seconds (up from 6).
 
 ### Fixed
+- Closed a stunlock with TRAPPER's net and SMACK DOWN: a thrown net that hits someone who's already stunned just knocks them back instead of netting them, and you get 1 second of net immunity after being freed.
 - NO ABILITY COOLDOWNS now also applies to CHAINSAW's burnout after its saw explodes and LAWNMOWER's PULL CORD wait and remount delay. Those two keep a short 0.5 second cooldown, since their grinders hold you in place and could otherwise stunlock (or freeze their own user) forever.
 - LAWNMOWER's plow now damages walls like CHAINSAW does: it chews through steel walls and wrecks wooden planks instantly.
 

@@ -8,7 +8,7 @@ import { getCharacterStat } from './characterStats.js';
 import { isInvincible } from './knockback.js';
 import { isBlockedByWall } from './planks.js';
 import { spawnDirtBurst, triggerScreenShake } from './effects.js';
-import { updateBlock, blocksHit } from './block.js';
+import { updateBlock, blocksHit, canBreakGrab, raiseBlock } from './block.js';
 import { consumePress } from '../input.js';
 
 export const SMACK = {
@@ -150,6 +150,8 @@ export function smackDown(scene, attacker, target) {
         playArm(scene, attacker, 'uni-slam', dir);
         return true;
     }
+    const targetWasStunned = target.hitstun || target.freeze;
+    const targetStunBefore = target.hitstunUntil ?? 0;
     target.smackedBy = attacker;
     target.weaponHiddenBySmack = { impacted: false };
     target.hitstunUntil = Math.max(target.hitstunUntil ?? 0, scene.time.now + SMACK.grabMs + SMACK.slamMs + 500);
@@ -162,6 +164,8 @@ export function smackDown(scene, attacker, target) {
         target,
         dir,
         elapsed: 0,
+        targetWasStunned,
+        targetStunBefore,
         from: { x: target.x, y: target.y },
         holdX,
         holdY: groundTop - SMACK.holdHeight,
@@ -200,6 +204,13 @@ function stepSmack(scene, attacker, dt) {
     target.setVelocity(0, 0);
 
     if (smack.elapsed < SMACK.grabMs) {
+        if (!smack.targetWasStunned && canBreakGrab(target)) {
+            target.hitstunUntil = smack.targetStunBefore;
+            releaseSmack(scene, attacker);
+            raiseBlock(target);
+            blocksHit(scene, target, attacker, SMACK.damage);
+            return;
+        }
         const t = Phaser.Math.Easing.Quadratic.Out(smack.elapsed / SMACK.grabMs);
         target.setPosition(
             Phaser.Math.Linear(smack.from.x, smack.holdX, t),
@@ -220,6 +231,7 @@ function stepSmack(scene, attacker, dt) {
     const victimStunMs = SMACK.totalStunMs - SMACK.grabMs - SMACK.slamMs;
     const recoverMs = victimStunMs - SMACK.attackerFreeBeforeMs;
     attacker.nextAttackTime = Math.max(attacker.nextAttackTime ?? 0, scene.time.now + recoverMs);
+    attacker.smackEndlagUntil = scene.time.now + recoverMs;
     scene.time.delayedCall(recoverMs, () => {
         if (!attacker.smack) attacker.canAttack = true;
     });
