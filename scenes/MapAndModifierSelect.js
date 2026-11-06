@@ -20,12 +20,7 @@ export const modifierOptions = {
         tier: 'purple',
         enabled: false
     },
-    INFINITE_BRIDGE: {
-        name: 'INFINITE BRIDGE',
-        description: 'A snowy bridge that never ends, with speedometers.',
-        tier: 'red',
-        enabled: false
-    },
+    
     HYPERACTIVE: {
         name: 'HYPERACTIVE',
         description: '200% Movement Speed and Halved Cooldowns.',
@@ -41,6 +36,12 @@ export const modifierOptions = {
     SUDDEN_DEATH: {
         name: 'SUDDEN DEATH',
         description: 'Players start off with 300% damage.',
+        tier: 'red',
+        enabled: false
+    },
+	INFINITE_BRIDGE: {
+        name: 'INFINITE BRIDGE',
+        description: 'A snowy bridge that never ends, with speedometers.',
         tier: 'red',
         enabled: false
     },
