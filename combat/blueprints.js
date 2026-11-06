@@ -118,6 +118,14 @@ function resolveLaunch(attacker, target, knockback, direction, damageScale) {
     return { x: x * growthScale * xScale * dirX, y: y * growthScale * dirY };
 }
 
+export const NET_IMMUNITY_MS = 1000;
+
+function breakNet(target, now) {
+    target.nettedUntil = 0;
+    target.nettedBy = null;
+    target.netImmuneUntil = now + NET_IMMUNITY_MS;
+}
+
 export function landHit(scene, attacker, target, spec = {}) {
     const {
         damage = 0,
@@ -146,6 +154,7 @@ export function landHit(scene, attacker, target, spec = {}) {
         target.revokeVictimStun = null;
     }
     target.lastHitAt = now;
+    if (target.nettedUntil > now) breakNet(target, now);
     attacker.lastLandedHitAt = now;
     target.hitstunUntil = now + hitstun * (hitstunGrowth ? target.KBmultiplier : 1);
     if (stun) {

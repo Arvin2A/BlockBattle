@@ -14,7 +14,7 @@ import { initiatePlayers, updateCombo } from './players.js';
 import { Commands, executeStateCommand} from './commands.js';
 import { applySquash, cancelDownslamFx, restoreSquash, squashOnLanding } from './combat/squash.js';
 import { updateUniversalMoves, isUniversalBusy, tryLedgeGrab, hideWeaponsForUniversalMoves, restoreHiddenWeapons } from './combat/universalMoves.js';
-import { updateLaunchArc } from './combat/knockback.js';
+import { updateLaunchArc, isInvincible } from './combat/knockback.js';
 import { MenuScene } from './scenes/MenuScene.js';
 import { fadeOutTo } from './scenes/transitions.js';
 import { player1Character, player2Character, player1Variant, player2Variant, CharacterSelectScene } from './scenes/CharacterSelectScreen.js';
@@ -1226,6 +1226,25 @@ function teleportBackToArena(player, x = 1000) {
     player.setPosition(x, 0);
     player.setVelocityY(0);
     player.setVelocityX(0);
+    player.respawnFalling = true;
+    player.invincibleUntil = player.scene.time.now + RESPAWN_MAX_IMMUNITY_MS;
+}
+
+const RESPAWN_MAX_IMMUNITY_MS = 4000;
+const RESPAWN_LAND_GRACE_MS = 300;
+const IMMUNITY_FLASH_GAP_MS = 120;
+
+function updateImmunity(scene, player) {
+    const now = scene.time.now;
+    if (player.respawnFalling && (player.body.blocked.down || player.body.touching.down)) {
+        player.respawnFalling = false;
+        player.invincibleUntil = now + RESPAWN_LAND_GRACE_MS;
+    }
+    const netImmune = now >= (player.nettedUntil ?? 0) && now < (player.netImmuneUntil ?? 0);
+    if (!isInvincible(player) && !netImmune) return;
+    if (now < (player.nextImmunityFlashAt ?? 0)) return;
+    player.nextImmunityFlashAt = now + IMMUNITY_FLASH_GAP_MS;
+    player.flash();
 }
 const accelFactor = 20;
 
@@ -1257,7 +1276,8 @@ function spawnAfterimage(scene, player) {
     }
 
     ghost.setDepth(player.depth - 1);
-    scene.objs.add(ghost);
+    const { player: first, player2: second } = scene.gameState.players;
+    scene.objs.addAt(ghost, Math.min(scene.objs.getIndex(first), scene.objs.getIndex(second)));
     scene.tweens.add({
         targets: ghost,
         alpha: 0,
@@ -2131,6 +2151,7 @@ function update() {
         player.freeze =
             this.time.now < player.freezeUntil;
         restoreGroundFriction(player);
+        updateImmunity(this, player);
         if (player.isAttacking || player.hitstun || player.freeze) cancelDownslamFx(player);
         updateLaunchArc(player);
         if (player.canAttack || player.hitstun || player.freeze || player.activeGrab || player.grabbedBy) {

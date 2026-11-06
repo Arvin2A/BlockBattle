@@ -327,6 +327,18 @@ function throwHarpoon(api, scene, attacker, target) {
 const NET_RELEASE_MS = 100;
 const NET_LAUNCH = { x: 420, y: -250 };
 const NET_STUN = 3000;
+const NET_HUNT_SPEED = 1.8;
+const NET_BUMP = {
+    ranged: true,
+    damage: 0.02,
+    plankDamage: 0,
+    hitstun: 350,
+    hitstunGrowth: false,
+    sound: 'anyhit',
+    knockback: { x: 700, y: 500, lift: -0.7, growth: false, scaleWithDamage: false },
+    resetCombo: false,
+    noDeathRay: true
+};
 const NET_AIR_MS = 3000;
 const NET_GROUND_MS = 6000;
 const NET_GROUND_ORIGIN_Y = 31 / 50;
@@ -346,9 +358,16 @@ function netFoe(api, scene, owner, target, duration, holdInPlace) {
         knockback: () => ({ x: 0, y: Math.max(0, target.body.velocity.y) }),
         onHit: () => {
             target.nettedUntil = now + duration;
+            target.nettedBy = owner;
+            target.netImmuneUntil = now + duration + api.NET_IMMUNITY_MS;
             if (holdInPlace) target.freezeUntil = now + duration;
         }
     });
+}
+
+function canBeNetted(scene, api, target) {
+    return !api.isInvincible(target) && !target.hitstun &&
+        scene.time.now >= (target.netImmuneUntil ?? 0);
 }
 
 function throwNet(api, scene, player, target, direction, currentTime) {
@@ -417,7 +436,8 @@ function throwNet(api, scene, player, target, direction, currentTime) {
                 scene.physics.add.collider(net, api.getMapPlatforms(scene), null, landsFromAbove),
                 scene.physics.add.overlap(net, target, () => {
                     if (state !== 'air' || api.isInvincible(target)) return;
-                    netFoe(api, scene, player, target, NET_STUN, false);
+                    if (canBeNetted(scene, api, target)) netFoe(api, scene, player, target, NET_STUN, false);
+                    else api.landHit(scene, player, target, { ...NET_BUMP, direction: { x: facing, y: 0 } });
                     removeNet();
                 })
             );
@@ -447,7 +467,7 @@ function throwNet(api, scene, player, target, direction, currentTime) {
                 net.setPosition(player.x + facing * heldOffsetX, player.y - 25);
             } else if (state === 'air' && (net.body.blocked.down || net.body.touching.down)) {
                 layOnGround();
-            } else if (state === 'ground' && target.active && !api.isInvincible(target)) {
+            } else if (state === 'ground' && target.active && canBeNetted(scene, api, target)) {
                 const body = target.body;
                 const steppedIn = body.right > net.x - NET_GROUND_HALF_WIDTH &&
                     body.left < net.x + NET_GROUND_HALF_WIDTH &&
@@ -796,11 +816,14 @@ function createHarpoonRack(scene, player) {
     }
 }
 
-function updateTrapper(api, scene, player) {
+function updateTrapper(api, scene, player, victim) {
     if (player.variant !== 'TRAPPER') return;
     if (!player.harpoonRack) createHarpoonRack(scene, player);
 
     const now = scene.time.now;
+    if (victim?.nettedBy === player && now < (victim.nettedUntil ?? 0)) {
+        player.movementSpeed = player.baseMovementSpeed * player.playerSpeedScaling * NET_HUNT_SPEED;
+    }
     if (player.nextHarpoonAt && now >= player.nextHarpoonAt) {
         player.harpoons = Math.min(MAX_HARPOONS, harpoonsLeft(player) + 1);
         player.nextHarpoonAt = player.harpoons < MAX_HARPOONS ? now + HARPOON_REGEN_MS : 0;

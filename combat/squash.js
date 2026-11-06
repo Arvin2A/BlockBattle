@@ -6,9 +6,6 @@ import { getFlatSquash, FLAT_SQUASH } from './universalMoves.js';
 
 export const SQUASH = {
     jump: 0.22,
-    downslam: 0.3,
-    downslamHold: 0.22,
-    downslamLand: -0.32,
     landMin: -0.06,
     landMax: -0.24,
     landSpeedForMax: 900,
@@ -33,15 +30,11 @@ export function kickSquash(player, amount) {
 export function cancelDownslamFx(player) {
     if (!player.downslamFx) return;
     player.downslamFx = false;
-    kickSquash(player, 0);
     if (!player.heavyLaunch && !player.isUsingSideSpecial) player.afterimage = false;
 }
 
 export function squashOnLanding(player, fallSpeed) {
-    if (player.downslamming && player.downslamFx) {
-        kickSquash(player, SQUASH.downslamLand);
-        return;
-    }
+    if (player.downslamming) return;
     if (fallSpeed < SQUASH.landSpeedMin) return;
     const t = Math.min(1, (fallSpeed - SQUASH.landSpeedMin) / (SQUASH.landSpeedForMax - SQUASH.landSpeedMin));
     kickSquash(player, SQUASH.landMin + (SQUASH.landMax - SQUASH.landMin) * t);
@@ -62,8 +55,7 @@ export function applySquash(scene, players) {
         if (!player?.active) continue;
         const squash = getSquash(player);
         if (!frozen) {
-            const target = player.downslamming && player.downslamFx ? SQUASH.downslamHold : 0;
-            squash.speed += (-(squash.value - target) * SQUASH.stiffness - squash.speed * SQUASH.damping) * dt;
+            squash.speed += (-squash.value * SQUASH.stiffness - squash.speed * SQUASH.damping) * dt;
             squash.value = Phaser.Math.Clamp(squash.value + squash.speed * dt, -SQUASH.limit, SQUASH.limit);
         }
         const flat = getFlatSquash(player, scene.time.now);
