@@ -1138,9 +1138,7 @@ function create() {
     this.hud.add(this.pauseResumeButton);
     this.hud.add(this.pauseMenuButton);
     this.hud.add(this.pauseButton);
-    this.perspective = this.online ? null : createPerspectiveSwitch(this, this.gameState.map.infinite
-        ? { alwaysOn: true, startMode: 'p1' }
-        : {});
+    this.perspective = !this.online && this.gameState.map.infinite ? createPerspectiveSwitch(this) : null;
 
     this.resumeGame = () => {
         if (!this.gamePaused) return;
@@ -1956,7 +1954,7 @@ function update() {
 
     var distance = Math.max(distX, distY);
     const perspectiveFocus = this.perspective && !this.gameEnded
-        ? updatePerspective(this, this.perspective, Math.abs(p1.x - p2.x))
+        ? updatePerspective(this, this.perspective)
         : null;
     if (perspectiveFocus) {
         midX = perspectiveFocus.x;
