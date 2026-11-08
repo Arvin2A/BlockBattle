@@ -6,6 +6,10 @@ import { defineConfig } from 'vite'
 
 export default defineConfig(() => ({
   base: process.env.INFINITYFREE === 'true' ? '/' : '/BlockBattle/',
+  build: {
+    outDir: process.env.BUILD_DIR || 'dist',
+    emptyOutDir: true
+  },
   server: {
     // Lets "npm run dev" talk to a local server started with "npm run server".
     proxy: {

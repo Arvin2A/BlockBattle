@@ -3,7 +3,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "vite build && node -e \"for (const dir of ['assets', 'audio']) require('fs').cpSync(dir, 'dist/' + dir, { recursive: true })\"",
+    "build": "vite build && node -e \"for (const dir of ['assets', 'audio']) require('fs').cpSync(dir, (process.env.BUILD_DIR || 'dist') + '/' + dir, { recursive: true })\"",
     "preview": "vite preview",
     "add-audio": "node add-audio.js",
     "server": "node server/index.js",

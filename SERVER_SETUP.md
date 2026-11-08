@@ -290,8 +290,10 @@ Restarting ends any matches in progress, so do it when nobody is playing.
 ### Automatic updates
 
 To skip the commands above, let the server update itself. Every 5 minutes it checks
-GitHub for new commits on `main`. If there are any, it pulls them, rebuilds and restarts.
-If a match is in progress, it waits and tries again on the next check, so nobody gets kicked.
+GitHub for new commits on `main`, and only does what the new commits need:
+- **Nothing new:** does nothing.
+- **Only game files changed** (characters, art, menus, ...): pulls them and rebuilds the site in place. The server keeps running, so matches and queues aren't touched. New matches use the new build.
+- **Files the server itself runs changed** (`server/`, `mp/`, the roster, map list, packages, ...): waits until no match is running and nobody is queued, then pulls, rebuilds and restarts. If the server is running but its status page doesn't answer, it doesn't restart.
 
 ```bash
 sudo cp ~/BlockBattle/server/deploy/blockbattle-update.* /etc/systemd/system/
