@@ -230,17 +230,30 @@ export class MenuScene extends Phaser.Scene {
 
         const upcomingEntries = [
             {
-                title: "HOOKER REWORK",
+                title: "1v1v1v1, 2v2, and 1v1v1",
+                body: "The max player limit and bot limit will be increased to 4, allowing for 1v1v1v1, 2v2, and 1v1v1 matches."
+            },
+            {
+                title: "Animated map backgrounds",
+                body: "Map backgrounds will be animated, and will have a more depth to it. It will foreshadow future updates and events..."
+            },
+            {
+                title: "3D Map Platforms",
+                body: "So far, only the SNOWY arena has 3D platforms/main ground, this will be expanded to other maps."
+            },
+            {
+                title: "LUMBERER + DAGGER REDESIGNS",
+                body: "AXEMAN's LUMBERER and SWORDMAN's DAGGER are getting redesigned."
+            },
+            {
+                title: "HOOKER REWORK + REDESIGN",
                 body: "CROWBARMAN's HOOKER is getting reworked and redesigned."
             },
             {
                 title: "DEMOLITIONIST CROWBARMAN",
                 body: "A brand new CROWBARMAN variant: DEMOLITIONIST."
             },
-            {
-                title: "LUMBERER + DAGGER REDESIGNS",
-                body: "AXEMAN's LUMBERER and SWORDMAN's DAGGER are getting redesigned."
-            },
+
             {
                 title: "NEW GUNMAN VARIANT",
                 body: "GUNMAN is getting a new variant, and a redesign too."
