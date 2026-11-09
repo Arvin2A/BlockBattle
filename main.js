@@ -167,6 +167,7 @@ class GameScene extends Phaser.Scene {
     }
 
     update() {
+        syncFightersToPhysics(Object.values(this.gameState.players ?? {}));
         update.call(this);
         settleNoGravity(this);
         updateCrashes(this, Object.values(this.gameState.players ?? {}));
@@ -1264,6 +1265,7 @@ const baseZoom = 1;
 const minZoom = 0.6;
 const HIT_FOCUS_ZOOM = 2.4;
 const CAMERA_MAX_LAG_OF_HALF_VIEW = 0.5;
+const CAMERA_SNAP_SPEED = 10000;
 
 function cameraFollowRate(scene, baseRate, velocity, viewSize) {
     const step = Math.abs(velocity) * Math.min(scene.game.loop.delta, 50) / 1000;
@@ -1898,6 +1900,16 @@ const STALE_FLOAT_MS = 200;
 const NO_GRAVITY_FLOOR_GRIP = 1;
 const NO_GRAVITY_RESPAWN_DRIFT = 250;
 
+function syncFightersToPhysics(fighters) {
+    for (const fighter of fighters) {
+        const body = fighter?.body;
+        if (!body?.enable || !body.moves) continue;
+        fighter.x += body.position.x - body.prevFrame.x;
+        fighter.y += body.position.y - body.prevFrame.y;
+        body.prevFrame.copy(body.position);
+    }
+}
+
 function settleNoGravity(scene) {
     if (!scene.noGravityPending) return;
     const fighters = Object.values(scene.gameState.players ?? {});
@@ -2038,8 +2050,9 @@ function update() {
     const followVelocity = axis => followed?.body
         ? followed.body.velocity[axis]
         : (p1.body.velocity[axis] + p2.body.velocity[axis]) / 2;
-    const followRateX = cameraFollowRate(this, baseFollowRate, followVelocity('x'), this.cameras.main.width);
-    const followRateY = cameraFollowRate(this, baseFollowRate, followVelocity('y'), this.cameras.main.height);
+    const snapCamera = Math.hypot(followVelocity('x'), followVelocity('y')) > CAMERA_SNAP_SPEED;
+    const followRateX = snapCamera ? 1 : cameraFollowRate(this, baseFollowRate, followVelocity('x'), this.cameras.main.width);
+    const followRateY = snapCamera ? 1 : cameraFollowRate(this, baseFollowRate, followVelocity('y'), this.cameras.main.height);
 
     this.cameras.main.scrollX -= this.shakeOffset.x;
     this.cameras.main.scrollY -= this.shakeOffset.y;
