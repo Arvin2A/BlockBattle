@@ -3,3 +3,6 @@ dist/
 dist-next/
 dist-old/
 dist-legacy/
+
+CLAUDE.md
+AGENTS.md
