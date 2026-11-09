@@ -2,6 +2,8 @@
 // Original source: https://github.com/Arvin2A/BlockBattle
 // Licensed under the GNU GPL v3 only. See LICENSE.
 
+export const INFINITE_SPAN = 268435455;
+
 function applyWeatherDamage(scene, amount) {
     Object.values(scene.gameState.players).forEach(player => {
         player.KBmultiplier += amount;
@@ -290,7 +292,6 @@ const BRIDGE_MAP = {
     tint: '#2b6335',
     infinite: {
         segmentWidth: 1730,
-        recenterDistance: 1000,
         parallax: 0.9,
         markerSpacing: 2500,
         blockSize: 50,

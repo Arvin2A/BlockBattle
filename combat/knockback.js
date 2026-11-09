@@ -143,7 +143,7 @@ export function deathRayAttackLocked(scene) {
 
 // Pass { noDeathRay: true } for hits that shouldn't ever fire the death ray,
 // like pulls and explosions.
-function clearLaunchArc(target) {
+export function clearLaunchArc(target) {
     if (!target.launchArc) return;
     target.launchArc = false;
     target.body?.setGravityY(0);

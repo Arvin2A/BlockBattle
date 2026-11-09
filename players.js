@@ -2,7 +2,9 @@
 // Original source: https://github.com/Arvin2A/BlockBattle
 // Licensed under the GNU GPL v3 only. See LICENSE.
 
-import { modifierOptions } from './scenes/MapAndModifierSelect.js';
+import { getEnabledCustomValues, modifierOptions } from './scenes/MapAndModifierSelect.js';
+
+const MAX_FIGHTER_VELOCITY = 16777215;
 import { getCharacterTexture } from './characterTextures.js';
 import { hasIdleAttackSprite } from './attacks.js';
 import { COLORS, FONTS } from './ui/theme.js';
@@ -195,24 +197,32 @@ export function initiatePlayers(scene, p1Select = 'axeman', p2Select = 'swordman
         });
         const selectedCharacter = p.id === 1 ? p1Select : p2Select;
 
+        const unmodifiedSpeed = p.baseMovementSpeed;
         if (modifierOptions.SLUGGISH.enabled) {
             p.baseMovementSpeed -= 150;
-        } 
+        }
         if (modifierOptions.SUPER_SLUGGISH.enabled) {
             p.baseMovementSpeed = 75;
-        } 
+        }
         if (modifierOptions.FAST.enabled) {
-            p.baseMovementSpeed += 150;
-        }
-        if (modifierOptions.HYPERACTIVE.enabled) {
             p.baseMovementSpeed += 300;
-        }
-        if (modifierOptions.HYPERACTIVE.enabled) {
             p.dirSpecialCooldown = 1750;
+        }
+        for (const percent of getEnabledCustomValues('speed')) {
+            p.baseMovementSpeed += unmodifiedSpeed * percent / 100;
         }
         p.noAbilityCooldown = modifierOptions.NO_ABILITY_COOLDOWN.enabled;
         if (p.noAbilityCooldown) {
             p.dirSpecialCooldown = 0;
+        }
+        p.body.setMaxVelocity(MAX_FIGHTER_VELOCITY, MAX_FIGHTER_VELOCITY);
+        p.keepsMomentum = modifierOptions.NO_GRAVITY_FRICTION.enabled;
+        if (p.keepsMomentum) {
+            Object.defineProperty(p, 'willDecelerate', {
+                get() { return false; },
+                set() { },
+                configurable: true
+            });
         }
         if (p.variant === 'SLEDGEHAMMER') {
             p.baseMovementSpeed = p.baseMovementSpeed/2;
@@ -223,6 +233,9 @@ export function initiatePlayers(scene, p1Select = 'axeman', p2Select = 'swordman
         
         if (modifierOptions.DOUBLE_DAMAGE.enabled) {
             p.externalDamageScale = 2;
+        }
+        for (const scale of getEnabledCustomValues('damage')) {
+            p.externalDamageScale *= scale;
         }
 
         p.plungeAura = scene.add.image(p.x, p.y, 'plungedAura');

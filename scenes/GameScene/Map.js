@@ -2,7 +2,7 @@
 // Original source: https://github.com/Arvin2A/BlockBattle
 // Licensed under the GNU GPL v3 only. See LICENSE.
 
-import { DEFAULT_MAP } from './MapDefinitions.js';
+import { DEFAULT_MAP, INFINITE_SPAN } from './MapDefinitions.js';
 
 export class Map {
     constructor(scene, definition = DEFAULT_MAP) {
@@ -109,13 +109,8 @@ export class Map {
     }
 
     createInfiniteParts() {
-        const { scene, definition } = this;
-        const extraGround = this.platforms.create(this.ground.x, this.ground.y, definition.mainGround.texture);
-        extraGround.setDisplaySize(definition.mainGround.width, definition.mainGround.height);
-        extraGround.setVisible(false);
-        extraGround.refreshBody();
-        scene.objs.add(extraGround);
-        this.followGrounds = [this.ground, extraGround];
+        const { scene } = this;
+        this.ground.body.setSize(INFINITE_SPAN * 2, this.ground.body.height);
         this.backgroundTiles = [this.background, ...this.cloneBelow(this.background, 2)];
         this.bridgeTiles = [this.groundVisual, ...this.cloneBelow(this.groundVisual, 2)];
         this.markers = Array.from({ length: 3 }, () => {
@@ -136,15 +131,6 @@ export class Map {
         const settings = this.definition.infinite;
         const camera = this.scene.cameras.main;
         const centerX = camera.scrollX + camera.width / 2;
-        const players = this.scene.gameState.players ?? {};
-        [players.player, players.player2].forEach((player, index) => {
-            const ground = this.followGrounds[index];
-            if (!player?.active || !ground) return;
-            if (Math.abs(player.x - ground.x) > settings.recenterDistance) {
-                ground.x = player.x;
-                ground.refreshBody();
-            }
-        });
 
         const origin = this.definition.groundVisualPosition.x;
         const isOdd = k => ((k % 2) + 2) % 2 === 1;

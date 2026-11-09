@@ -7,12 +7,26 @@ import { DEFAULT_MAP, MAP_LIST, SECRET_MAPS, getRandomMap } from './GameScene/Ma
 import { preloadMapSelection } from './GameScene/preload.js';
 import { fadeOutTo } from './transitions.js';
 import { clipScrollablePanel } from '../ui/clipScroll.js';
-import { CHAOS_TIERS, FONTS, COLORS } from '../ui/theme.js';
+import { CHAOS_TIERS, FONTS, COLORS, HEX, textStyle } from '../ui/theme.js';
 import { moveSelection, createNavigationBox, moveNavigationBox, getConnectedControllers, getMenuGamepadInput } from "../navigation.js"
 
 
 export let selectedMapDefinition = DEFAULT_MAP;
 export let selectedMapIsRandom = false;
+const CLICK_VALUE_FORMATS = {
+    damage: value => `${value}x`,
+    speed: value => `+${value}%`
+};
+
+const clickModifier = (name, description, tier, stat, step, steps) => ({
+    name,
+    description,
+    tier,
+    enabled: false,
+    value: step,
+    clicker: { stat, step, steps }
+});
+
 export const modifierOptions = {
     NO_ABILITY_COOLDOWN: {
         name: 'NO ABILITY COOLDOWNS',
@@ -20,9 +34,15 @@ export const modifierOptions = {
         tier: 'purple',
         enabled: false
     },
-    
-    HYPERACTIVE: {
-        name: 'HYPERACTIVE',
+    NO_GRAVITY_FRICTION: {
+        name: 'NO GRAVITY + FRICTION',
+        description: 'Remember the hitstun bugs? They are a feature now.',
+        tier: 'purple',
+        enabled: false
+    },
+
+    FAST: {
+        name: 'FAST',
         description: '200% Movement Speed and Halved Cooldowns.',
         tier: 'red',
         enabled: false
@@ -45,18 +65,33 @@ export const modifierOptions = {
         tier: 'red',
         enabled: false
     },
-    FAST: {
-        name: 'FAST',
-        description: 'Players have 150% Movement Speed.',
-        tier: 'orange',
-        enabled: false
+    NO_VERTICAL_KILLZONE: {
+        name: 'NO VERTICAL KILLZONE',
+        description: 'No kill zones above or below. COLLISION ON makes them solid walls.',
+        tier: 'purple',
+        enabled: false,
+        collisions: false,
+        collisionToggle: true
     },
+    NO_HORIZONTAL_KILLZONE: {
+        name: 'NO HORIZONTAL KILLZONE',
+        description: 'No kill zones left or right. COLLISION ON makes them solid walls.',
+        tier: 'purple',
+        enabled: false,
+        collisions: false,
+        collisionToggle: true
+    },
+    CUSTOM_DAMAGE_S: clickModifier('CUSTOM DAMAGE S', 'Multiplies all damage. Click the box for +5x, up to 50x.', 'purple', 'damage', 5, 10),
+    CUSTOM_SPEED_S: clickModifier('CUSTOM SPEED S', 'Adds movement speed. Click the box for +500%, up to +5000%.', 'purple', 'speed', 500, 10),    CUSTOM_DAMAGE_A: clickModifier('CUSTOM DAMAGE A', 'Multiplies all damage. Click the box for +1x, up to 10x.', 'red', 'damage', 1, 10),
+    CUSTOM_SPEED_A: clickModifier('CUSTOM SPEED A', 'Adds movement speed. Click the box for +50%, up to +500%.', 'red', 'speed', 50, 10),
     DOUBLE_DAMAGE: {
         name: 'DOUBLE DAMAGE',
         description: 'Players deal 200% more damage.',
         tier: 'orange',
         enabled: false
     },
+    CUSTOM_DAMAGE_R: clickModifier('CUSTOM DAMAGE R', 'Multiplies all damage. Click the box for +0.1x, up to 1x.', 'yellow', 'damage', 0.1, 10),
+    CUSTOM_SPEED_R: clickModifier('CUSTOM SPEED R', 'Adds movement speed. Click the box for +10%, up to +100%.', 'yellow', 'speed', 10, 10),
     SLUGGISH: {
         name: 'SLUGGISH',
         description: 'Players have 50% Movement Speed.',
@@ -79,6 +114,23 @@ export function setSelectedMap(definition) {
 export function getMatchMapDefinition() {
 	if (modifierOptions.INFINITE_BRIDGE.enabled) return SECRET_MAPS.BRIDGE;
 	return selectedMapIsRandom ? getRandomMap() : selectedMapDefinition;
+}
+
+export function getEnabledCustomValues(stat) {
+	return Object.values(modifierOptions)
+		.filter(modifier => modifier.enabled && modifier.clicker?.stat === stat)
+		.map(modifier => modifier.value);
+}
+
+export function getActiveKillZones(map) {
+	const vertical = modifierOptions.NO_VERTICAL_KILLZONE;
+	const horizontal = modifierOptions.NO_HORIZONTAL_KILLZONE;
+	return {
+		vertical: !vertical.enabled,
+		horizontal: !map.infinite && !horizontal.enabled,
+		verticalWall: vertical.enabled && vertical.collisions,
+		horizontalWall: !map.infinite && horizontal.enabled && horizontal.collisions
+	};
 }
 
 export function getSelectedMapPreview() {
@@ -139,6 +191,8 @@ const NEXT_X = 615;
 const SWIPE_MS = 450;
 const INFO_X = Math.round((WHEEL.x - WHEEL.cardWidth / 2) / 2);
 const MODIFIER_PANEL = { x: 500, y: PAGE_HEIGHT + 315, width: 700, height: 400, cardWidth: 650, cardHeight: 66 };
+const CUSTOM_FIELD = { width: 110, height: 32 };
+const COLLISION_FIELD_WIDTH = 190;
 
 var currentControllers = [];
 var primaryController = null;
@@ -391,6 +445,58 @@ export class MapAndModifierSelectScene extends Phaser.Scene {
 		];
 	}
 
+	createModifierHeader(modifier, name) {
+		if (modifier.collisionToggle) {
+			return this.createValueBoxRow(
+				name,
+				COLLISION_FIELD_WIDTH,
+				() => `COLLISION ${modifier.collisions ? 'ON' : 'OFF'}`,
+				() => { modifier.collisions = !modifier.collisions; }
+			);
+		}
+		if (!modifier.clicker) return name;
+		const { stat, step, steps } = modifier.clicker;
+		return this.createValueBoxRow(
+			name,
+			CUSTOM_FIELD.width,
+			() => CLICK_VALUE_FORMATS[stat](modifier.value),
+			() => {
+				const next = Math.round((modifier.value + step) * 10) / 10;
+				modifier.value = next > step * steps + 0.001 ? step : next;
+			}
+		);
+	}
+
+	createValueBoxRow(name, width, getLabel, onClick) {
+		const box = this.add.rectangle(0, 0, width, CUSTOM_FIELD.height, HEX.panel)
+			.setStrokeStyle(2, HEX.border)
+			.setInteractive({ useHandCursor: true });
+		const text = this.add.text(0, 0, '', textStyle('body', { fontSize: '20px', align: 'center' }));
+		const field = this.rexUI.add.label({
+			width,
+			height: CUSTOM_FIELD.height,
+			background: box,
+			text,
+			align: 'center'
+		});
+		const refresh = () => {
+			text.setText(getLabel());
+			field.layout();
+		};
+		box.on('pointerdown', pointer => {
+			const view = panel.getElement('background').getBounds();
+			if (pointer.worldY <= view.top || pointer.worldY >= view.bottom) return;
+			onClick();
+			refresh();
+			this.sound.play('hover');
+		});
+		const row = this.rexUI.add.sizer({ orientation: 'x' });
+		row.add(name, { proportion: 1, expand: true });
+		row.add(field, { proportion: 0, align: 'center' });
+		refresh();
+		return row;
+	}
+
 	createModifierPage({ backButton, nextButton }) {
 		this.add.text(500, PAGE_HEIGHT + 45, 'MODIFIERS', {
 			fontFamily: FONTS.body,
@@ -458,7 +564,7 @@ export class MapAndModifierSelectScene extends Phaser.Scene {
 				fontSize: '16px',
 				fill: COLORS.muted
 			});
-			card.add(name, { expand: true });
+			card.add(this.createModifierHeader(modifier, name), { expand: true });
 			card.add(description, { expand: true });
 			card.layout();
 			card.setInteractive({ useHandCursor: true });
