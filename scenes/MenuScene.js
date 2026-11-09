@@ -17,7 +17,8 @@ var navBox = null;
 var layout = []
 var selectedIndex = 0;
 var previousInput = {};
-const CHANGELOG_VERSION = "2026-11-05-1";
+const CHANGELOG_VERSION = "2026-11-08-4";
+const MIN_VERSION_COLOR_BRIGHTNESS = 170;
 
 function getVersionColor(version) {
     const [year, month, day, update] = version.split("-").map(Number);
@@ -39,8 +40,13 @@ function getVersionColor(version) {
     const g = (h >>> 8) & 0xFF;
     const b = h & 0xFF;
 
+    const brightness = 0.2126 * r + 0.7152 * g + 0.0722 * b;
+    const lift = brightness < MIN_VERSION_COLOR_BRIGHTNESS
+        ? (MIN_VERSION_COLOR_BRIGHTNESS - brightness) / (255 - brightness)
+        : 0;
+
     return `#${[r, g, b]
-        .map(v => v.toString(16).padStart(2, "0"))
+        .map(v => Math.round(v + (255 - v) * lift).toString(16).padStart(2, "0"))
         .join("")}`;
 }
 
@@ -74,6 +80,26 @@ export class MenuScene extends Phaser.Scene {
         this.input.topOnly = false;
 
         const changelogEntries = [
+            {
+                title: "CUSTOM DAMAGE + SPEED",
+                body: "Pick your own numbers! CUSTOM DAMAGE and CUSTOM SPEED each come in three sizes: S, A and R. Click the box on the card to raise the amount, and it loops back around after the max.\n CUSTOM DAMAGE S goes all the way to 50x, A goes to 10x, and R is for the tiny 0.1x to 1x range. CUSTOM SPEED S goes up to +5000%, A to +500% and R to +100%. Turn on more than one and they stack."
+            },
+            {
+                title: "NO GRAVITY + FRICTION",
+                body: "Remember the hitstun bugs? They're a feature now. Nothing pulls you down and nothing slows you down, so you just keep going.\n Pressing the way you're already moving keeps your speed, and pressing against it instantly flips you the other way at full speed. Downslam is your only ticket back to the floor."
+            },
+            {
+                title: "NO KILLZONES",
+                body: "NO VERTICAL KILLZONE and NO HORIZONTAL KILLZONE get rid of the kill zones on those sides, and the camera will follow you out into the void.\n Click COLLISION on the card and those edges become solid walls instead. Turn both modifiers on and nobody can get KO'd at all, so good luck ending that match."
+            },
+            {
+                title: "HIGH-SPEED CRASHES",
+                body: "Going really fast now looks and feels like it. Fighters stretch out as they speed up, and if you slam sideways into something above 12 blocks per second you squish, bounce back the way you came and get stunned for a moment. Floors and ceilings just squish you.\n Downslams, directional specials, grabs and SMACK DOWN are safe."
+            },
+            {
+                title: "REAL SPEEDOMETERS + FAST",
+                body: "The INFINITE BRIDGE speedometers now show your real speed. Those crazy 2000+ blocks per second readings were never real: they only showed up during hit freeze, before you actually moved. Best speeds start over from 0, but your best distances are safe. The camera also keeps up at extreme speeds now, so you won't vanish off screen.\n HYPERACTIVE is now called FAST, and the old FAST is gone."
+            },
             {
                 title: "INFINITE BRIDGE",
                 body: "New modifier! Turn on INFINITE BRIDGE and you fight on a snowy bridge that never ends. No platforms, no side blast zones, just road. Speedometers show how fast you're going in blocks per second, plus your top speed, average, distance and your best ever run with each fighter. Press V or click VIEW to switch the camera between P1, P2 and both.\n Map select also got a makeover: maps scroll on a vertical wheel with big cards, and pressing NEXT swipes down to a bigger, easier to read modifier page. Modifiers are now sorted and colored by how chaotic they are, and MAP HAZARDS is now WEATHER HAZARDS."
@@ -276,7 +302,7 @@ export class MenuScene extends Phaser.Scene {
 
         const changelogBlurb = this.add.text(
             40, 180,
-            "New INFINITE BRIDGE modifier: race down an endless snowy bridge with speedometers to see who's fastest. Map select got a redesign too, with a map wheel and a colorful modifier page. Check the full changelog for more!",
+            "Tons of new modifiers: pick your own damage and speed, turn off gravity, or remove the kill zones. Going really fast now stretches you, and slamming into things sends you bouncing. Check the full changelog for more!",
             {
                 fontFamily: "VCROSD",
                 fontSize: "16px",

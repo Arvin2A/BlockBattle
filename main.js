@@ -13,6 +13,9 @@ import { MAX_WOOD_COUNT } from './playerAttackScripts/axeman.js';
 import { initiatePlayers, updateCombo } from './players.js';
 import { Commands, executeStateCommand} from './commands.js';
 import { applySquash, cancelDownslamFx, restoreSquash, squashOnLanding } from './combat/squash.js';
+import { updateCrashes } from './combat/crash.js';
+import { KILLZONE, attachKillzoneWalls } from './combat/borders.js';
+import { INFINITE_SPAN } from './scenes/GameScene/MapDefinitions.js';
 import { updateUniversalMoves, isUniversalBusy, tryLedgeGrab, hideWeaponsForUniversalMoves, restoreHiddenWeapons } from './combat/universalMoves.js';
 import { updateLaunchArc, isInvincible } from './combat/knockback.js';
 import { MenuScene } from './scenes/MenuScene.js';
@@ -24,7 +27,7 @@ import { createGameAnimations } from './scenes/GameScene/animations.js';
 import { runBotAI } from './scenes/GameScene/botAI.js';
 import { runBotAI as runLegacyBotAI } from './scenes/GameScene/botAILegacy.js'; // BENCHMARK-TEMP
 import { Map } from './scenes/GameScene/Map.js';
-import { modifierOptions } from './scenes/MapAndModifierSelect.js';
+import { getActiveKillZones, modifierOptions } from './scenes/MapAndModifierSelect.js';
 import UIPlugin from 'phaser4-rex-plugins/templates/ui/ui-plugin.js';
 import unmuteAudio from 'unmute-ios-audio';
 import { botMode, simulationMode, changeBotMode } from './gameSettings.js';
@@ -165,6 +168,8 @@ class GameScene extends Phaser.Scene {
 
     update() {
         update.call(this);
+        settleNoGravity(this);
+        updateCrashes(this, Object.values(this.gameState.players ?? {}));
         applySquash(this, Object.values(this.gameState.players ?? {}));
         hideWeaponsForUniversalMoves(Object.values(this.gameState.players ?? {}));
     }
@@ -918,14 +923,22 @@ function create() {
         }
     }
 
+    this.killZones = getActiveKillZones(this.gameState.map);
+    attachKillzoneWalls(this);
     if (this.gameState.map.infinite) {
         this.physics.world.setBounds(-INFINITE_SPAN, 0, INFINITE_SPAN * 2, 1200);
-        this.cameras.main.setBounds(-INFINITE_SPAN, 0, INFINITE_SPAN * 2, 1200);
         this.speedometers = createSpeedometers(this, this.gameState.players);
     } else {
         this.physics.world.setBounds(0, 0, 2000, 1200);
-        this.cameras.main.setBounds(0, 0, 2000, 1200);
     }
+    const { horizontal, vertical } = this.killZones;
+    this.cameras.main.setBounds(
+        horizontal ? 0 : -INFINITE_SPAN,
+        vertical ? 0 : -INFINITE_SPAN,
+        horizontal ? 2000 : INFINITE_SPAN * 2,
+        vertical ? 1200 : INFINITE_SPAN * 2
+    );
+    this.noGravityPending = modifierOptions.NO_GRAVITY_FRICTION.enabled;
     this.cameras.main.ignore(this.hud);
     this.objcam.ignore(this.objs);
 
@@ -1218,13 +1231,12 @@ function updateWins(scene) {
     }
 
 }
-const INFINITE_SPAN = 10000000;
 
 function teleportBackToArena(player, x = 1000) {
     player.activeHookCleanup?.();
     player.nettedUntil = 0;
     player.setPosition(x, 0);
-    player.setVelocityY(0);
+    player.setVelocityY(modifierOptions.NO_GRAVITY_FRICTION.enabled ? NO_GRAVITY_RESPAWN_DRIFT : 0);
     player.setVelocityX(0);
     player.respawnFalling = true;
     player.invincibleUntil = player.scene.time.now + RESPAWN_MAX_IMMUNITY_MS;
@@ -1251,6 +1263,13 @@ const accelFactor = 20;
 const baseZoom = 1;
 const minZoom = 0.6;
 const HIT_FOCUS_ZOOM = 2.4;
+const CAMERA_MAX_LAG_OF_HALF_VIEW = 0.5;
+
+function cameraFollowRate(scene, baseRate, velocity, viewSize) {
+    const step = Math.abs(velocity) * Math.min(scene.game.loop.delta, 50) / 1000;
+    const maxLag = viewSize / 2 / scene.cameras.main.zoom * CAMERA_MAX_LAG_OF_HALF_VIEW;
+    return Math.max(baseRate, step / (step + maxLag));
+}
 const defaultMaxZoom = 1.4;
 
 const tiltThreshold = 150;
@@ -1876,6 +1895,16 @@ function getMapPlatforms(scene) {
     ].filter(platform => platform.active && platform.body?.enable);
 }
 const STALE_FLOAT_MS = 200;
+const NO_GRAVITY_FLOOR_GRIP = 1;
+const NO_GRAVITY_RESPAWN_DRIFT = 250;
+
+function settleNoGravity(scene) {
+    if (!scene.noGravityPending) return;
+    const fighters = Object.values(scene.gameState.players ?? {});
+    if (!fighters.every(fighter => (fighter.noGravitySettled ||= fighter.body?.touching.down))) return;
+    scene.noGravityPending = false;
+    scene.physics.world.gravity.y = NO_GRAVITY_FLOOR_GRIP;
+}
 
 function gravityHeldOff(player) {
     return Boolean(player.ledge || player.smackedBy || player.grabbedBy ||
@@ -1896,25 +1925,34 @@ const TUNNEL_MAX_FRAME_DROP = 600;
 function catchPlatformTunneling(scene, player) {
     const body = player.body;
     const previousBottom = player.lastFrameBottom;
+    const previousLeft = player.lastFrameLeft;
     player.lastFrameBottom = body?.bottom;
-    if (!body?.enable || body.checkCollision.none || previousBottom === undefined) return;
+    player.lastFrameLeft = body?.left;
+    if (!body?.enable || body.checkCollision.none || previousBottom === undefined || previousLeft === undefined) return;
     if (player.ledge || player.smackedBy || player.grabbedBy) return;
     const drop = body.bottom - previousBottom;
-    if (drop <= 0 || drop > TUNNEL_MAX_FRAME_DROP) return;
+    if (drop <= 0 || drop > Math.max(TUNNEL_MAX_FRAME_DROP, body.maxVelocity.y / 30)) return;
 
     let landing = null;
     for (const platform of getMapPlatforms(scene)) {
         const top = platform.body.top;
         const crossed = previousBottom <= top + TUNNEL_LAND_SLOP && body.bottom > top + TUNNEL_LAND_SLOP;
-        const overlapsX = body.right > platform.body.left && body.left < platform.body.right;
-        if (crossed && overlapsX && (!landing || top < landing)) landing = top;
+        if (!crossed) continue;
+        const left = previousLeft + (body.left - previousLeft) * Phaser.Math.Clamp((top - previousBottom) / drop, 0, 1);
+        const overlapsX = left + body.width > platform.body.left && left < platform.body.right;
+        if (overlapsX && (!landing || top < landing.top)) landing = { top, left };
     }
     if (landing === null) return;
 
     const velocityX = body.velocity.x;
-    body.reset(player.x, player.y - (body.bottom - landing));
+    body.reset(
+        landing.left + (player.displayOriginX - body.offset.x) * Math.abs(player.scaleX),
+        landing.top - body.height + (player.displayOriginY - body.offset.y) * Math.abs(player.scaleY)
+    );
     player.setVelocity(velocityX, 0);
     player.lastFrameBottom = body.bottom;
+    player.lastFrameLeft = body.left;
+    player.tunnelCaught = true;
 }
 
 function processPlatformCollide(player, platform) {
@@ -1994,19 +2032,25 @@ function update() {
         midY = focus.y;
         zoom = HIT_FOCUS_ZOOM;
     }
-    const followRate = focus ? 0.35 : 0.12;
+    const baseFollowRate = focus ? 0.35 : 0.12;
     const zoomRate = focus ? 0.3 : 0.05;
+    const followed = focus ?? perspectiveFocus;
+    const followVelocity = axis => followed?.body
+        ? followed.body.velocity[axis]
+        : (p1.body.velocity[axis] + p2.body.velocity[axis]) / 2;
+    const followRateX = cameraFollowRate(this, baseFollowRate, followVelocity('x'), this.cameras.main.width);
+    const followRateY = cameraFollowRate(this, baseFollowRate, followVelocity('y'), this.cameras.main.height);
 
     this.cameras.main.scrollX -= this.shakeOffset.x;
     this.cameras.main.scrollY -= this.shakeOffset.y;
 
     this.cameras.main.scrollX += (
         midX - this.cameras.main.width / 2 - this.cameras.main.scrollX
-    ) * followRate;
+    ) * followRateX;
 
     this.cameras.main.scrollY += (
         midY - this.cameras.main.height / 2 - this.cameras.main.scrollY
-    ) * followRate;
+    ) * followRateY;
 
     this.shakeOffset.x = 0;
     this.shakeOffset.y = 0;
@@ -2105,9 +2149,10 @@ function update() {
             handleAttack(this, p2, p1);
         }
     }
-    const sideBlastZones = !this.gameState.map.infinite;
-    p1.outOfBounds = p1.y > 1600 || p1.y < -400 || (sideBlastZones && (p1.x < -400 || p1.x > 2400));
-    p2.outOfBounds = p2.y > 1600 || p2.y < -400 || (sideBlastZones && (p2.x < -400 || p2.x > 2400));
+    const isOutOfBounds = player => (this.killZones.vertical && (player.y > KILLZONE.bottom || player.y < KILLZONE.top)) ||
+        (this.killZones.horizontal && (player.x < KILLZONE.left || player.x > KILLZONE.right));
+    p1.outOfBounds = isOutOfBounds(p1);
+    p2.outOfBounds = isOutOfBounds(p2);
 
     for (const key in this.gameState.players) {
         const player = this.gameState.players[key];

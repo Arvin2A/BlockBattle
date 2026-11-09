@@ -389,7 +389,7 @@ export function runBotAI(scene, bot, target, fiveframecount) {
     bot.horizontalMovementActive = false;
     const now = scene.time.now;
     const ground = scene.gameState.map.ground;
-    const stageCenter = ground.x;
+    const stageCenter = scene.gameState.map.infinite ? target.x : ground.x;
     const surfaces = getSurfaces(scene);
     const grounded = isGrounded(bot);
     if (grounded) bot.hasDoubleJumped = false;

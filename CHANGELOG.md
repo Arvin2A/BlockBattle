@@ -1,5 +1,31 @@
 # Changelog
 
+## 2026-11-08
+
+### Added
+- High-speed crashes. Slam sideways into a wall, plank or another fighter above 12 blocks per second and you squish, bounce back the way you came, and get a short stun. Hitting a floor or ceiling that fast just squishes you. Downslams, directional specials, ledge moves, grabs and SMACK DOWN don't crash.
+- Fighters now stretch in the direction they're moving at high speed, building up to full stretch at 20 blocks per second.
+- NO GRAVITY + FRICTION, a new purple modifier. Nothing pulls you down and nothing slows you down. Pressing the way you're already going keeps your speed, pressing against it instantly reverses your direction at full speed, and downslam is your only way back to the floor.
+- NO VERTICAL KILLZONE and NO HORIZONTAL KILLZONE, two new purple modifiers that remove the kill zones on those sides. The camera follows you past the edge of the map. Turn both on and nobody can be KO'd. Click COLLISION on the card to turn those edges into solid walls that stop anything going past them.
+- CUSTOM DAMAGE S, A and R, new modifiers that multiply all damage. Click the box on the card to change the amount; it loops back after the max.
+  - CUSTOM DAMAGE S (purple): 5x to 50x in steps of 5x.
+  - CUSTOM DAMAGE A (red): 1x to 10x in steps of 1x.
+  - CUSTOM DAMAGE R (yellow): 0.1x to 1x in steps of 0.1x.
+- CUSTOM SPEED S, A and R, new modifiers that add movement speed, using the same click box.
+  - CUSTOM SPEED S (purple): +500% to +5000% in steps of 500%.
+  - CUSTOM SPEED A (red): +50% to +500% in steps of 50%.
+  - CUSTOM SPEED R (yellow): +10% to +100% in steps of 10%.
+
+### Changed
+- HYPERACTIVE is now called FAST.
+- Speedometers on INFINITE BRIDGE now show your real speed. TOP and BEST ignore the moment of hit freeze, where the old reading could show thousands of blocks per second you never actually moved at. Best speeds start over from 0, and best distances are kept.
+
+### Removed
+- The old 150% speed FAST modifier. CUSTOM SPEED A and R cover it now.
+
+### Fixed
+- The camera keeps up at extreme speeds, so you no longer vanish off screen at around 100 blocks per second.
+
 ## 2026-11-05
 
 ### Added

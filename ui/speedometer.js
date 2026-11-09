@@ -5,10 +5,12 @@
 import { FONTS, COLORS, makePanel, makeButton, textStyle } from './theme.js';
 
 const BLOCK_PX = 50;
+const FRAMES_OF_TRAVEL_ALLOWED = 30;
 const MAX_FRAME_STEP_PX = 400;
 const FAST_SPEED = 20;
 const RECORD_SAVE_GAP_MS = 1000;
-const RECORDS_KEY = 'blockBattleBridgeRecords';
+const RECORDS_KEY = 'blockBattleBridgeRecordsRealSpeed';
+const LEGACY_RECORDS_KEY = 'blockBattleBridgeRecords';
 const PANEL = { y: 528, width: 250, height: 124 };
 const SLOTS = [
     { key: 'player', x: 125, label: 'P1', color: COLORS.p1 },
@@ -17,7 +19,11 @@ const SLOTS = [
 
 function loadRecords() {
     try {
-        return JSON.parse(localStorage.getItem(RECORDS_KEY)) ?? {};
+        const saved = JSON.parse(localStorage.getItem(RECORDS_KEY));
+        if (saved) return saved;
+        const legacy = JSON.parse(localStorage.getItem(LEGACY_RECORDS_KEY)) ?? {};
+        return Object.fromEntries(Object.entries(legacy)
+            .map(([key, record]) => [key, { top: 0, distance: record.distance ?? 0 }]));
     } catch {
         return {};
     }
@@ -107,12 +113,17 @@ export function updateSpeedometers(scene, state) {
         const { player } = gauge;
         if (!player.active || !player.body) continue;
         const step = Math.hypot(player.x - gauge.lastX, player.y - gauge.lastY);
-        if (step < MAX_FRAME_STEP_PX && !scene.gamePaused) gauge.distance += step;
+        const maxStep = Math.max(MAX_FRAME_STEP_PX, Math.hypot(player.body.velocity.x, player.body.velocity.y) / FRAMES_OF_TRAVEL_ALLOWED);
+        if (step < maxStep && !scene.gamePaused) gauge.distance += step;
         gauge.lastX = player.x;
         gauge.lastY = player.y;
 
-        const speed = Math.hypot(player.body.velocity.x, player.body.velocity.y) / BLOCK_PX;
-        gauge.top = Math.max(gauge.top, speed);
+        const { velocity, maxVelocity } = player.body;
+        const speed = Math.hypot(
+            Math.min(Math.abs(velocity.x), maxVelocity.x),
+            Math.min(Math.abs(velocity.y), maxVelocity.y)
+        ) / BLOCK_PX;
+        if (!scene.physics.world.isPaused) gauge.top = Math.max(gauge.top, speed);
         const distanceBlocks = Math.floor(gauge.distance / BLOCK_PX);
         const average = distanceBlocks / elapsed;
         const record = trackRecord(state, gauge, distanceBlocks);
