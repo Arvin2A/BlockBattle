@@ -22,6 +22,8 @@ const SETTINGS_KEY = 'blockBattleOnline';
 const ROOMS_PER_PAGE = 4;
 const MODIFIERS_PER_PAGE = 6;
 const PANEL = { x: 710, y: 330, width: 400, height: 330 };
+const STAGE_CARD = { width: 204, height: 108, nameOffset: 38 };
+const SUB_SCREENS = ['create', 'stage', 'modifiers', 'browse'];
 const mapLabel = map => MAPS[map]?.name ?? map;
 const isNameBlocked = createNameFilter(inappropriateWords);
 const randomPlayerName = () => `Player${Math.floor(Math.random() * 900 + 100)}`;
@@ -201,6 +203,7 @@ export class OnlineLobbyScene extends Phaser.Scene {
 
     init(data) {
         this.autoQueue = Boolean(data?.autoQueue);
+        this.leavingToMenu = false;
     }
 
     create() {
@@ -228,7 +231,7 @@ export class OnlineLobbyScene extends Phaser.Scene {
             align: 'center'
         }).setOrigin(0.5);
 
-        makeButton(this, 500, 568, 150, 40, 'BACK', () => this.goBack(), 20);
+        makeButton(this, 500, 568, 150, 40, 'BACK', () => this.goToMenu(), 20);
         this.input.keyboard.on('keydown-ESC', () => this.goBack());
 
         this.cleanups = [];
@@ -342,6 +345,8 @@ export class OnlineLobbyScene extends Phaser.Scene {
         this.buildModifierScreen();
         this.buildBrowseScreen();
         this.buildLobbyScreen();
+        const panelBack = makeButton(this, 560, 146, 100, 30, '< BACK', () => this.goBack(), 17);
+        SUB_SCREENS.forEach(screen => this.addToScreen(screen, panelBack));
 
         this.queueText = this.add.text(PANEL.x, 484, '', {
             fontFamily: 'GameFont',
@@ -371,9 +376,8 @@ export class OnlineLobbyScene extends Phaser.Scene {
 
     showScreen(name) {
         this.screen = name;
-        for (const [key, objects] of Object.entries(this.screens)) {
-            objects.forEach(object => object.setVisible(key === name));
-        }
+        const shown = new Set(this.screens[name] ?? []);
+        Object.values(this.screens).flat().forEach(object => object.setVisible(shown.has(object)));
         this.queueText.setText('');
         const hints = {
             home: '< > FIGHTER   ^ v VARIANT   N NAME   ENTER QUICK 1V1   ESC BACK',
@@ -400,11 +404,11 @@ export class OnlineLobbyScene extends Phaser.Scene {
             makeButton(this, PANEL.x, 318, 320, 48, 'QUICK 1V1', () => this.startQuick(), 24),
             makeButton(this, PANEL.x, 418, 320, 48, 'BROWSE LOBBIES', () => this.showScreen('browse'), 24)
         );
-        this.addToScreen('home', text(this, 600, 362, 'QUICK 1V1 STAGE', { fontSize: '11px', fill: '#bbbbbb' }).setOrigin(0, 0.5));
-        this.quickMapText = this.addToScreen('home', text(this, 815, 362, '', { fontFamily: 'VCROSD', fontSize: '16px' }).setOrigin(0.5));
+        this.addToScreen('home', text(this, 560, 362, 'QUICK 1V1 STAGE', { fontSize: '11px', fill: '#bbbbbb' }).setOrigin(0, 0.5));
+        this.quickMapText = this.addToScreen('home', text(this, 775, 362, '', { fontFamily: 'VCROSD', fontSize: '16px' }).setOrigin(0.5));
         this.addToScreen('home',
-            makeArrow(this, 735, 362, '<', () => this.changeQuickMap(-1)).setFontSize(20),
-            makeArrow(this, 895, 362, '>', () => this.changeQuickMap(1)).setFontSize(20)
+            makeArrow(this, 695, 362, '<', () => this.changeQuickMap(-1)).setFontSize(20),
+            makeArrow(this, 855, 362, '>', () => this.changeQuickMap(1)).setFontSize(20)
         );
     }
 
@@ -457,22 +461,30 @@ export class OnlineLobbyScene extends Phaser.Scene {
         this.modeLabel = this.makeValueBox('create', 815, 270, 130, () => this.cycleMode());
         this.makeRow('create', 326, 56, 'MODIFIERS', () => this.showScreen('modifiers'));
         this.modifierSummary = this.addToScreen('create', text(this, 545, 338, '', { fontSize: '11px', fill: '#bbbbbb' }).setOrigin(0, 0.5));
-        this.addToScreen('create', text(this, 885, 326, '>', { fontFamily: 'VCROSD', fontSize: '26px' }).setOrigin(0.5));
+        this.addToScreen('create', text(this, 855, 326, '>', { fontFamily: 'VCROSD', fontSize: '26px' }).setOrigin(0.5));
         this.makeRow('create', 382, 44, 'STAGE', () => this.showScreen('stage'));
-        this.stageLabel = this.addToScreen('create', text(this, 870, 382, '', { fontFamily: 'VCROSD', fontSize: '18px', fill: '#ffd34d' }).setOrigin(1, 0.5));
-        this.addToScreen('create', text(this, 885, 382, '>', { fontFamily: 'VCROSD', fontSize: '26px' }).setOrigin(0.5));
+        this.stageLabel = this.addToScreen('create', text(this, 840, 382, '', { fontFamily: 'VCROSD', fontSize: '18px', fill: '#ffd34d' }).setOrigin(1, 0.5));
+        this.addToScreen('create', text(this, 855, 382, '>', { fontFamily: 'VCROSD', fontSize: '26px' }).setOrigin(0.5));
         this.addToScreen('create', makeButton(this, PANEL.x, 446, 300, 42, 'CREATE LOBBY', () => this.createLobby(), 22));
     }
 
     buildStageScreen() {
         this.screenTitle('stage', 'SELECT STAGE');
         this.stageCards = MAP_CHOICES.map(map => {
-            const card = this.add.rectangle(PANEL.x, 330, 280, 110, 0x262626).setStrokeStyle(3, 0x686868)
+            const card = this.add.rectangle(PANEL.x, 330, STAGE_CARD.width + 8, STAGE_CARD.height + 8, 0x262626).setStrokeStyle(3, 0x686868)
                 .setInteractive({ useHandCursor: true });
-            const name = text(this, PANEL.x, 330, mapLabel(map), { fontFamily: 'VCROSD', fontSize: '26px', align: 'center' }).setOrigin(0.5);
+            const preview = this.add.image(PANEL.x, 330, MAPS[map]?.preview ?? 'randompreview')
+                .setDisplaySize(STAGE_CARD.width, STAGE_CARD.height);
+            const name = text(this, PANEL.x, 330, mapLabel(map), {
+                fontFamily: 'VCROSD',
+                fontSize: '20px',
+                align: 'center',
+                stroke: '#000000',
+                strokeThickness: 5
+            }).setOrigin(0.5);
             card.on('pointerdown', () => this.pickStage(MAP_CHOICES.indexOf(map)));
-            this.addToScreen('stage', card, name);
-            return { card, name };
+            this.addToScreen('stage', card, preview, name);
+            return { card, preview, name, previewScale: { x: preview.scaleX, y: preview.scaleY } };
         });
         this.addToScreen('stage', makeButton(this, PANEL.x, 462, 200, 36, 'DONE', () => this.showScreen('create'), 20));
         this.input.on('wheel', (_pointer, _objects, _deltaX, deltaY) => {
@@ -793,7 +805,7 @@ export class OnlineLobbyScene extends Phaser.Scene {
 
     refreshStage(animate) {
         const count = MAP_CHOICES.length;
-        this.stageCards.forEach(({ card, name }, index) => {
+        this.stageCards.forEach(({ card, preview, name, previewScale }, index) => {
             let offset = (index - this.lobbySettings.mapIndex + count) % count;
             if (offset > count / 2) offset -= count;
             const shown = Math.abs(offset) <= 1;
@@ -804,14 +816,18 @@ export class OnlineLobbyScene extends Phaser.Scene {
             card.setStrokeStyle(3, selected ? 0xffffff : 0x686868);
             card.input.enabled = shown && this.screen === 'stage';
             const visible = this.screen === 'stage' && shown;
-            card.setVisible(visible);
-            name.setVisible(visible);
-            for (const object of [card, name]) {
+            const targets = [
+                { object: card, y, scaleX: scale, scaleY: scale },
+                { object: preview, y, scaleX: previewScale.x * scale, scaleY: previewScale.y * scale },
+                { object: name, y: y + STAGE_CARD.nameOffset * scale, scaleX: scale, scaleY: scale }
+            ];
+            for (const { object, ...target } of targets) {
+                object.setVisible(visible);
                 this.tweens.killTweensOf(object);
                 if (animate) {
-                    this.tweens.add({ targets: object, y, scaleX: scale, scaleY: scale, alpha, duration: 220, ease: 'Cubic.Out' });
+                    this.tweens.add({ targets: object, ...target, alpha, duration: 220, ease: 'Cubic.Out' });
                 } else {
-                    object.setY(y).setScale(scale).setAlpha(alpha);
+                    object.setY(target.y).setScale(target.scaleX, target.scaleY).setAlpha(alpha);
                 }
             }
         });
@@ -1058,6 +1074,12 @@ export class OnlineLobbyScene extends Phaser.Scene {
             this.showScreen(parents[this.screen]);
             return;
         }
+        this.goToMenu();
+    }
+
+    goToMenu() {
+        if (this.queueState === 'found' || this.closeNameBox || this.leavingToMenu) return;
+        this.leavingToMenu = true;
         fadeOutTo(this, () => {
             net.disconnect();
             this.scene.start('MenuScene');
