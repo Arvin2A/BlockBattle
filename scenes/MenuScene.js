@@ -17,7 +17,7 @@ var navBox = null;
 var layout = []
 var selectedIndex = 0;
 var previousInput = {};
-const CHANGELOG_VERSION = "2026-11-10-1";
+const CHANGELOG_VERSION = "2026-11-10-2";
 const MIN_VERSION_COLOR_BRIGHTNESS = 170;
 
 function getVersionColor(version) {
@@ -80,6 +80,14 @@ export class MenuScene extends Phaser.Scene {
         this.input.topOnly = false;
 
         const changelogEntries = [
+            {
+                title: "PRIVATE LOBBIES",
+                body: "Want to play with just your friends? Turn on PRIVATE when you create a lobby and it won't show up in BROWSE LOBBIES. Hit INVITE to see everyone waiting in the online menu and send them an invite.\n They get a popup to ACCEPT or DECLINE, and nobody gets in without one."
+            },
+            {
+                title: "TIMED BLOCKS",
+                body: "Blocking is all about timing now. Put your block up right as the hit lands and whoever swung at you is stuck for way longer. Hold it the whole time and they barely freeze.\n MALLET HAMMERMAN's swing hits harder and stuns longer, LAWNMOWER's plow barely chips your shield anymore, and you need to be near a ledge to grab it again."
+            },
             {
                 title: "LIVES ON THE SCOREBOARD",
                 body: "The score that pops up after a KO now shows how many lives everyone has left, no matter how many players are in the match. 1v1s used to show KOs instead.\n The numbers are colored to match each player too, so you can tell at a glance who's who."
@@ -326,7 +334,7 @@ export class MenuScene extends Phaser.Scene {
 
         const changelogBlurb = this.add.text(
             40, 180,
-            "The score that pops up after a KO now shows everyone's lives left in every mode, 1v1s included. The numbers are colored to match each player, so you can tell who's who at a glance.",
+            "Private lobbies are here! Turn on PRIVATE when you create a lobby and invite whoever you want from the online menu. Blocking also rewards timing now, so block right as the hit lands.",
             {
                 fontFamily: "VCROSD",
                 fontSize: "16px",

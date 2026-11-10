@@ -182,7 +182,7 @@ export function blocksHit(scene, target, attacker, damage = 0, { minCost = BLOCK
     const now = scene.time.now;
     target.shield -= Phaser.Math.Clamp(damage * BLOCK.hitCostScale, minCost, BLOCK.maxHitCost);
     target.shieldHitUntil = now + 80;
-    target.freezeUntil = Math.max(target.freezeUntil ?? 0, now + BLOCK.blockstunMs);
+    target.freezeUntil = Math.max(target.freezeUntil ?? 0, now + blockStunMs(target, now));
     const away = Math.sign(target.x - attacker.x) || (attacker.lastDir?.x ?? 1);
     target.setVelocityX(away * BLOCK.pushback);
     if (now - (target.lastBlockSoundAt ?? -Infinity) >= BLOCK.soundGapMs) {
