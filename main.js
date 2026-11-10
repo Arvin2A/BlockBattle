@@ -1149,7 +1149,7 @@ function create() {
     }
 }
 function getRoundScore(scene, player) {
-    return scene.gameState.players.length === 2 ? player.stats.kos : player.lives;
+    return player.lives;
 }
 
 function updateWins(scene, matchOver) {

@@ -255,7 +255,7 @@ export function initiatePlayers(scene, matchSettings) {
         player.winText = scene.add.text(x, 300, '', {
             fontFamily: 'VCROSD',
             fontSize: '48px',
-            fill: '#FFFFFF'
+            fill: player.isCpu ? COLORS.cpu : PLAYER_COLORS[player.color].css
         }).setOrigin(0.5).setStroke('#000000', 4).setVisible(false);
         scene.hud.add(player.winText);
         player.name = player.character.toUpperCase();
