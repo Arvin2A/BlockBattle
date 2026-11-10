@@ -453,6 +453,8 @@ const MOWER = {
     plowExplodeMs: 2000,
     plowCutRange: 45,
     plowGrindRange: 110,
+    plowChipDamage: 0.002,
+    plowBlockCost: 0.004,
     steelPlankDamage: 0.01,
     rideLift: 14,
     rideMowerDrop: 4,
@@ -674,7 +676,10 @@ function plowTick(api, scene, player, victim) {
     const cut = heldCutPoint(player);
     api.cutNearbyGrass(scene, cut.x, cut.y, MOWER.plowCutRange, player);
     const contact = grindTick(api, scene, player, victim, player.plowLastContactAt, {
-        range: MOWER.plowGrindRange
+        range: MOWER.plowGrindRange,
+        chipDamage: MOWER.plowChipDamage,
+        blockCost: MOWER.plowBlockCost,
+        blockedBuildsContact: false
     });
     if (contact === null) {
         player.plowLastContactAt = 0;

@@ -21,6 +21,8 @@ const END_LINGER_MS = 4000;
 const MAX_MESSAGES_PER_SECOND = 300;
 const MAX_PLAYER_MESSAGE_BYTES = 4096;
 const MAX_LISTED_ROOMS = 50;
+const MAX_LISTED_PLAYERS = 100;
+const INVITE_GAP_MS = 3000;
 const MAX_RTC_SIGNALS_PER_MATCH = 64;
 const MAX_RTC_SIGNAL_BYTES = 16384;
 const BUSY_ARENAS_MESSAGE = 'All arenas on this server are busy, try again in a moment.';
@@ -37,6 +39,7 @@ function loadNameFilter() {
 const isNameBlocked = loadNameFilter();
 
 const randomId = (bytes = 6) => crypto.randomBytes(bytes).toString('hex');
+const randomTag = () => String(crypto.randomInt(1000, 10000));
 
 function isSmallSignal(data) {
     if (!data || typeof data !== 'object') return false;
@@ -76,6 +79,7 @@ export class Lobby {
     addClient(ws, address) {
         const client = {
             id: randomId(4),
+            tag: this.uniqueTag(),
             ws,
             address,
             greeted: false,
@@ -88,6 +92,8 @@ export class Lobby {
             // The match that just ended, still shown behind the results screen.
             watching: null,
             slot: null,
+            watchingPlayers: false,
+            invitesSent: new Map(),
             messageCount: 0,
             messageWindow: Date.now(),
             chatLimiter: new QuickChatLimiter(CHAT_LATENCY_SLACK_MS)
@@ -107,6 +113,25 @@ export class Lobby {
         });
         ws.on('close', () => this.removeClient(client));
         ws.on('error', () => {});
+    }
+
+    uniqueTag() {
+        const taken = new Set([...this.clients.values()].map(client => client.tag));
+        for (let attempt = 0; attempt < 50; attempt++) {
+            const tag = randomTag();
+            if (!taken.has(tag)) return tag;
+        }
+        return randomId(3).toUpperCase();
+    }
+
+    setName(client, raw) {
+        const name = cleanName(raw);
+        if (isNameBlocked(name) || isNameBlocked(String(raw ?? ''))) return false;
+        if (name === client.name) return true;
+        client.name = name;
+        if (client.lobby) this.lobbyChanged(client.lobby);
+        else this.broadcastStatus();
+        return true;
     }
 
     withinRateLimit(client) {
@@ -135,7 +160,8 @@ export class Lobby {
             }
             client.greeted = true;
             client.deviceId = cleanDeviceId(message.d);
-            sendJson(client.ws, { t: 'welcome', id: client.id });
+            if (message.n !== undefined) this.setName(client, message.n);
+            sendJson(client.ws, { t: 'welcome', id: client.id, tag: client.tag });
             this.sendStatus(client);
             this.sendRooms(client);
             return;
@@ -159,6 +185,16 @@ export class Lobby {
                 break;
             case 'startLobby':
                 this.startLobby(client);
+                break;
+            case 'name':
+                this.setName(client, message.name);
+                break;
+            case 'watchPlayers':
+                client.watchingPlayers = Boolean(message.on);
+                if (client.watchingPlayers) this.sendPlayers(client);
+                break;
+            case 'invite':
+                this.invite(client, message);
                 break;
             case 'away':
                 if (client.away !== Boolean(message.a)) {
@@ -280,11 +316,21 @@ export class Lobby {
             sendJson(client.ws, { t: 'error', msg: 'That lobby name is not allowed. Pick a different one.' });
             return;
         }
-        const lobby = { id: client.id, name, mode: message.mode, map: client.choice.map, modifiers, members: [client] };
+        const lobby = {
+            id: client.id,
+            name,
+            mode: message.mode,
+            map: client.choice.map,
+            modifiers,
+            members: [client],
+            private: Boolean(message.private),
+            invited: new Set()
+        };
         this.lobbies.set(lobby.id, lobby);
+        client.invitesSent.clear();
         client.state = 'lobby';
         client.lobby = lobby;
-        this.log(`${client.name} opened lobby "${name}" (${lobby.mode} on ${lobby.map})`);
+        this.log(`${client.name} opened ${lobby.private ? 'private ' : ''}lobby "${name}" (${lobby.mode} on ${lobby.map})`);
         this.lobbyChanged(lobby);
     }
 
@@ -293,6 +339,10 @@ export class Lobby {
         const lobby = this.lobbies.get(message.room);
         if (!lobby || lobby.members.length >= MATCH_MODES[lobby.mode].players) {
             sendJson(client.ws, { t: 'joinFailed', msg: 'That lobby is full or no longer open.' });
+            return;
+        }
+        if (lobby.private && !lobby.invited.has(client.id)) {
+            sendJson(client.ws, { t: 'joinFailed', msg: 'That lobby is private. You need an invite to join.' });
             return;
         }
         if (this.deviceBusy(client)) {
@@ -343,6 +393,7 @@ export class Lobby {
             name: member.name,
             character: member.choice.character,
             variant: member.choice.variant,
+            tag: member.tag,
             you: member === viewer
         })));
         return {
@@ -352,6 +403,7 @@ export class Lobby {
             map: lobby.map,
             modifiers: lobby.modifiers,
             max: MATCH_MODES[lobby.mode].players,
+            private: lobby.private,
             host: lobby.members[0] === viewer,
             members: roster
         };
@@ -366,18 +418,74 @@ export class Lobby {
 
     getRooms() {
         return [...this.lobbies.values()]
-            .filter(lobby => lobby.members.length < MATCH_MODES[lobby.mode].players)
+            .filter(lobby => !lobby.private && lobby.members.length < MATCH_MODES[lobby.mode].players)
             .slice(0, MAX_LISTED_ROOMS)
             .map(lobby => ({
                 id: lobby.id,
                 name: lobby.name,
                 host: lobby.members[0].name,
+                hostTag: lobby.members[0].tag,
                 mode: lobby.mode,
                 map: lobby.map,
                 modifiers: lobby.modifiers.length,
                 players: lobby.members.length,
                 max: MATCH_MODES[lobby.mode].players
             }));
+    }
+
+    isWaiting(client) {
+        return client.greeted && client.state !== 'match' && !client.away;
+    }
+
+    getPlayers(viewer) {
+        return [...this.clients.values()]
+            .filter(client => client !== viewer && this.isWaiting(client))
+            .slice(0, MAX_LISTED_PLAYERS)
+            .map(client => ({
+                tag: client.tag,
+                name: client.name,
+                busy: client.state === 'lobby' && client.lobby !== viewer.lobby,
+                inLobby: Boolean(viewer.lobby) && client.lobby === viewer.lobby
+            }));
+    }
+
+    sendPlayers(client) {
+        sendJson(client.ws, { t: 'players', players: this.getPlayers(client) });
+    }
+
+    invite(client, message) {
+        const lobby = client.lobby;
+        if (!lobby || lobby.members[0] !== client || !lobby.private) return;
+        const fail = msg => sendJson(client.ws, { t: 'inviteFailed', tag: String(message.tag ?? ''), msg });
+        if (lobby.members.length >= MATCH_MODES[lobby.mode].players) {
+            fail('Your lobby is already full.');
+            return;
+        }
+        const target = [...this.clients.values()].find(other => other.tag === String(message.tag ?? ''));
+        if (!target || target === client || !this.isWaiting(target)) {
+            fail('That player is not waiting anymore.');
+            return;
+        }
+        if (target.state === 'lobby') {
+            fail(`${target.name} is already in a lobby.`);
+            return;
+        }
+        const now = Date.now();
+        if (now - (client.invitesSent.get(target.id) ?? 0) < INVITE_GAP_MS) return;
+        client.invitesSent.set(target.id, now);
+        lobby.invited.add(target.id);
+        sendJson(target.ws, {
+            t: 'invited',
+            room: lobby.id,
+            name: lobby.name,
+            mode: lobby.mode,
+            map: lobby.map,
+            modifiers: lobby.modifiers.length,
+            host: client.name,
+            hostTag: client.tag
+        });
+        sendJson(client.ws, { t: 'inviteSent', tag: target.tag, name: target.name });
+        this.log(`${client.name} invited ${target.name} to "${lobby.name}"`);
     }
 
     sendRooms(client) {
@@ -420,6 +528,7 @@ export class Lobby {
         for (const [slot, client] of Object.entries(match.players)) {
             const opponent = publicRoster.find(entry => entry.slot !== slot);
             client.state = 'match';
+            client.watchingPlayers = false;
             client.match = match;
             client.slot = slot;
             client.rtcSignals = 0;
@@ -648,7 +757,7 @@ export class Lobby {
         return {
             online: greeted.length,
             // In the online lobby (browsing or hosting), not in a match.
-            waiting: greeted.filter(client => client.state !== 'match' && !client.away).length,
+            waiting: greeted.filter(client => this.isWaiting(client)).length,
             queued: this.queue.length + this.lobbies.size,
             matches: [...this.matches.values()].filter(match => match.state !== 'ended').length
         };
@@ -662,6 +771,7 @@ export class Lobby {
         const status = { t: 'status', ...this.getStatus() };
         for (const client of this.clients.values()) {
             if (client.greeted && client.state !== 'match') sendJson(client.ws, status);
+            if (client.watchingPlayers && client.state !== 'match') this.sendPlayers(client);
         }
     }
 

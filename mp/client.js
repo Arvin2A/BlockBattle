@@ -28,6 +28,8 @@ class NetClient {
         this.socket = null;
         this.connected = false;
         this.clientId = null;
+        this.tag = null;
+        this.name = null;
         this.handlers = new Map();
         this.connectPromise = null;
         this.ping = null;
@@ -81,7 +83,7 @@ class NetClient {
             }, 5000);
 
             socket.addEventListener('open', () => {
-                this.sendNow({ t: 'hello', v: PROTOCOL_VERSION, d: getDeviceId() });
+                this.sendNow({ t: 'hello', v: PROTOCOL_VERSION, d: getDeviceId(), n: this.name ?? undefined });
             });
 
             socket.addEventListener('message', event => {
@@ -109,6 +111,7 @@ class NetClient {
                     clearTimeout(timeout);
                     this.connected = true;
                     this.clientId = message.id;
+                    this.tag = message.tag ?? null;
                     this.startPing();
                     this.watchAway();
                     resolve();
@@ -146,10 +149,17 @@ class NetClient {
         this.connected = false;
         this.connectPromise = null;
         this.clientId = null;
+        this.tag = null;
         this.stopPing();
         this.unwatchAway();
         this.fastPeer.close();
         socket.close();
+    }
+
+    setName(name) {
+        if (name === this.name) return;
+        this.name = name;
+        this.send({ t: 'name', name });
     }
 
     watchAway() {

@@ -62,6 +62,8 @@ export function grindTick(api, scene, attacker, victim, lastContactAt, {
     chipDamage = 0.01,
     hitstun = 150,
     freeze = 60,
+    blockCost = 0.02,
+    blockedBuildsContact = true,
     float = {}
 } = {}) {
     const inReach = victim.active && api.attackIsElligible(
@@ -74,7 +76,8 @@ export function grindTick(api, scene, attacker, victim, lastContactAt, {
     setGrindFloat(scene, attacker, true, float);
 
     const now = scene.time.now;
-    if (blocksHit(scene, victim, attacker, chipDamage, { minCost: 0.02 })) {
+    if (blocksHit(scene, victim, attacker, chipDamage, { minCost: blockCost })) {
+        if (!blockedBuildsContact) return 0;
         return lastContactAt > 0 ? now - lastContactAt : 0;
     }
     victim.KBmultiplier += chipDamage * api.getAttackDamageScale(attacker);
