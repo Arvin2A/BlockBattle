@@ -23,8 +23,9 @@ export const BLOCK = {
     fillAlpha: 0.35,
     hitFillAlpha: 0.6,
     soundGapMs: 120,
-    attackerOpeningMs: 250,
-    attackerFreezeMs: 250,
+    blockStunStartMs: 500,
+    blockStunHalfLifeMs: 170,
+    blockStunFloorMs: 125,
     cueScale: 1.8,
     cueEndScale: 2.3,
     cueAlpha: 0.9,
@@ -46,8 +47,9 @@ function canHoldBlock(player) {
     return player.active && !player.hitstun && !player.ledge && !player.smackedBy && !player.grabbedBy;
 }
 
-function startBlock(player) {
+function startBlock(scene, player) {
     player.blocking = true;
+    player.blockStartedAt = scene.time.now;
     player.horizontalMovementActive = false;
 }
 
@@ -142,7 +144,8 @@ export function canBreakGrab(player) {
     return Boolean(player.wantsBlock) && (player.shield ?? 1) >= BLOCK.minStart;
 }
 
-export function raiseBlock(player) {
+export function raiseBlock(scene, player) {
+    if (!player.blocking) player.blockStartedAt = scene.time.now;
     player.blocking = true;
 }
 
@@ -154,7 +157,7 @@ export function updateBlock(scene, player, wantsBlock) {
         if (player.blocking && (!wantsBlock || !canHoldBlock(player))) {
             stopBlock(scene, player);
         } else if (!player.blocking && wantsBlock && canStartBlock(player)) {
-            startBlock(player);
+            startBlock(scene, player);
         }
         if (player.blocking) {
             player.shield -= BLOCK.drainPerSec * dt;
@@ -166,6 +169,12 @@ export function updateBlock(scene, player, wantsBlock) {
     }
     drawShield(scene, player);
     drawBreakMark(scene, player);
+}
+
+function blockStunMs(target, now) {
+    const held = Math.max(0, now - (target.blockStartedAt ?? -Infinity));
+    const decayed = BLOCK.blockStunStartMs * Math.pow(0.5, held / BLOCK.blockStunHalfLifeMs);
+    return Math.max(BLOCK.blockStunFloorMs, decayed);
 }
 
 export function blocksHit(scene, target, attacker, damage = 0, { minCost = BLOCK.minHitCost, ranged = false } = {}) {
@@ -182,10 +191,11 @@ export function blocksHit(scene, target, attacker, damage = 0, { minCost = BLOCK
         showBlockCue(scene, target);
     }
     if (attacker.isUsingSideSpecial) attacker.hasHitSideSpecial = true;
-    if (!ranged) attacker.freezeUntil = Math.max(attacker.freezeUntil ?? 0, now + BLOCK.attackerFreezeMs);
+    const stunMs = blockStunMs(target, now);
+    if (!ranged) attacker.freezeUntil = Math.max(attacker.freezeUntil ?? 0, now + stunMs);
     attacker.blockPenaltyUntil = Math.max(
         attacker.blockPenaltyUntil ?? 0,
-        now + getAttackCooldown(attacker) + BLOCK.attackerOpeningMs
+        now + getAttackCooldown(attacker) + stunMs
     );
     if (target.shield <= 0) breakShield(scene, target);
     return true;
