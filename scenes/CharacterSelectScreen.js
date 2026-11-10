@@ -707,89 +707,39 @@ export class CharacterSelectScene extends Phaser.Scene {
         ).setAlpha(0);
 
 
-        const p1ReadyButton = this.add.rectangle(
-            130,
-            550,
-            150,
-            50,
-            slotColors[1].fill
-        ).setStrokeStyle(3, 0xffffff).setInteractive({ useHandCursor: true });
-
-        const p1ReadyText = this.add.text(
-            130,
-            550,
-            'READY',
-            {
+        const createReadyButton = (player, x, overlay, image, selectedOverlay) => {
+            const colors = slotColors[player];
+            const button = this.add.rectangle(x, 550, 150, 50, colors.fill)
+                .setStrokeStyle(3, 0xffffff)
+                .setInteractive({ useHandCursor: true });
+            const label = this.add.text(x, 550, 'READY', {
                 fontFamily: 'VCROSD',
                 fontSize: '24px',
-                fill: slotColors[1].text
-            }
-        ).setOrigin(0.5);
+                fill: colors.text
+            }).setOrigin(0.5);
+            const isReady = () => player === 1 ? this.p1IsReady : this.p2IsReady;
+            const setReady = ready => {
+                if (player === 1) this.p1IsReady = ready;
+                else this.p2IsReady = ready;
+                button.setFillStyle(ready ? 0x686868 : colors.fill);
+                label.setText(ready ? 'UNREADY' : 'READY').setColor(ready ? COLORS.text : colors.text);
+                overlay.setAlpha(ready ? 0.5 : 0);
+                image.setAlpha(ready ? 1 : 0);
+                selectedOverlay.setAlpha(ready ? 1 : 0);
+                const bothReady = this.p1IsReady && this.p2IsReady;
+                playBox.setAlpha(bothReady ? 1 : 0);
+                playText.setAlpha(bothReady ? 1 : 0);
+            };
+            button.on('pointerdown', () => {
+                this.sound.play('hover2');
+                setReady(!isReady());
+            });
+            button.on('pointerover', () => button.setFillStyle(isReady() ? 0x888888 : colors.hover));
+            button.on('pointerout', () => button.setFillStyle(isReady() ? 0x686868 : colors.fill));
+        };
 
-        p1ReadyButton.on('pointerdown', () => {
-            this.sound.play('hover2');
-            p1ReadyButton.setFillStyle(0x686868);
-            p1ReadyText.setColor(COLORS.text);
-            p1ReadyButton.disableInteractive();
-            DESCOVERLAY1.setAlpha(0.5);
-            DESCIMAGE1.setAlpha(1);
-            p1BoxSelectedOverlay.setAlpha(1);
-            this.p1IsReady = true;
-            if (this.p2IsReady) {
-                playBox.setAlpha(1);
-                playText.setAlpha(1);
-            }
-        });
-
-        p1ReadyButton.on('pointerover', () => {
-            p1ReadyButton.setFillStyle(slotColors[1].hover);
-        });
-
-        p1ReadyButton.on('pointerout', () => {
-            p1ReadyButton.setFillStyle(slotColors[1].fill);
-        });
-
-        const p2ReadyButton = this.add.rectangle(
-            870,
-            550,
-            150,
-            50,
-            slotColors[2].fill
-        ).setStrokeStyle(3, 0xffffff).setInteractive({ useHandCursor: true });
-
-        const p2ReadyText = this.add.text(
-            870,
-            550,
-            'READY',
-            {
-                fontFamily: 'VCROSD',
-                fontSize: '24px',
-                fill: slotColors[2].text
-            }
-        ).setOrigin(0.5);
-
-        p2ReadyButton.on('pointerdown', () => {
-            this.sound.play('hover2');
-            p2ReadyButton.setFillStyle(0x686868);
-            p2ReadyText.setColor(COLORS.text);
-            p2ReadyButton.disableInteractive();
-            p2BoxSelectedOverlay.setAlpha(1);
-            DESCOVERLAY2.setAlpha(0.5);
-            DESCIMAGE2.setAlpha(1);
-            this.p2IsReady = true;
-            if (this.p1IsReady) {
-                playBox.setAlpha(1);
-                playText.setAlpha(1);
-            }
-        });
-
-        p2ReadyButton.on('pointerover', () => {
-            p2ReadyButton.setFillStyle(slotColors[2].hover);
-        });
-
-        p2ReadyButton.on('pointerout', () => {
-            p2ReadyButton.setFillStyle(slotColors[2].fill);
-        });
+        createReadyButton(1, 130, DESCOVERLAY1, DESCIMAGE1, p1BoxSelectedOverlay);
+        createReadyButton(2, 870, DESCOVERLAY2, DESCIMAGE2, p2BoxSelectedOverlay);
 
 
         

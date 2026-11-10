@@ -1,5 +1,11 @@
 # Changelog
 
+## 2026-11-10
+
+### Changed
+- The score that pops up after a KO now shows each player's lives left in every mode, including 1v1 (it used to show KOs in 1v1).
+- Those score numbers are now colored to match each player (gray for CPUs) instead of white.
+
 ## 2026-11-09
 
 ### Added

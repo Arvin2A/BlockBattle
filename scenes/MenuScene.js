@@ -17,7 +17,7 @@ var navBox = null;
 var layout = []
 var selectedIndex = 0;
 var previousInput = {};
-const CHANGELOG_VERSION = "2026-11-09-2";
+const CHANGELOG_VERSION = "2026-11-10-1";
 const MIN_VERSION_COLOR_BRIGHTNESS = 170;
 
 function getVersionColor(version) {
@@ -80,6 +80,10 @@ export class MenuScene extends Phaser.Scene {
         this.input.topOnly = false;
 
         const changelogEntries = [
+            {
+                title: "LIVES ON THE SCOREBOARD",
+                body: "The score that pops up after a KO now shows how many lives everyone has left, no matter how many players are in the match. 1v1s used to show KOs instead.\n The numbers are colored to match each player too, so you can tell at a glance who's who."
+            },
             {
                 title: "FORFEIT BUTTON",
                 body: "Playing online on your phone? There's a FORFEIT button in the top right now. Tap it twice to leave the match, but it counts as a loss.\n The online menu got some love too: map previews in the stage picker, a red fighter panel while your fighter is locked in, and a separate BACK button for getting around."
@@ -322,7 +326,7 @@ export class MenuScene extends Phaser.Scene {
 
         const changelogBlurb = this.add.text(
             40, 180,
-            "Phone players can now leave online matches with the new FORFEIT button. Squash and stretch got 1.5x stronger, afterimages stretch with you, and the online menu shows map previews.",
+            "The score that pops up after a KO now shows everyone's lives left in every mode, 1v1s included. The numbers are colored to match each player, so you can tell who's who at a glance.",
             {
                 fontFamily: "VCROSD",
                 fontSize: "16px",
