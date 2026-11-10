@@ -160,7 +160,8 @@ export class CharacterSelectScene extends Phaser.Scene {
                 this.characters[i].key
             )
                 .setScale(1)
-                .setInteractive({ useHandCursor: true });
+                .setInteractive({ useHandCursor: true })
+                .setData('silentHover', true);
 
             icon.characterIndex = i;
             // Left click picks for P1, right click for P2.

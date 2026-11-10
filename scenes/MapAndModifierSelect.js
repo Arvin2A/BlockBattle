@@ -254,10 +254,12 @@ export class MapAndModifierSelectScene extends Phaser.Scene {
 		this.mapCards = maps.map((map, index) => {
 			const preview = this.add.image(WHEEL.x, WHEEL.y, map.preview)
 				.setDisplaySize(WHEEL.previewWidth, WHEEL.previewHeight)
-				.setInteractive({ useHandCursor: true });
+				.setInteractive({ useHandCursor: true })
+				.setData('silentHover', true);
 			const card = this.add.rectangle(WHEEL.x, WHEEL.y, WHEEL.cardWidth, WHEEL.cardHeight, 0x000000, 0)
 				.setStrokeStyle(4, 0x686868)
-				.setInteractive({ useHandCursor: true });
+				.setInteractive({ useHandCursor: true })
+				.setData('silentHover', true);
 			const name = this.add.text(WHEEL.x, WHEEL.y + WHEEL.cardHeight / 2 + 16, map.name, {
 				fontFamily: FONTS.body,
 				fontSize: '20px',
@@ -472,6 +474,7 @@ export class MapAndModifierSelectScene extends Phaser.Scene {
 			card.add(description, { expand: true });
 			card.layout();
 			card.setInteractive({ useHandCursor: true });
+			card.setData('silentHover', true);
 			const toggle = () => {
 				modifier.enabled = !modifier.enabled;
 				this.updateModifierSelection();

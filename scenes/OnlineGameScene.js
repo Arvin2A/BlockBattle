@@ -540,7 +540,7 @@ export class OnlineOverlayScene extends Phaser.Scene {
             }));
         }
         for (const [x, y, label, button, radius = 45] of layout) {
-            const circle = this.add.circle(x, y, radius, 0x000000, 0.45).setInteractive();
+            const circle = this.add.circle(x, y, radius, 0x000000, 0.45).setInteractive().setData('silentHover', true);
             this.add.text(x, y, label, {
                 fontSize: label.length > 1 ? '26px' : '44px',
                 color: '#ffffff',

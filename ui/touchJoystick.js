@@ -13,7 +13,8 @@ export function addThumbstick(scene, { x, y, radius = 80, onChange, container = 
         .setStrokeStyle(3, HEX.border, 0.35)
         .setScrollFactor(0)
         .setDepth(999)
-        .setInteractive();
+        .setInteractive()
+        .setData('silentHover', true);
     const knob = scene.add.circle(x, y, radius * 0.45, HEX.border, 0.35)
         .setScrollFactor(0)
         .setDepth(1000);

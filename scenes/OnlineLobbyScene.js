@@ -3,7 +3,7 @@
 // Licensed under the GNU GPL v3 only. See LICENSE.
 
 import Phaser from 'phaser';
-import { preload as preloadMatch, preloadMenu, preloadCharacterSelection } from './GameScene/preload.js';
+import { preload as preloadMatch, preloadMenu, preloadCharacterSelection, preloadMapSelection } from './GameScene/preload.js';
 import { fadeOutTo } from './transitions.js';
 import { CHARACTER_ROSTER } from '../characterRoster.js';
 import { getCharacterTexture } from '../characterTextures.js';
@@ -192,6 +192,7 @@ export class OnlineLobbyScene extends Phaser.Scene {
         preloadMenu.call(this);
         preloadCharacterSelection.call(this);
         preloadMatch.call(this);
+        preloadMapSelection.call(this);
         const loadingText = this.add.text(500, 300, 'LOADING GAME FILES... 0%', {
             fontFamily: 'GameFont',
             fontSize: '20px',
@@ -211,20 +212,20 @@ export class OnlineLobbyScene extends Phaser.Scene {
         this.add.image(500, 300, 'menuBackground').setDisplaySize(1000, 600);
         this.add.rectangle(500, 300, 1000, 600, 0x000000, 0.7);
 
-        this.add.text(500, 52, 'ONLINE', {
+        this.add.text(500, 42, 'ONLINE', {
             fontFamily: 'VCROSD',
             fontSize: '48px',
             fill: '#ffffff',
             stroke: '#000000',
             strokeThickness: 6
         }).setOrigin(0.5);
-        this.add.text(500, 92, `SERVER: ${getServerName()}`, {
+        this.add.text(500, 82, `SERVER: ${getServerName()}`, {
             fontFamily: 'GameFont',
             fontSize: '14px',
             fill: '#ffd34d'
         }).setOrigin(0.5);
 
-        this.statusText = this.add.text(500, 118, '', {
+        this.statusText = this.add.text(500, 108, '', {
             fontFamily: 'GameFont',
             fontSize: '13px',
             fill: '#bbbbbb',
@@ -302,7 +303,7 @@ export class OnlineLobbyScene extends Phaser.Scene {
 
     buildFighterPanel() {
         this.nameButton = makeButton(this, 250, 146, 460, 30, '', () => this.editName(), 17);
-        this.add.rectangle(250, 330, 460, 330, 0x171717, 0.92).setStrokeStyle(3, 0xffffff);
+        this.fighterPanel = this.add.rectangle(250, 330, 460, 330, HEX.panel, 0.92).setStrokeStyle(3, HEX.border);
         this.add.text(140, 185, 'YOUR FIGHTER', {
             fontFamily: 'GameFont',
             fontSize: '18px',
@@ -310,8 +311,8 @@ export class OnlineLobbyScene extends Phaser.Scene {
         }).setOrigin(0.5);
 
         this.fighterIcon = this.add.image(140, 275, 'axeman').setDisplaySize(120, 120);
-        makeArrow(this, 50, 275, '<', () => this.changeCharacter(-1));
-        makeArrow(this, 230, 275, '>', () => this.changeCharacter(1));
+        this.fighterArrowLeft = makeArrow(this, 50, 275, '<', () => this.changeCharacter(-1));
+        this.fighterArrowRight = makeArrow(this, 230, 275, '>', () => this.changeCharacter(1));
 
         this.fighterName = this.add.text(140, 370, '', {
             fontFamily: 'GameFont',
@@ -472,7 +473,8 @@ export class OnlineLobbyScene extends Phaser.Scene {
         this.screenTitle('stage', 'SELECT STAGE');
         this.stageCards = MAP_CHOICES.map(map => {
             const card = this.add.rectangle(PANEL.x, 330, STAGE_CARD.width + 8, STAGE_CARD.height + 8, 0x262626).setStrokeStyle(3, 0x686868)
-                .setInteractive({ useHandCursor: true });
+                .setInteractive({ useHandCursor: true })
+                .setData('silentHover', true);
             const preview = this.add.image(PANEL.x, 330, MAPS[map]?.preview ?? 'randompreview')
                 .setDisplaySize(STAGE_CARD.width, STAGE_CARD.height);
             const name = text(this, PANEL.x, 330, mapLabel(map), {
@@ -500,7 +502,8 @@ export class OnlineLobbyScene extends Phaser.Scene {
             const y = 222 + index * 38;
             const row = { key: null };
             row.box = this.add.rectangle(PANEL.x, y, 370, 32, HEX.panel).setStrokeStyle(2, 0xffffff)
-                .setInteractive({ useHandCursor: true });
+                .setInteractive({ useHandCursor: true })
+                .setData('silentHover', true);
             row.box.on('pointerdown', () => this.toggleModifier(row.key));
             row.name = text(this, 532, y, '', { fontFamily: 'VCROSD', fontSize: '17px' }).setOrigin(0, 0.5);
             row.valueBox = this.add.rectangle(845, y, 110, 24, HEX.panel).setStrokeStyle(2, HEX.border)
@@ -677,6 +680,27 @@ export class OnlineLobbyScene extends Phaser.Scene {
 
     get locked() {
         return this.queueState !== 'idle';
+    }
+
+    get queueState() {
+        return this.currentQueueState;
+    }
+
+    set queueState(value) {
+        this.currentQueueState = value;
+        this.refreshLockTint();
+    }
+
+    refreshLockTint() {
+        if (!this.fighterPanel?.active) return;
+        const locked = this.locked;
+        this.fighterPanel.setFillStyle(locked ? HEX.lockedPanel : HEX.panel, 0.92)
+            .setStrokeStyle(3, locked ? HEX.error : HEX.border);
+        this.nameButton.box.setStrokeStyle(3, locked ? HEX.error : HEX.border);
+        this.nameButton.text.setColor(locked ? COLORS.error : COLORS.text);
+        this.fighterIcon.setTint(locked ? HEX.lockedTint : 0xffffff);
+        [this.fighterArrowLeft, this.fighterArrowRight, this.variantButton.box, this.variantButton.text]
+            .forEach(part => part.setAlpha(locked ? 0.4 : 1));
     }
 
     changeCharacter(direction) {

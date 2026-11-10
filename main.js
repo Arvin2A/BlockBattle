@@ -237,7 +237,8 @@ loadFont().then(() => {
 // buttonhover. A scene's input listeners are cleared on shutdown, so this is
 // re-added each time the scene is created.
 function addButtonHoverSounds(game) {
-    const listen = scene => scene.input.on('gameobjectover', () => {
+    const listen = scene => scene.input.on('gameobjectover', (_pointer, gameObject) => {
+        if (gameObject?.getData?.('silentHover')) return;
         if (scene.cache.audio.exists('buttonhover')) scene.sound.play('buttonhover');
     });
     for (const scene of game.scene.scenes) {
@@ -782,7 +783,8 @@ function create() {
             const btn = scene.add.circle(x, y, radius, 0x000000, 0.45)
                 .setScrollFactor(0)
                 .setDepth(999)
-                .setInteractive();
+                .setInteractive()
+                .setData('silentHover', true);
 
             const label = scene.add.text(x, y, text, {
                 fontSize: '48px',
@@ -914,7 +916,8 @@ function create() {
             const button = this.add.circle(x, 420, botMode ? 45 : 34, 0x000000, 0.55)
                 .setScrollFactor(0)
                 .setDepth(999)
-                .setInteractive();
+                .setInteractive()
+                .setData('silentHover', true);
             const label = this.add.text(x, 420, 'ALT', {
                 fontSize: '24px',
                 color: '#ffffff',
