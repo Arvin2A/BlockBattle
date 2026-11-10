@@ -207,7 +207,7 @@ function stepSmack(scene, attacker, dt) {
         if (!smack.targetWasStunned && canBreakGrab(target)) {
             target.hitstunUntil = smack.targetStunBefore;
             releaseSmack(scene, attacker);
-            raiseBlock(target);
+            raiseBlock(scene, target);
             blocksHit(scene, target, attacker, SMACK.damage);
             return;
         }
