@@ -374,7 +374,10 @@ export class OnlineOverlayScene extends Phaser.Scene {
             this.quickChat.destroy();
         });
 
-        if (this.sys.game.device.input.touch) this.createTouchControls();
+        if (this.sys.game.device.input.touch) {
+            this.createTouchControls();
+            this.createForfeitButton();
+        }
         else if (roster.length === 2) this.createKeyGuides(slot);
 
         const versus = others.length === 1
@@ -420,13 +423,28 @@ export class OnlineOverlayScene extends Phaser.Scene {
             this.quickChat.close();
             return;
         }
+        this.requestLeave('PRESS ESC AGAIN TO LEAVE (COUNTS AS A LOSS)');
+    }
+
+    requestLeave(notice) {
         if (this.gameScene.matchOver) return;
         if (this.time.now < this.escapeArmedUntil) {
             this.gameScene.leaveTo('OnlineLobbyScene');
             return;
         }
         this.escapeArmedUntil = this.time.now + 2500;
-        this.showNotice('PRESS ESC AGAIN TO LEAVE (COUNTS AS A LOSS)', 2500);
+        this.showNotice(notice, 2500);
+    }
+
+    createForfeitButton() {
+        this.forfeitButton = this.add.image(969, 32, 'forfeitBtn')
+            .setScale(0.12)
+            .setDepth(4000)
+            .setInteractive({ useHandCursor: true });
+        this.forfeitButton.on('pointerdown', () => {
+            this.sound.play('hover2');
+            this.requestLeave('TAP AGAIN TO LEAVE (COUNTS AS A LOSS)');
+        });
     }
 
     showNotice(text, duration) {
@@ -436,6 +454,7 @@ export class OnlineOverlayScene extends Phaser.Scene {
     }
 
     onEnd({ winners, reason }) {
+        this.forfeitButton?.setVisible(false).disableInteractive();
         const won = Boolean(winners?.includes(this.match.slot));
         const duel = this.match.roster.length === 2;
         const titles = {

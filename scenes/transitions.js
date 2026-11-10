@@ -21,13 +21,18 @@ export function fadeOutTo(scene, transition, duration = 200) {
 // arrive one after another. Returns how long the whole thing takes, in ms.
 export function slideInFromSides(scene, groups, duration = 550, stagger = 90) {
     const width = scene.scale.width;
-    groups.forEach((group, index) => {
+    let length = 0;
+    groups.forEach((entry, index) => {
+        const group = Array.isArray(entry) ? entry : entry.objects;
+        const ease = entry.ease ?? 'Back.easeOut';
+        const groupDuration = entry.duration ?? duration;
+        length = Math.max(length, index * stagger + groupDuration);
         const fromLeft = group[0].getBounds().centerX < width / 2;
         for (const obj of group) {
             const targetX = obj.x;
             obj.x = targetX + (fromLeft ? -width : width);
-            scene.tweens.add({ targets: obj, x: targetX, delay: index * stagger, duration, ease: 'Back.easeOut' });
+            scene.tweens.add({ targets: obj, x: targetX, delay: index * stagger, duration: groupDuration, ease });
         }
     });
-    return (groups.length - 1) * stagger + duration;
+    return length;
 }

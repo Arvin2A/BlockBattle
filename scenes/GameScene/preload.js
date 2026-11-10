@@ -138,6 +138,7 @@ export function preload() {
 
     this.load.image('gohomeBtn', 'assets/ingame/goHomeBtn.png');
     this.load.image('gohomeBtnPressed', 'assets/ingame/pressedgoHome.png');
+    this.load.image('forfeitBtn', 'assets/ingame/forfeitBtn.png');
 
     this.load.image('resumeBtn', 'assets/ingame/resumeBtn.png');
 
