@@ -346,20 +346,18 @@ export function getFlatSquash(player, now) {
     return 1 - Phaser.Math.Easing.Quadratic.InOut(t);
 }
 
-function findLedge(scene, player, opponent, offMap) {
+function findLedge(scene, player) {
     const body = player.body;
-    const { map } = scene.gameState;
     let best = null;
     for (const platform of getMapPlatforms(scene)) {
         const top = platform.body.top;
         const dy = player.y - top;
-        if (offMap && map.infinite && platform === map.ground) continue;
-        if (!offMap && (dy < -LEDGE.aboveY || dy > LEDGE.belowY)) continue;
+        if (dy < -LEDGE.aboveY || dy > LEDGE.belowY) continue;
         for (const [cornerX, toward] of [[platform.body.left, 1], [platform.body.right, -1]]) {
             const outside = (cornerX - player.x) * toward;
-            if (!offMap && outside < -body.width / 2) continue;
+            if (outside < -body.width / 2) continue;
             const gap = Math.abs(player.x - cornerX) - body.width / 2;
-            if (!offMap && gap > LEDGE.reachX) continue;
+            if (gap > LEDGE.reachX) continue;
             const taken = scene.gameState.players.some(other => other !== player &&
                 other.ledge?.platform === platform && other.ledge.toward === toward);
             if (taken) continue;
@@ -375,9 +373,8 @@ export function tryLedgeGrab(scene, player, opponent) {
     if (!player.active || isGrounded(player) || player.hitstun || player.freeze) return false;
     if (isUniversalBusy(player) || player.activeGrab || player.grabbedBy || player.isUsingSideSpecial) return false;
     if (player.ledgeUsed || now < (player.nextLedgeAt ?? 0)) return false;
-    const offMap = !scene.physics.world.bounds.contains(player.x, player.y);
-    if (!offMap && overAnyPlatform(scene, player)) return false;
-    const ledge = findLedge(scene, player, opponent, offMap);
+    if (overAnyPlatform(scene, player)) return false;
+    const ledge = findLedge(scene, player);
     if (!ledge) return false;
 
     const hangX = ledge.cornerX - ledge.toward * (player.body.width / 2 + 1);

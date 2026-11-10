@@ -16,14 +16,17 @@ import { formatModifierValue, modifierOptions } from '../modifiers.js';
 import { createNameFilter } from '../mp/nameFilter.js';
 import inappropriateWords from '../assets/inappropriate_words?raw';
 import { getOnlineServerHost, getServerName, isOnlineConfigured } from '../mp/serverConfig.js';
-import { CHAOS_TIERS, COLORS, HEX, makeButton } from '../ui/theme.js';
+import { CHAOS_TIERS, COLORS, HEX, makeButton, makePanel } from '../ui/theme.js';
 
 const SETTINGS_KEY = 'blockBattleOnline';
 const ROOMS_PER_PAGE = 4;
 const MODIFIERS_PER_PAGE = 6;
+const PLAYERS_PER_PAGE = 5;
+const INVITE_RESEND_MS = 3000;
+const INVITE_POPUP_MS = 30000;
 const PANEL = { x: 710, y: 330, width: 400, height: 330 };
 const STAGE_CARD = { width: 204, height: 108, nameOffset: 38 };
-const SUB_SCREENS = ['create', 'stage', 'modifiers', 'browse'];
+const SUB_SCREENS = ['create', 'stage', 'modifiers', 'browse', 'invite'];
 const mapLabel = map => MAPS[map]?.name ?? map;
 const isNameBlocked = createNameFilter(inappropriateWords);
 const randomPlayerName = () => `Player${Math.floor(Math.random() * 900 + 100)}`;
@@ -260,7 +263,8 @@ export class OnlineLobbyScene extends Phaser.Scene {
             name: savedLobby.name ? cleanName(savedLobby.name, MAX_LOBBY_NAME_LENGTH) : null,
             mode: MODE_TOGGLE_ORDER.includes(savedLobby.mode) ? savedLobby.mode : '1v1',
             mapIndex: Math.max(0, MAP_CHOICES.indexOf(savedLobby.map)),
-            modifiers: defaultModifierSettings(savedLobby.modifiers)
+            modifiers: defaultModifierSettings(savedLobby.modifiers),
+            private: Boolean(savedLobby.private)
         };
         this.queueState = 'idle';
         this.queueStartedAt = 0;
@@ -268,9 +272,14 @@ export class OnlineLobbyScene extends Phaser.Scene {
         this.roomPage = 0;
         this.modifierPage = 0;
         this.lobby = null;
+        this.waitingPlayers = [];
+        this.playerPage = 0;
+        this.invitesSent = new Map();
+        this.invitePopup = null;
         this.previousPad = {};
         this.closeNameBox = null;
         this.cleanups.push(() => this.closeNameBox?.());
+        this.cleanups.push(() => this.closeInvitePopup());
 
         this.buildFighterPanel();
         this.buildMatchPanel();
@@ -346,6 +355,7 @@ export class OnlineLobbyScene extends Phaser.Scene {
         this.buildModifierScreen();
         this.buildBrowseScreen();
         this.buildLobbyScreen();
+        this.buildInviteScreen();
         const panelBack = makeButton(this, 560, 146, 100, 30, '< BACK', () => this.goBack(), 17);
         SUB_SCREENS.forEach(screen => this.addToScreen(screen, panelBack));
 
@@ -376,6 +386,8 @@ export class OnlineLobbyScene extends Phaser.Scene {
     }
 
     showScreen(name) {
+        if (this.screen === 'invite' && name !== 'invite') net.send({ t: 'watchPlayers', on: false });
+        if (name === 'invite' && this.screen !== 'invite') net.send({ t: 'watchPlayers', on: true });
         this.screen = name;
         const shown = new Set(this.screens[name] ?? []);
         Object.values(this.screens).flat().forEach(object => object.setVisible(shown.has(object)));
@@ -387,7 +399,8 @@ export class OnlineLobbyScene extends Phaser.Scene {
             stage: '^ v BROWSE STAGES   ENTER DONE   ESC BACK',
             modifiers: 'CLICK A CARD TO TOGGLE IT, CLICK ITS BOX TO CHANGE IT   ESC BACK',
             browse: '< > FIGHTER   ^ v VARIANT   1-4 JOIN   ESC BACK',
-            lobby: 'ENTER START (HOST)   ESC LEAVE'
+            lobby: 'ENTER START (HOST)   ESC LEAVE',
+            invite: 'CLICK INVITE NEXT TO A PLAYER   ESC BACK TO LOBBY'
         };
         this.keyHint.setText(hints[name] ?? '');
         if (name === 'browse') this.refreshRooms();
@@ -396,6 +409,7 @@ export class OnlineLobbyScene extends Phaser.Scene {
         if (name === 'modifiers') this.refreshModifiers();
         if (name === 'lobby') this.refreshLobby();
         if (name === 'quick') this.refreshQueue();
+        if (name === 'invite') this.refreshInvite();
     }
 
     buildHomeScreen() {
@@ -457,16 +471,18 @@ export class OnlineLobbyScene extends Phaser.Scene {
 
     buildCreateScreen() {
         this.screenTitle('create', 'LOBBY CREATION');
-        this.lobbyNameButton = this.addToScreen('create', makeButton(this, PANEL.x, 224, 360, 32, '', () => this.editLobbyName(), 17));
-        this.makeRow('create', 270, 44, 'GAMEMODE');
-        this.modeLabel = this.makeValueBox('create', 815, 270, 130, () => this.cycleMode());
-        this.makeRow('create', 326, 56, 'MODIFIERS', () => this.showScreen('modifiers'));
-        this.modifierSummary = this.addToScreen('create', text(this, 545, 338, '', { fontSize: '11px', fill: '#bbbbbb' }).setOrigin(0, 0.5));
-        this.addToScreen('create', text(this, 855, 326, '>', { fontFamily: 'VCROSD', fontSize: '26px' }).setOrigin(0.5));
-        this.makeRow('create', 382, 44, 'STAGE', () => this.showScreen('stage'));
-        this.stageLabel = this.addToScreen('create', text(this, 840, 382, '', { fontFamily: 'VCROSD', fontSize: '18px', fill: '#ffd34d' }).setOrigin(1, 0.5));
-        this.addToScreen('create', text(this, 855, 382, '>', { fontFamily: 'VCROSD', fontSize: '26px' }).setOrigin(0.5));
-        this.addToScreen('create', makeButton(this, PANEL.x, 446, 300, 42, 'CREATE LOBBY', () => this.createLobby(), 22));
+        this.lobbyNameButton = this.addToScreen('create', makeButton(this, PANEL.x, 222, 360, 30, '', () => this.editLobbyName(), 17));
+        this.makeRow('create', 264, 40, 'GAMEMODE');
+        this.modeLabel = this.makeValueBox('create', 815, 264, 130, () => this.cycleMode());
+        this.makeRow('create', 314, 50, 'MODIFIERS', () => this.showScreen('modifiers'));
+        this.modifierSummary = this.addToScreen('create', text(this, 545, 326, '', { fontSize: '11px', fill: COLORS.muted }).setOrigin(0, 0.5));
+        this.addToScreen('create', text(this, 855, 314, '>', { fontFamily: 'VCROSD', fontSize: '26px' }).setOrigin(0.5));
+        this.makeRow('create', 362, 40, 'STAGE', () => this.showScreen('stage'));
+        this.stageLabel = this.addToScreen('create', text(this, 840, 362, '', { fontFamily: 'VCROSD', fontSize: '18px', fill: COLORS.accent }).setOrigin(1, 0.5));
+        this.addToScreen('create', text(this, 855, 362, '>', { fontFamily: 'VCROSD', fontSize: '26px' }).setOrigin(0.5));
+        this.privateRow = this.makeRow('create', 406, 40, 'PRIVATE', () => this.togglePrivate());
+        this.privateLabel = this.makeValueBox('create', 815, 406, 130, () => this.togglePrivate());
+        this.addToScreen('create', makeButton(this, PANEL.x, 454, 300, 38, 'CREATE LOBBY', () => this.createLobby(), 22));
     }
 
     buildStageScreen() {
@@ -562,13 +578,137 @@ export class OnlineLobbyScene extends Phaser.Scene {
             row.name = text(this, 558, y - 7, '', { fontFamily: 'VCROSD', fontSize: '17px' }).setOrigin(0, 0.5);
             row.fighter = text(this, 558, y + 9, '', { fontSize: '10px', fill: '#aaaaaa' }).setOrigin(0, 0.5);
             row.tag = text(this, 880, y, '', { fontFamily: 'VCROSD', fontSize: '15px', fill: '#ffd34d' }).setOrigin(1, 0.5);
-            this.addToScreen('lobby', row.box, row.swatch, row.name, row.fighter, row.tag);
+            row.invite = makeButton(this, 840, y, 90, 26, 'INVITE', () => this.showScreen('invite'), 15);
+            this.addToScreen('lobby', row.box, row.swatch, row.name, row.fighter, row.tag, row.invite);
             this.memberRows.push(row);
         }
         this.startButton = this.addToScreen('lobby', makeButton(this, 615, 446, 170, 40, 'START', () => this.startLobby(), 22));
         this.leaveButton = makeButton(this, 805, 446, 170, 40, 'LEAVE', () => this.leaveLobby(), 22);
         this.addToScreen('lobby', this.leaveButton);
         this.lobbyWaitText = this.addToScreen('lobby', text(this, 615, 446, 'WAITING FOR\nTHE HOST', { fontSize: '11px', fill: '#bbbbbb', align: 'center' }).setOrigin(0.5));
+    }
+
+    buildInviteScreen() {
+        this.inviteTitle = this.screenTitle('invite', 'INVITE PLAYERS');
+        this.playerRows = [];
+        for (let i = 0; i < PLAYERS_PER_PAGE; i++) {
+            const y = 230 + i * 42;
+            const row = { player: null };
+            row.box = this.add.rectangle(PANEL.x, y, 370, 36, HEX.panel).setStrokeStyle(2, 0x555555);
+            row.name = text(this, 540, y - 7, '', { fontFamily: 'VCROSD', fontSize: '17px' }).setOrigin(0, 0.5);
+            row.tag = text(this, 540, y + 9, '', { fontSize: '10px', fill: COLORS.muted }).setOrigin(0, 0.5);
+            row.button = makeButton(this, 835, y, 100, 26, 'INVITE', () => this.sendInvite(row.player), 15);
+            this.addToScreen('invite', row.box, row.name, row.tag, row.button);
+            this.playerRows.push(row);
+        }
+        this.playerArrows = [
+            makeArrow(this, 560, 452, '<', () => this.changePlayerPage(-1)),
+            makeArrow(this, 860, 452, '>', () => this.changePlayerPage(1))
+        ];
+        this.addToScreen('invite', ...this.playerArrows,
+            makeButton(this, PANEL.x, 452, 220, 36, 'BACK TO LOBBY', () => this.showScreen('lobby'), 18));
+        this.emptyPlayersText = this.addToScreen('invite', text(this, PANEL.x, 310, "No one else is waiting right now.\nPlayers show up here while they're\nin the online menu.", {
+            fontSize: '13px',
+            fill: '#999999',
+            align: 'center',
+            lineSpacing: 6
+        }).setOrigin(0.5));
+    }
+
+    changePlayerPage(direction) {
+        const pages = Math.max(1, Math.ceil(this.waitingPlayers.length / PLAYERS_PER_PAGE));
+        this.playerPage = (this.playerPage + direction + pages) % pages;
+        this.refreshInvite();
+    }
+
+    inviteState(player) {
+        if (player.inLobby) return 'IN LOBBY';
+        if (player.busy) return 'BUSY';
+        if (this.time.now - (this.invitesSent.get(player.tag) ?? -Infinity) < INVITE_RESEND_MS) return 'SENT';
+        if (this.invitesSent.has(player.tag)) return 'AGAIN';
+        return 'INVITE';
+    }
+
+    refreshInvite() {
+        if (!this.playerRows) return;
+        const visible = this.screen === 'invite';
+        const players = this.waitingPlayers;
+        const pages = Math.max(1, Math.ceil(players.length / PLAYERS_PER_PAGE));
+        this.playerPage = Math.min(this.playerPage, pages - 1);
+        const pageText = pages > 1 ? `   ${this.playerPage + 1}/${pages}` : '';
+        this.inviteTitle.setText(`WAITING PLAYERS (${players.length})${pageText}`).setFontSize(20);
+        this.playerArrows.forEach(arrow => arrow.setVisible(visible && pages > 1));
+        this.emptyPlayersText.setVisible(visible && players.length === 0);
+        const shown = players.slice(this.playerPage * PLAYERS_PER_PAGE, (this.playerPage + 1) * PLAYERS_PER_PAGE);
+        this.playerRows.forEach((row, index) => {
+            const player = shown[index] ?? null;
+            row.player = player;
+            [row.box, row.name, row.tag, row.button.box, row.button.text].forEach(part => part.setVisible(visible && Boolean(player)));
+            if (!player) return;
+            const state = this.inviteState(player);
+            const usable = state === 'INVITE' || state === 'AGAIN';
+            row.name.setText(player.name);
+            row.tag.setText(`#${player.tag}`);
+            row.button.text.setText(state).setColor(state === 'SENT' ? COLORS.accent : COLORS.text);
+            row.button.box.setAlpha(usable ? 1 : 0.5);
+            row.button.text.setAlpha(usable ? 1 : 0.6);
+        });
+        if (visible && this.lobby) {
+            const open = MATCH_MODES[this.lobby.mode].players - this.lobby.members.length;
+            this.queueText.setText(`${open} OPEN SLOT${open === 1 ? '' : 'S'} LEFT`);
+        }
+    }
+
+    sendInvite(player) {
+        if (!player || !this.lobby?.host) return;
+        const state = this.inviteState(player);
+        if (state !== 'INVITE' && state !== 'AGAIN') return;
+        net.send({ t: 'invite', tag: player.tag });
+        this.invitesSent.set(player.tag, this.time.now);
+        this.refreshInvite();
+        this.time.delayedCall(INVITE_RESEND_MS + 50, () => this.refreshInvite());
+    }
+
+    showInvitePopup(invite) {
+        if (this.queueState !== 'idle' && this.queueState !== 'queued') return;
+        this.closeInvitePopup();
+        const parts = [];
+        const add = object => {
+            parts.push(object.setDepth(100));
+            return object;
+        };
+        add(this.add.rectangle(500, 300, 1000, 600, 0x000000, 0.55).setInteractive());
+        add(makePanel(this, 500, 300, 480, 230));
+        add(text(this, 500, 215, 'LOBBY INVITE', { fontFamily: 'VCROSD', fontSize: '28px' }).setOrigin(0.5));
+        add(text(this, 500, 262, `${invite.host} #${invite.hostTag} invited you to`, { fontSize: '13px', fill: COLORS.muted }).setOrigin(0.5));
+        add(text(this, 500, 290, String(invite.name), { fontFamily: 'VCROSD', fontSize: '22px', fill: COLORS.accent }).setOrigin(0.5));
+        const mods = invite.modifiers ? `   ${invite.modifiers} MODIFIER${invite.modifiers === 1 ? '' : 'S'}` : '';
+        add(text(this, 500, 318, `${String(invite.mode).toUpperCase()}   ${mapLabel(invite.map)}${mods}`.toUpperCase(), { fontSize: '11px', fill: COLORS.muted }).setOrigin(0.5));
+        const accept = makeButton(this, 410, 370, 160, 40, 'ACCEPT', () => this.acceptInvite(), 20);
+        const decline = makeButton(this, 590, 370, 160, 40, 'DECLINE', () => this.closeInvitePopup(), 20);
+        [accept.box, accept.text, decline.box, decline.text].forEach(add);
+        const timer = this.time.delayedCall(INVITE_POPUP_MS, () => this.closeInvitePopup());
+        this.invitePopup = { invite, parts, timer };
+        this.sound.play('hover2');
+    }
+
+    closeInvitePopup() {
+        const popup = this.invitePopup;
+        if (!popup) return;
+        this.invitePopup = null;
+        popup.timer.remove(false);
+        popup.parts.forEach(part => part.destroy());
+    }
+
+    acceptInvite() {
+        const invite = this.invitePopup?.invite;
+        this.closeInvitePopup();
+        if (!invite || !this.selection || !net.connected) return;
+        if (this.queueState !== 'idle' && this.queueState !== 'queued') return;
+        this.sendChoice('joinLobby', { room: invite.room });
+        this.queueState = 'joining';
+        if (this.screen === 'quick') this.showScreen('home');
+        this.queueText.setText('JOINING...');
     }
 
     bindLobbyKeys() {
@@ -588,6 +728,10 @@ export class OnlineLobbyScene extends Phaser.Scene {
     }
 
     confirm() {
+        if (this.invitePopup) {
+            this.acceptInvite();
+            return;
+        }
         if (this.screen === 'home' || this.screen === 'quick') this.toggleQuick();
         else if (this.screen === 'create') this.createLobby();
         else if (this.screen === 'stage' || this.screen === 'modifiers') this.showScreen('create');
@@ -619,13 +763,29 @@ export class OnlineLobbyScene extends Phaser.Scene {
         });
         listen('lobby', message => {
             this.queueState = 'lobby';
+            this.closeInvitePopup();
             this.lobby = message.lobby;
-            if (this.screen !== 'lobby') this.showScreen('lobby');
+            const full = this.lobby.members.length >= MATCH_MODES[this.lobby.mode].players;
+            const canInvite = this.lobby.private && this.lobby.host && !full;
+            if (this.screen === 'invite' && canInvite) this.refreshInvite();
+            else if (this.screen !== 'lobby') this.showScreen('lobby');
             else this.refreshLobby();
         });
+        listen('players', message => {
+            this.waitingPlayers = Array.isArray(message.players) ? message.players : [];
+            this.refreshInvite();
+        });
+        listen('inviteFailed', message => {
+            this.invitesSent.delete(message.tag);
+            this.setStatus(message.msg, COLORS.error);
+            this.refreshInvite();
+        });
+        listen('inviteSent', message => this.setStatus(`Invite sent to ${message.name} #${message.tag}.`, COLORS.accent));
+        listen('invited', message => this.showInvitePopup(message));
         listen('joinFailed', message => {
             this.setStatus(message.msg, '#ff6b6b');
             if (this.queueState === 'joining') this.queueState = 'idle';
+            if (this.screen === 'home' || this.screen === 'browse') this.queueText.setText('');
         });
         listen('matchFound', message => this.startMatch(message));
         listen('error', message => {
@@ -639,6 +799,8 @@ export class OnlineLobbyScene extends Phaser.Scene {
             this.queueState = 'idle';
             this.lobby = null;
             this.rooms = [];
+            this.waitingPlayers = [];
+            this.closeInvitePopup();
             this.showScreen('home');
             this.setStatus('Lost connection to the server. Is it still running?', '#ff6b6b');
         });
@@ -647,6 +809,7 @@ export class OnlineLobbyScene extends Phaser.Scene {
             .then(() => {
                 if (!this.statusText?.active) return;
                 this.setStatus(`Connected to ${getOnlineServerHost()}`);
+                this.refreshSelection();
                 if (this.autoQueue) this.startQuick();
             })
             .catch(error => {
@@ -759,6 +922,11 @@ export class OnlineLobbyScene extends Phaser.Scene {
         return this.lobbySettings.name ?? cleanName(`${this.selection.name}'s Lobby`, MAX_LOBBY_NAME_LENGTH);
     }
 
+    togglePrivate() {
+        this.lobbySettings.private = !this.lobbySettings.private;
+        this.refreshCreate();
+    }
+
     cycleMode() {
         const order = MODE_TOGGLE_ORDER;
         this.lobbySettings.mode = order[(order.indexOf(this.lobbySettings.mode) + 1) % order.length];
@@ -824,6 +992,8 @@ export class OnlineLobbyScene extends Phaser.Scene {
             ? 'ACTIVE: NONE'
             : `ACTIVE: ${active.length} ON`);
         this.stageLabel.setText(mapLabel(MAP_CHOICES[settings.mapIndex]));
+        this.privateLabel.setText(settings.private ? 'ON' : 'OFF').setColor(settings.private ? COLORS.accent : COLORS.text);
+        this.privateRow.setStrokeStyle(2, settings.private ? HEX.accent : 0x686868);
         this.saveAll();
     }
 
@@ -911,7 +1081,8 @@ export class OnlineLobbyScene extends Phaser.Scene {
             if (!room) return;
             const mods = room.modifiers ? `   ${room.modifiers} MODIFIER${room.modifiers === 1 ? '' : 'S'}` : '';
             row.name.setText(`${index + 1}. ${room.name}`);
-            row.details.setText(`${room.mode.toUpperCase()}   ${mapLabel(room.map)}   HOST ${room.host}${mods}`.toUpperCase());
+            const hostTag = room.hostTag ? ` #${room.hostTag}` : '';
+            row.details.setText(`${room.mode.toUpperCase()}   ${mapLabel(room.map)}   HOST ${room.host}${hostTag}${mods}`.toUpperCase());
             row.count.setText(`${room.players}/${room.max}`);
         });
     }
@@ -922,25 +1093,28 @@ export class OnlineLobbyScene extends Phaser.Scene {
         const visible = this.screen === 'lobby';
         this.lobbyTitle.setText(lobby.name).setFontSize(lobby.name.length > 16 ? 18 : 24);
         const mods = lobby.modifiers.length ? `   ${lobby.modifiers.length} MODIFIER${lobby.modifiers.length === 1 ? '' : 'S'}` : '   NO MODIFIERS';
-        this.lobbyInfo.setText(`${lobby.mode.toUpperCase()}   ${mapLabel(lobby.map)}${mods}`.toUpperCase());
+        this.lobbyInfo.setText(`${lobby.private ? 'PRIVATE   ' : ''}${lobby.mode.toUpperCase()}   ${mapLabel(lobby.map)}${mods}`.toUpperCase());
         const mode = MATCH_MODES[lobby.mode];
         this.memberRows.forEach((row, index) => {
             const member = lobby.members[index];
             const used = index < mode.players;
             [row.box, row.swatch, row.name, row.fighter, row.tag].forEach(part => part.setVisible(visible && used));
+            const canInvite = visible && used && !member && lobby.private && lobby.host;
+            [row.invite.box, row.invite.text].forEach(part => part.setVisible(canInvite));
             if (!used) return;
             const color = PLAYER_COLORS[mode.colors[index]];
             row.swatch.setFillStyle(color.hex, member ? 1 : 0.3);
             row.box.setStrokeStyle(2, member?.you ? 0xffd34d : 0x555555);
             if (!member) {
-                row.name.setText('OPEN SLOT').setColor('#777777');
+                row.name.setText(lobby.private ? 'INVITE ONLY' : 'OPEN SLOT').setColor('#777777');
                 row.fighter.setText(mode.teams ? `TEAM ${color.label}` : color.label);
                 row.tag.setText('');
                 return;
             }
             const character = CHARACTER_ROSTER.find(entry => entry.key === member.character);
             row.name.setText(member.name).setColor(color.css);
-            row.fighter.setText(`${character?.name ?? member.character} - ${member.variant}${mode.teams ? `   TEAM ${color.label}` : ''}`.toUpperCase());
+            const tag = member.tag ? `#${member.tag}   ` : '';
+            row.fighter.setText(`${tag}${character?.name ?? member.character} - ${member.variant}${mode.teams ? `   TEAM ${color.label}` : ''}`.toUpperCase());
             row.tag.setText([index === 0 ? 'HOST' : '', member.you ? 'YOU' : ''].filter(Boolean).join(' / '));
         });
         const full = lobby.members.length >= mode.players;
@@ -948,7 +1122,8 @@ export class OnlineLobbyScene extends Phaser.Scene {
         this.startButton.text.setVisible(visible && lobby.host).setAlpha(full ? 1 : 0.4);
         this.startButton.box.setAlpha(full ? 1 : 0.5);
         this.lobbyWaitText.setVisible(visible && !lobby.host);
-        this.queueText.setText(full ? (lobby.host ? 'EVERYONE IS HERE. PRESS START!' : 'EVERYONE IS HERE') : `WAITING FOR PLAYERS (${lobby.members.length}/${mode.players})`);
+        const waiting = lobby.private && lobby.host ? 'INVITE PLAYERS TO FILL THE SLOTS' : 'WAITING FOR PLAYERS';
+        this.queueText.setText(full ? (lobby.host ? 'EVERYONE IS HERE. PRESS START!' : 'EVERYONE IS HERE') : `${waiting} (${lobby.members.length}/${mode.players})`);
     }
 
     getChoice() {
@@ -969,7 +1144,8 @@ export class OnlineLobbyScene extends Phaser.Scene {
                 name: settings.name,
                 mode: settings.mode,
                 map: MAP_CHOICES[settings.mapIndex],
-                modifiers: settings.modifiers
+                modifiers: settings.modifiers,
+                private: settings.private
             }
         });
     }
@@ -986,7 +1162,8 @@ export class OnlineLobbyScene extends Phaser.Scene {
         const hasVariants = character.variants.length > 1;
         this.variantButton.box.setVisible(hasVariants);
         this.variantButton.text.setVisible(hasVariants);
-        this.nameButton.text.setText(`NAME: ${this.selection.name}   (CHANGE)`);
+        this.nameButton.text.setText(`NAME: ${this.selection.name}${net.tag ? ` #${net.tag}` : ''}   (CHANGE)`);
+        net.setName(this.selection.name);
         this.quickMapText.setText(mapLabel(map));
         if (this.screen === 'create') this.refreshCreate();
         this.saveAll();
@@ -1038,8 +1215,10 @@ export class OnlineLobbyScene extends Phaser.Scene {
             lobbyName: this.getLobbyName(),
             mode: settings.mode,
             map: MAP_CHOICES[settings.mapIndex],
-            modifiers: this.getModifierSelection()
+            modifiers: this.getModifierSelection(),
+            private: settings.private
         });
+        this.invitesSent.clear();
         this.queueState = 'creating';
         this.queueText.setText('CREATING LOBBY...');
     }
@@ -1065,6 +1244,7 @@ export class OnlineLobbyScene extends Phaser.Scene {
         net.send({ t: 'leave' });
         this.queueState = 'idle';
         this.lobby = null;
+        this.invitesSent.clear();
         this.showScreen('browse');
     }
 
@@ -1085,7 +1265,11 @@ export class OnlineLobbyScene extends Phaser.Scene {
 
     goBack() {
         if (this.queueState === 'found' || this.closeNameBox) return;
-        const parents = { stage: 'create', modifiers: 'create', create: 'home', browse: 'home' };
+        if (this.invitePopup) {
+            this.closeInvitePopup();
+            return;
+        }
+        const parents = { stage: 'create', modifiers: 'create', create: 'home', browse: 'home', invite: 'lobby' };
         if (this.screen === 'quick') {
             this.cancelQuick();
             return;
