@@ -70,7 +70,9 @@ const DESERT_MAP = {
     // y + 27). Starting inside the floor can drop a fighter straight through it.
     playerSpawns: [
         { x: 550, y: 847 },
-        { x: 1300, y: 742 }
+        { x: 1300, y: 742 },
+        { x: 775, y: 609 },
+        { x: 1200, y: 847 }
     ],
     tint: '#8d5c00',
 
@@ -142,7 +144,9 @@ const SNOWY_MAP = {
     platformDepthOrder: ['main', 0, 1],
     playerSpawns: [
         { x: 550, y: 780 },
-        { x: 1300, y: 780 }
+        { x: 1300, y: 780 },
+        { x: 1000, y: 522 },
+        { x: 925, y: 780 }
     ],
     tint: '#2b6335',
 
@@ -234,7 +238,9 @@ const JUNGLE_MAP = {
     platformDepthOrder: [4, 3, 2, 1, 0, 'main'],
     playerSpawns: [
         { x: 750, y: 787 },
-        { x: 1300, y: 462 }
+        { x: 1300, y: 462 },
+        { x: 500, y: 662 },
+        { x: 1000, y: 642 }
     ],
     tint: '#2b4363',
 

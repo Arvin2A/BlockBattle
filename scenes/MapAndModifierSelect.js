@@ -8,104 +8,14 @@ import { preloadMapSelection } from './GameScene/preload.js';
 import { fadeOutTo } from './transitions.js';
 import { clipScrollablePanel } from '../ui/clipScroll.js';
 import { CHAOS_TIERS, FONTS, COLORS, HEX, textStyle } from '../ui/theme.js';
+import { formatModifierValue, getEnabledCustomValues, modifierOptions } from '../modifiers.js';
+
+export { getEnabledCustomValues, modifierOptions };
 import { moveSelection, createNavigationBox, moveNavigationBox, getConnectedControllers, getMenuGamepadInput } from "../navigation.js"
 
 
 export let selectedMapDefinition = DEFAULT_MAP;
 export let selectedMapIsRandom = false;
-const CLICK_VALUE_FORMATS = {
-    damage: value => `${value}x`,
-    speed: value => `+${value}%`
-};
-
-const clickModifier = (name, description, tier, stat, step, steps) => ({
-    name,
-    description,
-    tier,
-    enabled: false,
-    value: step,
-    clicker: { stat, step, steps }
-});
-
-export const modifierOptions = {
-    NO_ABILITY_COOLDOWN: {
-        name: 'NO ABILITY COOLDOWNS',
-        description: 'spam spam spam spam spams spam sapm.',
-        tier: 'purple',
-        enabled: false
-    },
-    NO_GRAVITY_FRICTION: {
-        name: 'NO GRAVITY + FRICTION',
-        description: 'Remember the hitstun bugs? They are a feature now.',
-        tier: 'purple',
-        enabled: false
-    },
-
-    FAST: {
-        name: 'FAST',
-        description: '200% Movement Speed and Halved Cooldowns.',
-        tier: 'red',
-        enabled: false
-    },
-    MAP_HAZARDS: {
-        name: 'WEATHER HAZARDS',
-        description: 'Maps now have a chance for disasters to occur!',
-        tier: 'red',
-        enabled: false
-    },
-    SUDDEN_DEATH: {
-        name: 'SUDDEN DEATH',
-        description: 'Players start off with 300% damage.',
-        tier: 'red',
-        enabled: false
-    },
-	INFINITE_BRIDGE: {
-        name: 'INFINITE BRIDGE',
-        description: 'A snowy bridge that never ends, with speedometers.',
-        tier: 'red',
-        enabled: false
-    },
-    NO_VERTICAL_KILLZONE: {
-        name: 'NO VERTICAL KILLZONE',
-        description: 'No kill zones above or below. COLLISION ON makes them solid walls.',
-        tier: 'purple',
-        enabled: false,
-        collisions: false,
-        collisionToggle: true
-    },
-    NO_HORIZONTAL_KILLZONE: {
-        name: 'NO HORIZONTAL KILLZONE',
-        description: 'No kill zones left or right. COLLISION ON makes them solid walls.',
-        tier: 'purple',
-        enabled: false,
-        collisions: false,
-        collisionToggle: true
-    },
-    CUSTOM_DAMAGE_S: clickModifier('CUSTOM DAMAGE S', 'Multiplies all damage. Click the box for +5x, up to 50x.', 'purple', 'damage', 5, 10),
-    CUSTOM_SPEED_S: clickModifier('CUSTOM SPEED S', 'Adds movement speed. Click the box for +500%, up to +5000%.', 'purple', 'speed', 500, 10),    CUSTOM_DAMAGE_A: clickModifier('CUSTOM DAMAGE A', 'Multiplies all damage. Click the box for +1x, up to 10x.', 'red', 'damage', 1, 10),
-    CUSTOM_SPEED_A: clickModifier('CUSTOM SPEED A', 'Adds movement speed. Click the box for +50%, up to +500%.', 'red', 'speed', 50, 10),
-    DOUBLE_DAMAGE: {
-        name: 'DOUBLE DAMAGE',
-        description: 'Players deal 200% more damage.',
-        tier: 'orange',
-        enabled: false
-    },
-    CUSTOM_DAMAGE_R: clickModifier('CUSTOM DAMAGE R', 'Multiplies all damage. Click the box for +0.1x, up to 1x.', 'yellow', 'damage', 0.1, 10),
-    CUSTOM_SPEED_R: clickModifier('CUSTOM SPEED R', 'Adds movement speed. Click the box for +10%, up to +100%.', 'yellow', 'speed', 10, 10),
-    SLUGGISH: {
-        name: 'SLUGGISH',
-        description: 'Players have 50% Movement Speed.',
-        tier: 'yellow',
-        enabled: false
-    },
-    SUPER_SLUGGISH: {
-        name: 'SUPER SLUGGISH',
-        description: 'Players have 25% Movement Speed. Why bro??',
-        tier: 'yellow',
-        enabled: false
-    }
-};
-
 export function setSelectedMap(definition) {
 	selectedMapDefinition = definition;
 	selectedMapIsRandom = false;
@@ -114,12 +24,6 @@ export function setSelectedMap(definition) {
 export function getMatchMapDefinition() {
 	if (modifierOptions.INFINITE_BRIDGE.enabled) return SECRET_MAPS.BRIDGE;
 	return selectedMapIsRandom ? getRandomMap() : selectedMapDefinition;
-}
-
-export function getEnabledCustomValues(stat) {
-	return Object.values(modifierOptions)
-		.filter(modifier => modifier.enabled && modifier.clicker?.stat === stat)
-		.map(modifier => modifier.value);
 }
 
 export function getActiveKillZones(map) {
@@ -455,11 +359,11 @@ export class MapAndModifierSelectScene extends Phaser.Scene {
 			);
 		}
 		if (!modifier.clicker) return name;
-		const { stat, step, steps } = modifier.clicker;
+		const { step, steps } = modifier.clicker;
 		return this.createValueBoxRow(
 			name,
 			CUSTOM_FIELD.width,
-			() => CLICK_VALUE_FORMATS[stat](modifier.value),
+			() => formatModifierValue(modifier),
 			() => {
 				const next = Math.round((modifier.value + step) * 10) / 10;
 				modifier.value = next > step * steps + 0.001 ? step : next;

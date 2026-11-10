@@ -2,6 +2,7 @@
 // Original source: https://github.com/Arvin2A/BlockBattle
 // Licensed under the GNU GPL v3 only. See LICENSE.
 
+import { nearestEnemy } from './targets.js';
 import { getCharacterScript } from './characterStats.js';
 import { attackIsElligible } from './eligibility.js';
 
@@ -55,8 +56,7 @@ const AIM_RANGE = 250;
 
 export function getAttackAimOffset(attacker) {
     if (attacker.name === 'AXEMAN' && attacker.variant === 'CHAINSAW') return 0;
-    const players = attacker.scene?.gameState?.players;
-    const target = players && (players.player === attacker ? players.player2 : players.player);
+    const target = attacker.scene ? nearestEnemy(attacker.scene, attacker) : null;
     if (!target?.active) return 0;
     const dx = target.x - attacker.x;
     const dy = target.y - attacker.y;
@@ -74,8 +74,7 @@ const CHAINSAW_AIM_MAX_DEGREES = 50;
 
 function getChainsawAim(attacker) {
     if (!attacker.chainsawActive) return 0;
-    const players = attacker.scene?.gameState?.players;
-    const target = players && (players.player === attacker ? players.player2 : players.player);
+    const target = attacker.scene ? nearestEnemy(attacker.scene, attacker) : null;
     if (!target?.active || !attackIsElligible(attacker, target, CHAINSAW_AIM_RANGE,
         { ignoreCanAttack: true, silent: true })) return 0;
     const facing = Math.atan2(attacker.lastDir.y, attacker.lastDir.x);

@@ -1,5 +1,33 @@
 # Changelog
 
+## 2026-11-09
+
+### Added
+- Online lobbies! The ONLINE screen now opens on three choices: CREATE LOBBY, QUICK 1V1 and BROWSE LOBBIES. Your name moved above your fighter.
+  - CREATE LOBBY: name your lobby, click the GAMEMODE box to pick 1v1, 1v1v1, 2v2 or 1v1v1v1, pick a stage from a wheel and turn on modifiers. Your lobby shows up for everyone in BROWSE LOBBIES, and the host presses START once it's full.
+  - QUICK 1V1 pairs you with whoever has been waiting the longest, no list needed.
+  - Modifiers work online. INFINITE BRIDGE stays local only, and NO VERTICAL KILLZONE and NO HORIZONTAL KILLZONE can't both be on in a lobby, so matches always end.
+- 3- and 4-player matches (online only). Everyone gets 3 lives. In 1v1v1 and 1v1v1v1 the last player standing wins; in 2v2 the last team standing wins, and you can't hurt your teammate.
+  - Player colors: 1v1v1 is red, green and blue; 1v1v1v1 is red, yellow, green and blue; 2v2 is team red vs team blue.
+  - New green and yellow stat backgrounds, with every stat block in a row at the top of the screen.
+  - KOs count for whoever hit you last. Knocked-out players disappear and their stat block dims.
+  - If someone leaves a 3- or 4-player match, they're knocked out and the match keeps going.
+- Every stage has spawns for 4 fighters.
+- When modifiers are on, the match now starts by sliding in a card for each one. Modifiers that get cancelled out by another (like SLUGGISH under SUPER SLUGGISH) flash red and get removed.
+- INFINITE BRIDGE moved to a new white MISC section at the top of the modifier list.
+
+### Changed
+- LAWNMOWER's PULL CORD can't cut grass or fire CLIPPINGS anymore, and his clippings drop to 0 as soon as he loses the mower.
+- The speed limit for fighters went way up, from 200 blocks per second to over 85 million.
+- Ledge grabbing works from anywhere off the map: press attack and you grab the nearest ledge.
+- Squash and stretch now move in choppier steps.
+- Past 10,000 pixels per second the camera locks onto you so you stay centered.
+
+### Fixed
+- Name tags and weapons no longer trail behind fighters at very high speeds.
+- Fighters can no longer fall through the ground at extreme speeds or on fast diagonal hits.
+- INFINITE BRIDGE now shows the map out to about 5.3 million blocks instead of going black at 200,000.
+
 ## 2026-11-08
 
 ### Added

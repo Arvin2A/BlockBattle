@@ -13,8 +13,9 @@ import { MirrorCapture } from './mirror.js';
 import { getServerSocketUrl, PROTOCOL_VERSION } from './protocol.js';
 import { decodeButtons, INPUT_BUTTONS, ALL_BUTTONS_MASK } from '../input.js';
 import { AuthorityFastPeer } from './rtc.js';
-import { setSelectedCharacters } from '../scenes/CharacterSelectScreen.js';
 import { resetMapAndModifierSelection, setSelectedMap } from '../scenes/MapAndModifierSelect.js';
+import { applyModifierSelection } from '../modifiers.js';
+import { SLOTS, buildRoster } from '../matchModes.js';
 import { getMap } from '../scenes/GameScene/MapDefinitions.js';
 import { changeBotMode } from '../gameSettings.js';
 
@@ -42,10 +43,11 @@ let capture = null;
 let endReported = false;
 let matchStarted = false;
 const INPUT_SEQ_MEMORY = 256;
-const netInputs = {
-    p1: { held: decodeButtons(0), pressed: decodeButtons(0), lastSeq: -1, seenSeqs: new Set() },
-    p2: { held: decodeButtons(0), pressed: decodeButtons(0), lastSeq: -1, seenSeqs: new Set() }
-};
+const netInputs = Object.fromEntries(SLOTS.map(slot => [
+    slot,
+    { held: decodeButtons(0), pressed: decodeButtons(0), lastSeq: -1, seenSeqs: new Set() }
+]));
+let leftPlayers = [];
 const fastPeers = {};
 
 function send(message) {
@@ -55,7 +57,7 @@ function send(message) {
 function startFastPeers(ice) {
     closeFastPeers();
     if (!ice) return;
-    for (const slot of Object.keys(netInputs)) {
+    for (const { slot } of matchConfig.roster) {
         fastPeers[slot] = new AuthorityFastPeer(
             ice,
             data => send({ t: 'rtc', s: slot, d: data }),
@@ -116,10 +118,17 @@ export function pollNetworkInput(slot) {
     return { held: input.held, pressed };
 }
 
-export function getOnlinePlayerNames() {
-    return matchConfig
-        ? { p1: matchConfig.p1.name, p2: matchConfig.p2.name }
-        : null;
+export function getOnlineMatchSettings() {
+    return {
+        mode: matchConfig.mode,
+        players: buildRoster(matchConfig.mode, matchConfig.roster.map(({ name, character, variant }) => ({ name, character, variant })))
+    };
+}
+
+export function consumeLeftPlayers() {
+    const slots = leftPlayers;
+    leftPlayers = [];
+    return slots;
 }
 
 // Boot scene: loads every game asset, tells the server it's ready, waits for "start".
@@ -153,13 +162,13 @@ function createAuthorityBootScene(preload) {
                         matchConfig = message;
                         changeBotMode(false);
                         resetMapAndModifierSelection();
+                        applyModifierSelection(message.modifiers);
                         setSelectedMap(getMap(message.map));
-                        setSelectedCharacters(
-                            message.p1.character, message.p1.variant,
-                            message.p2.character, message.p2.variant
-                        );
                         startFastPeers(message.ice);
                         send({ t: 'ready' });
+                        break;
+                    case 'playerLeft':
+                        if (typeof message.s === 'string') leftPlayers.push(message.s);
                         break;
                     case 'start':
                         matchStarted = true;
@@ -199,10 +208,7 @@ export function attachAuthority(scene) {
         message.ts = Math.round(performance.now() * 10) / 10;
         if (message.f === 0) {
             message.meta = {
-                players: {
-                    p1: capture.idOf(players.player),
-                    p2: capture.idOf(players.player2)
-                }
+                players: Object.fromEntries(players.map(player => [player.slot, capture.idOf(player)]))
             };
         }
         if (socket?.readyState !== WebSocket.OPEN) return;
@@ -212,10 +218,10 @@ export function attachAuthority(scene) {
     });
 }
 
-export function reportMatchEnd(winnerSlot) {
+export function reportMatchEnd(winnerSlots) {
     if (endReported) return;
     endReported = true;
-    send({ t: 'end', winner: winnerSlot });
+    send({ t: 'end', winners: winnerSlots });
 }
 
 function useSilentSounds(Phaser) {

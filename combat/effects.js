@@ -2,6 +2,7 @@
 // Original source: https://github.com/Arvin2A/BlockBattle
 // Licensed under the GNU GPL v3 only. See LICENSE.
 
+import { nearestEnemy } from './targets.js';
 // Visual and screen feedback shared by every attack. Nothing here changes game state.
 
 export function addSceneUpdateListener(scene, listener) {
@@ -131,10 +132,9 @@ export function spawnHitParticles(scene, target, vx = 0, vy = 0, heavy = false, 
     let dirX = -vx;
     let dirY = -vy;
     if (Math.hypot(dirX, dirY) < 1) {
-        const players = scene.gameState.players;
-        const opponent = players.player === target ? players.player2 : players.player;
-        dirX = opponent.x - target.x;
-        dirY = opponent.y - target.y;
+        const opponent = nearestEnemy(scene, target);
+        dirX = opponent ? opponent.x - target.x : 0;
+        dirY = opponent ? opponent.y - target.y : -1;
     }
     const length = Math.hypot(dirX, dirY) || 1;
     dirX /= length;

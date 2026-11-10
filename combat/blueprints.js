@@ -2,6 +2,7 @@
 // Original source: https://github.com/Arvin2A/BlockBattle
 // Licensed under the GNU GPL v3 only. See LICENSE.
 
+import { getEnemies, isTeammate } from './targets.js';
 import { attackIsElligible } from './eligibility.js';
 import { applyKnockback, hitFreeze } from './knockback.js';
 import { addSceneUpdateListener } from './effects.js';
@@ -143,7 +144,7 @@ export function landHit(scene, attacker, target, spec = {}) {
         unblockable = false,
         ranged = false
     } = spec;
-    if (target.uninterruptible) return false;
+    if (target.uninterruptible || target.eliminated || isTeammate(attacker, target)) return false;
     if (!unblockable && blocksHit(scene, target, attacker, damage, { ranged })) return false;
     const now = scene.time.now;
     const direction = spec.direction || attacker.lastDir;
@@ -154,6 +155,7 @@ export function landHit(scene, attacker, target, spec = {}) {
         target.revokeVictimStun = null;
     }
     target.lastHitAt = now;
+    if (attacker.team !== undefined) target.lastHitBy = attacker;
     if (target.nettedUntil > now) breakNet(target, now);
     attacker.lastLandedHitAt = now;
     target.hitstunUntil = now + hitstun * (hitstunGrowth ? target.KBmultiplier : 1);
@@ -207,14 +209,16 @@ export function strike(scene, attacker, target, spec = {}) {
     const { range = 100, bypass = {}, direction = null, missSound = null } = spec;
     const plankDamage = spec.plankDamage ?? spec.damage ?? 0;
     damagePlanksInAttack(attacker, plankDamage * getAttackDamageScale(attacker));
-    cutGrassInSwing(attacker, range);
-    const eligible = attackIsElligible(attacker, target, range, {
-        ...bypass,
-        direction: direction ?? bypass.direction ?? null
-    });
-    if (!eligible) {
-        if (missSound) scene.sound.play(missSound);
-        return false;
+    if (!spec.noGrassCut) cutGrassInSwing(attacker, range);
+    const options = { ...bypass, direction: direction ?? bypass.direction ?? null };
+    const victims = spec.singleTarget || !target ? [target] : [target, ...getEnemies(scene, attacker).filter(enemy => enemy !== target)];
+    let anyEligible = false;
+    let hit = false;
+    for (const victim of victims) {
+        if (!victim || !attackIsElligible(attacker, victim, range, options)) continue;
+        anyEligible = true;
+        if (landHit(scene, attacker, victim, spec)) hit = true;
     }
-    return landHit(scene, attacker, target, spec);
+    if (!anyEligible && missSound) scene.sound.play(missSound);
+    return hit;
 }

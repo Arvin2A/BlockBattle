@@ -4,10 +4,14 @@
 
 import Phaser from 'phaser';
 import {handleAttack, handleMatchEnd, tryExtraJump, handleDirSpecial, handleNeutralSpecial, handleDirSpecialAttack, handleHorizantalTilt, handleDownTilt, handleUpTilt, downslamAttack, updateScythemanGrass, updateChainsawWood, updateCharacter, handleMisc, hasMiscButton, usesToggleAttack, getSpecialMeter, tryQuickslamJump, positionAttackSprite, hasIdleAttackSprite, getAttackSpriteOffset, getAttackSpriteAngle, getAttackSpriteFlipX, triggerScreenShake, spawnDirtBurst, spawnExplosion} from './attacks.js';
-import { COLORS, FONTS, HEX, makePanel, playerColor, playerHex, textStyle } from './ui/theme.js';
+import { COLORS, FONTS, HEX, makePanel, textStyle } from './ui/theme.js';
+import { MATCH_LIVES, PLAYER_COLORS, buildRoster, isTeamMode } from './matchModes.js';
+import { isAlive, nearestEnemy } from './combat/targets.js';
 import { addTouchAssist, isPhoneScreen } from './ui/touchAssist.js';
 import { addThumbstick } from './ui/touchJoystick.js';
 import { createSpeedometers, updateSpeedometers } from './ui/speedometer.js';
+import { playModifierIntro } from './ui/modifierIntro.js';
+import { getActiveModifierCards } from './modifiers.js';
 import { createPerspectiveSwitch, updatePerspective } from './ui/perspective.js';
 import { MAX_WOOD_COUNT } from './playerAttackScripts/axeman.js';
 import { initiatePlayers, updateCombo } from './players.js';
@@ -32,7 +36,7 @@ import UIPlugin from 'phaser4-rex-plugins/templates/ui/ui-plugin.js';
 import unmuteAudio from 'unmute-ios-audio';
 import { botMode, simulationMode, changeBotMode } from './gameSettings.js';
 import { createInputState, applyInputFrame, consumePress, emptyControllerInput } from './input.js';
-import { isAuthority, beginAuthorityCapture, attachAuthority, createAuthorityGame, getOnlinePlayerNames, pollNetworkInput, reportMatchEnd } from './mp/authority.js';
+import { isAuthority, beginAuthorityCapture, attachAuthority, consumeLeftPlayers, createAuthorityGame, getOnlineMatchSettings, pollNetworkInput, reportMatchEnd } from './mp/authority.js';
 import { OnlineLobbyScene } from './scenes/OnlineLobbyScene.js';
 import { OnlineGameScene, OnlineOverlayScene } from './scenes/OnlineGameScene.js';
 import { ControllerSetupScene, controllerInputs } from './scenes/ControllerSetupScene.js';
@@ -255,15 +259,8 @@ var chainsawModeKey1;
 var chainsawModeKey2;
 var blockKey1;
 var blockKey2;
-var winNumber = 3; //number of rounds needed to win as of now
-var lastWinState = {
-    p1: 0,
-    p2: 0
-};
-var inputMode = {
-    p1: "touch",
-    p2: "touch",
-}
+var lastWinScores = '';
+var inputMode = {};
 var mobileControls = {
     p1: {
         left: false,
@@ -308,19 +305,45 @@ var restartBtnPressed;
 var homeBtn;
 var homeBtnPressed;
 
-// CPUs show in grey instead of their slot's red or blue.
-function isCpuSlot(scene, slot) {
-    return scene.simulationMode || (scene.botMode && slot === 'p2');
+const KO_LOCK_MS = 1500;
+const STAT_BLOCK = { y: 65, width: 195, imageScale: 0.65, minGap: 44 };
+
+function getStatLayout(count) {
+    if (count === 2) return { xs: [300, 700], scale: 1 };
+    const scale = Math.min(1, (1000 - (count + 1) * STAT_BLOCK.minGap) / (count * STAT_BLOCK.width));
+    const width = STAT_BLOCK.width * scale;
+    const gap = (1000 - count * width) / (count + 1);
+    return { xs: Array.from({ length: count }, (_, index) => gap + width / 2 + index * (width + gap)), scale };
+}
+
+function getMatchSettings() {
+    if (isAuthority()) return getOnlineMatchSettings();
+    return {
+        mode: '1v1',
+        players: buildRoster('1v1', [
+            { character: player1Character, variant: player1Variant },
+            { character: player2Character, variant: player2Variant }
+        ])
+    };
+}
+
+function isCpuIndex(scene, index) {
+    return scene.simulationMode || (scene.botMode && index === 1);
 }
 
 function createSpecialMeters(scene) {
     scene.specialMeters = {};
     const meterWidth = 160;
     const meterHeight = 18;
-    const meters = [
-        { key: 'p1', player: scene.gameState.players.player, x: 205, color: isCpuSlot(scene, 'p1') ? 0x808080 : 0xf54242, label: 'P1 ABILITY' },
-        { key: 'p2', player: scene.gameState.players.player2, x: 795, color: isCpuSlot(scene, 'p2') ? 0x808080 : 0x00aaff, label: 'P2 ABILITY' }
-    ];
+    const fighters = scene.gameState.players;
+    const meterXs = fighters.length === 2 ? [205, 795] : getStatLayout(fighters.length).xs;
+    const meters = fighters.map((player, index) => ({
+        key: player.slot,
+        player,
+        x: meterXs[index],
+        color: player.isCpu ? 0x808080 : PLAYER_COLORS[player.color].meter,
+        label: `${player.slot.toUpperCase()} ABILITY`
+    }));
 
     meters.forEach(meter => {
         const label = scene.add.text(meter.x, 123, meter.label, {
@@ -398,6 +421,12 @@ function updateSpecialMeters(scene) {
 
     Object.values(scene.specialMeters).forEach(meter => {
         const { player, fill, status, meterWidth } = meter;
+        if (player.eliminated) {
+            fill.setDisplaySize(0, 18);
+            status.setText('OUT');
+            status.setColor('#bbbbbb');
+            return;
+        }
         if (meter.woodFill) {
             const woodAmount = player.woodCount ?? 0;
             const woodProgress = Phaser.Math.Clamp(
@@ -473,7 +502,7 @@ function updateSpecialMeters(scene) {
         !scene.simulationMode &&
         scene.matchStartTime !== null &&
         scene.time.now >= scene.matchStartTime + 5000 &&
-        (!players.player.hasUsedSideSpecial || !players.player2.hasUsedSideSpecial)
+        players.some(player => !player.hasUsedSideSpecial)
     ) {
         scene.specialPromptShown = true;
         scene.specialPrompt.setAlpha(1);
@@ -539,7 +568,7 @@ function pollLocalInput(scene, slot) {
 }
 
 function readPlayerInputs(scene) {
-    for (const slot of ['p1', 'p2']) {
+    for (const { slot } of scene.matchSettings.players) {
         const frame = scene.online ? pollNetworkInput(slot) : pollLocalInput(scene, slot);
         applyInputFrame(scene.playerInputs[slot], frame);
     }
@@ -586,7 +615,8 @@ function releaseMobileControls() {
 function create() {
     this.online = isAuthority();
     if (this.online) beginAuthorityCapture(this);
-    this.playerInputs = { p1: createInputState(), p2: createInputState() };
+    this.matchSettings = getMatchSettings();
+    this.playerInputs = Object.fromEntries(this.matchSettings.players.map(({ slot }) => [slot, createInputState()]));
     this.gamePaused = false;
     this.time.paused = false;
     this.physics.world.resume();
@@ -595,8 +625,7 @@ function create() {
     this.sound.resumeAll();
     fiveframecount = 0;
     releaseMobileControls();
-    inputMode.p1 = 'touch';
-    inputMode.p2 = 'touch';
+    inputMode = Object.fromEntries(this.matchSettings.players.map(({ slot }) => [slot, 'touch']));
 
     this.game.events.on('blur', releaseMobileControls);
     this.game.events.on('hidden', releaseMobileControls);
@@ -627,10 +656,8 @@ function create() {
         immovable: true
     });
 
-    lastWinState = {
-        p1: 0,
-        p2: 0
-    };
+    lastWinScores = '';
+    this.matchChampion = null;
     this.botMode = botMode;
     this.simulationMode = simulationMode;
     this.input.addPointer(5);
@@ -642,10 +669,7 @@ function create() {
     this.hud = this.add.container(0, 0);
     this.objs = this.add.container(0,0);
     this.objcam = this.cameras.add(0,0,1000,600, false, "hudCam");
-    this.mobileButtons = {
-        p1: [],
-        p2: []
-    }
+    this.mobileButtons = Object.fromEntries(this.matchSettings.players.map(({ slot }) => [slot, []]));
     const mapDefinition = getMatchMapDefinition();
     this.gameState.map = new Map(this, mapDefinition);
     if (modifierOptions.MAP_HAZARDS.enabled) {
@@ -725,13 +749,13 @@ function create() {
 
 
 
-    const plr1StatImage = this.add.image(300, 65, simulationMode ? 'botstat' : 'redstat');
-    plr1StatImage.setScale(0.65);
-    const plr2StatID  = botMode ? 'botstat' : 'bluestat';
-    const plr2StatImage = this.add.image(700, 65, plr2StatID);
-    plr2StatImage.setScale(0.65);
-    this.hud.add(plr1StatImage);
-    this.hud.add(plr2StatImage);
+    const statLayout = getStatLayout(this.matchSettings.players.length);
+    this.statBackgrounds = this.matchSettings.players.map((entry, index) => {
+        const key = isCpuIndex(this, index) ? 'botstat' : PLAYER_COLORS[entry.color].stat;
+        const image = this.add.image(statLayout.xs[index], STAT_BLOCK.y, key).setScale(STAT_BLOCK.imageScale * statLayout.scale);
+        this.hud.add(image);
+        return image;
+    });
 
     const p1guide = this.add.image(450, 65, 'p1guide');
     p1guide.setAlpha(0.65);
@@ -879,13 +903,7 @@ function create() {
 
     }
 
-    this.gameState.players = initiatePlayers(
-        this,
-        player1Character,
-        player2Character,
-        player1Variant,
-        player2Variant
-    );
+    this.gameState.players = initiatePlayers(this, this.matchSettings);
     if (isMobile) {
         for (const player of Object.values(this.gameState.players)) {
             if (!hasMiscButton(player.name, player.variant)) continue;
@@ -903,9 +921,8 @@ function create() {
                 fontFamily: 'VCROSD'
             }).setOrigin(0.5).setScrollFactor(0).setDepth(1000);
             const toggleMode = () => {
-                inputMode[player.id === 1 ? 'p1' : 'p2'] = 'touch';
-                const players = this.gameState.players;
-                handleMisc(this, player, player === players.player ? players.player2 : players.player);
+                inputMode[player.slot] = 'touch';
+                handleMisc(this, player, nearestEnemy(this, player));
             };
             button.on('pointerdown', toggleMode);
             touchButtons.push({ circle: button, press: toggleMode, release: () => {} });
@@ -917,11 +934,11 @@ function create() {
     createSpecialMeters(this);
 
     if (this.online) {
-        const names = getOnlinePlayerNames();
-        for (const [slot, player] of [['p1', this.gameState.players.player], ['p2', this.gameState.players.player2]]) {
-            player.header.setText(names?.[slot] ?? slot.toUpperCase());
-            player.header.setOrigin(0.5, 0);
-        }
+        this.matchSettings.players.forEach((entry, index) => {
+            const { header } = this.gameState.players[index];
+            header.setText(entry.name ?? entry.slot.toUpperCase());
+            header.setOrigin(0.5, 0);
+        });
     }
 
     this.killZones = getActiveKillZones(this.gameState.map);
@@ -950,7 +967,6 @@ function create() {
         this.physics.add.collider(player, this.gameState.map.topPlatforms);
         this.physics.add.collider(player, this.planks);
 
-        player.slot = key === 'player' ? 'p1' : 'p2';
         player.stats = { kos: 0, maxKB: player.KBmultiplier, damageDealt: 0 };
         player.statsLastKB = player.KBmultiplier;
         player.wasGrounded = true;
@@ -994,37 +1010,28 @@ function create() {
         });
         this.objs.addAt(player.ultraTrail, this.objs.getIndex(player));
     }
-    playEntranceSlams(this);
+    prepareEntranceSlams(this);
 
-    const keys = Object.keys(this.gameState.players);
-
-    for (let i = 0; i < keys.length; i++) {
-        for (let j = i + 1; j < keys.length; j++) {
-            const playerA = this.gameState.players[keys[i]];
-            const playerB = this.gameState.players[keys[j]];
-            this.playerCollisionCollider = this.physics.add.collider(playerA, playerB, null,
-                (a, b) => !a.clipThroughPlayers && !b.clipThroughPlayers);
+    const fighters = this.gameState.players;
+    for (let i = 0; i < fighters.length; i++) {
+        for (let j = i + 1; j < fighters.length; j++) {
+            this.physics.add.collider(fighters[i], fighters[j], null,
+                (a, b) => !a.clipThroughPlayers && !b.clipThroughPlayers && a.team !== b.team);
         }
     }
 
-    const plr1Icon = this.add.image(250, 65, this.gameState.players.player.icon);
-    const plr2Icon = this.add.image(650, 65, this.gameState.players.player2.icon);
-    this.hud.add(plr1Icon);
-    this.hud.add(plr2Icon);
-
-    const plr1NameText = this.add.text(280, 47, this.gameState.players.player.name, { fontFamily: 'GameFont', fontSize: '16px', fill: '#FFFFFF' });
-    const plr2NameText = this.add.text(680, 47, this.gameState.players.player2.name, { fontFamily: 'GameFont', fontSize: '16px', fill: '#FFFFFF' });
-    plr1NameText.setStroke('#000000', 3);
-    plr2NameText.setStroke('#000000', 3);
-    this.hud.add(plr1NameText);
-    this.hud.add(plr2NameText);
-    createKBText(this, this.gameState.players.player, 285, 65);
-    createKBText(this, this.gameState.players.player2, 685, 65);
-    this.hud.add(this.gameState.players.player.KBText);
-    this.hud.add(this.gameState.players.player.KBFlashText);
-    this.hud.add(this.gameState.players.player2.KBText);
-    this.hud.add(this.gameState.players.player2.KBFlashText);
-    
+    fighters.forEach((player, index) => {
+        const x = statLayout.xs[index];
+        const { scale } = statLayout;
+        player.statBackground = this.statBackgrounds[index];
+        player.statIcon = this.add.image(x - 50 * scale, STAT_BLOCK.y, player.icon).setScale(scale);
+        const nameText = this.add.text(x - 20 * scale, 47, player.name, { fontFamily: 'GameFont', fontSize: '16px', fill: '#FFFFFF' }).setScale(scale);
+        nameText.setStroke('#000000', 3);
+        createKBText(this, player, x - 15 * scale, STAT_BLOCK.y);
+        player.KBText.setScale(scale);
+        player.KBFlashText.setScale(scale);
+        this.hud.add([player.statIcon, nameText, player.KBText, player.KBFlashText]);
+    });
 
     attackKey1 = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.E);
     attackKey2 = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.SHIFT);
@@ -1068,62 +1075,7 @@ function create() {
 
     
 
-    this.time.delayedCall(50, () => {
-        this.gameState.players.player.freezeUntil = 4200 + this.time.now;
-        this.gameState.players.player.hitstunUntil = 4200 + this.time.now;
-        this.gameState.players.player2.freezeUntil = 4200 + this.time.now;
-        this.gameState.players.player2.hitstunUntil = 4200 + this.time.now;
-    });
-    
-
-    this.time.delayedCall(1000, () => {
-        const counter = this.add.image(500, 300, 'countdown1');
-        this.hud.add(counter);
-        this.sound.play('countdown');
-        this.tweens.add({
-            targets: counter,
-            alpha: 0,
-            duration: 500,
-            onComplete: () => counter.destroy()
-        });
-        this.time.delayedCall(1000, () => {
-            const counter1 = this.add.image(500, 300, 'countdown2');
-            this.hud.add(counter1);
-            this.tweens.add({
-                targets: counter1,
-                alpha: 0,
-                duration: 500,
-                onComplete: () => counter1.destroy()
-            });
-            this.time.delayedCall(1000, () => {
-                const counter2 = this.add.image(500, 300, 'countdown3');
-                this.hud.add(counter2);
-                this.tweens.add({
-                    targets: counter2,
-                    alpha: 0,
-                    duration: 500,
-                    onComplete: () => counter2.destroy()
-                });
-                this.time.delayedCall(1000, () => {
-                    const counter4 = this.add.image(500, 300, 'countdown4');
-                    this.hud.add(counter4);
-                    this.tweens.add({
-                        targets: counter4,
-                        alpha: 0,
-                        duration: 500,
-                        onComplete: () => counter4.destroy()
-                    });
-                    this.gameState.players.player.freezeUntil = 0;
-                    this.gameState.players.player2.freezeUntil = 0;
-                    this.gameState.players.player.hitstunUntil = 0;
-                    this.gameState.players.player2.hitstunUntil = 0;
-                    endCharacterIntros(this);
-                    this.matchStartTime = this.time.now;
-
-                });   
-            });   
-        });    
-    });    
+    startMatchSequence(this);
 
     this.pauseOverlay = this.add.rectangle(500, 300, 1000, 600, 0x000000, 0.5)
         .setScrollFactor(0)
@@ -1193,44 +1145,82 @@ function create() {
         attachAuthority(this);
     }
 }
-function updateWins(scene) {
-    if (scene.gameState.players.player.winNumber !== lastWinState.p1 || scene.gameState.players.player2.winNumber !== lastWinState.p2) {
-        console.log("update!")
-        lastWinState.p1 = scene.gameState.players.player.winNumber;
-        lastWinState.p2 = scene.gameState.players.player2.winNumber;
+function getRoundScore(scene, player) {
+    return scene.gameState.players.length === 2 ? player.stats.kos : player.lives;
+}
 
-        winBar.setVisible(true);
-        if (scene.gameState.players.player.winNumber >= 3 || scene.gameState.players.player2.winNumber >= 3) {
-            winBar.setVisible(false);
-        }
+function updateWins(scene, matchOver) {
+    const fighters = scene.gameState.players;
+    const scores = fighters.map(player => getRoundScore(scene, player)).join();
+    if (scores === lastWinScores) return;
+    lastWinScores = scores;
+
+    winBar.setVisible(!matchOver);
+    scene.tweens.add({
+        targets: winBar,
+        scaleY: 1,
+        duration: 300,
+        ease: 'Cubic.easeOut'
+    });
+    scene.time.delayedCall(1000, () => {
+        fighters.forEach(player => player.winText.setVisible(false));
         scene.tweens.add({
             targets: winBar,
-            scaleY: 1,
+            scaleY: 0,
             duration: 300,
             ease: 'Cubic.easeOut'
         });
-        scene.time.delayedCall(1000, () => {
-            scene.gameState.players.player.winText.setVisible(false);
-            scene.gameState.players.player2.winText.setVisible(false);
-            scene.tweens.add({
-                targets: winBar,
-                scaleY: 0,
-                duration: 300,
-                ease: 'Cubic.easeOut'
-            });
-        });
+    });
 
-        scene.gameState.players.player.winText.setText(scene.gameState.players.player.winNumber);
-        scene.gameState.players.player2.winText.setText(scene.gameState.players.player2.winNumber);
-        scene.gameState.players.player.winText.setVisible(true);
-        scene.gameState.players.player2.winText.setVisible(true);
-        if (scene.gameState.players.player.winNumber >= 3 || scene.gameState.players.player2.winNumber >= 3) {
-            scene.gameState.players.player.winText.setVisible(false);
-            scene.gameState.players.player2.winText.setVisible(false);
-        }
-
+    for (const player of fighters) {
+        player.winText.setText(getRoundScore(scene, player));
+        player.winText.setVisible(!matchOver);
     }
+}
 
+function waitForModifierIntro(scene, onDone) {
+    playModifierIntro(scene, getActiveModifierCards(scene.gameState.map.definition), onDone);
+}
+
+function runCountdown(scene) {
+    const fighters = scene.gameState.players;
+    scene.time.delayedCall(50, () => {
+        for (const player of fighters) {
+            player.freezeUntil = 4200 + scene.time.now;
+            player.hitstunUntil = 4200 + scene.time.now;
+        }
+    });
+    ['countdown1', 'countdown2', 'countdown3', 'countdown4'].forEach((texture, index) => {
+        scene.time.delayedCall(1000 * (index + 1), () => {
+            const counter = scene.add.image(500, 300, texture);
+            scene.hud.add(counter);
+            if (index === 0) scene.sound.play('countdown');
+            scene.tweens.add({
+                targets: counter,
+                alpha: 0,
+                duration: 500,
+                onComplete: () => counter.destroy()
+            });
+            if (index < 3) return;
+            for (const player of fighters) {
+                player.freezeUntil = 0;
+                player.hitstunUntil = 0;
+            }
+            endCharacterIntros(scene);
+            scene.matchStartTime = scene.time.now;
+        });
+    });
+}
+
+function startMatchSequence(scene) {
+    for (const player of scene.gameState.players) {
+        player.freezeUntil = Number.MAX_SAFE_INTEGER;
+        player.hitstunUntil = Number.MAX_SAFE_INTEGER;
+    }
+    waitForModifierIntro(scene, () => {
+        launchEntranceSlams(scene);
+        runCountdown(scene);
+    });
 }
 
 function teleportBackToArena(player, x = 1000) {
@@ -1297,8 +1287,7 @@ function spawnAfterimage(scene, player) {
     }
 
     ghost.setDepth(player.depth - 1);
-    const { player: first, player2: second } = scene.gameState.players;
-    scene.objs.addAt(ghost, Math.min(scene.objs.getIndex(first), scene.objs.getIndex(second)));
+    scene.objs.addAt(ghost, Math.min(...scene.gameState.players.map(fighter => scene.objs.getIndex(fighter))));
     scene.tweens.add({
         targets: ghost,
         alpha: 0,
@@ -1360,9 +1349,10 @@ function updateDangerGlow(scene, player) {
     }
 }
 
-function updateMatchStats(player, opponent) {
+function updateMatchStats(scene, player) {
     const gained = player.KBmultiplier - player.statsLastKB;
-    if (gained > 0) opponent.stats.damageDealt += gained * 100;
+    const dealer = player.lastHitBy ?? nearestEnemy(scene, player);
+    if (gained > 0 && dealer) dealer.stats.damageDealt += gained * 100;
     player.stats.maxKB = Math.max(player.stats.maxKB, player.KBmultiplier);
     player.statsLastKB = player.KBmultiplier;
 }
@@ -1375,7 +1365,8 @@ function spawnKOBlast(scene, loser, scorer) {
     const angle = Math.atan2(view.centerY - edgeY, view.centerX - edgeX);
     const length = Math.hypot(view.width, view.height);
 
-    const beam = scene.add.rectangle(edgeX, edgeY, length, 120, isCpuSlot(scene, scorer.slot) ? HEX.cpu : playerHex(scorer.slot))
+    const beamColor = !scorer ? 0xffffff : scorer.isCpu ? HEX.cpu : PLAYER_COLORS[scorer.color].hex;
+    const beam = scene.add.rectangle(edgeX, edgeY, length, 120, beamColor)
         .setOrigin(0, 0.5).setRotation(angle).setDepth(50).setScale(0.2, 1);
     const core = scene.add.rectangle(edgeX, edgeY, length, 40, 0xffffff)
         .setOrigin(0, 0.5).setRotation(angle).setDepth(51).setScale(0.2, 1);
@@ -1423,8 +1414,9 @@ function playRespawn(scene, player) {
     });
 }
 
-function showMatchEnd(scene, winner, loser) {
-    for (const player of [winner, loser]) {
+function showMatchEnd(scene, winners) {
+    for (const player of scene.gameState.players) {
+        if (player.eliminated) continue;
         handleMatchEnd(scene, player);
         player.launchTrail.stop();
         player.violentTrail.stop();
@@ -1471,13 +1463,23 @@ function showMatchEnd(scene, winner, loser) {
 
     scene.time.delayedCall(1400, () => {
         scene.tweens.add({ targets: stamp, alpha: 0, scale: 0.6, duration: 250, onComplete: () => stamp.destroy() });
-        showResultsPanel(scene, winner);
+        showResultsPanel(scene, winners);
     });
 }
 
-function showResultsPanel(scene, winner) {
-    const p1 = scene.gameState.players.player;
-    const p2 = scene.gameState.players.player2;
+function getWinnerTitle(scene, winners) {
+    if (isTeamMode(scene.matchSettings.mode)) return `${PLAYER_COLORS[winners[0].color].label} TEAM WINS!`;
+    return `${winners[0].name} WINS!`;
+}
+
+function showResultsPanel(scene, winners) {
+    const fighters = scene.gameState.players;
+    const twoPlayers = fighters.length === 2;
+    const columns = twoPlayers
+        ? [390, 610]
+        : fighters.map((_, index) => 350 + index * (420 / (fighters.length - 1)));
+    const labelX = twoPlayers ? 500 : 250;
+    const colorOf = player => player.isCpu ? COLORS.cpu : PLAYER_COLORS[player.color].css;
     const formatKB = multiplier => `${((multiplier * 100) - 100).toFixed(1)}%`;
     const rows = [
         ['KOS', p => `${p.stats.kos}`],
@@ -1489,17 +1491,28 @@ function showResultsPanel(scene, winner) {
     const typed = [
         [scene.add.text(500, 145, '', textStyle('title', {
             fontSize: '40px',
-            fill: isCpuSlot(scene, winner.slot) ? COLORS.cpu : playerColor(winner.slot)
-        })).setOrigin(0.5), `${winner.name} WINS!`],
-        [scene.add.text(390, 195, '', textStyle('title', { fontSize: '18px', fill: isCpuSlot(scene, 'p1') ? COLORS.cpu : COLORS.p1, strokeThickness: 3 })).setOrigin(0.5), p1.name],
-        [scene.add.text(610, 195, '', textStyle('title', { fontSize: '18px', fill: isCpuSlot(scene, 'p2') ? COLORS.cpu : COLORS.p2, strokeThickness: 3 })).setOrigin(0.5), p2.name]
+            fill: colorOf(winners[0])
+        })).setOrigin(0.5), getWinnerTitle(scene, winners)],
+        ...fighters.map((player, index) => [
+            scene.add.text(columns[index], 195, '', textStyle('title', {
+                fontSize: twoPlayers ? '18px' : '13px',
+                fill: colorOf(player),
+                strokeThickness: 3
+            })).setOrigin(0.5),
+            player.name
+        ])
     ];
     rows.forEach(([label, value], index) => {
         const y = 240 + index * 40;
         typed.push(
-            [scene.add.text(390, y, '', textStyle('body', { fill: p1 === winner ? COLORS.accent : COLORS.text })).setOrigin(0.5), value(p1)],
-            [scene.add.text(500, y, '', textStyle('body', { fontSize: '18px', fill: COLORS.muted })).setOrigin(0.5), label],
-            [scene.add.text(610, y, '', textStyle('body', { fill: p2 === winner ? COLORS.accent : COLORS.text })).setOrigin(0.5), value(p2)]
+            [scene.add.text(labelX, y, '', textStyle('body', { fontSize: '18px', fill: COLORS.muted })).setOrigin(0.5), label],
+            ...fighters.map((player, column) => [
+                scene.add.text(columns[column], y, '', textStyle('body', {
+                    fill: winners.includes(player) ? COLORS.accent : COLORS.text,
+                    fontSize: twoPlayers ? '24px' : '18px'
+                })).setOrigin(0.5),
+                value(player)
+            ])
         );
     });
 
@@ -1573,16 +1586,22 @@ const INTRO_SOUNDS = {
 
 // Fighters downslam onto their spawns at the start of a match, straight through
 // any platforms in the way, and play their intro once they land.
-const ENTRANCE = { height: 700, delays: [300, 420], duration: 380 };
+const ENTRANCE = { height: 700, firstDelay: 300, stagger: 120, duration: 380 };
 
-function playEntranceSlams(scene) {
-    const { player, player2 } = scene.gameState.players;
-    [player, player2].forEach((fighter, index) => {
-        const spawn = { x: fighter.x, y: fighter.y };
-        // With the body off, nothing collides with it while it falls.
+function prepareEntranceSlams(scene) {
+    for (const fighter of scene.gameState.players) {
+        fighter.entranceSpawn = { x: fighter.x, y: fighter.y };
         fighter.body.enable = false;
-        fighter.setPosition(spawn.x, spawn.y - ENTRANCE.height);
-        scene.time.delayedCall(ENTRANCE.delays[index], () => {
+        fighter.setPosition(fighter.x, fighter.y - ENTRANCE.height);
+        [fighter, fighter.header, fighter.atk].forEach(object => object.setAlpha(0));
+    }
+}
+
+function launchEntranceSlams(scene) {
+    scene.gameState.players.forEach((fighter, index) => {
+        const spawn = fighter.entranceSpawn;
+        scene.time.delayedCall(ENTRANCE.firstDelay + index * ENTRANCE.stagger, () => {
+            [fighter, fighter.header, fighter.atk].forEach(object => object.setAlpha(1));
             fighter.afterimage = true;
             scene.tweens.add({
                 targets: fighter,
@@ -1775,8 +1794,8 @@ function updateClippedStatus(scene, player, clipped) {
 }
 
 function updateKB(scene) {
-    for (const key in scene.gameState.players) {
-        const player = scene.gameState.players[key];
+    for (const player of scene.gameState.players) {
+        if (player.eliminated) continue;
         player.movementSpeed = player.baseMovementSpeed * player.playerSpeedScaling;
 
         const spawnBox = () => {
@@ -1978,67 +1997,41 @@ function handlePlatformCollide(player, platform) {
 }
 export var fiveframecount = 0;
 
-function update() {
-    readPlayerInputs(this);
-    if (this.gamePaused) return;
+function updateCamera(scene, living) {
+    const camera = scene.cameras.main;
+    const champion = scene.matchChampion;
+    const group = living.length ? living : scene.gameState.players;
+    const xs = group.map(fighter => fighter.x);
+    const ys = group.map(fighter => fighter.y);
+    let midX = xs.reduce((sum, x) => sum + x, 0) / xs.length;
+    let midY = ys.reduce((sum, y) => sum + y, 0) / ys.length;
+    let distX = Math.max(...xs) - Math.min(...xs);
+    let distY = Math.max(...ys) - Math.min(...ys);
 
-    fiveframecount += 1;
-    
-
-    const p1 = this.gameState.players.player;
-    const p2 = this.gameState.players.player2;
-    const in1 = this.playerInputs.p1;
-    const in2 = this.playerInputs.p2;
-    const p1LeftDown = in1.left;
-    const p1RightDown = in1.right;
-    const p1UpDown = in1.up;
-    const p1DownDown = in1.down;
-    const p2LeftDown = in2.left;
-    const p2RightDown = in2.right;
-    const p2UpDown = in2.up;
-    const p2DownDown = in2.down;
-    updateSpecialMeters(this);
-
-    var midX = (p1.x + p2.x) / 2;
-    var midY = (p1.y + p2.y) / 2;
-    if (p1.winNumber >= 3) {
-        midX = p1.x;
-        midY = p1.y;
-        this.baseZoom = 1.4;
-    } else if (p2.winNumber >= 3) {
-        midX = p2.x;
-        midY = p2.y;
-        this.baseZoom = 1.4;
+    if (champion) {
+        midX = champion.x;
+        midY = champion.y;
+        scene.baseZoom = 1.4;
+        distX = Math.abs(champion.x);
+        distY = Math.abs(champion.y);
     }
 
-    var distX = Math.abs(p1.x - p2.x);
-    var distY = Math.abs(p1.y - p2.y);
-
-    if (p1.winNumber >= 3) {
-        distX = Math.abs(p1.x);
-        distY = Math.abs(p1.y);
-    } else if (p2.winNumber >= 3) {
-        distX = Math.abs(p2.x);
-        distY = Math.abs(p2.y);
-    }
-
-    var distance = Math.max(distX, distY);
-    const perspectiveFocus = this.perspective && !this.gameEnded
-        ? updatePerspective(this, this.perspective)
+    let distance = Math.max(distX, distY);
+    const perspectiveFocus = scene.perspective && !scene.gameEnded
+        ? updatePerspective(scene, scene.perspective)
         : null;
     if (perspectiveFocus) {
         midX = perspectiveFocus.x;
         midY = perspectiveFocus.y;
         distance = 0;
     }
-    
 
-    let zoom = this.baseZoom - (distance / 2000);
+    let zoom = scene.baseZoom - (distance / 2000);
 
-    const maxZoom = this.gameState.map.definition.maxZoom ?? defaultMaxZoom;
+    const maxZoom = scene.gameState.map.definition.maxZoom ?? defaultMaxZoom;
     zoom = Phaser.Math.Clamp(zoom, minZoom, maxZoom);
 
-    const focus = this.hitFocus?.active ? this.hitFocus : null;
+    const focus = scene.hitFocus?.active ? scene.hitFocus : null;
     if (focus) {
         midX = focus.x;
         midY = focus.y;
@@ -2049,662 +2042,438 @@ function update() {
     const followed = focus ?? perspectiveFocus;
     const followVelocity = axis => followed?.body
         ? followed.body.velocity[axis]
-        : (p1.body.velocity[axis] + p2.body.velocity[axis]) / 2;
+        : group.reduce((sum, fighter) => sum + fighter.body.velocity[axis], 0) / group.length;
     const snapCamera = Math.hypot(followVelocity('x'), followVelocity('y')) > CAMERA_SNAP_SPEED;
-    const followRateX = snapCamera ? 1 : cameraFollowRate(this, baseFollowRate, followVelocity('x'), this.cameras.main.width);
-    const followRateY = snapCamera ? 1 : cameraFollowRate(this, baseFollowRate, followVelocity('y'), this.cameras.main.height);
+    const followRateX = snapCamera ? 1 : cameraFollowRate(scene, baseFollowRate, followVelocity('x'), camera.width);
+    const followRateY = snapCamera ? 1 : cameraFollowRate(scene, baseFollowRate, followVelocity('y'), camera.height);
 
-    this.cameras.main.scrollX -= this.shakeOffset.x;
-    this.cameras.main.scrollY -= this.shakeOffset.y;
+    camera.scrollX -= scene.shakeOffset.x;
+    camera.scrollY -= scene.shakeOffset.y;
 
-    this.cameras.main.scrollX += (
-        midX - this.cameras.main.width / 2 - this.cameras.main.scrollX
-    ) * followRateX;
+    camera.scrollX += (midX - camera.width / 2 - camera.scrollX) * followRateX;
+    camera.scrollY += (midY - camera.height / 2 - camera.scrollY) * followRateY;
 
-    this.cameras.main.scrollY += (
-        midY - this.cameras.main.height / 2 - this.cameras.main.scrollY
-    ) * followRateY;
-
-    this.shakeOffset.x = 0;
-    this.shakeOffset.y = 0;
-    if (this.shake && this.time.now < this.shake.until) {
-        const left = (this.shake.until - this.time.now) / (this.shake.until - this.shake.start);
-        const strength = this.shake.intensity * left / this.cameras.main.zoom;
-        this.shakeOffset.x = Phaser.Math.FloatBetween(-strength, strength);
-        this.shakeOffset.y = Phaser.Math.FloatBetween(-strength, strength);
+    scene.shakeOffset.x = 0;
+    scene.shakeOffset.y = 0;
+    if (scene.shake && scene.time.now < scene.shake.until) {
+        const left = (scene.shake.until - scene.time.now) / (scene.shake.until - scene.shake.start);
+        const strength = scene.shake.intensity * left / camera.zoom;
+        scene.shakeOffset.x = Phaser.Math.FloatBetween(-strength, strength);
+        scene.shakeOffset.y = Phaser.Math.FloatBetween(-strength, strength);
     }
-    this.cameras.main.scrollX += this.shakeOffset.x;
-    this.cameras.main.scrollY += this.shakeOffset.y;
+    camera.scrollX += scene.shakeOffset.x;
+    camera.scrollY += scene.shakeOffset.y;
 
-    this.cameras.main.zoom += (
-        zoom - this.cameras.main.zoom
-    ) * zoomRate;
+    camera.zoom += (zoom - camera.zoom) * zoomRate;
+}
+
+function dimMobileButtons(scene, slot) {
+    scene.mobileButtons[slot]?.forEach(object => {
+        if (object) object.setAlpha(0.25);
+    });
+}
+
+function markKeyboardInput(scene, slot) {
+    if (inputMode[slot] === 'keyboard') return;
+    dimMobileButtons(scene, slot);
+    inputMode[slot] = 'keyboard';
+}
+
+function handleAttackInput(scene, player, input, victim) {
+    if (player.isBot) return;
+    const toggleAttack = usesToggleAttack(player);
+    const attackPressed = toggleAttack ? input.attackPressed : input.attack || input.attackPressed;
+    const ledgeGrab = input.attackPressed && tryLedgeGrab(scene, player, victim);
+    if (!attackPressed || ledgeGrab || isUniversalBusy(player) || (player.hitstun && !player.activeGrab)) return;
+    const now = scene.time.now;
+    if (inputMode[player.slot] !== 'keyboard' && !mobileControls[player.slot]?.attack) {
+        dimMobileButtons(scene, player.slot);
+    }
+    if (toggleAttack) {
+        handleAttack(scene, player, victim);
+    } else if (now - player.lastInput.up < tiltThreshold) {
+        handleUpTilt(scene, player, victim);
+    } else if (now - player.lastInput.down < tiltThreshold) {
+        handleDownTilt(scene, player, victim);
+    } else if (now - player.lastInput.left < tiltThreshold) {
+        handleHorizantalTilt(scene, player, victim, 'left');
+    } else if (now - player.lastInput.right < tiltThreshold) {
+        handleHorizantalTilt(scene, player, victim, 'right');
+    } else {
+        handleAttack(scene, player, victim);
+    }
+}
+
+function updateFighterBookkeeping(scene, player) {
+    catchPlatformTunneling(scene, player);
+
+    if (player.activeGrab) {
+        const grab = player.activeGrab;
+        const target = grab.target;
+        target.setPosition(player.x + grab.offset.x, player.y + grab.offset.y);
+        target.setVelocity(0, 0);
+        target.body.allowGravity = false;
+        player.atk.x = player.x + grab.atkOffset.x;
+        player.atk.y = player.y + grab.atkOffset.y;
+        player.atk.setFlipX(grab.atkFlipX);
+        player.atk.setAngle(grab.atkAngle);
+        player.atk.setVisible(true);
+        player.playerSpeedScaling = 0.5;
+    }
+
+    if (player.body.touching.down) {
+        if (player.airTime > 0) squashOnLanding(player, player.fallSpeed ?? 0);
+        if (player.downslamming && player.airTime > 0) {
+            downslamAttack(scene, player);
+            player.downslamming = false;
+            player.downslamFx = false;
+        }
+        player.airTime = 0;
+        player.fallSpeed = 0;
+    } else {
+        player.airTime += scene.game.loop.delta;
+        player.fallSpeed = Math.max(0, player.body.velocity.y);
+    }
+    player.flashObject.setPosition(player.x, player.y);
+
+    if (player.hitstun && player.isAttacking && !player.activeGrab &&
+        !player.attackBypassesHitstun) {
+        player.isAttacking = false;
+    }
+
+    player.freeze = scene.time.now < player.freezeUntil;
+    restoreGroundFriction(player);
+    updateImmunity(scene, player);
+    if (player.isAttacking || player.hitstun || player.freeze) cancelDownslamFx(player);
+    updateLaunchArc(player);
+    if (player.canAttack || player.hitstun || player.freeze || player.activeGrab || player.grabbedBy) {
+        player.attackLockedFor = 0;
+    } else {
+        player.attackLockedFor = (player.attackLockedFor || 0) + scene.game.loop.delta;
+        if (player.attackLockedFor > MAX_ATTACK_LOCK_MS) {
+            player.canAttack = true;
+            player.attackLockedFor = 0;
+        }
+    }
+    player.chopped = scene.time.now < player.choppedUntil;
+    player.netted = player.hitstun && scene.time.now < player.nettedUntil;
+    player.body.pushable = !player.netted;
+    if (player.netted && (player.body.blocked.down || player.body.touching.down)) {
+        player.setVelocityX(Math.abs(player.body.velocity.x) > 10 ? player.body.velocity.x * 0.8 : 0);
+    }
+
+    if (!player.body.touching.down) player.currentPlatform = null;
+    getMapPlatforms(scene).forEach(platform => {
+        handlePlatformCollide(player, platform);
+    });
+}
+
+function updateFacing(player, input) {
+    if (input.left) player.lastDir = { x: -1, y: 0 };
+    else if (input.right) player.lastDir = { x: 1, y: 0 };
+    else if (input.up) player.lastDir = { x: 0, y: -1 };
+    else if (input.down) player.lastDir = { x: 0, y: 1 };
+    if (player.lastDir.y === 0) player.atk.setAngle(getAttackSpriteAngle(player));
+}
+
+function positionAttachments(scene, player) {
+    if (!player.activeGrab) {
+        const offset = getAttackSpriteOffset(player);
+        player.atk.x = player.x + (player.lastDir.x * player.atkXOffset) + offset.x;
+        player.atk.y = player.y + (player.lastDir.y * player.atkYOffset) - 15 + offset.y;
+    }
+    if (player.name === 'AXEMAN' && player.variant === 'CHAINSAW') {
+        positionAttackSprite(player, 'activechainsaw');
+        player.atk.setAlpha(player.chainsawMode && player.chainsawCooldownUntil > scene.time.now ? 0 : 1);
+    }
+}
+
+function positionLabels(scene, player) {
+    player.doubleJumpEffect.x = player.x;
+    player.doubleJumpEffect.y = player.y + 40;
+    player.header.x = scene.online ? player.x : player.x - 10;
+    player.header.y = player.y - 50;
+    if (player.grassCutText) {
+        player.grassCutText.setPosition(player.x, player.y - 75);
+        if (player.grassCutTextValue !== player.grassCutCount) {
+            player.grassCutText.setText(`Grass cuts: ${player.grassCutCount}`);
+            player.grassCutTextValue = player.grassCutCount;
+        }
+    }
+}
+
+function handleMovementInput(scene, player, input, victim) {
+    if (player.hitstun || player.isBot || isUniversalBusy(player)) return;
+    const { slot } = player;
+    const now = scene.time.now;
+    const leftPressed = input.leftPressed;
+    const rightPressed = input.rightPressed;
+    const specialPressed = input.specialPressed;
+    const specialHeld = input.special;
+    const specialDirection = input.left ? 'left' : input.right ? 'right' : null;
+    const command = type => executeStateCommand(scene, scene.gameState.players, { playerID: player.id, type });
+
+    if (leftPressed) {
+        player.lastInput.left = now;
+        if (!consumePress(input, 'left')) markKeyboardInput(scene, slot);
+        handleDirSpecial(scene, player, 'left', now, victim, specialHeld || specialPressed);
+    }
+    if (rightPressed) {
+        player.lastInput.right = now;
+        if (!consumePress(input, 'right')) markKeyboardInput(scene, slot);
+        handleDirSpecial(scene, player, 'right', now, victim, specialHeld || specialPressed);
+    }
+    if (specialPressed) {
+        if (!consumePress(input, 'special')) markKeyboardInput(scene, slot);
+        if (specialDirection && !leftPressed && !rightPressed) {
+            handleDirSpecial(scene, player, specialDirection, now, victim, true);
+        } else if (!specialDirection) {
+            handleNeutralSpecial(scene, player, victim);
+        }
+    }
+    if (!player.hasHitSideSpecial && player.isUsingSideSpecial && fiveframecount === 5) {
+        handleDirSpecialAttack(scene, player, victim);
+    }
+    if (input.left) command(Commands.LEFT);
+    else if (input.right) command(Commands.RIGHT);
+    else command(Commands.NONE);
+
+    if (input.up && player.body.touching.down) command(Commands.UP);
+    if (player.body.touching.down) player.hasDoubleJumped = false;
+    if (player.body.blocked.down && player.isUsingSideSpecial === false) player.afterimage = false;
+
+    if (input.upPressed) {
+        player.lastInput.up = now;
+        if (!consumePress(input, 'up')) markKeyboardInput(scene, slot);
+        const quickslamJumped = tryQuickslamJump(scene, player, now);
+        if (!quickslamJumped && !player.body.touching.down && !player.hasDoubleJumped) {
+            command(Commands.DOUBLE_UP);
+        } else if (!quickslamJumped && !player.body.touching.down) {
+            tryExtraJump(scene, player, victim);
+        }
+    }
+    if (input.downPressed) {
+        player.lastInput.down = now;
+        if (!consumePress(input, 'down')) markKeyboardInput(scene, slot);
+    }
+
+    if (!input.up && player.body.velocity.y < 0 && !player.hasDoubleJumped) command(Commands.UP_CANCEL);
+    if (input.down && player.airTime >= 1000) command(Commands.DOWNSLAM);
+}
+
+function applyFreezeGravity(scene, player) {
+    if (player.freeze) {
+        player.freezeGravity = true;
+        player.body.allowGravity = false;
+        player.setVelocity(0, -1);
+    } else if (player.freezeGravity) {
+        player.freezeGravity = null;
+        player.body.allowGravity = !gravityHeldOff(player);
+    } else if (!player.body.allowGravity && !gravityHeldOff(player)) {
+        player.body.allowGravity = true;
+    }
+    if (player.body.gravity.y < 0 && scene.time.now - (player.grindFloatAt || -Infinity) > STALE_FLOAT_MS) {
+        player.body.gravity.y = 0;
+    }
+}
+
+function teamsStillIn(scene) {
+    return new Set(scene.gameState.players.filter(fighter => fighter.lives > 0).map(fighter => fighter.team));
+}
+
+function endMatchIfDecided(scene) {
+    if (scene.gameEnded) return;
+    const teams = teamsStillIn(scene);
+    if (teams.size > 1) return;
+    scene.gameEnded = true;
+    const fighters = scene.gameState.players;
+    const winners = teams.size === 1
+        ? fighters.filter(fighter => fighter.team === [...teams][0])
+        : fighters;
+    scene.matchChampion = winners.find(fighter => fighter.lives > 0) ?? winners[0];
+    showMatchEnd(scene, winners);
+    if (scene.online) reportMatchEnd(winners.map(fighter => fighter.slot));
+}
+
+function releaseHoldsOn(scene, player) {
+    for (const other of scene.gameState.players) {
+        if (other.activeGrab?.target === player) other.activeGrab = null;
+    }
+    if (player.activeGrab) {
+        player.activeGrab.target.grabbedBy = null;
+        player.activeGrab = null;
+    }
+    if (player.smack) {
+        player.smack.target.smackedBy = null;
+        player.smack = null;
+    }
+}
+
+const KEEP_VISIBLE_WHEN_OUT = ['statBackground', 'statIcon', 'KBText', 'KBFlashText', 'winText'];
+
+function hideFighter(scene, player) {
+    const fighters = scene.gameState.players;
+    const kept = new Set(KEEP_VISIBLE_WHEN_OUT.map(key => player[key]));
+    const hide = value => {
+        if (!(value instanceof Phaser.GameObjects.GameObject) || !value.setVisible) return;
+        if (fighters.includes(value) || kept.has(value) || value instanceof Phaser.GameObjects.Container) return;
+        if (getMapPlatforms(scene).includes(value)) return;
+        value.setVisible(false);
+    };
+    for (const value of Object.values(player)) {
+        if (Array.isArray(value)) value.forEach(hide);
+        else hide(value);
+    }
+    player.launchTrail.stop();
+    player.violentTrail.stop();
+    player.ultraTrail.stop();
+    player.slateTrail?.stop();
+    player.setVisible(false);
+}
+
+function eliminateFighter(scene, player) {
+    player.eliminated = true;
+    releaseHoldsOn(scene, player);
+    handleMatchEnd(scene, player);
+    hideFighter(scene, player);
+    player.afterimage = false;
+    player.body.enable = false;
+    for (const key of ['statBackground', 'statIcon', 'KBText']) player[key].setAlpha(0.35);
+}
+
+function creditScorer(scene, loser) {
+    const fighters = scene.gameState.players;
+    const scorer = loser.lastHitBy ?? (fighters.length === 2 ? fighters.find(fighter => fighter !== loser) : null);
+    loser.lastHitBy = null;
+    return scorer;
+}
+
+function knockOut(scene, loser) {
+    loser.koLockedUntil = scene.time.now + KO_LOCK_MS;
+    loser.lives -= 1;
+    loser.KBmultiplier = modifierOptions.SUDDEN_DEATH.enabled ? 4.00 : 1.00;
+    loser.statsLastKB = loser.KBmultiplier;
+
+    const scorer = creditScorer(scene, loser);
+    if (scorer) scorer.stats.kos += 1;
+
+    const matchOver = teamsStillIn(scene).size <= 1;
+    updateWins(scene, matchOver);
+    spawnKOBlast(scene, loser, scorer);
+    if (loser.lives > 0 || matchOver) {
+        teleportBackToArena(loser, scene.gameState.map.getRespawnX(scorer));
+        if (!matchOver) playRespawn(scene, loser);
+    } else {
+        eliminateFighter(scene, loser);
+    }
+    endMatchIfDecided(scene);
+}
+
+function removePlayersWhoLeft(scene) {
+    if (!scene.online) return;
+    for (const slot of consumeLeftPlayers()) {
+        const fighter = scene.gameState.players.find(player => player.slot === slot);
+        if (!fighter || fighter.eliminated) continue;
+        fighter.lives = 0;
+        const matchOver = teamsStillIn(scene).size <= 1;
+        if (!matchOver) eliminateFighter(scene, fighter);
+        endMatchIfDecided(scene);
+    }
+}
+
+function update() {
+    readPlayerInputs(this);
+    if (this.gamePaused) return;
+
+    fiveframecount += 1;
+    removePlayersWhoLeft(this);
+
+    const fighters = this.gameState.players;
+    const living = fighters.filter(isAlive);
+    const inputOf = player => this.playerInputs[player.slot];
+    const victimOf = player => nearestEnemy(this, player);
+    updateSpecialMeters(this);
+    updateCamera(this, living);
 
     this.gameState.map.update();
     if (this.speedometers) updateSpeedometers(this, this.speedometers);
     if (this.gameEnded) {
-        p1.setVelocity(0, 0);
-        p2.setVelocity(0, 0);
+        for (const player of fighters) player.setVelocity(0, 0);
         return;
     }
 
-    updateUniversalMoves(this, p1, p2, simulationMode ? null : in1);
-    updateUniversalMoves(this, p2, p1, botMode ? null : in2);
-    const p1Busy = isUniversalBusy(p1);
-    const p2Busy = isUniversalBusy(p2);
-    for (const [busy, input] of [[p1Busy, in1], [p2Busy, in2]]) {
-        if (!busy) continue;
-        for (const button of ['left', 'right', 'up', 'down']) consumePress(input, button);
+    for (const player of living) {
+        updateUniversalMoves(this, player, victimOf(player), player.isBot ? null : inputOf(player));
+    }
+    const busy = new Set(living.filter(player => isUniversalBusy(player)));
+    for (const player of living) {
+        if (!busy.has(player)) continue;
+        for (const button of ['left', 'right', 'up', 'down']) consumePress(inputOf(player), button);
     }
 
-    if (in1.miscPressed && !simulationMode && !p1Busy) {
-        handleMisc(this, p1, p2);
-    }
-    if (in2.miscPressed && !p2Busy) {
-        handleMisc(this, p2, p1);
+    for (const player of living) {
+        if (inputOf(player).miscPressed && !player.isBot && !busy.has(player)) {
+            handleMisc(this, player, victimOf(player));
+        }
     }
 
-    p1.horizontalMovementActive = !simulationMode && !p1Busy && (p1LeftDown || p1RightDown);
-    p2.horizontalMovementActive = !botMode && !p2Busy && (
-        p2LeftDown || p2RightDown
-    );
-    
-    
-    const p1ToggleAttack = usesToggleAttack(p1);
-    const p1AttackPressed = p1ToggleAttack
-        ? in1.attackPressed
-        : in1.attack || in1.attackPressed;
-    const p1LedgeGrab = in1.attackPressed && !simulationMode && tryLedgeGrab(this, p1, p2);
-    if (p1AttackPressed && !p1LedgeGrab && !isUniversalBusy(p1) && (!p1.hitstun || p1.activeGrab) && !simulationMode) {
-        const now = this.time.now;
-        if (inputMode.p1 !== "keyboard" && !mobileControls.p1.attack) {
-            this.mobileButtons.p1.forEach(obj => {
-                obj.setAlpha(0.25);
-            });
-        }        
-        if (p1ToggleAttack) {
-            handleAttack(this, p1, p2);
-        } else if (now - p1.lastInput.up < tiltThreshold) {
-            handleUpTilt(this, p1, p2);
-        } else if (now - p1.lastInput.down < tiltThreshold) {
-            handleDownTilt(this, p1, p2);
-        } else if (now - p1.lastInput.left < tiltThreshold) {
-            handleHorizantalTilt(this, p1, p2, "left");
-        } else if (now - p1.lastInput.right < tiltThreshold) {
-            handleHorizantalTilt(this, p1, p2, "right");
-        } else {
-            handleAttack(this, p1, p2);
-        }
+    for (const player of living) {
+        const input = inputOf(player);
+        player.horizontalMovementActive = !player.isBot && !busy.has(player) && (input.left || input.right);
     }
-    const p2ToggleAttack = usesToggleAttack(p2);
-    const p2AttackPressed = p2ToggleAttack
-        ? in2.attackPressed
-        : in2.attack || in2.attackPressed;
-    const p2LedgeGrab = in2.attackPressed && !botMode && tryLedgeGrab(this, p2, p1);
-    if (p2AttackPressed && !p2LedgeGrab && !isUniversalBusy(p2) && (!p2.hitstun || p2.activeGrab) && !botMode) {
-        const now = this.time.now;
-        if (inputMode.p2 !== "keyboard" && !mobileControls.p2.attack) {
-            this.mobileButtons.p2.forEach(obj => {
-                obj.setAlpha(0.25);
-            });
-        }
-        if (p2ToggleAttack) {
-            handleAttack(this, p2, p1);
-        } else if (now - p2.lastInput.up < tiltThreshold) {
-            handleUpTilt(this, p2, p1);
-        } else if (now - p2.lastInput.down < tiltThreshold) {
-            handleDownTilt(this, p2, p1);
-        } else if (now - p2.lastInput.left < tiltThreshold) {
-            handleHorizantalTilt(this, p2, p1, "left");
-        } else if (now - p2.lastInput.right < tiltThreshold) {
-            handleHorizantalTilt(this, p2, p1, "right");
-        } else {
-            handleAttack(this, p2, p1);
-        }
-    }
+
+    for (const player of living) handleAttackInput(this, player, inputOf(player), victimOf(player));
+
     const isOutOfBounds = player => (this.killZones.vertical && (player.y > KILLZONE.bottom || player.y < KILLZONE.top)) ||
         (this.killZones.horizontal && (player.x < KILLZONE.left || player.x > KILLZONE.right));
-    p1.outOfBounds = isOutOfBounds(p1);
-    p2.outOfBounds = isOutOfBounds(p2);
+    for (const player of living) player.outOfBounds = isOutOfBounds(player);
 
-    for (const key in this.gameState.players) {
-        const player = this.gameState.players[key];
-        catchPlatformTunneling(this, player);
-
-        if (player.activeGrab) {
-            const grab = player.activeGrab;
-            const target = grab.target;
-            target.setPosition(player.x + grab.offset.x, player.y + grab.offset.y);
-            target.setVelocity(0, 0);
-            target.body.allowGravity = false;
-            player.atk.x = player.x + grab.atkOffset.x;
-            player.atk.y = player.y + grab.atkOffset.y;
-            player.atk.setFlipX(grab.atkFlipX);
-            player.atk.setAngle(grab.atkAngle);
-            player.atk.setVisible(true);
-            player.playerSpeedScaling = 0.5;
-        }
-
-        if (player.body.touching.down) {
-            if (player.airTime > 0) squashOnLanding(player, player.fallSpeed ?? 0);
-            if (player.downslamming && player.airTime > 0) {
-                const target = key === 'player' ? p2 : p1;
-                downslamAttack(this, player, target);
-                player.downslamming = false;
-                player.downslamFx = false;
-            }
-            player.airTime = 0;
-            player.fallSpeed = 0;
-        } else {
-            player.airTime += this.game.loop.delta;
-            player.fallSpeed = Math.max(0, player.body.velocity.y);
-        }
-        player.flashObject.setPosition(player.x, player.y);
-
-        if (player.hitstun && player.isAttacking && !player.activeGrab &&
-            !player.attackBypassesHitstun) {
-            player.isAttacking = false;
-        }
-
-        player.freeze =
-            this.time.now < player.freezeUntil;
-        restoreGroundFriction(player);
-        updateImmunity(this, player);
-        if (player.isAttacking || player.hitstun || player.freeze) cancelDownslamFx(player);
-        updateLaunchArc(player);
-        if (player.canAttack || player.hitstun || player.freeze || player.activeGrab || player.grabbedBy) {
-            player.attackLockedFor = 0;
-        } else {
-            player.attackLockedFor = (player.attackLockedFor || 0) + this.game.loop.delta;
-            if (player.attackLockedFor > MAX_ATTACK_LOCK_MS) {
-                player.canAttack = true;
-                player.attackLockedFor = 0;
-            }
-        }
-        player.chopped = this.time.now < player.choppedUntil;
-        player.netted = player.hitstun && this.time.now < player.nettedUntil;
-        player.body.pushable = !player.netted;
-        if (player.netted && (player.body.blocked.down || player.body.touching.down)) {
-            player.setVelocityX(Math.abs(player.body.velocity.x) > 10 ? player.body.velocity.x * 0.8 : 0);
-        }
-
-        if (!player.body.touching.down) player.currentPlatform = null;
-        const platforms = getMapPlatforms(this);
-        platforms.forEach(platform => {
-            handlePlatformCollide(player, platform);
-        });
-    };
-    updateScythemanGrass(this, this.gameState.players);
-    updateCombo(p1, this.game.loop.delta);
-    updateCombo(p2, this.game.loop.delta);
-    if (p1LeftDown) p1.lastDir = { x: -1, y: 0 };
-    else if (p1RightDown) p1.lastDir = { x: 1, y: 0 };
-    else if (p1UpDown) p1.lastDir = { x: 0, y: -1 };
-    else if (p1DownDown) p1.lastDir = { x: 0, y: 1 };
-    if (p1.lastDir.y === 0) p1.atk.setAngle(getAttackSpriteAngle(p1));
-
-
-    if (p2LeftDown) p2.lastDir = { x: -1, y: 0 };
-    else if (p2RightDown) p2.lastDir = { x: 1, y: 0 };
-    else if (p2UpDown) p2.lastDir = { x: 0, y: -1 };
-    else if (p2DownDown) p2.lastDir = { x: 0, y: 1 };
-    if (p2.lastDir.y === 0) p2.atk.setAngle(getAttackSpriteAngle(p2));
-    function decelerate(player) {
-        if (player.isUsingSideSpecial) return;
-        let vx = player.body.velocity.x;
-
-        if (Math.abs(vx) > 10) {
-            player.setVelocityX(vx * 0.9);
-        } else {
-            player.setVelocityX(0);
-        }
+    for (const player of living) updateFighterBookkeeping(this, player);
+    updateScythemanGrass(this, living);
+    for (const player of living) {
+        updateCombo(player, this.game.loop.delta);
+        updateFacing(player, inputOf(player));
     }
-    if (!p1.activeGrab) {
-        const p1AtkOffset = getAttackSpriteOffset(p1);
-        p1.atk.x = p1.x + (p1.lastDir.x * p1.atkXOffset) + p1AtkOffset.x;
-        p1.atk.y = p1.y + (p1.lastDir.y * p1.atkYOffset) - 15 + p1AtkOffset.y;
-    }
+    for (const player of living) positionAttachments(this, player);
+    for (const player of living) updateChainsawWood(this, player, victimOf(player));
+    for (const player of living) updateCharacter(this, player, victimOf(player));
+    for (const player of living) positionLabels(this, player);
 
-    if (!p2.activeGrab) {
-        const p2AtkOffset = getAttackSpriteOffset(p2);
-        p2.atk.x = p2.x + (p2.lastDir.x * p2.atkXOffset) + p2AtkOffset.x;
-        p2.atk.y = p2.y + (p2.lastDir.y * p2.atkYOffset) - 15 + p2AtkOffset.y;
-    }
-
-    if (p1.name === 'AXEMAN' && p1.variant === 'CHAINSAW') {
-        positionAttackSprite(p1, 'activechainsaw');
-        if (p1.chainsawMode && p1.chainsawCooldownUntil > this.time.now) {
-            p1.atk.setAlpha(0);
-        } else {
-            p1.atk.setAlpha(1);
-        }
-    }
-    if (p2.name === 'AXEMAN' && p2.variant === 'CHAINSAW') {
-        positionAttackSprite(p2, 'activechainsaw');
-        if (p2.chainsawMode && p2.chainsawCooldownUntil > this.time.now) {
-            p2.atk.setAlpha(0);
-        } else {
-            p2.atk.setAlpha(1);
-        }
-    }
-    updateChainsawWood(this, p1, p2);
-    updateChainsawWood(this, p2, p1);
-    updateCharacter(this, p1, p2);
-    updateCharacter(this, p2, p1);
-    
- 
-    p1.doubleJumpEffect.x = p1.x;
-    p1.doubleJumpEffect.y = p1.y + 40;
-
-    p2.doubleJumpEffect.x = p2.x;
-    p2.doubleJumpEffect.y = p2.y + 40;
-
-    p1.header.x = this.online ? p1.x : p1.x - 10;
-    p1.header.y = p1.y - 50;
-
-    p2.header.x = this.online ? p2.x : p2.x - 10;
-    p2.header.y = p2.y - 50;
-
-    for (const key in this.gameState.players) {
-        const player = this.gameState.players[key];
-        if (player.grassCutText) {
-            player.grassCutText.setPosition(player.x, player.y - 75);
-            if (player.grassCutTextValue !== player.grassCutCount) {
-                player.grassCutText.setText(`Grass cuts: ${player.grassCutCount}`);
-                player.grassCutTextValue = player.grassCutCount;
-            }
-        }
-    }
-
-    
-
-    if (p1.KBmultiplier < 0.7) {
-        p1.KBmultiplier = 0.70;
-    }
-    if (p2.KBmultiplier < 0.7) {
-        p2.KBmultiplier = 0.70;
-    }
-    for (const player of [p1, p2]) {
+    for (const player of living) {
+        if (player.KBmultiplier < 0.7) player.KBmultiplier = 0.70;
         updateKBText(this, player, player.KBmultiplier);
     }
-    updateMatchStats(p1, p2);
-    updateMatchStats(p2, p1);
-    for (const player of [p1, p2]) {
+    for (const player of living) updateMatchStats(this, player);
+    for (const player of living) {
         updateLaunchEffects(this, player);
         updateDangerGlow(this, player);
     }
 
-    if (p1.afterimage) {
-        if (this.time.now > p1.afterimageTimer) {
-
-            spawnAfterimage(this, p1);
-
-            p1.afterimageTimer = this.time.now + (p1.ultraLaunch ? 12 : p1.violentLaunch ? 20 : 40);
-        }
-    } 
-    if (p2.afterimage) {
-        if (this.time.now > p2.afterimageTimer) {
-            spawnAfterimage(this, p2);
-
-            p2.afterimageTimer = this.time.now + (p2.ultraLaunch ? 12 : p2.violentLaunch ? 20 : 40);
+    for (const player of living) {
+        if (player.afterimage && this.time.now > player.afterimageTimer) {
+            spawnAfterimage(this, player);
+            player.afterimageTimer = this.time.now + (player.ultraLaunch ? 12 : player.violentLaunch ? 20 : 40);
         }
     }
 
-    if (!p1.hitstun && !simulationMode && !isUniversalBusy(p1)) {
-        const p1LeftPressed = in1.leftPressed;
-        const p1RightPressed = in1.rightPressed;
-        const p1SpecialPressed = in1.specialPressed;
-        const p1SpecialHeld = in1.special;
-        const p1SpecialDirection = p1LeftDown
-            ? 'left'
-            : p1RightDown
-                ? 'right'
-                : null;
+    for (const player of living) handleMovementInput(this, player, inputOf(player), victimOf(player));
+    for (const player of living) applyFreezeGravity(this, player);
 
-        if (p1LeftPressed) {
-            p1.lastInput.left = this.time.now;
-            if (!consumePress(in1, 'left') && inputMode.p1 !== "keyboard") {
-            
-                this.mobileButtons.p1.forEach(obj => {
-                    obj.setAlpha(0.25);
-                });
-                inputMode.p1 = "keyboard";
-            }
-            
-            handleDirSpecial(this, p1, 'left', this.time.now, p2, p1SpecialHeld || p1SpecialPressed);
-        }
-        if (p1RightPressed) {
-            p1.lastInput.right = this.time.now;
-            if (!consumePress(in1, 'right') && inputMode.p1 !== "keyboard") {
-            
-                this.mobileButtons.p1.forEach(obj => {
-                    obj.setAlpha(0.25);
-                });
-                inputMode.p1 = "keyboard";
-            }
-            handleDirSpecial(this, p1, 'right', this.time.now, p2, p1SpecialHeld || p1SpecialPressed);
-        }
-        if (p1SpecialPressed) {
-            if (!consumePress(in1, 'special') && inputMode.p1 !== "keyboard") {
-                this.mobileButtons.p1.forEach(obj => obj.setAlpha(0.25));
-                inputMode.p1 = "keyboard";
-            }
-            if (p1SpecialDirection && !p1LeftPressed && !p1RightPressed) {
-                handleDirSpecial(this, p1, p1SpecialDirection, this.time.now, p2, true);
-            } else if (!p1SpecialDirection) {
-                handleNeutralSpecial(this, p1, p2);
-            }
-        }
-        if (!p1.hasHitSideSpecial && p1.isUsingSideSpecial && fiveframecount === 5) {
-            handleDirSpecialAttack(this, p1, p2);
-        }
-        if (p1LeftDown) {
-            executeStateCommand(this, this.gameState.players, {
-                playerID: p1.id,
-                type: Commands.LEFT
-            });
-        } else if (p1RightDown) {
-            executeStateCommand(this, this.gameState.players, {
-                playerID: p1.id,
-                type: Commands.RIGHT
-            });
-        } else {
-            executeStateCommand(this, this.gameState.players, {
-                playerID: p1.id,
-                type: Commands.NONE
-            });
-        }
-        if (p1UpDown && p1.body.touching.down) {
-            executeStateCommand(this, this.gameState.players, {
-                playerID: p1.id,
-                type: Commands.UP
-            });
-        }
-        if (p1.body.blocked.down) {
-            p1.hasDoubleJumped = false;
-        }
-        if (p1.body.blocked.down &&  p1.isUsingSideSpecial === false) {
-            p1.afterimage = false;
-        }
-        
-        if (in1.upPressed) {
-            p1.lastInput.up = this.time.now;
-            if (!consumePress(in1, 'up') && inputMode.p1 !== "keyboard") {
-            
-                this.mobileButtons.p1.forEach(obj => {
-                    obj.setAlpha(0.25);
-                });
-                inputMode.p1 = "keyboard";
-            }
-            const quickslamJumped = tryQuickslamJump(this, p1, this.time.now);
-            if (!quickslamJumped && !p1.body.touching.down && !p1.hasDoubleJumped) {
-                executeStateCommand(this, this.gameState.players, {
-                    playerID: p1.id,
-                    type: Commands.DOUBLE_UP
-                });
-                
-            } else if (!quickslamJumped && !p1.body.touching.down) {
-                tryExtraJump(this, p1, p2);
-            }
-        }
-        if (in1.downPressed) {
-            p1.lastInput.down = this.time.now;
-            if (!consumePress(in1, 'down') && inputMode.p1 !== "keyboard") {
-            
-                this.mobileButtons.p1.forEach(obj => {
-                    obj.setAlpha(0.25);
-                });
-                inputMode.p1 = "keyboard"; 
-            }
-        }
-
-        const usingMobile = this.sys.game.device.input.touch;
-
-
-        const jumpReleased = !in1.up;
-
-        if (jumpReleased && p1.body.velocity.y < 0 && !p1.hasDoubleJumped) {
-            executeStateCommand(this, this.gameState.players, {
-                playerID: p1.id,
-                type: Commands.UP_CANCEL
-            });
-        }
-
-        if (p1DownDown && p1.airTime >= 1000) {
-            executeStateCommand(this, this.gameState.players, {
-                playerID: p1.id,
-                type: Commands.DOWNSLAM
-            });
-        }
-
+    for (const player of living) {
+        updateSledgehammerAnimation(player);
+        updateSwordmanIdle(player);
+        updateWeaponIdle(player);
+        updateCharacterIntro(player);
     }
 
-
-    if (!p2.hitstun && !botMode && !isUniversalBusy(p2)) {
-
-        const p2LeftPressed = in2.leftPressed;
-        const p2RightPressed = in2.rightPressed;
-        const p2SpecialPressed = in2.specialPressed;
-        const p2SpecialHeld = in2.special;
-        const p2SpecialDirection = p2LeftDown
-            ? 'left'
-            : p2RightDown
-                ? 'right'
-                : null;
-
-        if (p2LeftPressed) {
-            p2.lastInput.left = this.time.now;
-            if (!consumePress(in2, 'left') && inputMode.p2 !== "keyboard") {
-            
-                this.mobileButtons.p2.forEach(obj => {
-                    obj.setAlpha(0.25);
-                });
-                inputMode.p2 = "keyboard"; 
-            }
-            
-            handleDirSpecial(this, p2, 'left', this.time.now, p1, p2SpecialHeld || p2SpecialPressed);
-        }
-
-        if (p2RightPressed) {
-            p2.lastInput.right = this.time.now;
-            if (!consumePress(in2, 'right') && inputMode.p2 !== "keyboard") {
-            
-                this.mobileButtons.p2.forEach(obj => {
-                    obj.setAlpha(0.25);
-                });
-                inputMode.p2 = "keyboard"; 
-            }
-            handleDirSpecial(this, p2, 'right', this.time.now, p1, p2SpecialHeld || p2SpecialPressed);
-        }
-        if (p2SpecialPressed) {
-            if (!consumePress(in2, 'special') && inputMode.p2 !== "keyboard") {
-                this.mobileButtons.p2.forEach(obj => obj.setAlpha(0.25));
-                inputMode.p2 = "keyboard";
-            }
-            if (p2SpecialDirection && !p2LeftPressed && !p2RightPressed) {
-                handleDirSpecial(this, p2, p2SpecialDirection, this.time.now, p1, true);
-            } else if (!p2SpecialDirection) {
-                handleNeutralSpecial(this, p2, p1);
-            }
-        }
-
-        if (!p2.hasHitSideSpecial && p2.isUsingSideSpecial && fiveframecount === 5) {
-            handleDirSpecialAttack(this, p2, p1);
-        }
-
-        if (p2LeftDown) {
-            if (!p2.isUsingSideSpecial) {
-                executeStateCommand(this, this.gameState.players, {
-                    playerID: p2.id,
-                    type: Commands.LEFT
-                });
-            }
-        }
-        else if (p2RightDown) {
-            if (!p2.isUsingSideSpecial) {
-                executeStateCommand(this, this.gameState.players, {
-                    playerID: p2.id,
-                    type: Commands.RIGHT
-                });
-            }
-        }
-        else {
-            executeStateCommand(this, this.gameState.players, {
-                playerID: p2.id,
-                type: Commands.NONE
-            });
-        }
-
-        if (p2UpDown && p2.body.touching.down) {
-            executeStateCommand(this, this.gameState.players, {
-                playerID: p2.id,
-                type: Commands.UP
-            });
-        }
-
-        if (p2.body.touching.down) {
-            p2.hasDoubleJumped = false;
-        }
-
-        if (p2.body.blocked.down && p2.isUsingSideSpecial === false) {
-            p2.afterimage = false;
-        }
-
-        if (in2.upPressed) {
-            const upFromTouch = consumePress(in2, 'up');
-            const quickslamJumped = tryQuickslamJump(this, p2, this.time.now);
-            if (!quickslamJumped && !p2.body.touching.down && !p2.hasDoubleJumped) {
-                executeStateCommand(this, this.gameState.players, {
-                    playerID: p2.id,
-                    type: Commands.DOUBLE_UP
-                });
-            } else if (!quickslamJumped && !p2.body.touching.down) {
-                tryExtraJump(this, p2, p1);
-            }
-            p2.lastInput.up = this.time.now;
-            if (!upFromTouch && inputMode.p2 !== "keyboard") {
-            
-                this.mobileButtons.p2.forEach(obj => {
-                    obj.setAlpha(0.25);
-                });
-                inputMode.p2 = "keyboard"; 
-            }
-        }
-        if (in2.downPressed) {
-            p2.lastInput.down = this.time.now;
-            if (!consumePress(in2, 'down') && inputMode.p2 !== "keyboard") {
-            
-                this.mobileButtons.p2.forEach(obj => {
-                    obj.setAlpha(0.25);
-                });
-                inputMode.p2 = "keyboard"; 
-            }
-        }
-
-        const usingMobile = this.sys.game.device.input.touch;
-
-
-        const jumpReleased2 = !in2.up;
-
-        if (jumpReleased2 && p2.body.velocity.y < 0 && !p2.hasDoubleJumped) {
-            executeStateCommand(this, this.gameState.players, {
-                playerID: p2.id,
-                type: Commands.UP_CANCEL
-            });
-        }
-        if (p2DownDown && p2.airTime >= 1000) {
-            executeStateCommand(this, this.gameState.players, {
-                playerID: p2.id,
-                type: Commands.DOWNSLAM
-            });
-        }
-    }
-    for (const player of [p1, p2]) {
-        if (player.freeze) {
-            player.freezeGravity = true;
-            player.body.allowGravity = false;
-            player.setVelocity(0, -1);
-        } else if (player.freezeGravity) {
-            player.freezeGravity = null;
-            player.body.allowGravity = !gravityHeldOff(player);
-        } else if (!player.body.allowGravity && !gravityHeldOff(player)) {
-            player.body.allowGravity = true;
-        }
-        if (player.body.gravity.y < 0 && this.time.now - (player.grindFloatAt || -Infinity) > STALE_FLOAT_MS) {
-            player.body.gravity.y = 0;
-        }
+    for (const player of living) {
+        if (this.gameEnded) break;
+        if (player.outOfBounds && this.time.now >= (player.koLockedUntil ?? 0)) knockOut(this, player);
     }
 
-    updateSledgehammerAnimation(p1);
-    updateSledgehammerAnimation(p2);
-    updateSwordmanIdle(p1);
-    updateSwordmanIdle(p2);
-    updateWeaponIdle(p1);
-    updateWeaponIdle(p2);
-    updateCharacterIntro(p1);
-    updateCharacterIntro(p2);
-
-
-    if (!this.gameEnded && !this.winCooldown) {
-
-        if (p1.outOfBounds) {
-            this.winCooldown = true;
-            p2.winNumber = p2.winNumber + 1;
-
-            if (modifierOptions.SUDDEN_DEATH.enabled) {
-                p1.KBmultiplier = 4.00
-            } else {
-                p1.KBmultiplier = 1.00;
-            }
-            p1.statsLastKB = p1.KBmultiplier;
-            p2.stats.kos += 1;
-
-            console.log(p2.winNumber)
-            updateWins(this);
-            spawnKOBlast(this, p1, p2);
-            teleportBackToArena(p1, this.gameState.map.getRespawnX(p2));
-            if (p2.winNumber < winNumber) playRespawn(this, p1);
-            
-            this.time.delayedCall(1500, () => {
-                this.winCooldown = false;
-            });
-        } else if (p2.outOfBounds) {
-            this.winCooldown = true;
-            p1.winNumber = p1.winNumber + 1;
-            if (modifierOptions.SUDDEN_DEATH.enabled) {
-                p2.KBmultiplier = 4.00
-            } else {
-                p2.KBmultiplier = 1.00;
-            }
-            p2.statsLastKB = p2.KBmultiplier;
-            p1.stats.kos += 1;
-            updateWins(this);
-            spawnKOBlast(this, p2, p1);
-            teleportBackToArena(p2, this.gameState.map.getRespawnX(p1));
-            if (p1.winNumber < winNumber) playRespawn(this, p2);
-            
-            this.time.delayedCall(1500, () => {
-                this.winCooldown = false;
-            });
-        }
-
-        if (p1.winNumber >= winNumber || p2.winNumber >= winNumber) {
-            if (p1.outOfBounds) {
-                this.gameEnded = true;
-                showMatchEnd(this, p2, p1);
-            } else if (p2.outOfBounds) {
-                this.gameEnded = true;
-                showMatchEnd(this, p1, p2);
-            }
-            if (this.online && this.gameEnded) reportMatchEnd(p1.outOfBounds ? 'p2' : 'p1');
-        }
-    }
     const pickAI = slot => window.__legacySlot === slot ? runLegacyBotAI : runBotAI;
-    if (botMode) {
-        pickAI('p2')(this, p2, p1, fiveframecount);
-    }
-    if (simulationMode) {
-        pickAI('p1')(this, p1, p2, fiveframecount);
+    for (const player of [...fighters].reverse()) {
+        if (player.isBot && isAlive(player)) pickAI(player.slot)(this, player, victimOf(player), fiveframecount);
     }
     updateKB(this);
     updateMapHazard(this);

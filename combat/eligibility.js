@@ -4,6 +4,7 @@
 
 import { isInvincible } from './knockback.js';
 import { isBlockedByWall } from './planks.js';
+import { isTeammate } from './targets.js';
 
 // Every check attackIsElligible makes can be skipped with one of these.
 // Pass only the ones you need: attackIsElligible(a, t, 150, { ignoreCanAttack: true }).
@@ -55,7 +56,7 @@ export function attackIsElligible(attacker, target, range = 100, bypassOptions =
         direction
     } = { ...DEFAULT_BYPASS_OPTIONS, ...bypassOptions };
 
-    if (attacker.hitstun) return false;
+    if (attacker.hitstun || target.eliminated || isTeammate(attacker, target)) return false;
     if (!ignoreCanAttack && !attacker.canAttack) return false;
     if (!ignoreInvincibility && isInvincible(target)) return false;
     const dx = target.x - attacker.x;

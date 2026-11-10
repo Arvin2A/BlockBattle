@@ -2,6 +2,7 @@
 // Original source: https://github.com/Arvin2A/BlockBattle
 // Licensed under the GNU GPL v3 only. See LICENSE.
 
+import { PLAYER_COLORS } from '../matchModes.js';
 import { HEX } from '../ui/theme.js';
 import { getAttackCooldown } from './characterStats.js';
 
@@ -73,8 +74,8 @@ function breakShield(scene, player) {
 
 function getBreakMark(scene, player) {
     if (!player.shieldBreakMark) {
-        const slot = player.id === 2 ? 'p2' : 'p1';
-        player.shieldBreakMark = scene.add.image(player.x, player.y, `${slot}shieldbreak`)
+        const texture = player.color === 'blue' ? 'p2shieldbreak' : 'p1shieldbreak';
+        player.shieldBreakMark = scene.add.image(player.x, player.y, texture)
             .setDepth(9)
             .setVisible(false);
         scene.objs?.add(player.shieldBreakMark);
@@ -91,8 +92,8 @@ function drawBreakMark(scene, player) {
 
 function shieldColors(player) {
     if (player.isBot) return { fill: HEX.shieldCpu, stroke: HEX.shieldCpuStroke };
-    if (player.id === 2) return { fill: HEX.shieldP2, stroke: HEX.shieldP2Stroke };
-    return { fill: HEX.shieldP1, stroke: HEX.shieldP1Stroke };
+    const { hex, shieldStroke } = PLAYER_COLORS[player.color];
+    return { fill: hex, stroke: shieldStroke };
 }
 
 function showBlockCue(scene, player) {

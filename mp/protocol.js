@@ -10,7 +10,7 @@ import { MAPS } from '../scenes/GameScene/MapDefinitions.js';
 import { toAsciiName } from './nameFilter.js';
 
 // Bump this whenever messages change so old tabs get a clear "refresh" error.
-export const PROTOCOL_VERSION = 9;
+export const PROTOCOL_VERSION = 10;
 
 export const MP_PATH = '/mp';
 export const DEFAULT_PORT = 8080;
@@ -18,6 +18,7 @@ export const DEFAULT_PORT = 8080;
 export const MAP_CHOICES = [...Object.keys(MAPS), 'RANDOM'];
 
 export const MAX_NAME_LENGTH = 16;
+export const MAX_LOBBY_NAME_LENGTH = 24;
 
 export const DEVICE_ID_STORAGE_KEY = 'blockBattleDeviceId';
 
@@ -27,13 +28,13 @@ export function cleanDeviceId(id) {
 
 // Names are plain English letters, digits, spaces and _-.!?' only, so lookalike
 // letters from other alphabets can't sneak a blocked word past the name filter.
-export function cleanName(name) {
+export function cleanName(name, maxLength = MAX_NAME_LENGTH) {
     const cleaned = toAsciiName(name)
         .replace(/\|/g, 'l')
         .replace(/[^A-Za-z0-9 _\-.!?']/g, '')
         .replace(/\s+/g, ' ')
         .trim()
-        .slice(0, MAX_NAME_LENGTH);
+        .slice(0, maxLength);
     return cleaned || 'Player';
 }
 

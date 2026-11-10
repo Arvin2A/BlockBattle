@@ -18,11 +18,7 @@ const accelFactor = 20;
 const JUMP_SPEED = 400;
 const DOWNSLAM_SPEED = 800;
 function getPlayer(players, id) {
-    return id === 1 ? players.player : players.player2;
-}
-
-function getOpponent(players, id) {
-    return id === 1 ? players.player2 : players.player;
+    return players[id - 1];
 }
 function decelerate(player) {
     if (player.isUsingSideSpecial) return;
@@ -65,7 +61,6 @@ function jumpVelocity(player) {
 
 export function executeStateCommand(scene, players, command) {
     const attacker = getPlayer(players, command.playerID);
-    const victim = getOpponent(players, command.playerID);
 
     switch (command.type) {
         case Commands.LEFT:

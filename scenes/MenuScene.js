@@ -17,7 +17,7 @@ var navBox = null;
 var layout = []
 var selectedIndex = 0;
 var previousInput = {};
-const CHANGELOG_VERSION = "2026-11-08-4";
+const CHANGELOG_VERSION = "2026-11-09-1";
 const MIN_VERSION_COLOR_BRIGHTNESS = 170;
 
 function getVersionColor(version) {
@@ -80,6 +80,22 @@ export class MenuScene extends Phaser.Scene {
         this.input.topOnly = false;
 
         const changelogEntries = [
+            {
+                title: "ONLINE LOBBIES",
+                body: "Online got a big upgrade! Hit ONLINE and pick CREATE LOBBY, QUICK 1V1 or BROWSE LOBBIES. Make your own lobby with a name, a gamemode, a stage and any modifiers you want, then start it once everyone's in.\n QUICK 1V1 just pairs you with whoever has been waiting the longest. INFINITE BRIDGE stays offline, and you can't turn off both killzones online, so matches always end."
+            },
+            {
+                title: "1V1V1, 2V2 AND 1V1V1V1",
+                body: "Up to 4 players can fight online now! Everyone gets 3 lives. In free for all the last one standing wins, and in 2v2 the last team standing wins, with no friendly fire.\n 1v1v1 is red, green and blue, 1v1v1v1 adds yellow, and 2v2 is red vs blue. Every stage has room for 4 fighters too."
+            },
+            {
+                title: "MODIFIER INTRO",
+                body: "Matches with modifiers now kick off by sliding in a card for each one, so everyone knows what they're getting into. Modifiers that get cancelled by another one flash red and drop out."
+            },
+            {
+                title: "PULL CORD + SPEED",
+                body: "LAWNMOWER can't cut grass or fire CLIPPINGS with his PULL CORD anymore, and his clippings reset when he loses the mower.\n The speed limit went way up, the camera locks onto you at crazy speeds, name tags and weapons keep up with you, and you can ledge grab from anywhere off the map."
+            },
             {
                 title: "CUSTOM DAMAGE + SPEED",
                 body: "Pick your own numbers! CUSTOM DAMAGE and CUSTOM SPEED each come in three sizes: S, A and R. Click the box on the card to raise the amount, and it loops back around after the max.\n CUSTOM DAMAGE S goes all the way to 50x, A goes to 10x, and R is for the tiny 0.1x to 1x range. CUSTOM SPEED S goes up to +5000%, A to +500% and R to +100%. Turn on more than one and they stack."
@@ -256,10 +272,6 @@ export class MenuScene extends Phaser.Scene {
 
         const upcomingEntries = [
             {
-                title: "1v1v1v1, 2v2, and 1v1v1",
-                body: "The max player limit and bot limit will be increased to 4, allowing for 1v1v1v1, 2v2, and 1v1v1 matches."
-            },
-            {
                 title: "Animated map backgrounds",
                 body: "Map backgrounds will be animated, and will have a more depth to it. It will foreshadow future updates and events..."
             },
@@ -302,7 +314,7 @@ export class MenuScene extends Phaser.Scene {
 
         const changelogBlurb = this.add.text(
             40, 180,
-            "Tons of new modifiers: pick your own damage and speed, turn off gravity, or remove the kill zones. Going really fast now stretches you, and slamming into things sends you bouncing. Check the full changelog for more!",
+            "Online lobbies are here! Create your own with any gamemode, stage and modifiers, or jump into a QUICK 1V1. Up to 4 players can fight in 1v1v1, 2v2 and 1v1v1v1.",
             {
                 fontFamily: "VCROSD",
                 fontSize: "16px",

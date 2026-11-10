@@ -360,7 +360,8 @@ function findLedge(scene, player, opponent, offMap) {
             if (!offMap && outside < -body.width / 2) continue;
             const gap = Math.abs(player.x - cornerX) - body.width / 2;
             if (!offMap && gap > LEDGE.reachX) continue;
-            const taken = opponent?.ledge?.platform === platform && opponent.ledge.toward === toward;
+            const taken = scene.gameState.players.some(other => other !== player &&
+                other.ledge?.platform === platform && other.ledge.toward === toward);
             if (taken) continue;
             const score = Math.abs(gap) + Math.abs(dy);
             if (!best || score < best.score) best = { platform, cornerX, toward, top, score };
