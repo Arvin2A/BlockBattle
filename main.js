@@ -758,7 +758,7 @@ function create() {
         return image;
     });
 
-    const p1guide = this.add.image(450, 65, 'p1guide');
+    const p1guide = this.add.image(475, 65, 'p1guide');
     p1guide.setAlpha(0.65);
     this.hud.add(p1guide);
     const p2guide = this.add.image(850, 65, 'p2guide');
@@ -1085,20 +1085,20 @@ function create() {
         .setDepth(2000)
         .setInteractive()
         .setVisible(false);
-    this.pauseResumeButton = this.add.image(300, 300, 'resumeBtn')
+    this.pauseResumeButton = this.add.image(350, 300, 'resumeBtn')
         .setScale(0.35)
         .setScrollFactor(0)
         .setDepth(2001)
         .setInteractive({ useHandCursor: true })
         .setVisible(false);
-    this.pauseMenuButton = this.add.image(600, 300, 'gohomeBtn')
+    this.pauseMenuButton = this.add.image(650, 300, 'gohomeBtn')
         .setScale(0.35)
         .setScrollFactor(0)
         .setDepth(2001)
         .setInteractive({ useHandCursor: true })
         .setVisible(false);
-    this.pauseButton = this.add.image(970, 30, 'gohomeBtn')
-        .setScale(0.16)
+    this.pauseButton = this.add.image(968, 32, 'gohomeBtn')
+        .setScale(0.12)
         .setScrollFactor(0)
         .setDepth(1999)
         .setInteractive({ useHandCursor: true });
@@ -1271,14 +1271,15 @@ const tiltThreshold = 150;
 
 function spawnAfterimage(scene, player) {
 
+    const visual = player.squash?.visual ?? { scaleX: 1, scaleY: 1, offsetY: 0 };
     const ghost = scene.add.sprite(
         player.x,
-        player.y,
+        player.y + visual.offsetY,
         player.icon
     );
 
     ghost.setFrame(player.frame.name);
-    ghost.setScale(player.scaleX, player.scaleY);
+    ghost.setScale(player.scaleX * visual.scaleX, player.scaleY * visual.scaleY);
     ghost.setFlipX(player.flipX);
 
     if (player.heavyLaunch) {

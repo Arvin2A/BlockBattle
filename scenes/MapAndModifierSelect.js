@@ -145,7 +145,7 @@ export class MapAndModifierSelectScene extends Phaser.Scene {
 		layout = this.layouts[page];
 		selectedIndex = 0;
 		if (navBox) moveNavigationBox(this, navBox, layout[0].button);
-		this.sound.play('revolveselect');
+		this.sound.play('hover2');
 		this.tweens.add({
 			targets: this.cameras.main,
 			scrollY: page === 'modifiers' ? PAGE_HEIGHT : 0,
@@ -346,8 +346,8 @@ export class MapAndModifierSelectScene extends Phaser.Scene {
 
 		return [
 			{ type: 'map', button: { x: WHEEL.x, y: WHEEL.y, width: WHEEL.cardWidth, height: WHEEL.cardHeight }, action: () => this.goNext() },
-			{ type: 'button', button: backButton, action: () => { this.sound.play('hover2'); this.goBack(); } },
-			{ type: 'button', button: nextButton, action: () => { this.sound.play('hover2'); this.goNext(); } }
+			{ type: 'button', button: backButton, action: () => this.goBack() },
+			{ type: 'button', button: nextButton, action: () => this.goNext() }
 		];
 	}
 
@@ -512,8 +512,8 @@ export class MapAndModifierSelectScene extends Phaser.Scene {
 				button: modifierCard.card,
 				action: modifierCard.toggle
 			})),
-			{ type: 'button', button: backButton, action: () => { this.sound.play('hover2'); this.goBack(); } },
-			{ type: 'button', button: nextButton, action: () => { this.sound.play('hover2'); this.goNext(); } }
+			{ type: 'button', button: backButton, action: () => this.goBack() },
+			{ type: 'button', button: nextButton, action: () => this.goNext() }
 		];
 	}
 

@@ -5,13 +5,13 @@
 import { getFlatSquash, FLAT_SQUASH } from './universalMoves.js';
 
 export const SQUASH = {
-    jump: 0.22,
-    landMin: -0.06,
-    landMax: -0.24,
+    jump: 0.33,
+    landMin: -0.09,
+    landMax: -0.36,
     landSpeedForMax: 900,
     landSpeedMin: 150,
     widthPerStretch: 0.6,
-    limit: 0.4,
+    limit: 0.6,
     stiffness: 520,
     damping: 16,
     chopMs: 70
@@ -20,7 +20,7 @@ export const SQUASH = {
 export const SPEED_STRETCH = {
     speedMin: 320,
     speedMax: 1000,
-    amount: 0.45,
+    amount: 0.675,
     curve: 1.5,
     thinPerStretch: 0.6,
     response: 18
@@ -90,7 +90,10 @@ export function applySquash(scene, players) {
         const lift = player.renderLiftY ?? 0;
         const squashed = Math.abs(squash.value) >= 0.002 || flat > 0;
         const stretching = squash.motion >= 0.002 && flat <= 0;
-        if (!squashed && !stretching && !lift) continue;
+        if (!squashed && !stretching && !lift) {
+            squash.visual = null;
+            continue;
+        }
         const horizontal = squash.motionHorizontal;
         const motionX = stretching ? 1 + squash.motion * (horizontal - (1 - horizontal) * SPEED_STRETCH.thinPerStretch) : 1;
         const motionY = stretching ? 1 + squash.motion * ((1 - horizontal) - horizontal * SPEED_STRETCH.thinPerStretch) : 1;
@@ -102,6 +105,7 @@ export function applySquash(scene, players) {
         const scaleY = squash.shownY;
         const scaleX = squash.shownX;
         const offsetY = player.displayHeight * 0.5 * (1 - scaleY) - lift;
+        squash.visual = { scaleX, scaleY, offsetY };
         squash.applied = [
             stretchObject(player, scaleX, scaleY, offsetY),
             stretchObject(player.flashObject, scaleX, scaleY, offsetY)

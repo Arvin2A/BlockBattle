@@ -15,6 +15,10 @@
 - Every stage has spawns for 4 fighters.
 - When modifiers are on, the match now starts by sliding in a card for each one. Modifiers that get cancelled out by another (like SLUGGISH under SUPER SLUGGISH) flash red and get removed.
 - INFINITE BRIDGE moved to a new white MISC section at the top of the modifier list.
+- A FORFEIT button in the top right corner of online matches on phones and tablets. Tap it twice to leave (it counts as a loss).
+- The stage picker in CREATE LOBBY shows a preview picture of each map.
+- Your fighter panel in the online menu turns red while you can't change your name or fighter (queued, in a lobby or about to start a match).
+- Names of infamous people and hate groups (EPSTEIN, HITLER, DIDDY and others) are now blocked online.
 
 ### Changed
 - LAWNMOWER's PULL CORD can't cut grass or fire CLIPPINGS anymore, and his clippings drop to 0 as soon as he loses the mower.
@@ -22,11 +26,20 @@
 - Ledge grabbing works from anywhere off the map: press attack and you grab the nearest ledge.
 - Squash and stretch now move in choppier steps.
 - Past 10,000 pixels per second the camera locks onto you so you stay centered.
+- Squash and stretch are 1.5x stronger, and afterimages now stretch and squish along with your fighter.
+- The in-game home button is smaller and sits a little in from the corner.
+- ONLINE and PLAY VS CPU on the main menu are a bit narrower so they line up with the shadow, and the menu buttons slide in twice as fast without the bounce.
+- The online menu has its own BACK button for moving between screens. The bottom BACK always takes you to the main menu.
+- NEXT and BACK on the map and modifier pages play the normal click sound instead of the wheel sound.
+- Hovering over map cards, modifier cards, character icons and phone buttons no longer plays the hover sound.
+- Tidied up the online menu: the QUICK 1V1 stage picker is centered and the arrows in CREATE LOBBY no longer touch the edges.
 
 ### Fixed
 - Name tags and weapons no longer trail behind fighters at very high speeds.
 - Fighters can no longer fall through the ground at extreme speeds or on fast diagonal hits.
 - INFINITE BRIDGE now shows the map out to about 5.3 million blocks instead of going black at 200,000.
+- The pause menu's RESUME and HOME buttons are centered.
+- Picking a stage in CREATE LOBBY now plays the wheel sound like it does offline.
 
 ## 2026-11-08
 

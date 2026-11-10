@@ -17,7 +17,7 @@ var navBox = null;
 var layout = []
 var selectedIndex = 0;
 var previousInput = {};
-const CHANGELOG_VERSION = "2026-11-09-1";
+const CHANGELOG_VERSION = "2026-11-09-2";
 const MIN_VERSION_COLOR_BRIGHTNESS = 170;
 
 function getVersionColor(version) {
@@ -80,6 +80,14 @@ export class MenuScene extends Phaser.Scene {
         this.input.topOnly = false;
 
         const changelogEntries = [
+            {
+                title: "FORFEIT BUTTON",
+                body: "Playing online on your phone? There's a FORFEIT button in the top right now. Tap it twice to leave the match, but it counts as a loss.\n The online menu got some love too: map previews in the stage picker, a red fighter panel while your fighter is locked in, and a separate BACK button for getting around."
+            },
+            {
+                title: "MORE SQUISH",
+                body: "Squash and stretch hit 1.5x harder now, and afterimages stretch along with you. The home button in matches is smaller and the pause menu is centered.\n The main menu buttons line up with the shadow and slide in faster, and a bunch of names of infamous people are now blocked online."
+            },
             {
                 title: "ONLINE LOBBIES",
                 body: "Online got a big upgrade! Hit ONLINE and pick CREATE LOBBY, QUICK 1V1 or BROWSE LOBBIES. Make your own lobby with a name, a gamemode, a stage and any modifiers you want, then start it once everyone's in.\n QUICK 1V1 just pairs you with whoever has been waiting the longest. INFINITE BRIDGE stays offline, and you can't turn off both killzones online, so matches always end."
@@ -314,7 +322,7 @@ export class MenuScene extends Phaser.Scene {
 
         const changelogBlurb = this.add.text(
             40, 180,
-            "Online lobbies are here! Create your own with any gamemode, stage and modifiers, or jump into a QUICK 1V1. Up to 4 players can fight in 1v1v1, 2v2 and 1v1v1v1.",
+            "Phone players can now leave online matches with the new FORFEIT button. Squash and stretch got 1.5x stronger, afterimages stretch with you, and the online menu shows map previews.",
             {
                 fontFamily: "VCROSD",
                 fontSize: "16px",
@@ -680,9 +688,9 @@ export class MenuScene extends Phaser.Scene {
             fadeOutTo(this, () => this.scene.start('MapAndModifierSelectScene'));
         }, this);
         const botBox = this.add.rectangle(
-            875,
+            882,
             420,
-            200,
+            186,
             70,
             0x111111
         );
@@ -692,12 +700,12 @@ export class MenuScene extends Phaser.Scene {
         // (bot vs bot). The choice stays until the page is reloaded.
         let simulationSelected = simulationMode;
         const botText = this.add.text(
-            875,
+            882,
             420,
             simulationSelected ? 'SIMULATION' : 'PLAY VS CPU',
             {
                 fontFamily: 'VCROSD',
-                fontSize: '28px',
+                fontSize: '26px',
                 fill: '#FFFFFF',
                 stroke: '#000000',
                 strokeThickness: 6
@@ -711,11 +719,11 @@ export class MenuScene extends Phaser.Scene {
         };
         botText.on('pointerdown', startBotMatch);
 
-        const modeArrowBox = this.add.rectangle(755, 420, 20, 70, 0x111111);
+        const modeArrowBox = this.add.rectangle(770, 420, 20, 70, 0x111111);
         modeArrowBox.setStrokeStyle(4, 0x000000);
         modeArrowBox.setInteractive({ useHandCursor: true });
         const modeArrow = this.add.triangle(
-            755, 420,
+            770, 420,
             9, 0,
             9, 18,
             0, 9,
@@ -755,16 +763,16 @@ export class MenuScene extends Phaser.Scene {
         // ONLINE is always shown. The line under it says whether the server can be
         // played on right now (see mp/serverConfig.js).
         const onlineBox = this.add.rectangle(
-            875,
+            885,
             340,
-            200,
+            180,
             70,
             0x111111
         );
         onlineBox.setStrokeStyle(4, 0x000000);
 
         const onlineText = this.add.text(
-            875,
+            885,
             330,
             'ONLINE',
             {
@@ -775,7 +783,7 @@ export class MenuScene extends Phaser.Scene {
                 strokeThickness: 6
             }
         ).setOrigin(0.5);
-        const onlineStatus = this.add.text(875, 359, '', {
+        const onlineStatus = this.add.text(885, 359, '', {
             fontFamily: 'GameFont',
             fontSize: '11px',
             fill: '#bbbbbb',
@@ -784,7 +792,7 @@ export class MenuScene extends Phaser.Scene {
         }).setOrigin(0.5);
         onlineBox.setInteractive({ useHandCursor: true });
         // Everyone connected, in a match or not. The button itself shows who's waiting.
-        const onlineCount = this.add.text(875, 285, '', {
+        const onlineCount = this.add.text(885, 285, '', {
             fontFamily: FONTS.title,
             fontSize: '14px',
             fill: '#7dff8a',
@@ -849,9 +857,9 @@ export class MenuScene extends Phaser.Scene {
 
         const introLength = slideInFromSides(this, [
             [changelogBox, changelogBlurbTitle, changelogBlurb, openChangelogText],
-            [onlineBox, onlineText, onlineStatus, onlineCount],
-            [botBox, botText, modeArrowBox, modeArrow],
-            [startBox, startText]
+            { objects: [onlineBox, onlineText, onlineStatus, onlineCount], ease: 'Cubic.easeOut', duration: 275 },
+            { objects: [botBox, botText, modeArrowBox, modeArrow], ease: 'Cubic.easeOut', duration: 275 },
+            { objects: [startBox, startText], ease: 'Cubic.easeOut', duration: 275 }
         ]);
         this.menuIntroUntil = this.time.now + introLength;
     }
