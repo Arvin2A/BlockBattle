@@ -41,6 +41,7 @@ export const HEX = {
 };
 
 export const CHAOS_TIERS = {
+    misc: { rank: -1, hex: 0xffffff, css: '#ffffff' },
     purple: { rank: 0, hex: 0xb46bff, css: '#b46bff' },
     red: { rank: 1, hex: 0xff4d4d, css: '#ff4d4d' },
     orange: { rank: 2, hex: 0xff9a2e, css: '#ff9a2e' },

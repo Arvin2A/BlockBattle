@@ -4,25 +4,31 @@
 
 import { getEnabledCustomValues, modifierOptions } from './scenes/MapAndModifierSelect.js';
 
-const MAX_FIGHTER_VELOCITY = 16777215;
+const MAX_FIGHTER_VELOCITY = 4294967295;
+const MAP_CENTER_X = 1000;
 import { getCharacterTexture } from './characterTextures.js';
 import { hasIdleAttackSprite } from './attacks.js';
 import { COLORS, FONTS } from './ui/theme.js';
-export function initiatePlayers(scene, p1Select = 'axeman', p2Select = 'swordman', p1Variant = '', p2Variant = '') {
-    const players = {
-        player: null,
-        player2: null
-    };
-    const p1Spawn = scene.gameState.map.getSpawn(1);
-    const p2Spawn = scene.gameState.map.getSpawn(2);
-    players.player = scene.physics.add.sprite(p1Spawn.x, p1Spawn.y, getCharacterTexture(p1Select, p1Variant));
-    players.player2 = scene.physics.add.sprite(p2Spawn.x, p2Spawn.y, getCharacterTexture(p2Select, p2Variant));
-    players.player.variant = p1Variant;
-    players.player2.variant = p2Variant;
-    players.player.id = 1;
-    players.player2.id = 2;
-    players.player.lastDir = { x: 1, y: 0 };
-    players.player2.lastDir = { x: -1, y: 0 };
+import { MATCH_LIVES, PLAYER_COLORS } from './matchModes.js';
+export function initiatePlayers(scene, matchSettings) {
+    const players = matchSettings.players.map((entry, index) => {
+        const spawn = scene.gameState.map.getSpawn(index + 1);
+        const fighter = scene.physics.add.sprite(spawn.x, spawn.y, getCharacterTexture(entry.character, entry.variant));
+        Object.assign(fighter, {
+            variant: entry.variant,
+            id: index + 1,
+            slot: entry.slot,
+            team: entry.team,
+            color: entry.color,
+            character: entry.character,
+            lastDir: { x: spawn.x <= MAP_CENTER_X ? 1 : -1, y: 0 },
+            icon: getCharacterTexture(entry.character, entry.variant),
+            lives: MATCH_LIVES,
+            eliminated: false,
+            isCpu: Boolean(scene.simulationMode || (scene.botMode && index === 1))
+        });
+        return fighter;
+    });
     for (const player of Object.values(players)) {
         const scaleX = Math.abs(player.scaleX) || 1;
         const { sourceWidth, sourceHeight, offset } = player.body;
@@ -92,7 +98,6 @@ export function initiatePlayers(scene, p1Select = 'axeman', p2Select = 'swordman
             woodCollectionLastTick: null,
             woodCollecting: false,
             plankGhost: null,
-            winNumber: 0,
             outOfBounds: false,
             airTime: 0,
             downslamming: false,
@@ -195,8 +200,6 @@ export function initiatePlayers(scene, p1Select = 'axeman', p2Select = 'swordman
             externalDamageScale: 1,
             dirSpecialCooldown: 3500
         });
-        const selectedCharacter = p.id === 1 ? p1Select : p2Select;
-
         const unmodifiedSpeed = p.baseMovementSpeed;
         if (modifierOptions.SLUGGISH.enabled) {
             p.baseMovementSpeed -= 150;
@@ -247,21 +250,16 @@ export function initiatePlayers(scene, p1Select = 'axeman', p2Select = 'swordman
     }
     
 
-    players.player.winText = scene.add.text(400, 300, '', {
-        fontFamily: 'VCROSD',
-        fontSize: '48px',
-        fill: '#FFFFFF'
-    }).setOrigin(0.5).setStroke('#000000', 4).setVisible(false);
-
-    players.player2.winText = scene.add.text(600, 300, '', {
-        fontFamily: 'VCROSD',
-        fontSize: '48px',
-        fill: '#FFFFFF'
-    }).setOrigin(0.5).setStroke('#000000', 4).setVisible(false);
-    scene.hud.add(players.player.winText);
-    scene.hud.add(players.player2.winText);
-    players.player.name = p1Select.toUpperCase();
-    players.player2.name = p2Select.toUpperCase();
+    players.forEach((player, index) => {
+        const x = players.length === 2 ? [400, 600][index] : (index + 1) * 1000 / (players.length + 1);
+        player.winText = scene.add.text(x, 300, '', {
+            fontFamily: 'VCROSD',
+            fontSize: '48px',
+            fill: '#FFFFFF'
+        }).setOrigin(0.5).setStroke('#000000', 4).setVisible(false);
+        scene.hud.add(player.winText);
+        player.name = player.character.toUpperCase();
+    });
 
     for (const player of Object.values(players)) {
         if (player.name === 'SLATEMAN') {
@@ -288,9 +286,6 @@ export function initiatePlayers(scene, p1Select = 'axeman', p2Select = 'swordman
             player.playerKBresistance = 1.5;
         }
     }
-
-    players.player.icon = getCharacterTexture(p1Select, p1Variant);
-    players.player2.icon = getCharacterTexture(p2Select, p2Variant);
 
     for (const key in players) {
         const p = players[key];
@@ -360,39 +355,36 @@ export function initiatePlayers(scene, p1Select = 'axeman', p2Select = 'swordman
         scene.objs.add(p.atk);
     }
 
-    players.player.header = scene.add.text(players.player.x, players.player.y - 50, scene.simulationMode ? 'CPU 1' : 'P1' ,{ fontFamily: FONTS.title, fontSize: '18px', fill: scene.simulationMode ? COLORS.cpu : COLORS.p1 });
-    const headerFILL = scene.botMode ? COLORS.cpu : COLORS.p2
-    players.player2.header = scene.add.text(players.player2.x, players.player2.y - 50, scene.simulationMode ? 'CPU 2' : scene.botMode ? 'CPU' : 'P2' ,{ fontFamily: FONTS.title, fontSize: '18px', fill: headerFILL });
-    scene.objs.add(players.player.header);
-    scene.objs.add(players.player2.header);
-
-    players.player.atk.setVisible(
-        hasIdleAttackSprite(players.player) ||
-        (players.player.name === 'AXEMAN' && players.player.variant === 'CHAINSAW')
-    );
-    players.player2.atk.setVisible(
-        hasIdleAttackSprite(players.player2) ||
-        (players.player2.name === 'AXEMAN' && players.player2.variant === 'CHAINSAW')
-    );
+    for (const player of players) {
+        const label = scene.simulationMode ? `CPU ${player.id}` : player.isCpu ? 'CPU' : player.slot.toUpperCase();
+        const fill = player.isCpu ? COLORS.cpu : PLAYER_COLORS[player.color].css;
+        player.header = scene.add.text(player.x, player.y - 50, label, { fontFamily: FONTS.title, fontSize: '18px', fill });
+        scene.objs.add(player.header);
+        player.atk.setVisible(
+            hasIdleAttackSprite(player) ||
+            (player.name === 'AXEMAN' && player.variant === 'CHAINSAW')
+        );
+    }
 
     for (const key in players) {
         const player = players[key];
         if (player.name === 'AXEMAN' && player.variant === 'CHAINSAW') {
             const switchKey = player.id === 1 ? 'LEFT ALT' : 'RIGHT ALT';
-            const isPlayerOne = player.id === 1;
-            const iconX = isPlayerOne ? 34 : 966;
-            const labelX = isPlayerOne ? 60 : 940;
+            const isLeftSide = player.id % 2 === 1;
+            const iconX = isLeftSide ? 34 : 966;
+            const labelX = isLeftSide ? 60 : 940;
+            const hintY = 300 + Math.floor((player.id - 1) / 2) * 44;
             player.modeSwitchIcon = scene.add.sprite(
                 iconX,
-                300,
+                hintY,
                 'inactivechainsaw'
             ).setFrame(0).setScale(0.7).setScrollFactor(0);
             player.modeSwitchText = scene.add.text(
                 labelX,
-                300,
+                hintY,
                 `${switchKey} to switch`,
                 { fontFamily: 'GameFont', fontSize: '12px', fill: '#ffffff' }
-            ).setOrigin(isPlayerOne ? 0 : 1, 0.5)
+            ).setOrigin(isLeftSide ? 0 : 1, 0.5)
                 .setStroke('#000000', 3)
                 .setScrollFactor(0);
             player.woodText = scene.add.text(
@@ -429,9 +421,7 @@ export function initiatePlayers(scene, p1Select = 'axeman', p2Select = 'swordman
         }
     }
 
-    const bots = scene.simulationMode
-        ? [players.player, players.player2]
-        : scene.botMode ? [players.player2] : [];
+    const bots = players.filter(player => player.isCpu);
     for (const bot of bots) {
         bot.lastJump = 0;
         bot.lastAttack = 0;

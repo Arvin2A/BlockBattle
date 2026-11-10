@@ -20,8 +20,8 @@ import { COLORS, FONTS, makeButton, makePanel } from '../ui/theme.js';
 import { addTouchAssist, isPhoneScreen } from '../ui/touchAssist.js';
 import { addThumbstick } from '../ui/touchJoystick.js';
 import { hasMiscButton } from '../attacks.js';
+import { PLAYER_COLORS, isTeamMode } from '../matchModes.js';
 
-// Online you control one fighter, so both keyboard layouts work.
 const KEY_BINDINGS = {
     KeyA: 'left', ArrowLeft: 'left',
     KeyD: 'right', ArrowRight: 'right',
@@ -34,7 +34,6 @@ const KEY_BINDINGS = {
 };
 const CAPTURED_KEYS = 'W,A,S,D,UP,DOWN,LEFT,RIGHT,E,SHIFT,ALT,Q,FORWARD_SLASH,R,PERIOD';
 
-const SLOT_COLORS = { p1: COLORS.p1, p2: COLORS.p2 };
 
 const FRAME_MS = 1000 / 60;
 const MIN_BUFFER_MS = 33;
@@ -325,8 +324,11 @@ export class OnlineOverlayScene extends Phaser.Scene {
     }
 
     create() {
-        const { slot, opponent } = this.match;
-        const color = SLOT_COLORS[slot];
+        const { slot, roster, mode } = this.match;
+        this.slotColors = Object.fromEntries(roster.map(entry => [entry.slot, PLAYER_COLORS[entry.color].css]));
+        const self = roster.find(entry => entry.slot === slot);
+        const color = this.slotColors[slot];
+        const others = roster.filter(entry => entry.slot !== slot);
 
         this.pingText = this.add.text(990, 592, '', {
             fontFamily: 'GameFont',
@@ -358,7 +360,7 @@ export class OnlineOverlayScene extends Phaser.Scene {
 
         const game = this.gameScene;
         this.quickChat = new QuickChat(this, {
-            slotColors: SLOT_COLORS,
+            slotColors: this.slotColors,
             getPlayerObject: slot => game.getPlayerObject(slot),
             worldToScreen: (x, y) => this.worldToScreen(x, y)
         });
@@ -373,11 +375,14 @@ export class OnlineOverlayScene extends Phaser.Scene {
         });
 
         if (this.sys.game.device.input.touch) this.createTouchControls();
-        else this.createKeyGuides(slot);
+        else if (roster.length === 2) this.createKeyGuides(slot);
 
+        const versus = others.length === 1
+            ? `VS ${others[0].name}`
+            : isTeamMode(mode) ? `TEAM ${PLAYER_COLORS[self.color].label}` : `${roster.length}-PLAYER FREE FOR ALL`;
         this.banner = this.add.text(500, 455, [
             `YOU ARE ${slot.toUpperCase()}`,
-            `VS ${opponent.name}`
+            versus
         ].join('\n'), {
             fontFamily: 'VCROSD',
             fontSize: '34px',
@@ -430,12 +435,13 @@ export class OnlineOverlayScene extends Phaser.Scene {
         this.tweens.add({ targets: this.noticeText, alpha: 0, delay: duration, duration: 300 });
     }
 
-    onEnd({ winner, reason }) {
-        const won = winner === this.match.slot;
+    onEnd({ winners, reason }) {
+        const won = Boolean(winners?.includes(this.match.slot));
+        const duel = this.match.roster.length === 2;
         const titles = {
             [END_REASONS.KO]: won ? 'VICTORY!' : 'DEFEAT',
-            [END_REASONS.FORFEIT]: won ? 'YOUR OPPONENT LEFT, YOU WIN' : 'YOU LEFT THE MATCH',
-            [END_REASONS.DISCONNECT]: 'YOUR OPPONENT DISCONNECTED, YOU WIN',
+            [END_REASONS.FORFEIT]: won ? (duel ? 'YOUR OPPONENT LEFT, YOU WIN' : 'EVERYONE ELSE LEFT, YOU WIN') : 'YOU LEFT THE MATCH',
+            [END_REASONS.DISCONNECT]: duel ? 'YOUR OPPONENT DISCONNECTED, YOU WIN' : 'EVERYONE ELSE LEFT, YOU WIN',
             [END_REASONS.SERVER_ERROR]: 'THE MATCH CRASHED ON THE SERVER',
             lost_connection: 'LOST CONNECTION TO THE SERVER'
         };
@@ -458,11 +464,13 @@ export class OnlineOverlayScene extends Phaser.Scene {
             wordWrap: { width: 520 }
         }).setOrigin(0.5).setDepth(5003);
 
-        const buttons = canRequeue
+        const buttons = canRequeue && this.match.quick
             ? [
                 { x: 380, label: 'PLAY AGAIN', action: () => this.gameScene.leaveTo('OnlineLobbyScene', { autoQueue: true }) },
                 { x: 620, label: 'LOBBY', action: () => this.gameScene.leaveTo('OnlineLobbyScene') }
             ]
+            : canRequeue
+                ? [{ x: 500, label: 'LOBBY', action: () => this.gameScene.leaveTo('OnlineLobbyScene') }]
             : [{ x: 500, label: 'MAIN MENU', action: () => this.gameScene.leaveTo('MenuScene') }];
 
         for (const button of buttons) {
@@ -471,7 +479,7 @@ export class OnlineOverlayScene extends Phaser.Scene {
             text.setDepth(5002);
         }
         this.input.keyboard.once('keydown-ENTER', buttons[0].action);
-        this.add.text(500, 395, canRequeue ? 'ENTER: PLAY AGAIN' : 'ENTER: MAIN MENU', {
+        this.add.text(500, 395, `ENTER: ${buttons[0].label}`, {
             fontFamily: 'GameFont',
             fontSize: '12px',
             fill: '#999999'

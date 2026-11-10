@@ -9,6 +9,7 @@ import {
     DEATH_RAY_COLOR
 } from './effects.js';
 import { getKnockbackResistance } from './characterStats.js';
+import { getFighters as getAllFighters } from './targets.js';
 
 export const HEAVY_KB_PERCENT = 100;
 export const VIOLENT_KB_PERCENT = 150;
@@ -27,14 +28,9 @@ export function isInvincible(player) {
 }
 
 function isFighter(scene, target) {
-    const players = scene.gameState?.players;
-    return Boolean(players) && (players.player === target || players.player2 === target);
+    return getAllFighters(scene).includes(target);
 }
 
-function getFighters(scene) {
-    const players = scene.gameState?.players;
-    return players ? [players.player, players.player2].filter(Boolean) : [];
-}
 
 export function hitFreeze(scene, ms = 50) {
     const now = scene.time.now;
@@ -78,7 +74,7 @@ function freezeUntil(scene, until, ultra = false) {
 // 300ms freeze ate most of the chainsaw explosion's flat 500ms this way.
 function refundFrozenHitstun(scene, frozenAt, frozenFor) {
     if (!(frozenFor > 0)) return;
-    for (const fighter of getFighters(scene)) {
+    for (const fighter of getAllFighters(scene)) {
         if (fighter.hitstunUntil > frozenAt) fighter.hitstunUntil += frozenFor;
     }
 }
@@ -98,8 +94,7 @@ function launchDeathRay(scene, target, vx, vy) {
         scene.add.rectangle(target.x, target.y, length, 190, DEATH_RAY_COLOR),
         scene.add.rectangle(target.x, target.y, length, 65, 0xffffff)
     ];
-    const { player, player2 } = scene.gameState.players;
-    const behindFighters = Math.min(scene.objs.getIndex(player), scene.objs.getIndex(player2));
+    const behindFighters = Math.min(...getAllFighters(scene).map(fighter => scene.objs.getIndex(fighter)));
     layers.forEach((layer, index) => {
         layer.setOrigin(0.5, 0.5).setRotation(angle).setScale(0.15, 1);
         scene.objs.addAt(layer, behindFighters + index);

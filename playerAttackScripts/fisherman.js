@@ -434,7 +434,7 @@ function throwNet(api, scene, player, target, direction, currentTime) {
             net.setVelocity(facing * NET_LAUNCH.x, NET_LAUNCH.y);
             colliders.push(
                 scene.physics.add.collider(net, api.getMapPlatforms(scene), null, landsFromAbove),
-                scene.physics.add.overlap(net, target, () => {
+                ...api.overlapEnemies(scene, net, player, target => {
                     if (state !== 'air' || api.isInvincible(target)) return;
                     if (canBeNetted(scene, api, target)) netFoe(api, scene, player, target, NET_STUN, false);
                     else api.landHit(scene, player, target, { ...NET_BUMP, direction: { x: facing, y: 0 } });
@@ -665,14 +665,14 @@ function tryPull(api, scene, player, target, direction, currentTime) {
             if (player.y > hook.y) swingUntil = scene.time.now + SWING_MS;
             startReelAnim();
         };
-        const latchToTarget = () => {
-            latchedTarget = target;
+        const latchToTarget = (hitTarget = target) => {
+            latchedTarget = hitTarget;
             colliders.forEach(collider => collider.destroy());
             colliders.length = 0;
             timeoutEvent?.remove(false);
             hook.setVelocity(0, 0);
             hook.body.enable = false;
-            hook.setPosition(target.x, target.y);
+            hook.setPosition(hitTarget.x, hitTarget.y);
             if (player.activeHookCleanup === removeHook) {
                 player.isUsingSideSpecial = false;
                 player.isAttacking = false;
@@ -715,7 +715,7 @@ function tryPull(api, scene, player, target, direction, currentTime) {
         };
 
         colliders.push(
-            scene.physics.add.overlap(hook, target, () => {
+            ...api.overlapEnemies(scene, hook, player, target => {
                 if (cleanedUp || player.hasHitSideSpecial || pullingToPlatform || api.isInvincible(target)) return;
                 player.hasHitSideSpecial = true;
 
@@ -736,7 +736,7 @@ function tryPull(api, scene, player, target, direction, currentTime) {
                     decelerateAfter: 550,
                     resetCombo: false
                 });
-                latchToTarget();
+                latchToTarget(target);
             }),
 
             scene.physics.add.overlap(

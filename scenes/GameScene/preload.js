@@ -123,6 +123,8 @@ export function preload() {
 
     this.load.image('redstat', 'assets/ingame/KBstatBG1.png');
     this.load.image('bluestat', 'assets/ingame/KBstatBG2.png');
+    this.load.image('greenstat', 'assets/ingame/KBstatBG3.png');
+    this.load.image('yellowstat', 'assets/ingame/KBstatBG4.png');
     this.load.image('botstat', 'assets/ingame/KBstatBGBOT.png');
 
 

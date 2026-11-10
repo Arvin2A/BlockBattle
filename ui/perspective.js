@@ -9,9 +9,9 @@ const MODES = ['both', 'p1', 'p2'];
 
 function modeLabel(mode, players) {
     if (mode === 'both') return 'BOTH';
-    const player = mode === 'p1' ? players.player : players.player2;
+    const player = mode === 'p1' ? players[0] : players[1];
     if (!player?.isBot) return mode.toUpperCase();
-    const bothBots = players.player?.isBot && players.player2?.isBot;
+    const bothBots = players[0]?.isBot && players[1]?.isBot;
     return bothBots ? `CPU ${mode === 'p1' ? 1 : 2}` : 'CPU';
 }
 
@@ -35,5 +35,5 @@ export function updatePerspective(scene, state) {
     const players = scene.gameState.players;
     state.button.text.setText(`VIEW: ${modeLabel(state.mode, players)}  [V]`);
     if (state.mode === 'both') return null;
-    return state.mode === 'p1' ? players.player : players.player2;
+    return state.mode === 'p1' ? players[0] : players[1];
 }

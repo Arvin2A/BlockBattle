@@ -301,7 +301,7 @@ function tryMowLegacy(api, scene, player, target, direction, currentTime) {
         mowsound.play();
         player.isUsingSideSpecial = false;
         let dir = (direction === 'left') ? -1 : 1
-        scene.physics.add.overlap(fakescythe, target, () => {
+        api.overlapEnemies(scene, fakescythe, player, target => {
             if (player.hasHitSideSpecial) return;
             if (!canhit || api.isInvincible(target)) return;
             if (api.blocksHit(scene, target, player, 0.08, { ranged: true })) {
@@ -337,6 +337,7 @@ function tryMowLegacy(api, scene, player, target, direction, currentTime) {
 
             scene.sound.play('slash');
             target.KBmultiplier += 0.08 * api.getAttackDamageScale(player);
+            target.lastHitBy = player;
             api.applyKnockback(scene, target, 500 * dir, 300);
             target.flash();
 
@@ -448,7 +449,6 @@ const MOWER = {
     body: { width: 110, height: 50, offsetX: 10, offsetY: 23 },
     engineVolume: 0.6,
     cordMs: 8000,
-    fuelPerCutMs: 250,
     plowTickMs: 50,
     plowExplodeMs: 2000,
     plowCutRange: 45,
@@ -489,7 +489,8 @@ const CORD_PUSH = {
     damage: 0.04,
     plankDamage: 0.03,
     knockback: { x: 750, y: 450, growth: false, scaleWithDamage: false },
-    noDeathRay: true
+    noDeathRay: true,
+    noGrassCut: true
 };
 const CORD_COOLDOWN_MS = 400;
 
@@ -541,6 +542,10 @@ function isMower(player) {
     return player.variant === 'LAWNMOWER';
 }
 
+function isWithoutMower(player) {
+    return player.mowerState === 'cord' || player.mowerState === 'dismounted';
+}
+
 function facingOf(player) {
     return player.lastDir.x || (player.flipX ? -1 : 1);
 }
@@ -570,8 +575,8 @@ function setupMower(scene, player) {
 }
 
 function onGrassCut(scene, player) {
+    if (isWithoutMower(player)) return;
     player.clippings = Math.min(CLIPPINGS.max, player.clippings + CLIPPINGS.perCut);
-    if (player.mowerState === 'cord') player.mowerCordUntil -= MOWER.fuelPerCutMs;
     if (player.mowerState === 'ride') player.mowerBoostUntil = scene.time.now + MOWER.boostMs;
 }
 
@@ -591,6 +596,7 @@ function stopEngine(player, { quiet = false } = {}) {
 
 function startCord(scene, player, { quiet = false } = {}) {
     player.mowerState = 'cord';
+    player.clippings = 0;
     player.mowerCordUntil = scene.time.now + (player.noAbilityCooldown ? MIN_ABILITY_COOLDOWN_MS : MOWER.cordMs);
     player.mower.stop().setVisible(false);
     stopEngine(player, { quiet });
@@ -707,6 +713,7 @@ function stopRide(player, nextState = 'ready', { quiet = false } = {}) {
 function knockOffMower(api, scene, player, victim) {
     const direction = Math.sign(player.body.velocity.x) || facingOf(player);
     stopRide(player, 'dismounted');
+    player.clippings = 0;
     player.mowerRemountAt = scene.time.now + (player.noAbilityCooldown ? MIN_ABILITY_COOLDOWN_MS : MOWER.remountMs);
     spawnLooseMower(api, scene, player, victim, direction);
 }
@@ -733,7 +740,7 @@ function spawnLooseMower(api, scene, player, victim, direction) {
     const colliders = [
         scene.physics.add.collider(mower, solid),
         scene.physics.add.collider(mower, thin, null, landsFromAbove),
-        scene.physics.add.overlap(mower, victim, () => {
+        ...api.overlapEnemies(scene, mower, player, victim => {
             if (hit || api.isInvincible(victim)) return;
             hit = true;
             victim.flash();
@@ -798,15 +805,18 @@ function eject(api, scene, player, victim, direction) {
         player.ejectEngines?.delete(engine);
         engine.stop();
         engine.destroy();
-        const near = Phaser.Math.Distance.Between(mower.x, mower.y, victim.x, victim.y) <= MOWER.ejectSplashRange;
-        if ((directHit || near) && victim.active && !api.isInvincible(victim)) {
-            grindExplosion(api, scene, player, victim, {
-                ...PLOW_EXPLOSION,
-                force: PLOW_EXPLOSION.force * MOWER.ejectKbScale,
-                ranged: true,
-                explosionScale: 0.9,
-                direction: { x: Math.sign(victim.x - mower.x) || direction, y: 0 }
-            });
+        const caught = api.getEnemies(scene, player).filter(enemy => !api.isInvincible(enemy) && (enemy === directHit ||
+            Phaser.Math.Distance.Between(mower.x, mower.y, enemy.x, enemy.y) <= MOWER.ejectSplashRange));
+        if (caught.length) {
+            for (const enemy of caught) {
+                grindExplosion(api, scene, player, enemy, {
+                    ...PLOW_EXPLOSION,
+                    force: PLOW_EXPLOSION.force * MOWER.ejectKbScale,
+                    ranged: true,
+                    explosionScale: 0.9,
+                    direction: { x: Math.sign(enemy.x - mower.x) || direction, y: 0 }
+                });
+            }
         } else {
             api.spawnExplosion(scene, mower, 0.9);
             scene.sound.play('explosion');
@@ -821,7 +831,7 @@ function eject(api, scene, player, victim, direction) {
     };
     colliders.push(
         scene.physics.add.collider(mower, solid, hitsWall),
-        scene.physics.add.overlap(mower, victim, () => explode(true)),
+        ...api.overlapEnemies(scene, mower, player, enemy => explode(enemy)),
         scene.physics.add.collider(mower, scene.planks, (_mower, plank) => {
             if (plank.health > 0) api.damagePlank(scene, plank, plank.health);
             explode(false);
@@ -904,7 +914,7 @@ function lawnmowerDirSpecial(api, scene, player, direction, currentTime, victim)
 function lawnmowerClippings(api, scene, player, victim) {
     setupMower(scene, player);
     const now = scene.time.now;
-    if (player.hitstun || player.freeze || player.clippings < 1) return;
+    if (player.hitstun || player.freeze || player.clippings < 1 || isWithoutMower(player)) return;
     if (now < player.nextClippingsTime) return;
     player.nextClippingsTime = now + CLIPPINGS.cooldownMs;
     player.clippings -= 1;
@@ -934,7 +944,7 @@ function throwClipping(api, scene, player, victim, dirX, dirY) {
     };
     const colliders = [
         scene.physics.add.collider(clipping, api.getMapPlatforms(scene), remove),
-        scene.physics.add.overlap(clipping, victim, () => {
+        ...api.overlapEnemies(scene, clipping, player, victim => {
             if (api.isInvincible(victim)) return;
             victim.flash();
             api.landHit(scene, player, victim, {
@@ -970,7 +980,7 @@ function updateMowerDirt(player, facing, active) {
 
 function holdClippings(api, scene, player, victim) {
     if (player.isBot || player.blocking || player.ledge) return;
-    const input = scene.playerInputs?.[player.id === 2 ? 'p2' : 'p1'];
+    const input = scene.playerInputs?.[player.slot];
     if (!input?.special || input.left || input.right) return;
     lawnmowerClippings(api, scene, player, victim);
 }
@@ -1107,14 +1117,16 @@ function dropMower(scene, player, victim) {
         colliders.forEach(collider => collider.destroy());
         removeUpdate();
         expire.remove(false);
-        const near = victim?.active &&
-            Phaser.Math.Distance.Between(mower.x, mower.y, victim.x, victim.y) <= SACRIFICE.splashRange;
-        if (near && !api.isInvincible(victim)) {
-            grindExplosion(api, scene, player, victim, {
-                ...PLOW_EXPLOSION,
-                ranged: true,
-                direction: { x: Math.sign(victim.x - mower.x) || facingOf(player), y: 0 }
-            });
+        const caught = api.getEnemies(scene, player).filter(enemy => !api.isInvincible(enemy) &&
+            Phaser.Math.Distance.Between(mower.x, mower.y, enemy.x, enemy.y) <= SACRIFICE.splashRange);
+        if (caught.length) {
+            for (const enemy of caught) {
+                grindExplosion(api, scene, player, enemy, {
+                    ...PLOW_EXPLOSION,
+                    ranged: true,
+                    direction: { x: Math.sign(enemy.x - mower.x) || facingOf(player), y: 0 }
+                });
+            }
         } else {
             api.spawnExplosion(scene, mower, 0.9);
             scene.sound.play('explosion');
@@ -1129,7 +1141,7 @@ function dropMower(scene, player, victim) {
             explode();
         })
     );
-    if (victim) colliders.push(scene.physics.add.overlap(mower, victim, explode));
+    colliders.push(...api.overlapEnemies(scene, mower, player, () => explode()));
     const removeUpdate = api.addSceneUpdateListener(scene, () => {
         if (!mower.active) return;
         const bounds = scene.physics.world.bounds;

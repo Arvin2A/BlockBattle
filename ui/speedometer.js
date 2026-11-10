@@ -13,8 +13,8 @@ const RECORDS_KEY = 'blockBattleBridgeRecordsRealSpeed';
 const LEGACY_RECORDS_KEY = 'blockBattleBridgeRecords';
 const PANEL = { y: 528, width: 250, height: 124 };
 const SLOTS = [
-    { key: 'player', x: 125, label: 'P1', color: COLORS.p1 },
-    { key: 'player2', x: 875, label: 'P2', color: COLORS.p2 }
+    { index: 0, x: 125, label: 'P1', color: COLORS.p1 },
+    { index: 1, x: 875, label: 'P2', color: COLORS.p2 }
 ];
 
 function loadRecords() {
@@ -76,7 +76,7 @@ function resetRun(scene, state) {
 
 export function createSpeedometers(scene, players) {
     const state = {
-        gauges: SLOTS.filter(slot => players[slot.key]).map(slot => createGauge(scene, slot, players[slot.key])),
+        gauges: SLOTS.filter(slot => players[slot.index]).map(slot => createGauge(scene, slot, players[slot.index])),
         records: loadRecords(),
         startedAt: scene.time.now,
         nextSaveAt: 0,

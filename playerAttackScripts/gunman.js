@@ -370,14 +370,16 @@ function chuck(api, scene, attacker, victim) {
         grenade.off('worldbounds', detonateAtWorldBounds);
         scene.events.off('update', detonateIfBelow);
     };
-    const detonate = (hitVictim = false) => {
+    const detonate = (hitVictim = null) => {
         if (detonated || !grenade.active) return;
         detonated = true;
+        const victim = hitVictim;
 
         if (hitVictim && victim.active && !api.isInvincible(victim) &&
             !api.blocksHit(scene, victim, attacker, 0.08, { ranged: true })) {
             const damageScale = api.getAttackDamageScale(attacker);
             victim.KBmultiplier += 0.08 * damageScale;
+            victim.lastHitBy = attacker;
             victim.hitstunUntil = Math.max(victim.hitstunUntil ?? 0, scene.time.now + GRENADE_HITSTUN);
             victim.willDecelerate = false;
             const knockback = GRENADE_KNOCKBACK * victim.KBmultiplier * damageScale;
@@ -409,7 +411,7 @@ function chuck(api, scene, attacker, victim) {
     };
 
     colliders.push(
-        scene.physics.add.collider(grenade, victim, () => detonate(true)),
+        ...api.getEnemies(scene, attacker).map(enemy => scene.physics.add.collider(grenade, enemy, () => detonate(enemy))),
         ...api.getProjectileBlockingPlatforms(scene, attacker).map(platform =>
             scene.physics.add.collider(grenade, platform, () => detonate())
         ),

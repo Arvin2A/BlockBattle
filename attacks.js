@@ -10,6 +10,7 @@
 //   characterStats.js per-character tuning read from playerAttackScripts/
 // Character-exclusive moves live in playerAttackScripts/ and get everything
 // through the `api` object at the bottom of this file.
+import { getEnemies, overlapEnemies } from './combat/targets.js';
 import { getCharacterScript, getAttackCooldown, getAttackDamageScale } from './combat/characterStats.js';
 import {
     addSceneUpdateListener,
@@ -295,28 +296,32 @@ export function tryAttack(scene, attacker, target, animKey, thirdAnimKey) {
     attacker.nextAttackTime = scene.time.now + getAttackCooldown(attacker);
 }
 
-export function downslamAttack(scene, attacker, target) {
+export function downslamAttack(scene, attacker) {
     attacker.isAttacking = false;
     spawnDirtBurst(scene, attacker.x, attacker.y, 16, 6, 10, 1.5);
     scene.sound.play('slamimpact');
 
-    const dx = target.x - attacker.x;
-    const dy = target.y - attacker.y;
-    if (Math.hypot(dx, dy) > 125 || isInvincible(target) || isBlockedByWall(attacker, target)) return false;
+    let hit = false;
+    for (const target of getEnemies(scene, attacker)) {
+        const dx = target.x - attacker.x;
+        const dy = target.y - attacker.y;
+        if (Math.hypot(dx, dy) > 125 || isInvincible(target) || isBlockedByWall(attacker, target)) continue;
 
-    const direction = dx === 0 ? (attacker.lastDir.x || 1) : Math.sign(dx);
-    target.flash();
-    landHit(scene, attacker, target, {
-        damage: 0.10,
-        plankDamage: 0,
-        hitstun: 500,
-        hitstunGrowth: false,
-        sound: 'anyhit',
-        resetCombo: false,
-        knockback: ({ kb }) => ({ x: 100 * kb * direction, y: -500 * kb }),
-        decelerateAfter: victim => 200 * victim.KBmultiplier
-    });
-    return true;
+        const direction = dx === 0 ? (attacker.lastDir.x || 1) : Math.sign(dx);
+        target.flash();
+        landHit(scene, attacker, target, {
+            damage: 0.10,
+            plankDamage: 0,
+            hitstun: 500,
+            hitstunGrowth: false,
+            sound: 'anyhit',
+            resetCombo: false,
+            knockback: ({ kb }) => ({ x: 100 * kb * direction, y: -500 * kb }),
+            decelerateAfter: victim => 200 * victim.KBmultiplier
+        });
+        hit = true;
+    }
+    return hit;
 }
 
 const sharedAttackHelpers = {
@@ -364,6 +369,8 @@ const sharedAttackHelpers = {
     hasOwnGrassNear,
     getGrassPlatform,
     triggerScreenShake,
+    getEnemies,
+    overlapEnemies,
     distanceBetween: (first, second) => Phaser.Math.Distance.Between(
         first.x, first.y, second.x, second.y
     )
