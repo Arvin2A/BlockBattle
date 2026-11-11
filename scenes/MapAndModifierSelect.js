@@ -3,6 +3,7 @@
 // Licensed under the GNU GPL v3 only. See LICENSE.
 
 import Phaser from 'phaser';
+import { addSettingsButton } from '../ui/settings.js';
 import { DEFAULT_MAP, MAP_LIST, SECRET_MAPS, getRandomMap } from './GameScene/MapDefinitions.js';
 import { preloadMapSelection } from './GameScene/preload.js';
 import { fadeOutTo } from './transitions.js';
@@ -117,6 +118,7 @@ export class MapAndModifierSelectScene extends Phaser.Scene {
 
 	create(data = {}) {
 		this.cameras.main.fadeIn(200, 0, 0, 0);
+		addSettingsButton(this);
 		this.cameras.main.setBackgroundColor('#1b1b1b');
 		this.page = data.page === 'modifiers' ? 'modifiers' : 'maps';
 

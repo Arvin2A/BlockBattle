@@ -17,7 +17,8 @@ import { END_REASONS } from '../mp/protocol.js';
 import { encodeButtons, readControllerInput, INPUT_BUTTONS } from '../input.js';
 import { QuickChat } from './OnlineQuickChat.js';
 import { COLORS, FONTS, makeButton, makePanel } from '../ui/theme.js';
-import { addTouchAssist, isPhoneScreen } from '../ui/touchAssist.js';
+import { addTouchAssist } from '../ui/touchAssist.js';
+import { addSettingsButton, useMatchVolume, usesThumbstick } from '../ui/settings.js';
 import { addThumbstick } from '../ui/touchJoystick.js';
 import { hasMiscButton } from '../attacks.js';
 import { PLAYER_COLORS, isTeamMode } from '../matchModes.js';
@@ -89,6 +90,7 @@ export class OnlineGameScene extends Phaser.Scene {
         // Same two cameras, created in the same order, as GameScene so the
         // mirrored "which camera draws this" filters mean the same thing here.
         this.hudCam = this.cameras.add(0, 0, 1000, 600, false, 'hudCam');
+        useMatchVolume(this);
         this.cameras.main.fadeIn(500, 0, 0, 0);
 
         this.mirror = new MirrorView(this);
@@ -379,6 +381,7 @@ export class OnlineOverlayScene extends Phaser.Scene {
             this.createForfeitButton();
         }
         else if (roster.length === 2) this.createKeyGuides(slot);
+        addSettingsButton(this, { x: this.forfeitButton ? 912 : 968, depth: 4000 });
 
         const versus = others.length === 1
             ? `VS ${others[0].name}`
@@ -527,11 +530,13 @@ export class OnlineOverlayScene extends Phaser.Scene {
         // Phaser only tracks one finger by default; allow multi-touch like the local game does.
         const extraPointers = 6 - this.input.manager.pointersTotal;
         if (extraPointers > 0) this.input.addPointer(extraPointers);
-        const phone = isPhoneScreen();
+        const phone = usesThumbstick();
         const layout = phone ? [
+            [850, 330, '↑', 'up'],
+            [850, 420, '↓', 'down'],
             [940, 420, 'A', 'attack'],
             [940, 330, 'S', 'special'],
-            [850, 420, 'B', 'block']
+            [760, 330, 'B', 'block']
         ] : [
             [60, 420, '←', 'left'],
             [240, 420, '→', 'right'],

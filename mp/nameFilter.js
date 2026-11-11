@@ -17,7 +17,7 @@ const MIN_HIDDEN_WORD_LENGTH = 6;
 const SAFE_WORDS = [
     'therapist', 'scraping', 'draping', 'trimming', 'brimming', 'thumping',
     'socialis', 'specialis', 'commercialis', 'provincialis', 'sclerotic', 'snigger',
-    'scunthorpe', 'shiitake', 'shitake',
+    'scunthorpe', 'shiitake', 'shitake', 'chigger',
     'dickens', 'dickinson', 'dickson', 'dickey', 'dicker', 'benedick',
     'cocktail', 'cockatoo', 'cockatiel', 'cockpit', 'cockroach', 'cockney', 'cockle', 'cockerel',
     'cockade', 'cockamamie', 'cocky', 'cockier', 'cockiest', 'cockily', 'cockiness', 'cocksure', 'cockeyed',
@@ -103,12 +103,46 @@ function entryPattern(pieces, wild) {
         : `(?:${alts.map(alt => runPattern(alt, wild)).join('|')})`).join('');
 }
 
+const PHRASE_FILLERS = [
+    'a', 'an', 'the', 'is', 'are', 'r', 'so', 'such', 'da', 'all', 'every', 'them', 'those',
+    'some', 'just', 'also', 'like', 'very', 'totally', 'being', 'kinda', 'lowkey', 'fr', 'big'
+];
+const PHRASE_GAP = `(?: ?(?:${PHRASE_FILLERS.join('|')}))* ?`;
+
+function phrasePattern(line, iOrL) {
+    const anchored = /\s\$$/.test(line);
+    const body = anchored ? line.replace(/\s\$$/, '') : line;
+    const pieces = body.match(/\{[^}]*\}|[^\s{}]+/g) ?? [];
+    const parts = pieces.map(piece => {
+        const alts = piece.startsWith('{') ? piece.slice(1, -1).split('|') : [piece];
+        const options = alts.map(alt => alt.trim().split(/\s+/).filter(Boolean)
+            .map(word => runPattern(normalize(word, iOrL).replace(/[^a-z]/g, ''), false))
+            .join(' ?'));
+        return `(?:${options.join('|')})`;
+    });
+    if (!parts.length) return null;
+    return new RegExp(`(?:^| )${parts.join(PHRASE_GAP)}s*${anchored ? '$' : '(?: |$)'}`);
+}
+
+function phraseText(name, iOrL) {
+    const spaced = toAsciiName(name).replace(/([a-z])([A-Z])/g, '$1 $2');
+    return normalize(spaced, iOrL).replace(/[^a-z]+/g, ' ').trim();
+}
+
 export function createNameFilter(wordListText) {
     const wholeWords = [];
     const hiddenWords = [];
     const wildWholeWords = [];
     const wildHiddenWords = [];
+    const phrases = { i: [], l: [] };
     for (const line of String(wordListText ?? '').split(/\r?\n/)) {
+        if (line.startsWith('&')) {
+            for (const iOrL of ['i', 'l']) {
+                const pattern = phrasePattern(line.slice(1).trim(), iOrL);
+                if (pattern) phrases[iOrL].push(pattern);
+            }
+            continue;
+        }
         const anywhere = line.startsWith('*');
         const wholeOnly = line.startsWith('=');
         const pieces = parseEntry(anywhere || wholeOnly ? line.slice(1) : line);
@@ -163,8 +197,15 @@ export function createNameFilter(wordListText) {
         });
     }
 
+    function hasPhrase(name) {
+        return ['i', 'l'].some(iOrL => {
+            const text = phraseText(name, iOrL);
+            return Boolean(text) && phrases[iOrL].some(pattern => pattern.test(text));
+        });
+    }
+
     return function isNameBlocked(name) {
-        if (checkName(name)) return true;
+        if (checkName(name) || hasPhrase(name)) return true;
         return swappedStarts(name).some(([a, b]) => isWholeWord(a) || isWholeWord(b) || isWholeWord(`${a} ${b}`));
     };
 }

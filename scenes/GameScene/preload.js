@@ -4,6 +4,8 @@
 
 export function preloadMenu() {
     this.load.image('menuBackground', 'assets/menu/Homescreen.png');
+    this.load.image('settingsBtn', 'assets/ingame/settingsBtn.png');
+    this.load.image('pressedSettingsBtn', 'assets/ingame/pressedSettingsBtn.png');
     this.load.image('uifade', 'assets/menu/uifade.png');
     this.load.audio('hover', 'audio/hover.wav');
     this.load.audio('buttonhover', 'audio/buttonhover.wav');
@@ -137,6 +139,8 @@ export function preload() {
     this.load.image('restartBtnPressed', 'assets/ingame/pressedRestart.png');
 
     this.load.image('gohomeBtn', 'assets/ingame/goHomeBtn.png');
+    this.load.image('settingsBtn', 'assets/ingame/settingsBtn.png');
+    this.load.image('pressedSettingsBtn', 'assets/ingame/pressedSettingsBtn.png');
     this.load.image('gohomeBtnPressed', 'assets/ingame/pressedgoHome.png');
     this.load.image('forfeitBtn', 'assets/ingame/forfeitBtn.png');
 

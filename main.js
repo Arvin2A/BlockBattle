@@ -7,7 +7,8 @@ import {handleAttack, handleMatchEnd, tryExtraJump, handleDirSpecial, handleNeut
 import { COLORS, FONTS, HEX, makePanel, textStyle } from './ui/theme.js';
 import { MATCH_LIVES, PLAYER_COLORS, buildRoster, isTeamMode } from './matchModes.js';
 import { isAlive, nearestEnemy } from './combat/targets.js';
-import { addTouchAssist, isPhoneScreen } from './ui/touchAssist.js';
+import { addTouchAssist } from './ui/touchAssist.js';
+import { addSettingsButton, applyVolume, openSettings, useMatchVolume, usesThumbstick } from './ui/settings.js';
 import { addThumbstick } from './ui/touchJoystick.js';
 import { createSpeedometers, updateSpeedometers } from './ui/speedometer.js';
 import { playModifierIntro } from './ui/modifierIntro.js';
@@ -230,7 +231,10 @@ loadFont().then(() => {
     game = isAuthority()
         ? createAuthorityGame(Phaser, config, GameScene)
         : new Phaser.Game(config);
-    if (!isAuthority()) game.events.once('ready', () => addButtonHoverSounds(game));
+    if (!isAuthority()) game.events.once('ready', () => {
+        addButtonHoverSounds(game);
+        applyVolume(game, false);
+    });
 });
 
 // Every interactive object in these scenes is UI, so hovering any of them plays
@@ -616,6 +620,7 @@ function releaseMobileControls() {
 function create() {
     this.online = isAuthority();
     if (this.online) beginAuthorityCapture(this);
+    else useMatchVolume(this);
     this.matchSettings = getMatchSettings();
     this.playerInputs = Object.fromEntries(this.matchSettings.players.map(({ slot }) => [slot, createInputState()]));
     this.gamePaused = false;
@@ -837,11 +842,13 @@ function create() {
         const p1 = mobileControls.p1;
         const p2 = mobileControls.p2;
 
-        const p1Thumbstick = botMode && !simulationMode && isPhoneScreen();
+        const p1Thumbstick = botMode && !simulationMode && usesThumbstick();
         const p1Buttons = botMode ? (p1Thumbstick ? [
+            [850, 330, '↑', p1, 'up'],
+            [850, 420, '↓', p1, 'down'],
             [940, 420, 'A', p1, 'attack'],
             [940, 330, 'S', p1, 'special'],
-            [850, 420, 'B', p1, 'block']
+            [760, 330, 'B', p1, 'block']
         ] : [
             [60, 420, '←', p1, 'left'],
             [240, 420, '→', p1, 'right'],
@@ -913,12 +920,13 @@ function create() {
             if (simulationMode) continue;
 
             const x = player.id === 1 ? (botMode ? 760 : 330) : 650;
-            const button = this.add.circle(x, 420, botMode ? 45 : 34, 0x000000, 0.55)
+            const y = 420;
+            const button = this.add.circle(x, y, botMode ? 45 : 34, 0x000000, 0.55)
                 .setScrollFactor(0)
                 .setDepth(999)
                 .setInteractive()
                 .setData('silentHover', true);
-            const label = this.add.text(x, 420, 'ALT', {
+            const label = this.add.text(x, y, 'ALT', {
                 fontSize: '24px',
                 color: '#ffffff',
                 fontFamily: 'VCROSD'
@@ -1085,35 +1093,38 @@ function create() {
         .setDepth(2000)
         .setInteractive()
         .setVisible(false);
-    this.pauseResumeButton = this.add.image(350, 300, 'resumeBtn')
+    this.pauseResumeButton = this.add.image(300, 300, 'resumeBtn')
         .setScale(0.35)
         .setScrollFactor(0)
         .setDepth(2001)
         .setInteractive({ useHandCursor: true })
         .setVisible(false);
-    this.pauseMenuButton = this.add.image(650, 300, 'gohomeBtn')
+    this.pauseSettingsButton = this.add.image(500, 300, 'settingsBtn')
         .setScale(0.35)
         .setScrollFactor(0)
         .setDepth(2001)
         .setInteractive({ useHandCursor: true })
         .setVisible(false);
-    this.pauseButton = this.add.image(968, 32, 'gohomeBtn')
-        .setScale(0.12)
+    this.pauseMenuButton = this.add.image(700, 300, 'gohomeBtn')
+        .setScale(0.35)
         .setScrollFactor(0)
-        .setDepth(1999)
-        .setInteractive({ useHandCursor: true });
+        .setDepth(2001)
+        .setInteractive({ useHandCursor: true })
+        .setVisible(false);
 
     this.hud.add(this.pauseOverlay);
     this.hud.add(this.pauseResumeButton);
+    this.hud.add(this.pauseSettingsButton);
     this.hud.add(this.pauseMenuButton);
-    this.hud.add(this.pauseButton);
     this.perspective = !this.online && this.gameState.map.infinite ? createPerspectiveSwitch(this) : null;
 
     this.resumeGame = () => {
         if (!this.gamePaused) return;
         this.gamePaused = false;
         this.pauseOverlay.setVisible(false);
+        this.settingsPanel?.close();
         this.pauseResumeButton.setVisible(false);
+        this.pauseSettingsButton.setVisible(false);
         this.pauseMenuButton.setVisible(false);
         this.pauseButton.setVisible(true);
         this.physics.world.resume();
@@ -1122,19 +1133,21 @@ function create() {
         this.sound.resumeAll();
     };
 
-    this.pauseButton.on('pointerdown', () => {
+    this.pauseButton = addSettingsButton(this, { depth: 1999, container: this.hud, onPress: () => {
         if (this.gamePaused || this.gameEnded) return;
         this.gamePaused = true;
-        this.pauseButton.setVisible(false);
+        this.pauseButton.setVisible(false).setTexture('settingsBtn');
         this.pauseOverlay.setVisible(true);
         this.pauseResumeButton.setVisible(true);
+        this.pauseSettingsButton.setVisible(true);
         this.pauseMenuButton.setVisible(true);
         this.physics.world.pause();
         this.time.paused = true;
         this.tweens.pauseAll();
         this.sound.pauseAll();
-    });
+    } });
     this.pauseResumeButton.on('pointerdown', () => this.resumeGame());
+    this.pauseSettingsButton.on('pointerdown', () => openSettings(this, { container: this.hud }));
     this.pauseMenuButton.on('pointerdown', () => {
         fadeOutTo(this, () => {
             this.sound.stopAll();
