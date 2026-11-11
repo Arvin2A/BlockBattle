@@ -3,6 +3,7 @@
 // Licensed under the GNU GPL v3 only. See LICENSE.
 
 import Phaser from 'phaser';
+import { addSettingsButton } from '../ui/settings.js';
 import { preload as preloadMatch, preloadMenu, preloadCharacterSelection, preloadMapSelection } from './GameScene/preload.js';
 import { fadeOutTo } from './transitions.js';
 import { CHARACTER_ROSTER } from '../characterRoster.js';
@@ -212,6 +213,7 @@ export class OnlineLobbyScene extends Phaser.Scene {
 
     create() {
         this.cameras.main.fadeIn(200, 0, 0, 0);
+        addSettingsButton(this);
         this.add.image(500, 300, 'menuBackground').setDisplaySize(1000, 600);
         this.add.rectangle(500, 300, 1000, 600, 0x000000, 0.7);
 

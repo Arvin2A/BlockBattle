@@ -3,6 +3,10 @@
 ## 2026-11-10
 
 ### Added
+- A SETTINGS button (the gear) in the top right of every screen. It has MASTER VOLUME, IN GAME VOLUME (sounds during matches) and, on touchscreens, TOUCH CONTROLS to switch between DPAD and THUMBSTICK. Settings are saved on your device.
+  - In a match the gear replaces the home icon and opens the pause menu, which now has RESUME, SETTINGS and HOME.
+  - Online, the gear opens settings straight away (it sits next to FORFEIT on phones).
+  - TOUCH CONTROLS defaults to THUMBSTICK on phones and DPAD on bigger touchscreens.
 - Private lobbies. Turn on PRIVATE in CREATE LOBBY and your lobby stays out of BROWSE LOBBIES. Empty slots show INVITE ONLY, and the host gets an INVITE button that lists everyone waiting in the online menu.
   - Invited players get a popup with ACCEPT and DECLINE. It goes away on its own after 30 seconds.
   - Only invited players can join a private lobby.
@@ -10,6 +14,8 @@
 ### Changed
 - The score that pops up after a KO now shows each player's lives left in every mode, including 1v1 (it used to show KOs in 1v1).
 - Those score numbers are now colored to match each player (gray for CPUs) instead of white.
+- The thumbstick only moves you left and right now. Jumping and downslamming use new up and down buttons on the right, laid out as B, up, S on top and ALT, down, A below.
+- More offensive names are blocked online: misspellings and letter swaps of slurs and infamous names, hate codes, Diddy and 9/11 jokes, and phrases aimed at someone's race, religion or sexuality (like "ur ___").
 - Blocking rewards timing. Block right as a hit lands and the attacker freezes for much longer (up to 0.8 seconds). The longer you've been holding block, the shorter the freeze, down to a small minimum.
 - MALLET HAMMERMAN's swing hits harder (0.13 to 0.20 damage) and stuns longer.
 - LAWNMOWER's plow does a lot less chip damage, barely dents shields, and no longer builds toward its explosion while you're blocking it.

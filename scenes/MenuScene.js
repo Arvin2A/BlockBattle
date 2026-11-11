@@ -3,6 +3,7 @@
 // Licensed under the GNU GPL v3 only. See LICENSE.
 
 import Phaser from 'phaser';
+import { addSettingsButton } from '../ui/settings.js';
 
 import { changeBotMode, simulationMode } from "../gameSettings.js";
 import { preloadMenu } from "./GameScene/preload.js";
@@ -17,7 +18,7 @@ var navBox = null;
 var layout = []
 var selectedIndex = 0;
 var previousInput = {};
-const CHANGELOG_VERSION = "2026-11-10-2";
+const CHANGELOG_VERSION = "2026-11-10-3";
 const MIN_VERSION_COLOR_BRIGHTNESS = 170;
 
 function getVersionColor(version) {
@@ -64,6 +65,7 @@ export class MenuScene extends Phaser.Scene {
 
     create() {
         this.cameras.main.fadeIn(200, 0, 0, 0);
+        addSettingsButton(this);
         const bg = this.add.image(500, 300, 'menuBackground');
         bg.setDisplaySize(this.scale.width, this.scale.height);
         // Create menu UI elements here
@@ -80,6 +82,14 @@ export class MenuScene extends Phaser.Scene {
         this.input.topOnly = false;
 
         const changelogEntries = [
+            {
+                title: "SETTINGS",
+                body: "There's a gear in the top right of every screen now. Tap it to change the master volume, the volume of sounds in matches, and on touchscreens, whether you play with the DPAD or the THUMBSTICK.\n In a match the gear pauses the game like the home button used to, and the pause menu has a settings button right in the middle."
+            },
+            {
+                title: "BETTER PHONE CONTROLS",
+                body: "Double jumps and SMACK DOWNs on phones were a pain, so the thumbstick only moves you left and right now. Jump and downslam with the new up and down buttons on the right, next to B, S, A and ALT.\n We also blocked a bunch more nasty names online, including sneaky misspellings."
+            },
             {
                 title: "PRIVATE LOBBIES",
                 body: "Want to play with just your friends? Turn on PRIVATE when you create a lobby and it won't show up in BROWSE LOBBIES. Hit INVITE to see everyone waiting in the online menu and send them an invite.\n They get a popup to ACCEPT or DECLINE, and nobody gets in without one."
@@ -334,7 +344,7 @@ export class MenuScene extends Phaser.Scene {
 
         const changelogBlurb = this.add.text(
             40, 180,
-            "Private lobbies are here! Turn on PRIVATE when you create a lobby and invite whoever you want from the online menu. Blocking also rewards timing now, so block right as the hit lands.",
+            "Hit the new gear in the top right to change the volume or switch between DPAD and THUMBSTICK on touchscreens. Phone controls got up and down buttons too, so double jumps and SMACK DOWNs are way easier.",
             {
                 fontFamily: "VCROSD",
                 fontSize: "16px",

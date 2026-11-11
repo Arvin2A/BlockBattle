@@ -4,9 +4,8 @@
 
 import { HEX } from './theme.js';
 
-const DIRECTIONS = ['left', 'right', 'up', 'down'];
+const DIRECTIONS = ['left', 'right'];
 const HORIZONTAL_DEADZONE = 0.35;
-const VERTICAL_DEADZONE = 0.55;
 
 export function addThumbstick(scene, { x, y, radius = 80, onChange, container = null }) {
     const base = scene.add.circle(x, y, radius, HEX.panel, 0.4)
@@ -21,7 +20,7 @@ export function addThumbstick(scene, { x, y, radius = 80, onChange, container = 
     container?.add(base);
     container?.add(knob);
 
-    const held = { left: false, right: false, up: false, down: false };
+    const held = { left: false, right: false };
     let pointerId = null;
 
     const setHeld = next => {
@@ -33,18 +32,11 @@ export function addThumbstick(scene, { x, y, radius = 80, onChange, container = 
     };
 
     const follow = pointer => {
-        const dx = pointer.x - x;
-        const dy = pointer.y - y;
-        const distance = Math.hypot(dx, dy);
-        const scale = distance > radius ? radius / distance : 1;
-        knob.setPosition(x + dx * scale, y + dy * scale);
-        const nx = dx * scale / radius;
-        const ny = dy * scale / radius;
+        const nx = Phaser.Math.Clamp((pointer.x - x) / radius, -1, 1);
+        knob.setPosition(x + nx * radius, y);
         setHeld({
             left: nx < -HORIZONTAL_DEADZONE,
-            right: nx > HORIZONTAL_DEADZONE,
-            up: ny < -VERTICAL_DEADZONE,
-            down: ny > VERTICAL_DEADZONE
+            right: nx > HORIZONTAL_DEADZONE
         });
     };
 
@@ -59,7 +51,7 @@ export function addThumbstick(scene, { x, y, radius = 80, onChange, container = 
         if (pointer.id !== pointerId) return;
         pointerId = null;
         knob.setPosition(x, y).setFillStyle(HEX.border, 0.35);
-        setHeld({ left: false, right: false, up: false, down: false });
+        setHeld({ left: false, right: false });
     };
 
     const move = pointer => {

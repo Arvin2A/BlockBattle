@@ -3,6 +3,7 @@
 // Licensed under the GNU GPL v3 only. See LICENSE.
 
 import Phaser from 'phaser';
+import { addSettingsButton } from '../ui/settings.js';
 import {
     botMode,
     simulationMode,
@@ -45,6 +46,7 @@ export class CharacterSelectScene extends Phaser.Scene {
 
     create() {
         this.cameras.main.fadeIn(200, 0, 0, 0);
+        addSettingsButton(this);
 
         // -----------------------------
         // DATA
