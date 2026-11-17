@@ -29,7 +29,10 @@ export function getMenuGamepadInput(pad) {
             right: false,
             up: false,
             down: false,
-            a: false
+            a: false,
+            b: false,
+            lb: false,
+            rb: false
         };
     }
 
@@ -46,7 +49,10 @@ export function getMenuGamepadInput(pad) {
         right: pressed(15) || Math.round(x) > 0,
         up: pressed(12) || pressed(3),
         down: pressed(13) || Math.round(y) > 0,
-        a: pressed(0)
+        a: pressed(0),
+        b: pressed(1),
+        lb: pressed(4),
+        rb: pressed(5)
     };
 }
 

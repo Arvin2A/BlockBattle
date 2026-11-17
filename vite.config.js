@@ -4,8 +4,8 @@
 
 import { defineConfig } from 'vite'
 
-export default defineConfig(() => ({
-  base: process.env.INFINITYFREE === 'true' ? '/' : '/BlockBattle/',
+export default defineConfig(({ mode }) => ({
+  base: mode === 'desktop' || process.env.INFINITYFREE === 'true' ? '/' : '/BlockBattle/',
   build: {
     outDir: process.env.BUILD_DIR || 'dist',
     emptyOutDir: true

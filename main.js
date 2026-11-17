@@ -3,12 +3,15 @@
 // Licensed under the GNU GPL v3 only. See LICENSE.
 
 import Phaser from 'phaser';
-import {handleAttack, handleMatchEnd, tryExtraJump, handleDirSpecial, handleNeutralSpecial, handleDirSpecialAttack, handleHorizantalTilt, handleDownTilt, handleUpTilt, downslamAttack, updateScythemanGrass, updateChainsawWood, updateCharacter, handleMisc, hasMiscButton, usesToggleAttack, getSpecialMeter, tryQuickslamJump, positionAttackSprite, hasIdleAttackSprite, getAttackSpriteOffset, getAttackSpriteAngle, getAttackSpriteFlipX, triggerScreenShake, spawnDirtBurst, spawnExplosion} from './attacks.js';
+import {handleAttack, handleMatchEnd, tryExtraJump, handleDirSpecial, handleNeutralSpecial, handleDirSpecialAttack, handleHorizantalTilt, handleDownTilt, handleUpTilt, downslamAttack, updateScythemanGrass, updateChainsawWood, updateCharacter, handleMisc, hasMiscButton, usesToggleAttack, getSpecialMeter, tryQuickslamJump, positionAttackSprite, hasIdleAttackSprite, getAttackSpriteOffset, getAttackSpriteAngle, getAttackSpriteFlipX, getAttackSpriteScale, triggerScreenShake, spawnDirtBurst, spawnExplosion} from './attacks.js';
 import { COLORS, FONTS, HEX, makePanel, textStyle } from './ui/theme.js';
 import { MATCH_LIVES, PLAYER_COLORS, buildRoster, isTeamMode } from './matchModes.js';
 import { isAlive, nearestEnemy } from './combat/targets.js';
 import { addTouchAssist } from './ui/touchAssist.js';
-import { addSettingsButton, applyVolume, openSettings, useMatchVolume, usesThumbstick } from './ui/settings.js';
+import { addSettingsButton, applyVolume, getScreenShakeScale, openSettings, useMatchVolume, usesThumbstick } from './ui/settings.js';
+import { buttonTexture, getButtonTint, skinButton } from './ui/matchButtons.js';
+import { openAdvancedInfo } from './ui/advancedInfo.js';
+import { CHARACTER_ROSTER } from './characterRoster.js';
 import { addThumbstick } from './ui/touchJoystick.js';
 import { createSpeedometers, updateSpeedometers } from './ui/speedometer.js';
 import { playModifierIntro } from './ui/modifierIntro.js';
@@ -22,7 +25,7 @@ import { updateCrashes } from './combat/crash.js';
 import { KILLZONE, attachKillzoneWalls } from './combat/borders.js';
 import { INFINITE_SPAN } from './scenes/GameScene/MapDefinitions.js';
 import { updateUniversalMoves, isUniversalBusy, tryLedgeGrab, hideWeaponsForUniversalMoves, restoreHiddenWeapons } from './combat/universalMoves.js';
-import { updateLaunchArc, isInvincible } from './combat/knockback.js';
+import { updateLaunchArc, isInvincible, applyVictimShakes, restoreVictimShakes } from './combat/knockback.js';
 import { MenuScene } from './scenes/MenuScene.js';
 import { fadeOutTo } from './scenes/transitions.js';
 import { player1Character, player2Character, player1Variant, player2Variant, CharacterSelectScene } from './scenes/CharacterSelectScreen.js';
@@ -32,11 +35,14 @@ import { createGameAnimations } from './scenes/GameScene/animations.js';
 import { runBotAI } from './scenes/GameScene/botAI.js';
 import { runBotAI as runLegacyBotAI } from './scenes/GameScene/botAILegacy.js'; // BENCHMARK-TEMP
 import { Map } from './scenes/GameScene/Map.js';
+import { getMapEvent } from './scenes/GameScene/mapEvents.js';
+import { getHeatStat, getCharacterStat } from './combat/characterStats.js';
+import { updateBurn } from './combat/heat.js';
 import { getActiveKillZones, modifierOptions } from './scenes/MapAndModifierSelect.js';
 import UIPlugin from 'phaser4-rex-plugins/templates/ui/ui-plugin.js';
 import unmuteAudio from 'unmute-ios-audio';
 import { botMode, simulationMode, changeBotMode } from './gameSettings.js';
-import { createInputState, applyInputFrame, consumePress, emptyControllerInput } from './input.js';
+import { createInputState, applyInputFrame, consumePress, emptyControllerInput, INPUT_BUTTONS } from './input.js';
 import { isAuthority, beginAuthorityCapture, attachAuthority, consumeLeftPlayers, createAuthorityGame, getOnlineMatchSettings, pollNetworkInput, reportMatchEnd } from './mp/authority.js';
 import { OnlineLobbyScene } from './scenes/OnlineLobbyScene.js';
 import { OnlineGameScene, OnlineOverlayScene } from './scenes/OnlineGameScene.js';
@@ -165,6 +171,7 @@ class GameScene extends Phaser.Scene {
         const fighters = () => Object.values(this.gameState.players ?? {});
         const restore = () => {
             restoreSquash(fighters());
+            restoreVictimShakes(fighters());
             restoreHiddenWeapons(fighters());
         };
         this.events.on('preupdate', restore);
@@ -177,6 +184,7 @@ class GameScene extends Phaser.Scene {
         settleNoGravity(this);
         updateCrashes(this, Object.values(this.gameState.players ?? {}));
         applySquash(this, Object.values(this.gameState.players ?? {}));
+        applyVictimShakes(this, Object.values(this.gameState.players ?? {}));
         hideWeaponsForUniversalMoves(Object.values(this.gameState.players ?? {}));
     }
 }
@@ -592,6 +600,7 @@ function updateMapHazard(scene) {
         if (now >= active.endsAt) {
             hazard.end?.(scene, active.state);
             scene.activeHazard = null;
+            if (modifierOptions.NO_MERCY.enabled) scene.nextHazardCheckAt = now;
         } else {
             hazard.update?.(scene, active.state, now);
         }
@@ -600,12 +609,33 @@ function updateMapHazard(scene) {
 
     if (scene.matchStartTime !== null && now >= scene.nextHazardCheckAt) {
         scene.nextHazardCheckAt = now + (hazard.checkInterval ?? 5000);
-        if (Math.random() < (hazard.chance ?? 0.5)) {
+        const chance = modifierOptions.NO_MERCY.enabled ? 1 : (hazard.chance ?? 0.5);
+        if (Math.random() < chance) {
             scene.activeHazard = {
                 state: hazard.start?.(scene) ?? {},
                 endsAt: now + (hazard.duration ?? 5000)
             };
         }
+    }
+}
+
+function updateMapEvent(scene) {
+    const event = scene.mapEvent;
+    if (!event || scene.matchStartTime === null) return;
+    const delta = scene.hitFreezeUntil > scene.time.now ? 0 : scene.game.loop.delta;
+    scene.mapEventTimer += delta;
+    if (scene.activeMapEvent) {
+        if (event.update(scene, scene.activeMapEvent, delta)) {
+            event.end?.(scene, scene.activeMapEvent);
+            scene.activeMapEvent = null;
+            if (event.intervalFromEnd) scene.mapEventTimer = 0;
+        }
+        return;
+    }
+    const interval = modifierOptions.NO_MERCY.enabled ? (event.noMercyInterval ?? event.interval * 0.5) : event.interval;
+    if (scene.mapEventTimer >= interval) {
+        scene.mapEventTimer = 0;
+        scene.activeMapEvent = event.start(scene);
     }
 }
 
@@ -651,6 +681,8 @@ function create() {
     this.mapHazard = null;
     this.activeHazard = null;
     this.nextHazardCheckAt = 0;
+    this.mapEventTimer = 0;
+    this.activeMapEvent = null;
 
 
     this.gameState = {
@@ -678,7 +710,8 @@ function create() {
     this.mobileButtons = Object.fromEntries(this.matchSettings.players.map(({ slot }) => [slot, []]));
     const mapDefinition = getMatchMapDefinition();
     this.gameState.map = new Map(this, mapDefinition);
-    if (modifierOptions.MAP_HAZARDS.enabled) {
+    this.mapEvent = modifierOptions.NO_DANGERS.enabled ? null : getMapEvent(mapDefinition.mapEvent);
+    if (modifierOptions.MAP_HAZARDS.enabled || modifierOptions.NO_MERCY.enabled) {
         this.mapHazard = mapDefinition.hazard ?? null;
     }
     this.nextHazardCheckAt = this.time.now + 5000;
@@ -693,11 +726,13 @@ function create() {
 
     restartBtn = this.add.image(425,450, 'restartBtn');
     restartBtn.setScale(0.25);
+    skinButton(this, restartBtn);
     restartBtn.setVisible(false);
     this.hud.add(restartBtn);
 
     restartBtnPressed = this.add.image(425,450, 'restartBtnPressed');
     restartBtnPressed.setScale(0.25);
+    skinButton(this, restartBtnPressed);
     restartBtnPressed.setVisible(false);
     this.hud.add(restartBtnPressed)
 
@@ -723,11 +758,13 @@ function create() {
 
     homeBtn = this.add.image(600,450, 'gohomeBtn');
     homeBtn.setScale(0.25);
+    skinButton(this, homeBtn);
     homeBtn.setVisible(false);
     this.hud.add(homeBtn);
 
     homeBtnPressed = this.add.image(600,450, 'gohomeBtnPressed');
     homeBtnPressed.setScale(0.25);
+    skinButton(this, homeBtnPressed);
     homeBtnPressed.setVisible(false);
     this.hud.add(homeBtnPressed)
 
@@ -802,6 +839,8 @@ function create() {
             .setDepth(1000);
 
             btn.activePointerID = null;
+            btn.inputKey = keyRef.key;
+            btn.label = label;
 
             const press = (pointer) => {
                 keyRef.obj[keyRef.key] = true;
@@ -819,13 +858,13 @@ function create() {
                     inputMode.p2 = "touch";
                 }
                 btn.activePointerID = pointer.id;
-                btn.setFillStyle(0xFFFFFF, 0.5);
+                if (!btn.locked) btn.setFillStyle(0xFFFFFF, 0.5);
             };
             const release = (pointer) => {
                 if (pointer.id === btn.activePointerID) {
                     keyRef.obj[keyRef.key] = false;
                     btn.activePointerID = null;
-                    btn.setFillStyle(0x000000, 0.5);
+                    btn.setFillStyle(btn.locked ? LOCKED_BUTTON_FILL : 0x000000, 0.5);
                 }
             };
 
@@ -1093,39 +1132,42 @@ function create() {
         .setDepth(2000)
         .setInteractive()
         .setVisible(false);
-    this.pauseResumeButton = this.add.image(300, 300, 'resumeBtn')
+    const makePauseButton = (x, key) => skinButton(this, this.add.image(x, 300, key)
         .setScale(0.35)
         .setScrollFactor(0)
         .setDepth(2001)
         .setInteractive({ useHandCursor: true })
-        .setVisible(false);
-    this.pauseSettingsButton = this.add.image(500, 300, 'settingsBtn')
-        .setScale(0.35)
-        .setScrollFactor(0)
-        .setDepth(2001)
-        .setInteractive({ useHandCursor: true })
-        .setVisible(false);
-    this.pauseMenuButton = this.add.image(700, 300, 'gohomeBtn')
-        .setScale(0.35)
-        .setScrollFactor(0)
-        .setDepth(2001)
-        .setInteractive({ useHandCursor: true })
-        .setVisible(false);
+        .setVisible(false));
+    this.pauseResumeButton = makePauseButton(200, 'resumeBtn');
+    this.pauseInfoButton = makePauseButton(400, 'characterInfoBtn');
+    this.pauseSettingsButton = makePauseButton(600, 'settingsBtn');
+    this.pauseMenuButton = makePauseButton(800, 'gohomeBtn');
+    const pauseMenuButtons = [this.pauseResumeButton, this.pauseInfoButton, this.pauseSettingsButton, this.pauseMenuButton];
 
     this.hud.add(this.pauseOverlay);
-    this.hud.add(this.pauseResumeButton);
-    this.hud.add(this.pauseSettingsButton);
-    this.hud.add(this.pauseMenuButton);
+    pauseMenuButtons.forEach(button => this.hud.add(button));
     this.perspective = !this.online && this.gameState.map.infinite ? createPerspectiveSwitch(this) : null;
+
+    this.pauseGame = (showMenu = true) => {
+        if (this.gamePaused || this.gameEnded) return false;
+        this.gamePaused = true;
+        this.pauseButton.setVisible(false).setTexture(buttonTexture(this, 'settingsBtn'));
+        this.pauseOverlay.setVisible(showMenu);
+        pauseMenuButtons.forEach(button => button.setVisible(showMenu));
+        this.physics.world.pause();
+        this.time.paused = true;
+        this.tweens.pauseAll();
+        this.sound.pauseAll();
+        return true;
+    };
 
     this.resumeGame = () => {
         if (!this.gamePaused) return;
         this.gamePaused = false;
+        this.advancedInfo?.close();
         this.pauseOverlay.setVisible(false);
         this.settingsPanel?.close();
-        this.pauseResumeButton.setVisible(false);
-        this.pauseSettingsButton.setVisible(false);
-        this.pauseMenuButton.setVisible(false);
+        pauseMenuButtons.forEach(button => button.setVisible(false));
         this.pauseButton.setVisible(true);
         this.physics.world.resume();
         this.time.paused = false;
@@ -1133,20 +1175,44 @@ function create() {
         this.sound.resumeAll();
     };
 
-    this.pauseButton = addSettingsButton(this, { depth: 1999, container: this.hud, onPress: () => {
-        if (this.gamePaused || this.gameEnded) return;
-        this.gamePaused = true;
-        this.pauseButton.setVisible(false).setTexture('settingsBtn');
-        this.pauseOverlay.setVisible(true);
-        this.pauseResumeButton.setVisible(true);
-        this.pauseSettingsButton.setVisible(true);
-        this.pauseMenuButton.setVisible(true);
-        this.physics.world.pause();
-        this.time.paused = true;
-        this.tweens.pauseAll();
-        this.sound.pauseAll();
-    } });
+    this.openCharacterInfo = afterClose => {
+        if (this.advancedInfo || this.settingsPanel) return;
+        const menuOpen = this.gamePaused;
+        if (!menuOpen && !this.pauseGame(false)) return;
+        const viewer = Object.values(this.gameState.players).find(player => !player.isCpu) ?? Object.values(this.gameState.players)[0];
+        const characterIndex = Math.max(0, CHARACTER_ROSTER.findIndex(character => character.name === viewer?.name));
+        const variantIndex = Math.max(0, CHARACTER_ROSTER[characterIndex].variants.findIndex(variant => variant.name === viewer?.variant));
+        openAdvancedInfo(this, {
+            characterIndex,
+            variantIndex,
+            container: this.hud,
+            onClose: () => {
+                if (!menuOpen) this.resumeGame();
+                afterClose?.();
+            }
+        });
+    };
+    this.onInfoKey = () => {
+        if (this.online) return;
+        if (this.advancedInfo) this.advancedInfo.close();
+        else this.openCharacterInfo();
+    };
+    this.input.keyboard?.on('keydown-I', this.onInfoKey);
+    this.events.once('shutdown', () => this.input.keyboard?.off('keydown-I', this.onInfoKey));
+
+    this.pauseButton = addSettingsButton(this, {
+        depth: 1999,
+        container: this.hud,
+        texture: buttonTexture(this, 'settingsBtn'),
+        pressedTexture: buttonTexture(this, 'pressedSettingsBtn'),
+        tint: getButtonTint(this),
+        onPress: () => this.pauseGame(true)
+    });
     this.pauseResumeButton.on('pointerdown', () => this.resumeGame());
+    this.pauseInfoButton.on('pointerdown', () => {
+        this.sound.play('hover2');
+        this.openCharacterInfo();
+    });
     this.pauseSettingsButton.on('pointerdown', () => openSettings(this, { container: this.hud }));
     this.pauseMenuButton.on('pointerdown', () => {
         fadeOutTo(this, () => {
@@ -1678,11 +1744,46 @@ function endCharacterIntros(scene) {
 
 // LONGSWORD SWORDMAN holds his sword out on the first frame of swordatk
 // whenever he isn't attacking, so his arms stay visible.
+function showSheathedPose(player) {
+    const sprite = player.atk;
+    const texture = player.sheathedPose.texture;
+    if (sprite.anims.isPlaying) sprite.stop();
+    if (sprite.texture.key !== texture) sprite.setTexture(texture);
+    sprite.setFrame(player.sheathedPose.frame);
+    const facing = player.lastDir.x || player.sheathFacing || 1;
+    const sideways = { name: player.name, variant: player.variant, lastDir: { x: facing, y: 0 } };
+    const offset = getAttackSpriteOffset(sideways, texture);
+    sprite.setScale(getAttackSpriteScale(player, texture))
+        .setFlipX(getAttackSpriteFlipX(sideways, texture))
+        .setAngle(0)
+        .setPosition(player.x + facing * player.atkXOffset + offset.x, player.y - 15 + offset.y)
+        .setVisible(true);
+}
+
 function updateSwordmanIdle(player) {
     if (player.name !== 'SWORDMAN' || !hasIdleAttackSprite(player)) return;
     if (player.isAttacking || player.activeGrab) return;
     const sprite = player.atk;
 
+    if (player.sheathed) {
+        player.blockPosePlayed = false;
+        showSheathedPose(player);
+        return;
+    }
+    if (player.blocking) {
+        if (!player.blockPosePlayed) {
+            player.blockPosePlayed = true;
+            sprite.play('swordatkthird', true);
+        }
+        const texture = sprite.texture.key;
+        sprite.setScale(getAttackSpriteScale(player, texture));
+        sprite.setVisible(true);
+        sprite.setFlipX(getAttackSpriteFlipX(player, texture));
+        sprite.setAngle(player.lastDir.y < 0 ? 90 : player.lastDir.y > 0 ? -90 : 0);
+        return;
+    }
+    player.blockPosePlayed = false;
+    sprite.setScale(getAttackSpriteScale(player, 'swordatk'));
     if (sprite.anims.isPlaying) sprite.stop();
     const lastAnim = player.lastAttackAnim;
     const holdCombo = player.combo > 0 &&
@@ -1711,7 +1812,8 @@ const IDLE_WEAPON_TEXTURES = {
     MALLET: 'hammeratk',
     ANGLER: 'rodatk',
     TRAPPER: 'harpoonatk',
-    METAMORPHIC: 'slateatk1'
+    METAMORPHIC: 'slateatk1',
+    CRAZER: 'gunmanatk'
 };
 
 function updateWeaponIdle(player) {
@@ -1777,6 +1879,8 @@ const SLATEMAN_PHASES = [
 ];
 
 const CLIPPED_SPEED_SCALE = 0.35;
+const CHOPPED_GROUND_SPEED_SCALE = 0.35;
+const CHOPPED_AIR_SPEED_SCALE = 0.75;
 
 function updateClippedStatus(scene, player, clipped) {
     if (clipped && !player.hasDoubleJumped) {
@@ -1813,7 +1917,7 @@ function updateClippedStatus(scene, player, clipped) {
 function updateKB(scene) {
     for (const player of scene.gameState.players) {
         if (player.eliminated) continue;
-        player.movementSpeed = player.baseMovementSpeed * player.playerSpeedScaling;
+        player.movementSpeed = player.baseMovementSpeed * player.playerSpeedScaling * getHeatStat(player, 'speedScale');
 
         const spawnBox = () => {
             const box = scene.add.rectangle(
@@ -1863,11 +1967,13 @@ function updateKB(scene) {
             damageScale = Math.max(0.1, 1 - (player.KBmultiplier - 1) * 0.35);
         }
         if (player.chopped) {
-            speedScaling *= 0.5;
+            const grounded = player.body.blocked.down || player.body.touching.down;
+            speedScaling *= grounded ? CHOPPED_GROUND_SPEED_SCALE : CHOPPED_AIR_SPEED_SCALE;
             damageScale *= 0.5;
         }
         const clipped = scene.time.now < (player.clippedUntil ?? 0);
         if (clipped) speedScaling *= CLIPPED_SPEED_SCALE;
+        speedScaling *= player.moveSpeedScale ?? 1;
         updateClippedStatus(scene, player, clipped);
         player.playerSpeedScaling = speedScaling;
         player.baseDamageScale = damageScale;
@@ -2074,7 +2180,7 @@ function updateCamera(scene, living) {
     scene.shakeOffset.y = 0;
     if (scene.shake && scene.time.now < scene.shake.until) {
         const left = (scene.shake.until - scene.time.now) / (scene.shake.until - scene.shake.start);
-        const strength = scene.shake.intensity * left / camera.zoom;
+        const strength = scene.shake.intensity * left / camera.zoom * getScreenShakeScale();
         scene.shakeOffset.x = Phaser.Math.FloatBetween(-strength, strength);
         scene.shakeOffset.y = Phaser.Math.FloatBetween(-strength, strength);
     }
@@ -2082,6 +2188,41 @@ function updateCamera(scene, living) {
     camera.scrollY += scene.shakeOffset.y;
 
     camera.zoom += (zoom - camera.zoom) * zoomRate;
+}
+
+const LOCKED_BUTTON_FILL = 0x5a5a5a;
+
+function setMobileButtonsLocked(scene, slot, locked) {
+    scene.mobileButtons[slot]?.forEach(object => {
+        if (!object) return;
+        if (!object.inputKey) {
+            object.setAlpha(locked ? 0.2 : inputMode[slot] === 'keyboard' ? 0.25 : 1);
+            return;
+        }
+        if (object.inputKey === 'special') return;
+        object.locked = locked;
+        object.setFillStyle(locked ? LOCKED_BUTTON_FILL : 0x000000, 0.5);
+        object.label?.setColor(locked ? '#777777' : '#ffffff');
+    });
+}
+
+function applyInputLock(scene, player) {
+    const input = scene.playerInputs[player.slot];
+    const releasable = Boolean(player.inputLocked) && scene.time.now >= (player.inputLockReleasableAt ?? Infinity);
+    const breaksOut = releasable && input &&
+        INPUT_BUTTONS.some(button => button !== 'special' && (input[button] || input[button + 'Pressed']));
+    if (breaksOut) player.releaseInputLock?.();
+    const showLocked = Boolean(player.inputLocked) && !releasable;
+    if (showLocked !== Boolean(player.inputLockShown)) {
+        player.inputLockShown = showLocked;
+        setMobileButtonsLocked(scene, player.slot, showLocked);
+    }
+    if (!player.inputLocked || !input) return;
+    for (const button of INPUT_BUTTONS) {
+        if (button === 'special') continue;
+        input[button] = false;
+        consumePress(input, button);
+    }
 }
 
 function dimMobileButtons(scene, slot) {
@@ -2134,6 +2275,7 @@ function updateFighterBookkeeping(scene, player) {
         player.atk.y = player.y + grab.atkOffset.y;
         player.atk.setFlipX(grab.atkFlipX);
         player.atk.setAngle(grab.atkAngle);
+        if (grab.aim) aimGrabbedWeapon(player.atk, grab, target);
         player.atk.setVisible(true);
         player.playerSpeedScaling = 0.5;
     }
@@ -2190,11 +2332,21 @@ function updateFacing(player, input) {
     else if (input.right) player.lastDir = { x: 1, y: 0 };
     else if (input.up) player.lastDir = { x: 0, y: -1 };
     else if (input.down) player.lastDir = { x: 0, y: 1 };
-    if (player.lastDir.y === 0) player.atk.setAngle(getAttackSpriteAngle(player));
+    if (player.lastDir.y === 0 && !player.activeGrab) player.atk.setAngle(getAttackSpriteAngle(player));
+}
+
+function aimGrabbedWeapon(sprite, grab, target) {
+    const originX = grab.atkFlipX ? 1 - grab.aim.originX : grab.aim.originX;
+    const handX = sprite.x + (originX - 0.5) * sprite.width * sprite.scaleX;
+    const handY = sprite.y + (grab.aim.originY - 0.5) * sprite.height * sprite.scaleY;
+    const tipX = grab.atkFlipX ? -grab.aim.tip.x : grab.aim.tip.x;
+    sprite.setOrigin(originX, grab.aim.originY).setPosition(handX, handY);
+    sprite.setRotation(Math.atan2(target.y - handY, target.x - handX) - Math.atan2(grab.aim.tip.y, tipX));
 }
 
 function positionAttachments(scene, player) {
     if (!player.activeGrab) {
+        if (player.atk.originX !== 0.5 || player.atk.originY !== 0.5) player.atk.setOrigin(0.5);
         const offset = getAttackSpriteOffset(player);
         player.atk.x = player.x + (player.lastDir.x * player.atkXOffset) + offset.x;
         player.atk.y = player.y + (player.lastDir.y * player.atkYOffset) - 15 + offset.y;
@@ -2275,7 +2427,7 @@ function handleMovementInput(scene, player, input, victim) {
     }
 
     if (!input.up && player.body.velocity.y < 0 && !player.hasDoubleJumped) command(Commands.UP_CANCEL);
-    if (input.down && player.airTime >= 1000) command(Commands.DOWNSLAM);
+    if (input.down && player.airTime >= getCharacterStat(player, 'downslamAirTime', 1000)) command(Commands.DOWNSLAM);
 }
 
 function applyFreezeGravity(scene, player) {
@@ -2401,6 +2553,7 @@ function removePlayersWhoLeft(scene) {
 function update() {
     readPlayerInputs(this);
     if (this.gamePaused) return;
+    this.gameState.players.forEach(player => applyInputLock(this, player));
 
     fiveframecount += 1;
     removePlayersWhoLeft(this);
@@ -2464,6 +2617,7 @@ function update() {
     for (const player of living) {
         updateLaunchEffects(this, player);
         updateDangerGlow(this, player);
+        updateBurn(this, player);
     }
 
     for (const player of living) {
@@ -2494,6 +2648,7 @@ function update() {
     }
     updateKB(this);
     updateMapHazard(this);
+    updateMapEvent(this);
     if (fiveframecount >= 5) {
         fiveframecount = 0;
     }

@@ -4,6 +4,7 @@
 
 import { grindExplosion, grindTick, setGrindFloat, ALWAYS_ON_GRINDERS, interruptGrinder, grinderCanResume, holdGrinderInPlace } from '../combat/grinder.js';
 import { MIN_ABILITY_COOLDOWN_MS } from '../gameSettings.js';
+import { isGrounded, pinTarget, slamImpact } from '../combat/pin.js';
 
 function tilt(api, scene, attacker, victim, xMul, yMul, kbTime) {
     api.tiltAttack(scene, attacker, victim, {
@@ -35,10 +36,6 @@ function tryAttack2(api, scene, attacker, target, animKey, thirdAnimKey) {
     attacker.nextAttackTime = scene.time.now + 400;
 }
 const GRASS_CUT_RESISTANCE = { perCut: 0.01, max: 1 };
-
-function isGrounded(player) {
-    return player.body.blocked.down || player.body.touching.down;
-}
 
 const SLAM = {
     radius: 75,
@@ -137,55 +134,14 @@ function landGruelingSlam(api, scene, player, target, scythe, facing) {
         fadeScythe(scene, scythe);
         return;
     }
-    if (targetGrounded) slamImpact(api, scene, target);
-    pinTarget(api, scene, player, target, scythe, facing, targetGrounded);
-}
-
-function slamImpact(api, scene, target) {
-    api.spawnDirtBurst(scene, target.x, target.body.bottom, 16, 6, 10, 1.5);
-    api.triggerScreenShake(scene, 10, 250);
-}
-
-function pinTarget(api, scene, player, target, scythe, facing, grounded) {
-    const hitAt = target.lastHitAt;
-    const crashEndsAt = scene.time.now + SLAM.crashTimeoutMs;
-    const pinMs = grounded ? SLAM.groundPinMs : SLAM.airPinMs;
-    let pinnedUntil = null;
-
-    const startPin = () => {
-        pinnedUntil = scene.time.now + pinMs;
-        target.hitstunUntil = pinnedUntil;
-        target.setVelocity(0, 0);
-        player.nextSideSpecialTime = Math.max(
-            player.nextSideSpecialTime,
-            pinnedUntil + player.dirSpecialCooldown
-        );
-        player.sideSpecialCooldownDuration = player.nextSideSpecialTime - scene.time.now;
-    };
-    if (grounded) startPin();
-
-    const removePin = api.addSceneUpdateListener(scene, () => {
-        const now = scene.time.now;
-        const freed = !target.active || target.outOfBounds || target.lastHitAt !== hitAt;
-        const over = pinnedUntil === null ? now >= crashEndsAt : now >= pinnedUntil;
-        if (freed || over) {
-            removePin();
-            fadeScythe(scene, scythe);
-            return;
-        }
-        if (pinnedUntil === null) {
-            if (isGrounded(target)) {
-                startPin();
-                slamImpact(api, scene, target);
-                scene.sound.play('slamimpact');
-            } else {
-                target.setVelocity(0, SLAM.crashSpeed);
-            }
-        } else {
-            target.hitstunUntil = Math.max(target.hitstunUntil, pinnedUntil);
-            target.setVelocityX(0);
-        }
-        if (scythe.active) scythe.setPosition(target.x - facing * 15, target.y - 20);
+    if (targetGrounded) slamImpact(scene, target);
+    pinTarget(scene, player, target, {
+        ...SLAM,
+        grounded: targetGrounded,
+        onFrame: () => {
+            if (scythe.active) scythe.setPosition(target.x - facing * 15, target.y - 20);
+        },
+        onEnd: () => fadeScythe(scene, scythe)
     });
 }
 
@@ -452,7 +408,9 @@ const MOWER = {
     plowTickMs: 50,
     plowExplodeMs: 2000,
     plowCutRange: 45,
-    plowGrindRange: 110,
+    plowGrindRange: 150,
+    plowMinDot: 0.8,
+    plowVerticalReach: { up: 30, down: 35 },
     plowChipDamage: 0.002,
     plowBlockCost: 0.004,
     steelPlankDamage: 0.01,
@@ -468,6 +426,8 @@ const MOWER = {
     looseSpeed: 500,
     looseMs: 600,
     ejectKbScale: 1.5,
+    ejectDamage: 0.4,
+    ejectShieldCost: 0.45,
     ejectSplashRange: 110,
     doubleTapMs: 250
 };
@@ -485,6 +445,20 @@ const EJECT = {
 };
 
 const PLOW_EXPLOSION = { damage: 0.25, force: 450, hitstun: 400, hitFreeze: 60, explosionScale: 0.7 };
+const PLOW_HIT = { ...PLOW_EXPLOSION, damage: 0.6, force: 550, hitstun: 500 };
+const BLOCKED_PLOW_HIT = {
+    unblockable: true,
+    damage: 0,
+    plankDamage: 0,
+    hitstun: 250,
+    hitstunGrowth: false,
+    hitFreeze: PLOW_HIT.hitFreeze,
+    sound: 'explosion',
+    knockback: { x: PLOW_HIT.force * 0.5, y: PLOW_HIT.force, lift: -0.05 },
+    decelerateAfter: 400,
+    resetCombo: false,
+    noDeathRay: true
+};
 
 const CORD_PUSH = {
     range: 125,
@@ -675,11 +649,17 @@ function plowTick(api, scene, player, victim) {
     plowThroughPlanks(api, scene, player);
     const cut = heldCutPoint(player);
     api.cutNearbyGrass(scene, cut.x, cut.y, MOWER.plowCutRange, player);
+    const victimBlocking = Boolean(victim.blocking);
     const contact = grindTick(api, scene, player, victim, player.plowLastContactAt, {
         range: MOWER.plowGrindRange,
         chipDamage: MOWER.plowChipDamage,
         blockCost: MOWER.plowBlockCost,
-        blockedBuildsContact: false
+        blockedBuildsContact: false,
+        eligibility: {
+            direction: { x: facingOf(player), y: 0 },
+            minDot: MOWER.plowMinDot,
+            verticalReach: MOWER.plowVerticalReach
+        }
     });
     if (contact === null) {
         player.plowLastContactAt = 0;
@@ -688,13 +668,29 @@ function plowTick(api, scene, player, victim) {
         }
         return;
     }
+    if (victimBlocking) {
+        blockedPlowExplosion(api, scene, player, victim);
+        return;
+    }
     player.plowContactMs += contact;
     player.plowLastContactAt = scene.time.now;
     player.plowLastHitAt = scene.time.now;
     if (player.plowContactMs < MOWER.plowExplodeMs || api.isInvincible(victim)) return;
-    grindExplosion(api, scene, player, victim, PLOW_EXPLOSION);
+    grindExplosion(api, scene, player, victim, PLOW_HIT);
     stopPlow(scene, player);
     startCord(scene, player);
+}
+
+function blockedPlowExplosion(api, scene, player, victim) {
+    stopPlow(scene, player);
+    startCord(scene, player);
+    if (api.isInvincible(victim)) return;
+    api.landHit(scene, player, victim, {
+        ...BLOCKED_PLOW_HIT,
+        direction: { x: Math.sign(victim.x - player.x) || facingOf(player), y: 0 }
+    });
+    victim.flash();
+    api.spawnExplosion(scene, victim, PLOW_HIT.explosionScale);
 }
 
 function startRide(scene, player) {
@@ -790,7 +786,10 @@ function eject(api, scene, player, victim, direction) {
     mower.setCollideWorldBounds(true);
     mower.body.onWorldBounds = true;
     let speed = EJECT.startSpeed;
+    let owner = player;
+    let damageScale = 1;
     mower.setVelocity(direction * speed, 0);
+    api.trackDeflectable(scene, mower, player);
     const engine = scene.sound.add('lawnmower-loop', { volume: MOWER.engineVolume, loop: true });
     player.ejectEngines ??= new Set();
     player.ejectEngines.add(engine);
@@ -800,22 +799,25 @@ function eject(api, scene, player, victim, direction) {
 
     let exploded = false;
     const colliders = [];
+    let enemyOverlaps = [];
     const explode = directHit => {
         if (exploded || !mower.active) return;
         exploded = true;
-        colliders.forEach(collider => collider.destroy());
-        mower.off('worldbounds', explodeAtBounds);
+        [...colliders, ...enemyOverlaps].forEach(collider => collider.destroy());
+        scene.physics.world.off('worldbounds', explodeAtBounds);
         removeUpdate();
         expire.remove(false);
         player.ejectEngines?.delete(engine);
         engine.stop();
         engine.destroy();
-        const caught = api.getEnemies(scene, player).filter(enemy => !api.isInvincible(enemy) && (enemy === directHit ||
+        const caught = api.getEnemies(scene, owner).filter(enemy => !api.isInvincible(enemy) && (enemy === directHit ||
             Phaser.Math.Distance.Between(mower.x, mower.y, enemy.x, enemy.y) <= MOWER.ejectSplashRange));
         if (caught.length) {
             for (const enemy of caught) {
-                grindExplosion(api, scene, player, enemy, {
+                grindExplosion(api, scene, owner, enemy, {
                     ...PLOW_EXPLOSION,
+                    damage: MOWER.ejectDamage * damageScale,
+                    shieldCost: MOWER.ejectShieldCost,
                     force: PLOW_EXPLOSION.force * MOWER.ejectKbScale,
                     ranged: true,
                     explosionScale: 0.9,
@@ -828,21 +830,39 @@ function eject(api, scene, player, victim, direction) {
         }
         mower.destroy();
     };
-    const explodeAtBounds = () => explode(false);
+    const explodeAtBounds = body => {
+        if (body === mower.body) explode(false);
+    };
     const hitsWall = () => {
         const touching = mower.body.touching;
         const blocked = mower.body.blocked;
         if (touching.left || touching.right || blocked.left || blocked.right) explode(false);
     };
+    const watchEnemies = () => api.overlapEnemies(scene, mower, owner, enemy => {
+        if (exploded || !mower.active) return;
+        const deflectScale = api.isInvincible(enemy) ? 0 : api.deflects(scene, enemy, owner, MOWER.ejectDamage * damageScale, { shieldCost: MOWER.ejectShieldCost });
+        if (!deflectScale) {
+            explode(enemy);
+            return;
+        }
+        damageScale *= deflectScale;
+        direction = Math.sign(owner.x - enemy.x) || -direction;
+        owner = enemy;
+        mower.deflectOwner = owner;
+        mower.setFlipX(direction < 0);
+        mower.setVelocity(direction * speed, 0);
+        enemyOverlaps.forEach(overlap => overlap.destroy());
+        enemyOverlaps = watchEnemies();
+    });
+    enemyOverlaps = watchEnemies();
     colliders.push(
         scene.physics.add.collider(mower, solid, hitsWall),
-        ...api.overlapEnemies(scene, mower, player, enemy => explode(enemy)),
         scene.physics.add.collider(mower, scene.planks, (_mower, plank) => {
             if (plank.health > 0) api.damagePlank(scene, plank, plank.health);
             explode(false);
         })
     );
-    mower.on('worldbounds', explodeAtBounds);
+    scene.physics.world.on('worldbounds', explodeAtBounds);
     const removeUpdate = api.addSceneUpdateListener(scene, () => {
         if (!mower.active) return;
         const frozen = scene.gamePaused || scene.hitFreezeUntil > scene.time.now;
@@ -1163,6 +1183,21 @@ function forVariant(lawnmower, landscaper) {
 }
 
 export default {
+    variantDemoAnimations: {
+        LANDSCAPER: ['scytheatk', 'scytheatktilt'],
+        LAWNMOWER: ['pullcord', { prop: 'lawnmower-held', ms: 1400 }]
+    },
+    variantDemoIdle: { LAWNMOWER: 'pullcord' },
+    variantDemoProps: {
+        LAWNMOWER: [{
+            texture: 'lawnmower-held',
+            x: MOWER.heldOffset.x,
+            y: MOWER.heldOffset.y,
+            originX: MOWER.heldArm.x,
+            originY: MOWER.heldArm.y,
+            scale: MOWER.scale
+        }]
+    },
     armColor: 0x1e1e1e,
     hitSounds: {
         light: ['axeslash1', 'axeslash2'],

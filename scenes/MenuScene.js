@@ -18,7 +18,7 @@ var navBox = null;
 var layout = []
 var selectedIndex = 0;
 var previousInput = {};
-const CHANGELOG_VERSION = "2026-11-10-3";
+const CHANGELOG_VERSION = "2026-11-17-2";
 const MIN_VERSION_COLOR_BRIGHTNESS = 170;
 
 function getVersionColor(version) {
@@ -52,6 +52,15 @@ function getVersionColor(version) {
 }
 
 const changelogColor = getVersionColor(CHANGELOG_VERSION);const CHANGELOG_STORAGE_KEY = "blockBattleSeenChangelog";
+
+function bulletParagraphs(text) {
+    return text.split("\n").map((line, index) => {
+        const trimmed = line.trimStart();
+        if (index === 0 || trimmed === line || trimmed.startsWith("-")) return line;
+        return `- ${trimmed}`;
+    }).join("\n");
+}
+
 export class MenuScene extends Phaser.Scene {
     //load the menu scene which is just a cool background image we made
     //its also has the start button, initiating the game when clicked
@@ -81,222 +90,361 @@ export class MenuScene extends Phaser.Scene {
         previousInput = {};
         this.input.topOnly = false;
 
-        const changelogEntries = [
+        const changelogUpdates = [
             {
-                title: "SETTINGS",
-                body: "There's a gear in the top right of every screen now. Tap it to change the master volume, the volume of sounds in matches, and on touchscreens, whether you play with the DPAD or the THUMBSTICK.\n In a match the gear pauses the game like the home button used to, and the pause menu has a settings button right in the middle."
+                name: "MAPS & MORE",
+                date: "11/17/26",
+                entries: [
+                    {
+                        title: "DEMOLITIONIST",
+                        body: "CROWBARMAN has a brand new variant: DEMOLITIONIST, a demolition worker with a tape measure that punches and a HUGE crowbar strapped to his back.\n He has no combo, just one big punch: the fist on the end of the tape shoots out up to 350px and sends the first person in its way flying. The catch is a second and a half between punches. His tilts are quick short pokes with no wind back at all.\n With the crowbar on his back he's slow and jumps low, but his punches don't push him around. Plant it in the ground with neutral special and he's quick again, but every punch shoves him backwards. Punch the planted crowbar to ZIP straight to it.\n His double-tap is CROWBAR SLAM, one REALLY slow swing that flattens whoever it hits into the ground for 20%. You can keep punching while it winds up, so herd them into it.\n And the big one: plant the crowbar right at a bottom corner of a platform and it wedges in. Downslam onto it three times (he can downslam way sooner after jumping than anyone else) and you'll hear it rip a little more each time, then the whole platform explodes out, spins up into the sky and comes crashing down on your opponent for a massive 85% and a launch that'll probably end their stock. A red column shows where it's coming. It stays where it crashes for the rest of the match, tilted, and anyone can stand on it.\n CPUs know how to pull it off too, so don't wander too far from a DEMOLITIONIST.\n And don't worry, HOOKER isn't forgotten. His rework and redesign are coming tomorrow!"
+                    },
+                    {
+                        title: "MAP DANGERS",
+                        body: "Every arena fights back now. We call these map dangers.\n SNOWY ARENA has a cannon up on the cliff. Every 15 seconds it picks someone and a red mark follows them for 3 seconds. When the mark spins fast it's locked on: one cannonball goes where it thinks you're headed and a second lands where you were standing. They launch anything in their path, stay dangerous on the way down, and stick in the bridge as solid lumps for 5 seconds. Blocking one saves you from the launch but always shatters your shield.\n DESERT ARENA has a heat ray. Every so often a huge beam slams down at an angle on a random player and sways for 3 seconds. Stand in it and you burn, and you keep burning for a bit after you get out. SLATEMAN loves it: burning makes him glow red, hit harder, reach further, slide faster and run way faster, but he goes flying a bit easier too.\n JUNGLE ARENA has mud pillars. Every so often one or two burst up out of the ground, shaking as they rise, and you can stand on them or get blocked by them. Each one has a flytrap on top that turns to follow the closest player for 5 seconds, then snaps out on a vine at anyone within reach. If it gets you, you're stuck in its mouth for 3 seconds taking 3% every half second, but nothing else can hit you in there. Then it spits you out toward the middle of the stage and the pillar sinks back down.\n Map dangers are always on unless you pick the new yellow NO DANGERS modifier. The new red NO MERCY modifier is the opposite: the weather never stops and the dangers get a lot nastier."
+                    },
+                    {
+                        title: "NEUTRAL SPECIALS",
+                        body: "Some fighters never had a neutral special. They're getting them now.\n SLATEMAN can BRACE: on the ground he turns to stone, locks in place and heals 10% every second until you move again or get hit. In the air it's ROCKFALL, an untouchable drop straight down that smacks anyone below.\n LONGSWORD can SHEATHE his sword with a little shove. Sheathed he runs faster, and his next attack is a QUICK DRAW: a quick windup into a slash that hits way harder than anything else he has. Pressing it again while sheathed goes straight into a QUICK DRAW. He can still block while sheathed, but his shield drains twice as fast, and catching a hit that way pulls off a QUICK DRAW straight into whoever swung. Projectiles he bats back while sheathed hit 1.2x harder, and a thrown axe or fish he bats back flies straight at whoever threw it, even faster.\n GUNMAN traded his grenade for a SHOTGUN: a close-range blast that hits everyone in front of him as hard as the grenade did, with a little kick back. Two shells, then a quick reload. He also keeps his last-used gun out now, so you can always see what he's holding.\n LUMBERER can THROW his axe now. It spins out in an arc, leaves anyone it hits CHOPPED for a moment and sticks into whatever it lands on. A moment later it RECALLs itself, flying back to you and hitting everyone in its way. Just remember you can't swing until it's back in your hands.\n DAGGER's QUICKSTEP is his neutral special now: he vanishes in a puff of smoke, pops back up a short way off in any direction, and if he slipped past you on the way, darts right back at you. His double-tap is a brand new move, PLUNGE: five quick stabbing dashes in a row, ending with a 10% finisher that sends them flying, 30% in total.\n ANGLER can FISH THROW: he winds up and flings a fish a short way in front of him. It smacks whoever it hits and goes flying off spinning. The windup is the only limit, he never runs out of fish."
+                    },
+                    {
+                        title: "JUNGLE MAKEOVER",
+                        body: "JUNGLE ARENA's scaffolds don't pile on top of each other anymore. Every tower has its own spot now: a tall tower on each side with a smaller one stacked on top, and a little tower standing on the middle of the main stage.\n Sunlight pours in through the gap in the canopy now, with shafts of light and sharp shadows falling across the stage. The scaffolds cast shadows under their top bars, fighters cast shadows like they do on SNOWY, and the map select preview shows the new look."
+                    },
+                    {
+                        title: "DESKTOP APP (ALPHA)",
+                        body: "BLOCK BATTLE!! has a desktop app now, for Windows, macOS and Linux. Grab it from the Releases page on GitHub.\n It's an early alpha, so the website is still the best way to play: it always has the newest version, and the app doesn't update itself yet."
+                    },
+                    {
+                        title: "SCREEN SHAKE",
+                        body: "There's a new SCREEN SHAKE setting: DEFAULT, REDUCED or NONE. It works in online matches too.\n Big launches don't shake the whole screen anymore. Instead, whoever got launched shakes in place while the hit freezes, so you can see exactly who just got sent flying."
+                    },
+                    {
+                        title: "NEW CHARACTER SELECT",
+                        body: "Character select got a full makeover. Every fighter sits in one big grid up top, and below it each side gets its own card with a live look at the fighter, weapon out, cycling through their attacks.\n Move around with WASD or the arrows, switch variants with Q or /, and lock in with E, SHIFT or the big READY button on your card. Once both sides are locked, a READY TO FIGHT bar slides in, so hit it to start. On phones, each card has its own little DPAD with an OK button.\n Picking a CPU? Its difficulty is right on its card."
+                    },
+                    {
+                        title: "INFO IN MATCHES",
+                        body: "Forgot what your fighter does? Press I in the middle of a match to pause and pull up their ADVANCED INFO. There's also a new info button in the pause menu, so phones can get to it too, and a FIGHTER INFO button in the settings menu on every screen. On character select, I opens it on whoever P1 has picked.\n The pause menu buttons now match the arena you're on instead of always being sandy, and the settings gear switches colors the moment you pick a map."
+                    },
+                    {
+                        title: "ADVANCED INFO",
+                        body: "Fighter details have their own panel now. Press I in a match, hit the info button in the pause menu, or open it from the online menu to see everything a fighter can do, with a big look at their icon. Use the arrows to flip through every fighter, scroll if there's a lot to read, and hit X to close it.\n Moves that were never written down are in there now too, like TRAPPER's harpoons, CHAINSAW's digging and building and LONGSWORD's block.\n The online fighter box got slimmer, so the lobby side has a lot more room."
+                    },
+                    {
+                        title: "LONGSWORD BLOCK",
+                        body: "LONGSWORD was falling behind, so his block does a lot more now. Block a melee hit and the attacker gets knocked back in a little hop and stunned instead of just frozen, for up to 1.1 seconds if your timing is good. That's a free combo starter.\n He also sends projectiles back where they came from: harpoons, LAWNMOWER's eject, even GUNMAN's bullets. Just not TRAPPER's net. He can even smack a SNOWY cannonball at whoever's closest, painted their color, three times as fast, but it shatters his shield.\n The catch is his shield breaks faster than everyone else's, though it refills quicker too.\n CPUs know all of this too. A LONGSWORD CPU will happily send your stuff back, and the harder CPUs won't swing into his block."
+                    },
+                    {
+                        title: "NEW BLOCK LOOKS",
+                        body: "LONGSWORD actually raises his sword when he blocks now, swinging it up into his big third-hit pose and holding it there. When he catches a hit, a sword-shaped flash in your color pops out instead of the usual shield.\n Broken shields got a touch-up too. The crack mark that shows up when anyone's shield shatters is now your player color, whatever color you are."
+                    },
+                    {
+                        title: "TRAPPER NETS",
+                        body: "TRAPPER's net stops at walls now. Fly it into the side of a platform or a steel wall and it crashes straight down. Land it on top of one and it lays there, and it falls again if the wall goes away."
+                    },
+                    {
+                        title: "ONLINE CPUS",
+                        body: "Short a player online? The host can now fill an open slot with a CPU. It picks a random fighter and plays on HARD.\n You get one CPU per lobby, and it only works in 3 and 4 player lobbies. 1V1s are still people only."
+                    },
+                    {
+                        title: "VIEW MODIFIERS",
+                        body: "Lobbies used to just tell you how many modifiers were on. Now there's a VIEW MODIFIERS button right next to that count that opens a list of every modifier the host picked, with their settings and what they do. Scroll through it and hit X when you're done."
+                    },
+                    {
+                        title: "QUICK 1V1 COUNT",
+                        body: "You can see how many people are waiting in QUICK 1V1 now, right on the button and while you're searching. It's counted separately from open lobbies.\n Players who tabbed away still show up in the invite list, marked AWAY, so you can invite them."
+                    },
+                    {
+                        title: "BALANCE",
+                        body: " -- MALLET's SIPHONING REPAIR heals 5% per missed strike instead of 7.5%. Landed strikes still heal 25%.\n -- CHOPPED slows you to 35% speed on the ground and 75% in the air instead of a flat 50%.\n -- GUNMAN's shots, MINI included, hit whoever is first in the line of fire, and chip blocks less.\n -- LAWNMOWER's PLOW reaches further and its explosion hits way harder, but it only hits people right in front of the mower at about mower height, and blocking it blows the mower up right away for a small push.\n -- LAWNMOWER's EJECT hits for 40% instead of 25%. Blocking or batting it back costs 45% of a shield.\n -- TRAPPER's net can't be blocked or parried, and traps you for 2 seconds instead of 3.\n -- DESERT's heat ray comes back 7 seconds after it fades instead of 5, and burns 1% per tick instead of 2%.\n -- The SNOWY cannon doesn't launch you as high.\n -- After a SMACK DOWN, your specials come back a little sooner than your attacks.\n -- The death ray needs a much stronger sideways launch, and even more if you're also launched high."
+                    },
+                    {
+                        title: "FIXES",
+                        body: " -- ANGLER's GRAPPLE reels people all the way in again. The fast pull used to make them crash into him and bounce right back out.\n -- HOOKER points his crowbar right at whoever he's holding, even at an angle.\n -- TRAPPER's net can't skip past a wall when you throw it right next to one.\n -- LAWNMOWER's EJECT explodes the moment it reaches the edge of the map.\n -- A SNOWY cannonball that LONGSWORD bats into someone pops off them and arcs down instead of dropping straight down.\n -- Players who left the online menu and came back show up in the invite list again without a refresh."
+                    }
+                ]
             },
             {
-                title: "BETTER PHONE CONTROLS",
-                body: "Double jumps and SMACK DOWNs on phones were a pain, so the thumbstick only moves you left and right now. Jump and downslam with the new up and down buttons on the right, next to B, S, A and ALT.\n We also blocked a bunch more nasty names online, including sneaky misspellings."
+                date: "11/10/26",
+                entries: [
+                    {
+                        title: "SETTINGS",
+                        body: "There's a gear in the top right of every screen now. Tap it to change the master volume, the volume of sounds in matches, and on touchscreens, whether you play with the DPAD or the THUMBSTICK.\n In a match the gear pauses the game like the home button used to, and the pause menu has a settings button right in the middle."
+                    },
+                    {
+                        title: "BETTER PHONE CONTROLS",
+                        body: "Double jumps and SMACK DOWNs on phones were a pain, so the thumbstick only moves you left and right now. Jump and downslam with the new up and down buttons on the right, next to B, S, A and ALT.\n We also blocked a bunch more nasty names online, including sneaky misspellings."
+                    },
+                    {
+                        title: "PRIVATE LOBBIES",
+                        body: "Want to play with just your friends? Turn on PRIVATE when you create a lobby and it won't show up in BROWSE LOBBIES. Hit INVITE to see everyone waiting in the online menu and send them an invite.\n They get a popup to ACCEPT or DECLINE, and nobody gets in without one."
+                    },
+                    {
+                        title: "TIMED BLOCKS",
+                        body: "Blocking is all about timing now. Put your block up right as the hit lands and whoever swung at you is stuck for way longer. Hold it the whole time and they barely freeze.\n MALLET HAMMERMAN's swing hits harder and stuns longer, LAWNMOWER's plow barely chips your shield anymore, and you need to be near a ledge to grab it again."
+                    },
+                    {
+                        title: "LIVES ON THE SCOREBOARD",
+                        body: "The score that pops up after a KO now shows how many lives everyone has left, no matter how many players are in the match. 1v1s used to show KOs instead.\n The numbers are colored to match each player too, so you can tell at a glance who's who."
+                    },
+                    {
+                        title: "FORFEIT BUTTON",
+                        body: "Playing online on your phone? There's a FORFEIT button in the top right now. Tap it twice to leave the match, but it counts as a loss.\n The online menu got some love too: map previews in the stage picker, a red fighter panel while your fighter is locked in, and a separate BACK button for getting around."
+                    },
+                    {
+                        title: "MORE SQUISH",
+                        body: "Squash and stretch hit 1.5x harder now, and afterimages stretch along with you. The home button in matches is smaller and the pause menu is centered.\n The main menu buttons line up with the shadow and slide in faster, and a bunch of names of infamous people are now blocked online."
+                    }
+                ]
             },
             {
-                title: "PRIVATE LOBBIES",
-                body: "Want to play with just your friends? Turn on PRIVATE when you create a lobby and it won't show up in BROWSE LOBBIES. Hit INVITE to see everyone waiting in the online menu and send them an invite.\n They get a popup to ACCEPT or DECLINE, and nobody gets in without one."
+                date: "11/9/26",
+                entries: [
+                    {
+                        title: "ONLINE LOBBIES",
+                        body: "Online got a big upgrade! Hit ONLINE and pick CREATE LOBBY, QUICK 1V1 or BROWSE LOBBIES. Make your own lobby with a name, a gamemode, a stage and any modifiers you want, then start it once everyone's in.\n QUICK 1V1 just pairs you with whoever has been waiting the longest. INFINITE BRIDGE stays offline, and you can't turn off both killzones online, so matches always end."
+                    },
+                    {
+                        title: "1V1V1, 2V2 AND 1V1V1V1",
+                        body: "Up to 4 players can fight online now! Everyone gets 3 lives. In free for all the last one standing wins, and in 2v2 the last team standing wins, with no friendly fire.\n 1v1v1 is red, green and blue, 1v1v1v1 adds yellow, and 2v2 is red vs blue. Every stage has room for 4 fighters too."
+                    },
+                    {
+                        title: "MODIFIER INTRO",
+                        body: "Matches with modifiers now kick off by sliding in a card for each one, so everyone knows what they're getting into. Modifiers that get cancelled by another one flash red and drop out."
+                    },
+                    {
+                        title: "PULL CORD + SPEED",
+                        body: "LAWNMOWER can't cut grass or fire CLIPPINGS with his PULL CORD anymore, and his clippings reset when he loses the mower.\n The speed limit went way up, the camera locks onto you at crazy speeds, name tags and weapons keep up with you, and you can ledge grab from anywhere off the map."
+                    }
+                ]
             },
             {
-                title: "TIMED BLOCKS",
-                body: "Blocking is all about timing now. Put your block up right as the hit lands and whoever swung at you is stuck for way longer. Hold it the whole time and they barely freeze.\n MALLET HAMMERMAN's swing hits harder and stuns longer, LAWNMOWER's plow barely chips your shield anymore, and you need to be near a ledge to grab it again."
+                date: "11/8/26",
+                entries: [
+                    {
+                        title: "CUSTOM DAMAGE + SPEED",
+                        body: "Pick your own numbers! CUSTOM DAMAGE and CUSTOM SPEED each come in three sizes: S, A and R. Click the box on the card to raise the amount, and it loops back around after the max.\n CUSTOM DAMAGE S goes all the way to 50x, A goes to 10x, and R is for the tiny 0.1x to 1x range. CUSTOM SPEED S goes up to +5000%, A to +500% and R to +100%. Turn on more than one and they stack."
+                    },
+                    {
+                        title: "NO GRAVITY + FRICTION",
+                        body: "Remember the hitstun bugs? They're a feature now. Nothing pulls you down and nothing slows you down, so you just keep going.\n Pressing the way you're already moving keeps your speed, and pressing against it instantly flips you the other way at full speed. Downslam is your only ticket back to the floor."
+                    },
+                    {
+                        title: "NO KILLZONES",
+                        body: "NO VERTICAL KILLZONE and NO HORIZONTAL KILLZONE get rid of the kill zones on those sides, and the camera will follow you out into the void.\n Click COLLISION on the card and those edges become solid walls instead. Turn both modifiers on and nobody can get KO'd at all, so good luck ending that match."
+                    },
+                    {
+                        title: "HIGH-SPEED CRASHES",
+                        body: "Going really fast now looks and feels like it. Fighters stretch out as they speed up, and if you slam sideways into something above 12 blocks per second you squish, bounce back the way you came and get stunned for a moment. Floors and ceilings just squish you.\n Downslams, directional specials, grabs and SMACK DOWN are safe."
+                    },
+                    {
+                        title: "REAL SPEEDOMETERS + FAST",
+                        body: "The INFINITE BRIDGE speedometers now show your real speed. Those crazy 2000+ blocks per second readings were never real: they only showed up during hit freeze, before you actually moved. Best speeds start over from 0, but your best distances are safe. The camera also keeps up at extreme speeds now, so you won't vanish off screen.\n HYPERACTIVE is now called FAST, and the old FAST is gone."
+                    }
+                ]
             },
             {
-                title: "LIVES ON THE SCOREBOARD",
-                body: "The score that pops up after a KO now shows how many lives everyone has left, no matter how many players are in the match. 1v1s used to show KOs instead.\n The numbers are colored to match each player too, so you can tell at a glance who's who."
+                date: "11/5/26",
+                entries: [
+                    {
+                        title: "INFINITE BRIDGE",
+                        body: "New modifier! Turn on INFINITE BRIDGE and you fight on a snowy bridge that never ends. No platforms, no side blast zones, just road. Speedometers show how fast you're going in blocks per second, plus your top speed, average, distance and your best ever run with each fighter. Press V or click VIEW to switch the camera between P1, P2 and both.\n Map select also got a makeover: maps scroll on a vertical wheel with big cards, and pressing NEXT swipes down to a bigger, easier to read modifier page. Modifiers are now sorted and colored by how chaotic they are, and MAP HAZARDS is now WEATHER HAZARDS."
+                    }
+                ]
             },
             {
-                title: "FORFEIT BUTTON",
-                body: "Playing online on your phone? There's a FORFEIT button in the top right now. Tap it twice to leave the match, but it counts as a loss.\n The online menu got some love too: map previews in the stage picker, a red fighter panel while your fighter is locked in, and a separate BACK button for getting around."
+                date: "11/4/26",
+                entries: [
+                    {
+                        title: "LAWNMOWER SCYTHEMAN",
+                        body: "SCYTHEMAN's new variant is here, and he's here to run you over. Press attack to shove his mower into you and grind until it blows up, hit ALT to ride it around way faster, or double-tap a direction to EJECT it, sending it off on its own, speeding up until it explodes on whatever it hits.\n Once it blows up he's stuck with a PULL CORD for 8 seconds, so mow some grass to get it back sooner. Every bit of grass he cuts also turns into CLIPPINGS you can spray back with neutral special."
+                    },
+                    {
+                        title: "BLOCK",
+                        body: "Every fighter can block now. Hold R (P1) or Period (P2), the shoulder buttons on a controller, or the new B button on phones. A shield in your color pops up and eats every hit, with a big shield flash and a clang so you know it worked. Whoever you blocked freezes for a split second and has to wait a moment before swinging again, so hit back.\n It shrinks the longer you hold it and every hit takes a chunk out of it, so don't turtle forever. If it runs out it shatters, a cracked shield shows up on you, and you're stunned for a second and a half."
+                    },
+                    {
+                        title: "SMACK DOWN",
+                        body: "Tap down on the ground when your opponent is close and you'll grab them and slam them into the floor. They get squashed flat and float up and away from you, and you need a second to recover, so chase them down for the follow-up. Blocking stops it, though."
+                    },
+                    {
+                        title: "LEDGE GRAB",
+                        body: "Knocked off the stage? Press attack near a platform's edge to hang on. Hanging is risky since you can still get hit off, but press any button (except down) to climb up and dash forward, and nothing can stop that climb and dash. It shoves whoever's camping the edge out of your way. Press down to let go."
+                    },
+                    {
+                        title: "SMARTER CPUS",
+                        body: "The CPU knows how to block now too, and on the new VERY HARD it reads your specials and combos and blocks them before they land. VERY HARD is the old full-strength CPU with everything turned on. HARD got a little easier: it blocks, but skips SMACK DOWN and LEDGE GRAB and won't chase you off the stage. HARD and VERY HARD CPUs also know to jump out of GUNMAN's MINI now.\n HAMMERMAN CPUs finally use walls, heal from a safe spot and time their swings properly."
+                    },
+                    {
+                        title: "MORE CHANGES",
+                        body: "MALLET's swing reaches a little further, and SLEDGEHAMMER's QUICKSLAM follow-up chases the target now so it stops whiffing. Big launches at 100%+ and 150%+ freeze the screen for a moment on hit, so they feel way heavier, and the DEATH RAY needs a harder launch to fire. GRUELING SLAM's air pin is down to 2 seconds.\n Friends on the same wifi can play each other online again, since the one-match limit is per device now instead of per connection. Online chat lets you stack up to 3 messages at once. TRAPPER's netted victims can't be shoved across the floor anymore, and big spikes don't send you through platforms."
+                    }
+                ]
             },
             {
-                title: "MORE SQUISH",
-                body: "Squash and stretch hit 1.5x harder now, and afterimages stretch along with you. The home button in matches is smaller and the pause menu is centered.\n The main menu buttons line up with the shadow and slide in faster, and a bunch of names of infamous people are now blocked online."
+                date: "11/2/26",
+                entries: [
+                    {
+                        title: "THUMBSTICK + TUNING",
+                        body: "Phones get a real thumbstick now instead of the four arrow buttons, both online and against the CPU. Attack and special stay right where they were.\n Getting launched has a slight upward curve while you're in hitstun now, so it doesn't look like you're gliding in a straight line anymore. GUNMAN's MINI does 0.7% a bullet and he barely falls while it's landing. CHUCK hits way harder, stuns for a moment, and comes back twice as fast. SLEDGEHAMMER can't swing through his own steel wall anymore, and the downslam afterimage stops the moment you attack or get hit."
+                    },
+                    {
+                        title: "GRUNT IS NOW CRAZER",
+                        body: "GUNMAN's one and only variant has a new name: GRUNT is now CRAZER. Same gun, same MINI, same chaos, just a name that fits him better."
+                    },
+                    {
+                        title: "CHAT KEYBINDS",
+                        body: "You can bind quick chat messages to number keys now. Open chat, hover any message and press 0-9 to bind it, then press that number mid-match to send it instantly. Your key shows up next to the message so you don't forget, and only you can see it. Press the same number on it again to unbind. Your binds are saved, so they're still there next time.\n Online is a bit tighter too: only one player per connection can host or play at a time, and if you tab out you stop counting as WAITING. LAN play is gone for now, so online always uses the public server. The server also got lighter, so it can run more matches at once."
+                    }
+                ]
             },
             {
-                title: "ONLINE LOBBIES",
-                body: "Online got a big upgrade! Hit ONLINE and pick CREATE LOBBY, QUICK 1V1 or BROWSE LOBBIES. Make your own lobby with a name, a gamemode, a stage and any modifiers you want, then start it once everyone's in.\n QUICK 1V1 just pairs you with whoever has been waiting the longest. INFINITE BRIDGE stays offline, and you can't turn off both killzones online, so matches always end."
+                date: "11/1/26",
+                entries: [
+                    {
+                        title: "SMOOTHER ONLINE",
+                        body: "Online matches don't microfreeze anymore every time your connection hiccups. Your game now keeps a tiny buffer of what the server sends and plays it back at a steady pace, so things stay smooth instead of stopping and then jumping ahead.\n There's also a brand new fast connection running next to the old one. When a bit of data gets lost, the game just skips past it instead of freezing until it shows up again, and the old connection quietly fills in the gaps. Your button presses use both too. It all goes through a relay, so nobody sees anyone's IP.\n Leaving a match for the main menu also disconnects you properly now, so you don't count as online after you've left."
+                    },
+                    {
+                        title: "LIGHTER + NAME FILTER",
+                        body: "The game uses a good chunk less memory, which helps on phones and older laptops. The sandstorm wind and AXEMAN's chainsaw are short seamless loops now, and a bunch of sounds that were stereo for no reason are mono. You won't hear a difference.\n FISHERMAN's match intro is gone. It didn't look great and it was the single biggest image in the game. He still slams down onto his spawn like everyone else.\n The name filter now catches names that swap the first letters of two words, and it stops blocking normal words like DICKENS, COCKTAIL and PEACOCK."
+                    },
+                    {
+                        title: "PLUNGE IS NOW SLIDE",
+                        body: "SLATEMAN's PLUNGE got reworked and renamed to SLIDE. His arm twists around, pulls out a dagger, then tucks it back in, and the whole thing lasts about 3 and a half seconds.\n The dagger only hurts (and still applies PLUNGED) while it's actually out, and holding left or right then sends him off at 1.5x speed. He doesn't move on his own anymore, so you steer the whole thing. Once he starts putting it away he slows back down.\n Pulling the dagger out and putting it back are little slashes of their own, so anyone who tries to punish him on either end gets swatted away. He can't do anything else until the whole SLIDE is over."
+                    },
+                    {
+                        title: "CONTROL FIXES",
+                        body: "Phone controls could suddenly stop responding until you switched tabs and came back. That's fixed, no tab hopping needed. Your thumb drifting off a button also doesn't drop the input anymore, and you can slide between buttons without lifting.\n Every now and then a fighter would just stop being able to attack for the rest of the match. That's fixed too, and as a safety net nobody can get locked out of attacking for more than a few seconds unless they're actually stunned.\n You can aim each hit of a combo again, so your ender or tilt goes wherever you're holding instead of where the combo started."
+                    },
+                    {
+                        title: "NAME FILTER FIXES",
+                        body: "Swapping a vowel for a random number, symbol, dot or space doesn't get a bad name past the filter anymore, and neither does just leaving the vowel out or spelling it how it sounds. Keep it clean out there.\n If your name gets turned down, the name box now shakes and turns red instead of flashing a message you'd probably miss."
+                    },
+                    {
+                        title: "COMBO FIXES",
+                        body: "Push attacks can't fire the DEATH RAY anymore. Running into someone and swinging was never supposed to be a KO move.\n You also can't swap your launch direction mid-combo anymore. Once your jab stuns someone, the rest of the combo sends them the way it started instead of wherever you turn to at the last second. This was behind a lot of nasty combos, especially from the HARD CPU.\n SLATEMAN's rock now audibly breaks every time he cracks into a new phase, so you can hear when he's getting fragile. He also used to stay fragile after losing a stock. Now he's back to full toughness every respawn. His arms also come straight out of his body when he punches up or down instead of floating off to the side."
+                    },
+                    {
+                        title: "DASH FIXES",
+                        body: "AXEMAN's CLEAVE could sometimes hit twice in one dash. It only ever hits once now.\n LUNGE and QUICKSTEP were shredding through walls. If your opponent was hiding behind a plank, every dash would chew through it way faster than it should. Now a dash only damages a wall once."
+                    },
+                    {
+                        title: "CPU DIFFICULTY",
+                        body: "CPUs have difficulty levels now: EASY, NORMAL and HARD. Pick one above the CPU's box on character select (SIMULATION gets one for each CPU). EASY and NORMAL react slower, let some openings go, and don't edgeguard as hard. HARD is the same CPU you've been fighting.\n SIMULATION looks different too. Both CPUs are grey in the match, and on character select CPU 1 is black and CPU 2 is white so you can keep track of who's who.\n GUNMAN CPU stopped trying to point its minigun up and down. It only fires sideways, so now it waits until you're level with it."
+                    },
+                    {
+                        title: "SCYTHEMAN REWORK",
+                        body: "MOW is gone. SCYTHEMAN's DIR SPECIAL is now GRUELING SLAM: a giant white scythe rises over his head and whips down in front of him tip first, fast enough to actually connect. Land it and they take 20% and get PINNED to the ground for 1 second. Catch them in the air and they get slammed down way faster than a downslam first, then pinned for a whole 3 seconds. Hit them while they're pinned and they're free, so pick your moment.\n SOW is back as his NEUTRAL SPECIAL, and it's way better: every toss throws 7 seeds instead of 3, and you can throw them back to back as fast as you can press it. Every seed that lands on the ground or a platform grows grass right there.\n Grass cuts don't make him hit harder anymore. Instead every cut makes him 1% harder to launch, all the way up to twice as tough at 100 cuts, and a shield flashes on him that gets bluer the tougher he gets. Grass only grows on the ground and platforms now, and every normal swing cuts it, grown or not. Your opponent can mow your lawn too, but only your own cuts count for you."
+                    },
+                    {
+                        title: "DROP-IN STARTS",
+                        body: "Nobody just stands around at the start of a match anymore. Both fighters downslam in from above and crash right through any platforms in the way, then do their intro."
+                    }
+                ]
             },
             {
-                title: "1V1V1, 2V2 AND 1V1V1V1",
-                body: "Up to 4 players can fight online now! Everyone gets 3 lives. In free for all the last one standing wins, and in 2v2 the last team standing wins, with no friendly fire.\n 1v1v1 is red, green and blue, 1v1v1v1 adds yellow, and 2v2 is red vs blue. Every stage has room for 4 fighters too."
+                date: "10/30/26",
+                entries: [
+                    {
+                        title: "COMBAT + NAME FIXES",
+                        body: "No more trading hits forever! Fighters could hit back the exact moment they got hit, so two fighters (bots especially) would stun each other over and over. Getting hit also sometimes ended your stun early, which is how people were breaking out of 3-hit combos. Both are fixed.\n Specials with a delayed hit, like PLUNGE and the QUICKSLAM follow-up, get cancelled if you're hit before they land.\n P1 can't fall through the floor at the start on DESERT ARENA anymore.\n Online names are plain English letters and numbers only now, and the name filter is a lot harder to sneak past."
+                    },
+                    {
+                        title: "SLATEMAN UPDATE",
+                        body: "SLATEMAN got new, better arms! He punches with one fist, then the other, and finishes the combo with a big overhead slam.\n His \"the more hurt, the faster\" thing never actually worked. Now it does: he starts a bit slow, hits normal speed around 50% KB and keeps speeding up from there (while hitting softer).\n PLUNGE now carries him forward at normal speed. Hold left or right during it and his KB speed kicks in on top, so a hurt SLATEMAN plunges way faster.\n SLEDGEHAMMER's QUICKSLAM follow-up now always spikes toward the side you quickslammed, and its stun doesn't grow with KB anymore."
+                    },
+                    {
+                        title: "TRAPPER FISHERMAN",
+                        body: "The TRAPPER variant of FISHERMAN is here! He stabs with a harpoon, and when a stab lands the harpoon stays stuck in your opponent for a few seconds.\n He only carries 3 harpoons (the ones on his back are your spares), and every one he sticks in someone or throws is gone until it grows back, one every 3 seconds. Run out and he's down to his fists, and his third hit is just a weak shove instead of a pin.\n His third stab doesn't launch, it PINS them to the floor for 1 second. Pin someone in the air and they get slammed down faster than a downslam.\n Pressing the SPECIAL key throws harpoons like javelins, one every half second. They hit hard, but the knockback never grows, so they won't KO on their own.\n His DIR SPECIAL throws a NET. Catch someone with it and they're NETTED for 3 seconds. If it misses and lands on the ground it stays there, and whoever walks into it gets NETTED for 3 seconds too."
+                    },
+                    {
+                        title: "BALANCE + FIXES",
+                        body: "ANGLER and MALLET finally have real tilts instead of repeating their basic attack.\n Combo enders always have the full recovery now, so fast fighters can't mash straight into the next combo.\n Red VIOLENT launches start at 150% now, and at 200%+ launches fire a purple DEATH RAY. You can't attack during the death ray freeze anymore, and pulls and explosions can't trigger it."
+                    }
+                ]
             },
             {
-                title: "MODIFIER INTRO",
-                body: "Matches with modifiers now kick off by sliding in a card for each one, so everyone knows what they're getting into. Modifiers that get cancelled by another one flash red and drop out."
+                date: "10/22/26",
+                entries: [
+                    {
+                        title: "FISHERMAN REWORK",
+                        body: "FISHERMAN has arms now and has been redesigned, with a thinner fishing line and an intro animation where he spins his rod.\n The hook isn't absurdly huge anymore. Instead it snaps to a player in its hit range, and the line curves more. If the hook falls below the platform it's hooking onto, it curves upward a bit.\n The line now reels in instead of instantly disappearing, and reeling/pulling it in has its own quick animation of lifting the rod up.\n Overall the ability is much more concise and easier to use, and FISHERMAN attacks faster (not as fast as DAGGER though)."
+                    },
+                    {
+                        title: "BETTER GAME EFFECTS + MENU INTRO",
+                        body: "An attempt to add better game effects and a menu intro animation.\n Hits now spray tiny white particles from the side that got hit. At 100% KB and up, getting launched leaves a white ghost trail and smoke and shakes the screen. At 200% and up it gets VIOLENT: a red ghost trail and a severe screen shake.\n Fighters at 100%+ pulse red, landings and double jumps kick up dust, KOs fire a beam back into the arena, and respawns flash in.\n Winning now shows a GAME! screen and a results panel with KOs, max KB and damage dealt.\n The menu slides in from the sides, and the UI uses the same colors and fonts everywhere."
+                    }
+                ]
             },
             {
-                title: "PULL CORD + SPEED",
-                body: "LAWNMOWER can't cut grass or fire CLIPPINGS with his PULL CORD anymore, and his clippings reset when he loses the mower.\n The speed limit went way up, the camera locks onto you at crazy speeds, name tags and weapons keep up with you, and you can ledge grab from anywhere off the map."
+                date: "10/18/26",
+                entries: [
+                    {
+                        title: "HAMMERMAN REDESIGN!",
+                        body: "MALLET HAMMERMAN has been redesigned with more detailed animations and an intro animation, just like swordman."
+                    }
+                ]
             },
             {
-                title: "CUSTOM DAMAGE + SPEED",
-                body: "Pick your own numbers! CUSTOM DAMAGE and CUSTOM SPEED each come in three sizes: S, A and R. Click the box on the card to raise the amount, and it loops back around after the max.\n CUSTOM DAMAGE S goes all the way to 50x, A goes to 10x, and R is for the tiny 0.1x to 1x range. CUSTOM SPEED S goes up to +5000%, A to +500% and R to +100%. Turn on more than one and they stack."
+                date: "10/16/26",
+                entries: [
+                    {
+                        title: "QUICK CHAT + NAME FILTER",
+                        body: "Limited selection of messages are now present when playing online multiplayer, inappropriate usernames have been filtered."
+                    },
+                    {
+                        title: "SWORDMAN REDESIGN!",
+                        body: "Later, all characters will recieve a redesign, right now swordman has more detailed animations and an intro animation."
+                    }
+                ]
             },
             {
-                title: "NO GRAVITY + FRICTION",
-                body: "Remember the hitstun bugs? They're a feature now. Nothing pulls you down and nothing slows you down, so you just keep going.\n Pressing the way you're already moving keeps your speed, and pressing against it instantly flips you the other way at full speed. Downslam is your only ticket back to the floor."
+                date: "10/14/26",
+                entries: [
+                    {
+                        title: "KEYBINDS HAVE BEEN CHANGED!",
+                        body: "THE SPECIAL KEY IS NO LONGER RIGHT/LEFT ALT, IT IS NOW Q and /, CHAINSAW'S BUILDMODE IS NOW USING ALT INSTEAD."
+                    },
+                    {
+                        title: "THE JUNGLE",
+                        body: "The jungle map has finally released! First one with 3 platforms"
+                    },
+                    {
+                        title: "MUTLIPLAYER",
+                        body: "YOU CAN FINALLY PLAY ONLINE???? Yes and a server has been made in NY, and if you're willing to make one for your own better connectivity, read SERVER_SETUP.md in https://github.com/Arvin2A/BlockBattle/blob/main/SERVER_SETUP.md."
+                    }
+                ]
             },
             {
-                title: "NO KILLZONES",
-                body: "NO VERTICAL KILLZONE and NO HORIZONTAL KILLZONE get rid of the kill zones on those sides, and the camera will follow you out into the void.\n Click COLLISION on the card and those edges become solid walls instead. Turn both modifiers on and nobody can get KO'd at all, so good luck ending that match."
-            },
-            {
-                title: "HIGH-SPEED CRASHES",
-                body: "Going really fast now looks and feels like it. Fighters stretch out as they speed up, and if you slam sideways into something above 12 blocks per second you squish, bounce back the way you came and get stunned for a moment. Floors and ceilings just squish you.\n Downslams, directional specials, grabs and SMACK DOWN are safe."
-            },
-            {
-                title: "REAL SPEEDOMETERS + FAST",
-                body: "The INFINITE BRIDGE speedometers now show your real speed. Those crazy 2000+ blocks per second readings were never real: they only showed up during hit freeze, before you actually moved. Best speeds start over from 0, but your best distances are safe. The camera also keeps up at extreme speeds now, so you won't vanish off screen.\n HYPERACTIVE is now called FAST, and the old FAST is gone."
-            },
-            {
-                title: "INFINITE BRIDGE",
-                body: "New modifier! Turn on INFINITE BRIDGE and you fight on a snowy bridge that never ends. No platforms, no side blast zones, just road. Speedometers show how fast you're going in blocks per second, plus your top speed, average, distance and your best ever run with each fighter. Press V or click VIEW to switch the camera between P1, P2 and both.\n Map select also got a makeover: maps scroll on a vertical wheel with big cards, and pressing NEXT swipes down to a bigger, easier to read modifier page. Modifiers are now sorted and colored by how chaotic they are, and MAP HAZARDS is now WEATHER HAZARDS."
-            },
-            {
-                title: "LAWNMOWER SCYTHEMAN",
-                body: "SCYTHEMAN's new variant is here, and he's here to run you over. Press attack to shove his mower into you and grind until it blows up, hit ALT to ride it around way faster, or double-tap a direction to EJECT it, sending it off on its own, speeding up until it explodes on whatever it hits.\n Once it blows up he's stuck with a PULL CORD for 8 seconds, so mow some grass to get it back sooner. Every bit of grass he cuts also turns into CLIPPINGS you can spray back with neutral special."
-            },
-            {
-                title: "BLOCK",
-                body: "Every fighter can block now. Hold R (P1) or Period (P2), the shoulder buttons on a controller, or the new B button on phones. A shield in your color pops up and eats every hit, with a big shield flash and a clang so you know it worked. Whoever you blocked freezes for a split second and has to wait a moment before swinging again, so hit back.\n It shrinks the longer you hold it and every hit takes a chunk out of it, so don't turtle forever. If it runs out it shatters, a cracked shield shows up on you, and you're stunned for a second and a half."
-            },
-            {
-                title: "SMACK DOWN",
-                body: "Tap down on the ground when your opponent is close and you'll grab them and slam them into the floor. They get squashed flat and float up and away from you, and you need a second to recover, so chase them down for the follow-up. Blocking stops it, though."
-            },
-            {
-                title: "LEDGE GRAB",
-                body: "Knocked off the stage? Press attack near a platform's edge to hang on. Hanging is risky since you can still get hit off, but press any button (except down) to climb up and dash forward, and nothing can stop that climb and dash. It shoves whoever's camping the edge out of your way. Press down to let go."
-            },
-            {
-                title: "SMARTER CPUS",
-                body: "The CPU knows how to block now too, and on the new VERY HARD it reads your specials and combos and blocks them before they land. VERY HARD is the old full-strength CPU with everything turned on. HARD got a little easier: it blocks, but skips SMACK DOWN and LEDGE GRAB and won't chase you off the stage. HARD and VERY HARD CPUs also know to jump out of GUNMAN's MINI now.\n HAMMERMAN CPUs finally use walls, heal from a safe spot and time their swings properly."
-            },
-            {
-                title: "MORE CHANGES",
-                body: "MALLET's swing reaches a little further, and SLEDGEHAMMER's QUICKSLAM follow-up chases the target now so it stops whiffing. Big launches at 100%+ and 150%+ freeze the screen for a moment on hit, so they feel way heavier, and the DEATH RAY needs a harder launch to fire. GRUELING SLAM's air pin is down to 2 seconds.\n Friends on the same wifi can play each other online again, since the one-match limit is per device now instead of per connection. Online chat lets you stack up to 3 messages at once. TRAPPER's netted victims can't be shoved across the floor anymore, and big spikes don't send you through platforms."
-            },
-            {
-                title: "THUMBSTICK + TUNING",
-                body: "Phones get a real thumbstick now instead of the four arrow buttons, both online and against the CPU. Attack and special stay right where they were.\n Getting launched has a slight upward curve while you're in hitstun now, so it doesn't look like you're gliding in a straight line anymore. GUNMAN's MINI does 0.7% a bullet and he barely falls while it's landing. CHUCK hits way harder, stuns for a moment, and comes back twice as fast. SLEDGEHAMMER can't swing through his own steel wall anymore, and the downslam afterimage stops the moment you attack or get hit."
-            },
-            {
-                title: "GRUNT IS NOW CRAZER",
-                body: "GUNMAN's one and only variant has a new name: GRUNT is now CRAZER. Same gun, same MINI, same chaos, just a name that fits him better."
-            },
-            {
-                title: "CHAT KEYBINDS",
-                body: "You can bind quick chat messages to number keys now. Open chat, hover any message and press 0-9 to bind it, then press that number mid-match to send it instantly. Your key shows up next to the message so you don't forget, and only you can see it. Press the same number on it again to unbind. Your binds are saved, so they're still there next time.\n Online is a bit tighter too: only one player per connection can host or play at a time, and if you tab out you stop counting as WAITING. LAN play is gone for now, so online always uses the public server. The server also got lighter, so it can run more matches at once."
-            },
-            {
-                title: "SMOOTHER ONLINE",
-                body: "Online matches don't microfreeze anymore every time your connection hiccups. Your game now keeps a tiny buffer of what the server sends and plays it back at a steady pace, so things stay smooth instead of stopping and then jumping ahead.\n There's also a brand new fast connection running next to the old one. When a bit of data gets lost, the game just skips past it instead of freezing until it shows up again, and the old connection quietly fills in the gaps. Your button presses use both too. It all goes through a relay, so nobody sees anyone's IP.\n Leaving a match for the main menu also disconnects you properly now, so you don't count as online after you've left."
-            },
-            {
-                title: "LIGHTER + NAME FILTER",
-                body: "The game uses a good chunk less memory, which helps on phones and older laptops. The sandstorm wind and AXEMAN's chainsaw are short seamless loops now, and a bunch of sounds that were stereo for no reason are mono. You won't hear a difference.\n FISHERMAN's match intro is gone. It didn't look great and it was the single biggest image in the game. He still slams down onto his spawn like everyone else.\n The name filter now catches names that swap the first letters of two words, and it stops blocking normal words like DICKENS, COCKTAIL and PEACOCK."
-            },
-            {
-                title: "PLUNGE IS NOW SLIDE",
-                body: "SLATEMAN's PLUNGE got reworked and renamed to SLIDE. His arm twists around, pulls out a dagger, then tucks it back in, and the whole thing lasts about 3 and a half seconds.\n The dagger only hurts (and still applies PLUNGED) while it's actually out, and holding left or right then sends him off at 1.5x speed. He doesn't move on his own anymore, so you steer the whole thing. Once he starts putting it away he slows back down.\n Pulling the dagger out and putting it back are little slashes of their own, so anyone who tries to punish him on either end gets swatted away. He can't do anything else until the whole SLIDE is over."
-            },
-            {
-                title: "CONTROL FIXES",
-                body: "Phone controls could suddenly stop responding until you switched tabs and came back. That's fixed, no tab hopping needed. Your thumb drifting off a button also doesn't drop the input anymore, and you can slide between buttons without lifting.\n Every now and then a fighter would just stop being able to attack for the rest of the match. That's fixed too, and as a safety net nobody can get locked out of attacking for more than a few seconds unless they're actually stunned.\n You can aim each hit of a combo again, so your ender or tilt goes wherever you're holding instead of where the combo started."
-            },
-            {
-                title: "NAME FILTER FIXES",
-                body: "Swapping a vowel for a random number, symbol, dot or space doesn't get a bad name past the filter anymore, and neither does just leaving the vowel out or spelling it how it sounds. Keep it clean out there.\n If your name gets turned down, the name box now shakes and turns red instead of flashing a message you'd probably miss."
-            },
-            {
-                title: "COMBO FIXES",
-                body: "Push attacks can't fire the DEATH RAY anymore. Running into someone and swinging was never supposed to be a KO move.\n You also can't swap your launch direction mid-combo anymore. Once your jab stuns someone, the rest of the combo sends them the way it started instead of wherever you turn to at the last second. This was behind a lot of nasty combos, especially from the HARD CPU.\n SLATEMAN's rock now audibly breaks every time he cracks into a new phase, so you can hear when he's getting fragile. He also used to stay fragile after losing a stock. Now he's back to full toughness every respawn. His arms also come straight out of his body when he punches up or down instead of floating off to the side."
-            },
-            {
-                title: "DASH FIXES",
-                body: "AXEMAN's CLEAVE could sometimes hit twice in one dash. It only ever hits once now.\n LUNGE and QUICKSTEP were shredding through walls. If your opponent was hiding behind a plank, every dash would chew through it way faster than it should. Now a dash only damages a wall once."
-            },
-            {
-                title: "CPU DIFFICULTY",
-                body: "CPUs have difficulty levels now: EASY, NORMAL and HARD. Pick one above the CPU's box on character select (SIMULATION gets one for each CPU). EASY and NORMAL react slower, let some openings go, and don't edgeguard as hard. HARD is the same CPU you've been fighting.\n SIMULATION looks different too. Both CPUs are grey in the match, and on character select CPU 1 is black and CPU 2 is white so you can keep track of who's who.\n GUNMAN CPU stopped trying to point its minigun up and down. It only fires sideways, so now it waits until you're level with it."
-            },
-            {
-                title: "SCYTHEMAN REWORK",
-                body: "MOW is gone. SCYTHEMAN's DIR SPECIAL is now GRUELING SLAM: a giant white scythe rises over his head and whips down in front of him tip first, fast enough to actually connect. Land it and they take 20% and get PINNED to the ground for 1 second. Catch them in the air and they get slammed down way faster than a downslam first, then pinned for a whole 3 seconds. Hit them while they're pinned and they're free, so pick your moment.\n SOW is back as his NEUTRAL SPECIAL, and it's way better: every toss throws 7 seeds instead of 3, and you can throw them back to back as fast as you can press it. Every seed that lands on the ground or a platform grows grass right there.\n Grass cuts don't make him hit harder anymore. Instead every cut makes him 1% harder to launch, all the way up to twice as tough at 100 cuts, and a shield flashes on him that gets bluer the tougher he gets. Grass only grows on the ground and platforms now, and every normal swing cuts it, grown or not. Your opponent can mow your lawn too, but only your own cuts count for you."
-            },
-            {
-                title: "DROP-IN STARTS",
-                body: "Nobody just stands around at the start of a match anymore. Both fighters downslam in from above and crash right through any platforms in the way, then do their intro."
-            },
-            {
-                title: "COMBAT + NAME FIXES",
-                body: "No more trading hits forever! Fighters could hit back the exact moment they got hit, so two fighters (bots especially) would stun each other over and over. Getting hit also sometimes ended your stun early, which is how people were breaking out of 3-hit combos. Both are fixed.\n Specials with a delayed hit, like PLUNGE and the QUICKSLAM follow-up, get cancelled if you're hit before they land.\n P1 can't fall through the floor at the start on DESERT ARENA anymore.\n Online names are plain English letters and numbers only now, and the name filter is a lot harder to sneak past."
-            },
-            {
-                title: "SLATEMAN UPDATE",
-                body: "SLATEMAN got new, better arms! He punches with one fist, then the other, and finishes the combo with a big overhead slam.\n His \"the more hurt, the faster\" thing never actually worked. Now it does: he starts a bit slow, hits normal speed around 50% KB and keeps speeding up from there (while hitting softer).\n PLUNGE now carries him forward at normal speed. Hold left or right during it and his KB speed kicks in on top, so a hurt SLATEMAN plunges way faster.\n SLEDGEHAMMER's QUICKSLAM follow-up now always spikes toward the side you quickslammed, and its stun doesn't grow with KB anymore."
-            },
-            {
-                title: "TRAPPER FISHERMAN",
-                body: "The TRAPPER variant of FISHERMAN is here! He stabs with a harpoon, and when a stab lands the harpoon stays stuck in your opponent for a few seconds.\n He only carries 3 harpoons (the ones on his back are your spares), and every one he sticks in someone or throws is gone until it grows back, one every 3 seconds. Run out and he's down to his fists, and his third hit is just a weak shove instead of a pin.\n His third stab doesn't launch, it PINS them to the floor for 1 second. Pin someone in the air and they get slammed down faster than a downslam.\n Pressing the SPECIAL key throws harpoons like javelins, one every half second. They hit hard, but the knockback never grows, so they won't KO on their own.\n His DIR SPECIAL throws a NET. Catch someone with it and they're NETTED for 3 seconds. If it misses and lands on the ground it stays there, and whoever walks into it gets NETTED for 3 seconds too."
-            },
-            {
-                title: "BALANCE + FIXES",
-                body: "ANGLER and MALLET finally have real tilts instead of repeating their basic attack.\n Combo enders always have the full recovery now, so fast fighters can't mash straight into the next combo.\n Red VIOLENT launches start at 150% now, and at 200%+ launches fire a purple DEATH RAY. You can't attack during the death ray freeze anymore, and pulls and explosions can't trigger it."
-            },
-            {
-                title: "FISHERMAN REWORK",
-                body: "FISHERMAN has arms now and has been redesigned, with a thinner fishing line and an intro animation where he spins his rod.\n The hook isn't absurdly huge anymore. Instead it snaps to a player in its hit range, and the line curves more. If the hook falls below the platform it's hooking onto, it curves upward a bit.\n The line now reels in instead of instantly disappearing, and reeling/pulling it in has its own quick animation of lifting the rod up.\n Overall the ability is much more concise and easier to use, and FISHERMAN attacks faster (not as fast as DAGGER though)."
-            },
-            {
-                title: "BETTER GAME EFFECTS + MENU INTRO",
-                body: "An attempt to add better game effects and a menu intro animation.\n Hits now spray tiny white particles from the side that got hit. At 100% KB and up, getting launched leaves a white ghost trail and smoke and shakes the screen. At 200% and up it gets VIOLENT: a red ghost trail and a severe screen shake.\n Fighters at 100%+ pulse red, landings and double jumps kick up dust, KOs fire a beam back into the arena, and respawns flash in.\n Winning now shows a GAME! screen and a results panel with KOs, max KB and damage dealt.\n The menu slides in from the sides, and the UI uses the same colors and fonts everywhere."
-            },
-            {
-                title: "HAMMERMAN REDESIGN!",
-                body: "MALLET HAMMERMAN has been redesigned with more detailed animations and an intro animation, just like swordman."
-            },
-            {
-                title: "QUICK CHAT + NAME FILTER",
-                body: "Limited selection of messages are now present when playing online multiplayer, inappropriate usernames have been filtered."
-            },
-            {
-                title: "SWORDMAN REDESIGN!",
-                body: "Later, all characters will recieve a redesign, right now swordman has more detailed animations and an intro animation."
-            },
-            {
-                title: "KEYBINDS HAVE BEEN CHANGED!",
-                body: "THE SPECIAL KEY IS NO LONGER RIGHT/LEFT ALT, IT IS NOW Q and /, CHAINSAW'S BUILDMODE IS NOW USING ALT INSTEAD."
-            },
-            {
-                title: "THE JUNGLE",
-                body: "The jungle map has finally released! First one with 3 platforms"
-            },
-            {
-                title: "MUTLIPLAYER",
-                body: "YOU CAN FINALLY PLAY ONLINE???? Yes and a server has been made in NY, and if you're willing to make one for your own better connectivity, read SERVER_SETUP.md in https://github.com/Arvin2A/BlockBattle/blob/main/SERVER_SETUP.md."
-            },
-            {
-                title: "DAGGER SWORDMAN",
-                body: "The DAGGER variant of SWORDMAN has been added to the game."
-            },
-            {
-                title: "MALLET AND SLEDGEHAMMER WALL",
-                body: "Pressing the SPECIAL key (Q / '/' for keyboard) for hammerman can now place strong vertical walls. "
-            },
-            {
-                title: "CROWBARMAN's GRAB",
-                body: "CROWBARMAN can NO LONGER GRAB ON OBJECTS."
-            },
-            {
-                title: "SFX",
-                body: "UI selection SFX and plank placement SFX has been revamped."
-            },
-            {
-                title: "LIGHT HITS",
-                body: "If you've NEVER noticed, you can perform light hits by moving a bit then attacking in quick sucession.\n This form of attack has been buffed, and now stuns for longer meaning they are ACTUALLY GOOD NOW?"
-            },
-            {
-                title: "OTHER",
-                body: "PLEASE contact me at zamanarvin@sewanhakschools.org or zamanarvin711@gmail.com for suggestions, I really need to get things going now. And bugs too."
+                date: "10/12/26",
+                entries: [
+                    {
+                        title: "DAGGER SWORDMAN",
+                        body: "The DAGGER variant of SWORDMAN has been added to the game."
+                    },
+                    {
+                        title: "MALLET AND SLEDGEHAMMER WALL",
+                        body: "Pressing the SPECIAL key (Q / '/' for keyboard) for hammerman can now place strong vertical walls. "
+                    },
+                    {
+                        title: "CROWBARMAN's GRAB",
+                        body: "CROWBARMAN can NO LONGER GRAB ON OBJECTS."
+                    },
+                    {
+                        title: "SFX",
+                        body: "UI selection SFX and plank placement SFX has been revamped."
+                    },
+                    {
+                        title: "LIGHT HITS",
+                        body: "If you've NEVER noticed, you can perform light hits by moving a bit then attacking in quick sucession.\n This form of attack has been buffed, and now stuns for longer meaning they are ACTUALLY GOOD NOW?"
+                    },
+                    {
+                        title: "OTHER",
+                        body: "PLEASE contact me at zamanarvin@sewanhakschools.org or zamanarvin711@gmail.com for suggestions, I really need to get things going now. And bugs too."
+                    }
+                ]
             }
         ];
 
@@ -315,11 +463,7 @@ export class MenuScene extends Phaser.Scene {
             },
             {
                 title: "HOOKER REWORK + REDESIGN",
-                body: "CROWBARMAN's HOOKER is getting reworked and redesigned."
-            },
-            {
-                title: "DEMOLITIONIST CROWBARMAN",
-                body: "A brand new CROWBARMAN variant: DEMOLITIONIST."
+                body: "CROWBARMAN's HOOKER is getting reworked and redesigned, and it's coming tomorrow!"
             },
 
             {
@@ -344,7 +488,7 @@ export class MenuScene extends Phaser.Scene {
 
         const changelogBlurb = this.add.text(
             40, 180,
-            "Hit the new gear in the top right to change the volume or switch between DPAD and THUMBSTICK on touchscreens. Phone controls got up and down buttons too, so double jumps and SMACK DOWNs are way easier.",
+            "A big one! Meet DEMOLITIONIST, a new CROWBARMAN who punches with a tape measure and rips platforms out of the stage. Every arena gets map dangers, and almost every fighter has a neutral special now.",
             {
                 fontFamily: "VCROSD",
                 fontSize: "16px",
@@ -391,7 +535,7 @@ export class MenuScene extends Phaser.Scene {
             ).setOrigin(0.5).setDepth(2002);
 
             const tabs = [
-                { label: "LATEST UPDATE", entries: changelogEntries, x: 395 },
+                { label: "LATEST UPDATE", updates: changelogUpdates, x: 395 },
                 { label: "UPCOMING", entries: upcomingEntries, x: 605 }
             ];
 
@@ -414,6 +558,35 @@ export class MenuScene extends Phaser.Scene {
             });
 
             let activeTab = null;
+            let updateIndex = 0;
+
+            const updateLabel = update => update.name ? `${update.name} (${update.date})` : `UPDATE ${update.date}`;
+
+            const selectorText = this.add.text(
+                500, 140, "", {
+                    fontFamily: "VCROSD",
+                    fontSize: "20px",
+                    fill: changelogColor,
+                    stroke: "#000000",
+                    strokeThickness: 3
+                }
+            ).setOrigin(0.5).setDepth(2003);
+
+            const makeArrow = (x, label, step) => {
+                const box = this.add.rectangle(x, 140, 44, 30, 0x202020)
+                    .setStrokeStyle(2, 0x444444)
+                    .setDepth(2002)
+                    .setInteractive({ useHandCursor: true });
+                const text = this.add.text(x, 140, label, {
+                    fontFamily: "VCROSD",
+                    fontSize: "22px",
+                    fill: "#ffffff"
+                }).setOrigin(0.5).setDepth(2003);
+                box.on("pointerover", () => box.setFillStyle(0x333333));
+                box.on("pointerout", () => box.setFillStyle(0x202020));
+                box.on("pointerdown", () => showUpdate(updateIndex + step));
+                return { box, text };
+            };
 
             const buildPanel = (entries) => {
                 const content = this.rexUI.add.sizer({
@@ -446,7 +619,7 @@ export class MenuScene extends Phaser.Scene {
                         strokeThickness: 3
                     }).setDepth(5000);
 
-                    const body = this.add.text(0, 0, entry.body, {
+                    const body = this.add.text(0, 0, bulletParagraphs(entry.body), {
                         fontFamily: "VCROSD",
                         fontSize: "16px",
                         fill: "#ffffff",
@@ -485,15 +658,15 @@ export class MenuScene extends Phaser.Scene {
 
                 changelogPanel = this.rexUI.add.scrollablePanel({
                     x: 500,
-                    y: 315,
+                    y: 340,
                     width: 790,
-                    height: 350,
+                    height: 330,
 
                     scrollMode: 0,
                     scrollDetectionMode: 1,
 
                     background: this.add.rectangle(
-                        0, 0, 790, 350, 0x202020
+                        0, 0, 790, 330, 0x202020
                     ).setStrokeStyle(2, 0x444444),
 
                     panel: {
@@ -536,9 +709,33 @@ export class MenuScene extends Phaser.Scene {
                 changelogPanel.setDepth(2002);
             };
 
+            const olderArrow = makeArrow(150, "<", 1);
+            const newerArrow = makeArrow(850, ">", -1);
+            const selectorObjects = [selectorText, olderArrow.box, olderArrow.text, newerArrow.box, newerArrow.text];
+
+            const refreshSelector = () => {
+                const updates = tabs[activeTab].updates;
+                selectorObjects.forEach(object => object.setVisible(Boolean(updates)));
+                if (!updates) return;
+                selectorText.setText(updateLabel(updates[updateIndex]));
+                [olderArrow.box, olderArrow.text].forEach(object => object.setAlpha(updateIndex < updates.length - 1 ? 1 : 0.3));
+                [newerArrow.box, newerArrow.text].forEach(object => object.setAlpha(updateIndex > 0 ? 1 : 0.3));
+            };
+
+            const showUpdate = index => {
+                const updates = tabs[activeTab].updates;
+                if (!updates || index < 0 || index >= updates.length || index === updateIndex) return;
+                updateIndex = index;
+                this.sound.play('hover2');
+                refreshSelector();
+                changelogPanel?.destroy();
+                buildPanel(updates[updateIndex].entries);
+            };
+
             const selectTab = (index) => {
                 if (activeTab === index) return;
                 activeTab = index;
+                updateIndex = 0;
 
                 tabObjects.forEach((tabObject, i) => {
                     const active = i === index;
@@ -548,7 +745,8 @@ export class MenuScene extends Phaser.Scene {
                 });
 
                 changelogPanel?.destroy();
-                buildPanel(tabs[index].entries);
+                refreshSelector();
+                buildPanel(tabs[index].updates ? tabs[index].updates[0].entries : tabs[index].entries);
             };
 
             tabObjects.forEach((tabObject, i) => {
@@ -590,6 +788,7 @@ export class MenuScene extends Phaser.Scene {
                 modalBackground,
                 modalTitle,
                 ...tabObjects.flatMap(tabObject => [tabObject.box, tabObject.text]),
+                ...selectorObjects,
                 closeBox,
                 closeText
             ];
@@ -601,7 +800,7 @@ export class MenuScene extends Phaser.Scene {
 
                 changelogOpen = false;
                 console.log("Panel size:", changelogPanel.width, changelogPanel.height);
-                console.log("Entry count:", changelogEntries.length);
+                console.log("Entry count:", changelogUpdates[0].entries.length);
                 
 
                 this.sound.play('hover2');

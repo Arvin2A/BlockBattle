@@ -3,289 +3,336 @@
 // Licensed under the GNU GPL v3 only. See LICENSE.
 
 export function createGameAnimations(scene) {
+    const frames = (key, config) => scene.textures.exists(key) ? scene.anims.generateFrameNumbers(key, config) : [];
+    const create = config => {
+        if (scene.anims.exists(config.key) || !config.frames.length) return;
+        scene.anims.create(config);
+    };
     // Attacks
-    scene.anims.create({
+    create({
         key: 'axeatk',
-        frames: scene.anims.generateFrameNumbers('axeatk', { start: 0, end: 3 }),
+        frames: frames('axeatk', { start: 0, end: 3 }),
         frameRate: 32,
         repeat: 0
     });
-    scene.anims.create({
+    create({
         key: 'axeatktilt',
-        frames: scene.anims.generateFrameNumbers('axeatktilt', { start: 0, end: 3 }),
+        frames: frames('axeatktilt', { start: 0, end: 3 }),
         frameRate: 32,
         repeat: 0
     });
-    scene.anims.create({
+    create({
         key: 'swordatk',
-        frames: scene.anims.generateFrameNumbers('swordatk', { start: 0, end: 7 }),
+        frames: frames('swordatk', { start: 0, end: 7 }),
         frameRate: 32,
         repeat: 0
     });
-    scene.anims.create({
+    create({
         key: 'daggeratk',
-        frames: scene.anims.generateFrameNumbers('daggeratk', { start: 0, end: 2 }),
+        frames: frames('daggeratk', { start: 0, end: 2 }),
         frameRate: 32,
         repeat: 0
     });
-    scene.anims.create({
+    create({
         key: 'swordatksecond',
-        frames: scene.anims.generateFrameNumbers('swordatksecond', { start: 0, end: 4 }),
+        frames: frames('swordatksecond', { start: 0, end: 4 }),
         frameRate: 24,
         repeat: 0
     });
-    scene.anims.create({
+    create({
         key: 'swordatkthird',
-        frames: scene.anims.generateFrameNumbers('swordatkthird', { start: 0, end: 5 }),
+        frames: frames('swordatkthird', { start: 0, end: 5 }),
         frameRate: 32,
         repeat: 0
     });
     // Match intros are keyed `<character texture>intro` (see startCharacterIntros).
-    scene.anims.create({
+    create({
         key: 'swordmanintro',
-        frames: scene.anims.generateFrameNumbers('swordmanintro', { start: 0, end: 30 }),
+        frames: frames('swordmanintro', { start: 0, end: 30 }),
         frameRate: 20,
         repeat: 0
     });
     // Frame 41 of the 42-frame sheet is blank, so stop on 40 to keep the mallet shown.
-    scene.anims.create({
+    create({
         key: 'hammermanintro',
-        frames: scene.anims.generateFrameNumbers('hammermanintro', { start: 0, end: 40 }),
+        frames: frames('hammermanintro', { start: 0, end: 40 }),
         frameRate: 20,
         repeat: 0
     });
-    scene.anims.create({
-        key: 'swordatktilt',
-        frames: scene.anims.generateFrameNumbers('swordatktilt', { start: 0, end: 4 }),
+    create({
+        key: 'sheathe',
+        frames: frames('sheathe', { start: 0, end: 15 }),
+        frameRate: 32,
+        repeat: 0
+    });
+    create({
+        key: 'sheathedraw',
+        frames: frames('sheatheatk', { start: 0, end: 5 }),
+        frameRate: 30,
+        repeat: 0
+    });
+    create({
+        key: 'sheatheatkwindup',
+        frames: frames('sheatheatk', { start: 0, end: 1 }),
+        frameRate: 7.5,
+        repeat: 0
+    });
+    create({
+        key: 'sheatheatk',
+        frames: frames('sheatheatk', { start: 2, end: 8 }),
         frameRate: 28,
         repeat: 0
     });
-    scene.anims.create({
+    create({
+        key: 'swordatktilt',
+        frames: frames('swordatktilt', { start: 0, end: 4 }),
+        frameRate: 28,
+        repeat: 0
+    });
+    create({
         key: 'axeatkthird',
-        frames: scene.anims.generateFrameNumbers('axeatkthird', { start: 0, end: 6 }),
+        frames: frames('axeatkthird', { start: 0, end: 6 }),
         frameRate: 42,
         repeat: 0
     });
-    scene.anims.create({
+    create({
         key: 'activechainsaw',
-        frames: scene.anims.generateFrameNumbers('activechainsaw', { start: 0, end: 3 }),
+        frames: frames('activechainsaw', { start: 0, end: 3 }),
         frameRate: 32,
         repeat: -1
     });
-    scene.anims.create({
+    create({
         key: 'inactivechainsaw',
-        frames: scene.anims.generateFrameNumbers('inactivechainsaw', { start: 0, end: 0 }),
+        frames: frames('inactivechainsaw', { start: 0, end: 0 }),
         frameRate: 1,
         repeat: 0
     });
-    scene.anims.create({
+    create({
         key: 'rodatk',
-        frames: scene.anims.generateFrameNumbers('rodatk', { start: 0, end: 17 }),
+        frames: frames('rodatk', { start: 0, end: 17 }),
         frameRate: 66,
         repeat: 0
     });
     // Plays once when the hook latches or reels back, then holds its last frame until the rope is gone.
-    scene.anims.create({
+    create({
+        key: 'fishslap',
+        frames: frames('fishslap', { start: 0, end: 17 }),
+        frameRate: 40,
+        repeat: 0
+    });
+    create({
         key: 'reelin',
-        frames: scene.anims.generateFrameNumbers('reelin', { start: 0, end: 10 }),
+        frames: frames('reelin', { start: 0, end: 10 }),
         frameRate: 24,
         repeat: 0
     });
     // The finishing cast plays the whole sheet; regular swings stop after frame 17.
-    scene.anims.create({
+    create({
         key: 'rodatkthird',
-        frames: scene.anims.generateFrameNumbers('rodatk', { start: 0, end: 30 }),
+        frames: frames('rodatk', { start: 0, end: 30 }),
         frameRate: 60,
         repeat: 0
     });
     // TRAPPER's stab is frames 0-15; the pinning stab is 20 to the end of the sheet.
     for (const sheet of ['harpoonatk', 'harpoonlessatk']) {
-        scene.anims.create({
+        create({
             key: sheet,
-            frames: scene.anims.generateFrameNumbers(sheet, { start: 0, end: 15 }),
+            frames: frames(sheet, { start: 0, end: 15 }),
             frameRate: 60,
             repeat: 0
         });
-        scene.anims.create({
+        create({
             key: `${sheet}third`,
-            frames: scene.anims.generateFrameNumbers(sheet, { start: 20, end: 36 }),
+            frames: frames(sheet, { start: 20, end: 36 }),
             frameRate: 50,
             repeat: 0
         });
     }
-    scene.anims.create({
+    create({
         key: 'netthrow',
-        frames: scene.anims.generateFrameNumbers('netthrow', { start: 0, end: 5 }),
+        frames: frames('netthrow', { start: 0, end: 5 }),
         frameRate: 30,
         repeat: 0
     });
-    scene.anims.create({
+    create({
         key: 'scytheatk',
-        frames: scene.anims.generateFrameNumbers('scytheatk', { start: 0, end: 3 }),
+        frames: frames('scytheatk', { start: 0, end: 3 }),
         frameRate: 32,
         repeat: 0
     });
-    scene.anims.create({
+    create({
         key: 'scytheatktilt',
-        frames: scene.anims.generateFrameNumbers('scytheatktilt', { start: 0, end: 4 }),
+        frames: frames('scytheatktilt', { start: 0, end: 4 }),
         frameRate: 48,
         repeat: 0
     });
-    scene.anims.create({
+    create({
         key: 'hammeratk',
-        frames: scene.anims.generateFrameNumbers('hammeratk', { start: 0, end: 8 }),
+        frames: frames('hammeratk', { start: 0, end: 8 }),
         frameRate: 48,
         repeat: 0
     });
-    scene.anims.create({
+    create({
         key: 'hammeratkheal',
-        frames: scene.anims.generateFrameNumbers('hammeratkheal', { start: 0, end: 32 }),
+        frames: frames('hammeratkheal', { start: 0, end: 32 }),
         frameRate: 32,
         repeat: 0
     });
-    scene.anims.create({
+    create({
         key: 'sledgehammeratk',
-        frames: scene.anims.generateFrameNumbers('sledgehammeratk', { start: 0, end: 17 }),
+        frames: frames('sledgehammeratk', { start: 0, end: 17 }),
         frameRate: 16,
         repeat: 0
     });
-    scene.anims.create({
+    create({
         key: 'sledgehammerquickslam1',
-        frames: scene.anims.generateFrameNumbers('sledgehammerquickslam1', { start: 0, end: 4 }),
+        frames: frames('sledgehammerquickslam1', { start: 0, end: 4 }),
         frameRate: 24,
         repeat: 0
     });
-    scene.anims.create({
+    create({
         key: 'sledgehammerquickslam2',
-        frames: scene.anims.generateFrameNumbers('sledgehammerquickslam1', { start: 0, end: 4 }),
+        frames: frames('sledgehammerquickslam1', { start: 0, end: 4 }),
         frameRate: 24,
         repeat: 0
     });
-    scene.anims.create({
+    create({
         key: 'sledge_walk',
-        frames: scene.anims.generateFrameNumbers('sledge_walk', { start: 0, end: 1 }),
+        frames: frames('sledge_walk', { start: 0, end: 1 }),
         frameRate: 8,
         repeat: -1
     });
-    scene.anims.create({
+    create({
         key: 'slateatk',
-        frames: scene.anims.generateFrameNumbers('slateatk1', { start: 0, end: 15 }),
+        frames: frames('slateatk1', { start: 0, end: 15 }),
         frameRate: 60,
         repeat: 0
     });
-    scene.anims.create({
+    create({
         key: 'slateatksecond',
-        frames: scene.anims.generateFrameNumbers('slateatk1', { start: 15, end: 30 }),
+        frames: frames('slateatk1', { start: 15, end: 30 }),
         frameRate: 60,
         repeat: 0
     });
-    scene.anims.create({
+    create({
         key: 'slateatktilt',
-        frames: scene.anims.generateFrameNumbers('slateatktilt', { start: 0, end: 4 }),
+        frames: frames('slateatktilt', { start: 0, end: 4 }),
         frameRate: 32,
         repeat: 0
     });
-    scene.anims.create({
+    create({
         key: 'slateatkthird',
-        frames: scene.anims.generateFrameNumbers('slateatk1', { start: 30, end: 48 }),
+        frames: frames('slateatk1', { start: 30, end: 48 }),
         frameRate: 60,
         repeat: 0
     });
-    scene.anims.create({
+    create({
         key: 'slateplunge',
-        frames: scene.anims.generateFrameNumbers('slateplunge', { start: 0, end: 42 }),
+        frames: frames('slateplunge', { start: 0, end: 42 }),
         duration: 2000,
         repeat: 0
     });
-    scene.anims.create({
+    create({
         key: 'crowbargrab',
-        frames: scene.anims.generateFrameNumbers('crowbargrab', { start: 0, end: 6 }),
+        frames: frames('crowbargrab', { start: 0, end: 6 }),
         frameRate: 28,
         repeat: 0
     });
-    scene.anims.create({
+    create({
+        key: 'crowbarslam',
+        frames: frames('bigcrowbarslam', { start: 0, end: 16 }),
+        frameRate: 12,
+        repeat: 0
+    });
+    create({
         key: 'crowbaratk',
-        frames: scene.anims.generateFrameNumbers('crowbaratk', { start: 0, end: 3 }),
+        frames: frames('crowbaratk', { start: 0, end: 3 }),
         frameRate: 32,
         repeat: 0
     });
-    scene.anims.create({
+    create({
         key: 'gunmanatk',
-        frames: scene.anims.generateFrameNumbers('gunmanatk', { start: 0, end: 2 }),
+        frames: frames('gunmanatk', { start: 0, end: 2 }),
         frameRate: 50,
         repeat: 0
     });
-    scene.anims.create({
+    create({
         key: 'gunmanspecial',
-        frames: scene.anims.generateFrameNumbers('gunmanspecial', { start: 0, end: 2 }),
+        frames: frames('gunmanspecial', { start: 0, end: 2 }),
         frameRate: 50,
         repeat: 0
     });
-    scene.anims.create({
+    create({
+        key: 'shotgunfire',
+        frames: frames('shotgunfire', { start: 0, end: 9 }),
+        frameRate: 20,
+        repeat: 0
+    });
+    create({
         key: 'explosion',
-        frames: scene.anims.generateFrameNumbers('explosion', { start: 0, end: 14 }),
+        frames: frames('explosion', { start: 0, end: 14 }),
         frameRate: 24,
         repeat: 0
     });
 
     // Miscellaneous
-    scene.anims.create({
+    create({
         key: 'upbambooGrow',
-        frames: scene.anims.generateFrameNumbers('upbambooGrow', { start: 0, end: 3 }),
+        frames: frames('upbambooGrow', { start: 0, end: 3 }),
         frameRate: 18,
         repeat: 0
     });
-    scene.anims.create({
+    create({
         key: 'blizzard',
-        frames: scene.anims.generateFrameNumbers('blizzard', { start: 0, end: 3 }),
+        frames: frames('blizzard', { start: 0, end: 3 }),
         frameRate: 32,
         repeat: -1
     });
-    scene.anims.create({
+    create({
         key: 'sandstorm',
-        frames: scene.anims.generateFrameNumbers('sandstorm', { start: 0, end: 3 }),
+        frames: frames('sandstorm', { start: 0, end: 3 }),
         frameRate: 32,
         repeat: -1
     });
-    scene.anims.create({
+    create({
         key: 'upgrassGrow',
-        frames: scene.anims.generateFrameNumbers('upgrassGrow', { start: 0, end: 2 }),
+        frames: frames('upgrassGrow', { start: 0, end: 2 }),
         frameRate: 0.25,
         repeat: 0
     });
-    scene.anims.create({
+    create({
         key: 'woodcollect',
-        frames: scene.anims.generateFrameNumbers('woodcollect', { start: 0, end: 7 }),
+        frames: frames('woodcollect', { start: 0, end: 7 }),
         frameRate: 35,
         repeat: -1
     });
-    scene.anims.create({
+    create({
         key: 'uni-ledgehang',
-        frames: scene.anims.generateFrameNumbers('uni-ledgepull', { start: 0, end: 0 }),
+        frames: frames('uni-ledgepull', { start: 0, end: 0 }),
         frameRate: 1,
         repeat: 0
     });
-    scene.anims.create({
+    create({
         key: 'uni-ledgepull',
-        frames: scene.anims.generateFrameNumbers('uni-ledgepull', { start: 0, end: 15 }),
+        frames: frames('uni-ledgepull', { start: 0, end: 15 }),
         frameRate: 40,
         repeat: 0
     });
-    scene.anims.create({
+    create({
         key: 'uni-slam',
-        frames: scene.anims.generateFrameNumbers('uni-slam', { start: 0, end: 10 }),
+        frames: frames('uni-slam', { start: 0, end: 10 }),
         frameRate: 36,
         repeat: 0
     });
-    scene.anims.create({
+    create({
         key: 'lawnmowerrun',
-        frames: scene.anims.generateFrameNumbers('lawnmowerrun', { start: 0, end: 1 }),
+        frames: frames('lawnmowerrun', { start: 0, end: 1 }),
         frameRate: 18,
         repeat: -1
     });
-    scene.anims.create({
+    create({
         key: 'pullcord',
-        frames: scene.anims.generateFrameNumbers('pullcord', { start: 0, end: 5 }),
+        frames: frames('pullcord', { start: 0, end: 5 }),
         frameRate: 30,
         repeat: 0
     });

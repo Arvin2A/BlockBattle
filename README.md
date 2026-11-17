@@ -1,11 +1,41 @@
 # BlockBattle
+
+> [!WARNING]
+> **BLOCK BATTLE!! is in alpha.** Things will break, change or disappear without warning.
+>
+> Please **don't make any public posts about the game**: no videos, short-form clips, streams, social media posts or anything similar. For now, only share it by word of mouth or private messages.
+
 BLOCK BATTLE GAME: for Intro to Coding and App Design
 it says mohsina007 for the edits, but its just me, idk how to change it anymore.
 
 EDIT: This game while originally for a class project, is now developing as a passion project. 
 
-CLAUDE was only used for serious changes (like multiplayer in the span of one day) and bug fixes. Character scripts, maps, and assets are always made by me, hand drawn and animated.
+CLAUDE was only used for serious changes (like multiplayer in the span of one day) and bug fixes. Characters, maps, and assets are always made by me, hand drawn and animated.
 I have only started using CLAUDE from october 11 2026, the game was made back in april.
+
+## How to play
+
+**During the alpha, the website is the recommended way to play:** https://arvin2a.github.io/BlockBattle/
+
+It always has the newest version, works on phones, and online play always matches the server.
+
+### Desktop app (alpha)
+
+There are also desktop builds of **BLOCK BATTLE!!** for Windows, macOS and Linux on the [Releases](https://github.com/Arvin2A/BlockBattle/releases) page. They're early and less tested than the website, and they don't update themselves yet. When a new update comes out, download the new version, or online play may refuse to connect until you do.
+
+| System | Download | Notes |
+|---|---|---|
+| Windows | `BlockBattle-...-windows-setup.exe` (installer) or `BlockBattle-...-windows-portable.exe` (no install) | Windows may say it "protected your PC". Click **More info**, then **Run anyway**. |
+| macOS (Intel and Apple Silicon) | `BlockBattle-...-mac-universal.dmg` | macOS may say the app can't be opened. Right-click the app, choose **Open**, then **Open** again. If it says the app is "damaged", run `xattr -dr com.apple.quarantine "/Applications/BLOCK BATTLE!!.app"` in Terminal. |
+| Linux | `BlockBattle-...-linux-x86_64.AppImage` | Make it runnable with `chmod +x`, then run it. |
+
+These warnings show up because the alpha builds aren't code-signed yet. Press **F11** in the app for fullscreen.
+
+### Building the desktop app yourself
+
+- `npm run desktop` builds the game and opens it in the desktop app. Running the app locally needs Node.js 22.12 or newer; the first run may need `npx install-electron` to download Electron.
+- `npm run dist:desktop` builds the installer for the system you're on, into `release/`.
+- Releases are built by GitHub Actions (`.github/workflows/release.yml`) on Windows, macOS and Linux. To make one, set `"version"` in `package.json` to the update's date (for example `2026.11.17`), push a tag with the same version (`v2026.11.17`), then publish the draft release that appears on the Releases page. The builds use the `MP_SERVER_URL` and `MP_SERVER_NAME` repository variables for the online server, same as the website.
 
 ## License
 

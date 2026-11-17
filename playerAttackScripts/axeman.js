@@ -2,6 +2,7 @@
 // Original source: https://github.com/Arvin2A/BlockBattle
 // Licensed under the GNU GPL v3 only. See LICENSE.
 
+import Phaser from 'phaser';
 import { grindExplosion, grindTick, setGrindFloat, ALWAYS_ON_GRINDERS, interruptGrinder, grinderCanResume, holdGrinderInPlace } from '../combat/grinder.js';
 import { MIN_ABILITY_COOLDOWN_MS } from '../gameSettings.js';
 
@@ -426,7 +427,283 @@ function neutralPlaceAndHarvest(api, scene, attacker, victim) {
         allowChainsawMode: true
     });
 }
-const neutralSpecial = () => {};
+const AXE_THROW = {
+    speed: 950,
+    lift: 320,
+    gravity: 1500,
+    spin: Math.PI * 4.5,
+    spawn: { x: 30, y: -12 },
+    radius: 20,
+    embed: 12,
+    plankDamage: 0.3,
+    autoRecallMs: 1500,
+    out: { left: 0, right: 2000, bottom: 1200 }
+};
+const AXE_RECALL = { speed: 600, maxSpeed: 1700, accel: 3500, spin: Math.PI * 6, catchRange: 35 };
+const AXE_DROP = { x: 140, y: -260 };
+const AXE_REFLECT = { speedScale: 1.3 };
+const AXE_THROW_HIT = {
+    ranged: true,
+    damage: 0.07,
+    plankDamage: 0,
+    hitstun: 400,
+    hitstunGrowth: false,
+    hitFreeze: 60,
+    sound: 'axeslash1',
+    knockback: { x: 600, y: 420, growth: false, scaleWithDamage: false },
+    noDeathRay: true,
+    decelerateAfter: 700,
+    resetCombo: false,
+    choppedMs: 500
+};
+const AXE_RECALL_HIT = {
+    ...AXE_THROW_HIT,
+    choppedMs: 0,
+    damage: 0.05,
+    hitstun: 320,
+    sound: 'axeslash2',
+    knockback: { x: 480, y: 360, growth: false, scaleWithDamage: false }
+};
+
+function axeOut(player) {
+    return Boolean(player.thrownAxe);
+}
+
+function unlessAxeOut(handler) {
+    return (api, scene, attacker, ...rest) => {
+        if (attacker.variant === 'LUMBERER' && axeOut(attacker)) return;
+        return handler(api, scene, attacker, ...rest);
+    };
+}
+
+function catchAxe(scene, player) {
+    const axe = player.thrownAxe;
+    if (!axe) return;
+    player.thrownAxe = null;
+    if (axe.sprite.active) axe.sprite.destroy();
+}
+
+function throwAxe(api, scene, attacker) {
+    if (attacker.hitstun || attacker.freeze) return;
+    if (attacker.isAttacking && attacker.atk.anims.isPlaying) return;
+    const dir = attacker.lastDir.x || attacker.axeFacing || 1;
+    const sprite = scene.add.image(
+        attacker.x + dir * AXE_THROW.spawn.x,
+        attacker.y + AXE_THROW.spawn.y,
+        'axeprojectile'
+    ).setFlipX(dir > 0);
+    scene.objs.add(sprite);
+    attacker.thrownAxe = {
+        sprite,
+        phase: 'flying',
+        dir,
+        vx: dir * AXE_THROW.speed,
+        vy: -AXE_THROW.lift,
+        hit: new Set(),
+        stuckOn: null,
+        outFor: 0
+    };
+    scene.sound.play('swosh');
+}
+
+function recallAxe(scene, attacker) {
+    const axe = attacker.thrownAxe;
+    if (!axe || axe.phase === 'returning') return;
+    axe.phase = 'returning';
+    axe.speed = AXE_RECALL.speed;
+    axe.stuckOn = null;
+    axe.hit = new Set();
+    scene.sound.play('whoosh');
+}
+
+function lumbererNeutral(api, scene, attacker) {
+    if (!axeOut(attacker)) throwAxe(api, scene, attacker);
+}
+
+function hitFoes(api, scene, owner, axe, from, to, spec, direction) {
+    const path = new Phaser.Geom.Line(from.x, from.y, to.x, to.y);
+    for (const foe of api.getEnemies(scene, owner)) {
+        const body = foe.body;
+        if (axe.hit.has(foe) || !body?.enable || api.isInvincible(foe)) continue;
+        const reach = new Phaser.Geom.Rectangle(
+            body.x - AXE_THROW.radius, body.y - AXE_THROW.radius,
+            body.width + AXE_THROW.radius * 2, body.height + AXE_THROW.radius * 2
+        );
+        if (!Phaser.Geom.Intersects.LineToRectangle(path, reach)) continue;
+        axe.hit.add(foe);
+        const scale = api.deflects(scene, foe, owner, spec.damage);
+        if (scale) return { kind: 'deflected', foe, scale };
+        foe.flash?.();
+        const landed = api.landHit(scene, owner, foe, { ...spec, direction });
+        if (landed && spec.choppedMs) foe.choppedUntil = Math.max(foe.choppedUntil ?? 0, scene.time.now + spec.choppedMs);
+        return { kind: 'hit', foe };
+    }
+    return null;
+}
+
+function reflectAxe(axe, player, deflector, scale, speed) {
+    const sprite = axe.sprite;
+    const dx = player.x - sprite.x;
+    const dy = player.y - sprite.y;
+    const distance = Math.hypot(dx, dy) || 1;
+    const reflectSpeed = Math.max(speed, AXE_THROW.speed) * AXE_REFLECT.speedScale;
+    axe.phase = 'reflected';
+    axe.reflector = deflector;
+    axe.damageScale = (axe.damageScale ?? 1) * scale;
+    axe.vx = dx / distance * reflectSpeed;
+    axe.vy = dy / distance * reflectSpeed;
+    axe.stuckOn = null;
+    axe.hit = new Set([deflector]);
+    sprite.setFlipX(dx > 0);
+}
+
+function updateAxeReflected(api, scene, player, axe, seconds) {
+    const sprite = axe.sprite;
+    const from = { x: sprite.x, y: sprite.y };
+    const to = { x: from.x + axe.vx * seconds, y: from.y + axe.vy * seconds };
+    sprite.setPosition(to.x, to.y);
+    sprite.rotation += Math.sign(axe.vx || 1) * AXE_RECALL.spin * seconds;
+    const spec = { ...AXE_THROW_HIT, damage: AXE_THROW_HIT.damage * axe.damageScale };
+    const result = hitFoes(api, scene, axe.reflector, axe, from, to, spec, { x: Math.sign(axe.vx) || 1, y: 0 });
+    if (result?.kind === 'hit' && result.foe === player) {
+        catchAxe(scene, player);
+        return;
+    }
+    if (result?.kind === 'hit') {
+        dropAxe(axe);
+        return;
+    }
+    if (result?.kind === 'deflected') {
+        reflectAxe(axe, player, result.foe, result.scale, Math.hypot(axe.vx, axe.vy));
+        return;
+    }
+    if (stickInSurface(api, scene, axe, from, to)) return;
+    const out = AXE_THROW.out;
+    if (to.x < out.left || to.x > out.right || to.y < -200 || to.y > out.bottom) recallAxe(scene, player);
+}
+
+function embed(axe, point, normal) {
+    axe.phase = 'stuck';
+    axe.vx = 0;
+    axe.vy = 0;
+    axe.sprite.setRotation(Math.atan2(-normal.x, normal.y));
+    axe.sprite.setPosition(point.x + normal.x * AXE_THROW.embed, point.y + normal.y * AXE_THROW.embed);
+}
+
+function stickInSurface(api, scene, axe, from, to) {
+    const path = new Phaser.Geom.Line(from.x, from.y, to.x, to.y);
+    const planks = scene.planks?.getChildren().filter(plank => plank.active && plank.body?.enable) ?? [];
+    for (const plank of planks) {
+        if (!Phaser.Geom.Intersects.LineToRectangle(path, plank.body)) continue;
+        api.damagePlank(scene, plank, AXE_THROW.plankDamage);
+        if (!plank.active) continue;
+        embed(axe, { x: to.x < plank.x ? plank.body.left : plank.body.right, y: to.y }, { x: to.x < plank.x ? -1 : 1, y: 0 });
+        axe.stuckOn = plank;
+        return true;
+    }
+    for (const platform of api.getMapPlatforms(scene)) {
+        const body = platform.body;
+        const overX = to.x >= body.left && to.x <= body.right;
+        if (overX && to.y > from.y && from.y <= body.top && to.y >= body.top) {
+            embed(axe, { x: to.x, y: body.top }, { x: 0, y: -1 });
+        } else if (body.height > 4 && Phaser.Geom.Intersects.LineToRectangle(path, body)) {
+            const side = from.x < body.left ? -1 : from.x > body.right ? 1 : 0;
+            if (side) embed(axe, { x: side < 0 ? body.left : body.right, y: to.y }, { x: side, y: 0 });
+            else embed(axe, { x: to.x, y: body.top }, { x: 0, y: -1 });
+        } else {
+            continue;
+        }
+        axe.stuckOn = platform;
+        return true;
+    }
+    return false;
+}
+
+function dropAxe(axe) {
+    axe.phase = 'falling';
+    axe.vx = -Math.sign(axe.vx || axe.dir) * AXE_DROP.x;
+    axe.vy = AXE_DROP.y;
+}
+
+function updateAxeFlight(api, scene, player, axe, seconds) {
+    const sprite = axe.sprite;
+    const from = { x: sprite.x, y: sprite.y };
+    axe.vy += AXE_THROW.gravity * seconds;
+    const to = { x: from.x + axe.vx * seconds, y: from.y + axe.vy * seconds };
+    sprite.setPosition(to.x, to.y);
+    sprite.rotation += Math.sign(axe.vx || axe.dir) * AXE_THROW.spin * seconds;
+    if (axe.phase === 'flying') {
+        const result = hitFoes(api, scene, player, axe, from, to, AXE_THROW_HIT, { x: Math.sign(axe.vx) || axe.dir, y: 0 });
+        if (result?.kind === 'deflected') {
+            reflectAxe(axe, player, result.foe, result.scale, Math.hypot(axe.vx, axe.vy));
+            return;
+        }
+        if (result) {
+            dropAxe(axe);
+            return;
+        }
+    }
+    if (stickInSurface(api, scene, axe, from, to)) return;
+    const out = AXE_THROW.out;
+    if (to.x < out.left || to.x > out.right || to.y > out.bottom) recallAxe(scene, player);
+}
+
+function updateAxeReturn(api, scene, player, axe, seconds) {
+    const sprite = axe.sprite;
+    const from = { x: sprite.x, y: sprite.y };
+    const dx = player.x - from.x;
+    const dy = player.y - from.y;
+    const distance = Math.hypot(dx, dy);
+    axe.speed = Math.min(AXE_RECALL.maxSpeed, axe.speed + AXE_RECALL.accel * seconds);
+    const step = axe.speed * seconds;
+    if (distance <= Math.max(AXE_RECALL.catchRange, step)) {
+        hitFoes(api, scene, player, axe, from, { x: player.x, y: player.y }, AXE_RECALL_HIT, { x: Math.sign(dx) || 1, y: 0 });
+        catchAxe(scene, player);
+        scene.sound.play('collectwood', { volume: 0.6 });
+        return;
+    }
+    const to = { x: from.x + dx / distance * step, y: from.y + dy / distance * step };
+    sprite.setPosition(to.x, to.y);
+    sprite.setFlipX(dx > 0);
+    sprite.rotation += (dx > 0 ? 1 : -1) * AXE_RECALL.spin * seconds;
+    const result = hitFoes(api, scene, player, axe, from, to, AXE_RECALL_HIT, { x: Math.sign(dx) || 1, y: 0 });
+    if (result?.kind === 'deflected') reflectAxe(axe, player, result.foe, result.scale, axe.speed);
+}
+
+function updateThrownAxe(api, scene, player) {
+    if (player.lastDir.x) player.axeFacing = player.lastDir.x;
+    const axe = player.thrownAxe;
+    if (!axe) return;
+    if (!axe.sprite.active || player.respawnFalling) {
+        catchAxe(scene, player);
+        return;
+    }
+    const delta = scene.hitFreezeUntil > scene.time.now ? 0 : scene.game.loop.delta;
+    const seconds = delta / 1000;
+    axe.outFor += delta;
+    if (axe.outFor >= AXE_THROW.autoRecallMs && axe.phase !== 'reflected') recallAxe(scene, player);
+    switch (axe.phase) {
+        case 'flying':
+        case 'falling':
+            updateAxeFlight(api, scene, player, axe, seconds);
+            break;
+        case 'stuck':
+            if (!axe.stuckOn?.active || !axe.stuckOn.body?.enable) {
+                axe.stuckOn = null;
+                axe.phase = 'falling';
+                axe.vx = 0;
+                axe.vy = 0;
+            }
+            break;
+        case 'returning':
+            updateAxeReturn(api, scene, player, axe, seconds);
+            break;
+        case 'reflected':
+            updateAxeReflected(api, scene, player, axe, seconds);
+            break;
+    }
+}
+
 // Cleave's hit. Flat knockback (no KB growth) plus the chopped debuff.
 const SUPER_SWING = {
     damage: 0.34,
@@ -497,6 +774,11 @@ function tryCleave(api, scene, player, direction, currentTime) {
 }
 
 export default {
+    variantDemoAnimations: {
+        LUMBERER: ['axeatk', 'axeatkthird', 'axeatktilt'],
+        CHAINSAW: ['activechainsaw']
+    },
+    variantDemoIdle: { CHAINSAW: 'inactivechainsaw' },
     armColor: 0xc81e1e,
     variantStats: { CHAINSAW: { armColor: 0xffc600 } },
     hitSounds: {
@@ -505,37 +787,40 @@ export default {
     },
     // Axes are made for chopping wood.
     plankDamageScale: 3,
-    handleAttack,
+    handleAttack: unlessAxeOut(handleAttack),
     onMatchEnd: (scene, attacker) => {
+        catchAxe(scene, attacker);
         attacker.chainsawHitEvent?.remove(false);
         attacker.chainsawHitEvent = null;
         attacker.chainsawSFX?.stop();
     },
-    update: (api, scene, attacker, victim) => keepChainsawRunning(api, scene, attacker, victim),
+    update: (api, scene, attacker, victim) => {
+        keepChainsawRunning(api, scene, attacker, victim);
+        updateThrownAxe(api, scene, attacker);
+    },
     updateChainsawWood,
     toggleChainsawMode,
     miscVariants: ['CHAINSAW'],
     toggleAttackVariants: ['CHAINSAW'],
     handleMisc: (api, scene, attacker) => toggleChainsawMode(scene, attacker),
-    handleDirSpecial,
-    handleNeutralSpecial: neutralSpecial,
+    handleDirSpecial: unlessAxeOut(handleDirSpecial),
     variantNeutralSpecials: {
-        LUMBERER: neutralSpecial,
+        LUMBERER: lumbererNeutral,
         CHAINSAW: neutralPlaceAndHarvest
     },
-    handleDirSpecialAttack: (api, scene, attacker, victim) => {
+    handleDirSpecialAttack: unlessAxeOut((api, scene, attacker, victim) => {
         if (attacker.variant === 'CHAINSAW') return;
         if (api.distanceBetween(attacker, victim) <= 150) {
             superSwing(api, scene, attacker, victim, 'axeatkthird');
         }
-    },
-    handleHorizantalTilt: (api, scene, attacker, victim) => {
+    }),
+    handleHorizantalTilt: unlessAxeOut((api, scene, attacker, victim) => {
         if (attacker.variant !== 'CHAINSAW') tilt(api, scene, attacker, victim, 0.6, 1, 600);
-    },
-    handleDownTilt: (api, scene, attacker, victim) => {
+    }),
+    handleDownTilt: unlessAxeOut((api, scene, attacker, victim) => {
         if (attacker.variant !== 'CHAINSAW') tilt(api, scene, attacker, victim, 0, 2, 300);
-    },
-    handleUpTilt: (api, scene, attacker, victim) => {
+    }),
+    handleUpTilt: unlessAxeOut((api, scene, attacker, victim) => {
         if (attacker.variant !== 'CHAINSAW') tilt(api, scene, attacker, victim, 0, 0.88, 300);
-    }
+    })
 };

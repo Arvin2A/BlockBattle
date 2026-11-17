@@ -11,12 +11,13 @@
 // Character-exclusive moves live in playerAttackScripts/ and get everything
 // through the `api` object at the bottom of this file.
 import { getEnemies, overlapEnemies } from './combat/targets.js';
-import { getCharacterScript, getAttackCooldown, getAttackDamageScale } from './combat/characterStats.js';
+import { getCharacterScript, getAttackCooldown, getAttackDamageScale, getHeatStat } from './combat/characterStats.js';
 import {
     addSceneUpdateListener,
     spawnDirtBurst,
     spawnCrater,
     spawnExplosion,
+    spawnHealFlash,
     spawnHitParticles,
     triggerScreenShake
 } from './combat/effects.js';
@@ -39,12 +40,13 @@ import {
 } from './combat/grass.js';
 import { damagePlank, damagePlanksInAttack, isBlockedByWall } from './combat/planks.js';
 import { attackIsElligible, DEFAULT_BYPASS_OPTIONS } from './combat/eligibility.js';
-import { blocksHit, attackLockedByBlock } from './combat/block.js';
+import { blocksHit, deflects, trackDeflectable, attackLockedByBlock } from './combat/block.js';
 import {
     hasIdleAttackSprite,
     hideAttackSprite,
     getAttackSpriteOffset,
     getAttackSpriteFlipX,
+    getAttackSpriteScale,
     positionAttackSprite,
     getAttackSpriteAngle,
     setAttackSprite
@@ -77,6 +79,7 @@ export {
     hasIdleAttackSprite,
     getAttackSpriteOffset,
     getAttackSpriteFlipX,
+    getAttackSpriteScale,
     positionAttackSprite,
     getAttackSpriteAngle,
     setAttackSprite
@@ -321,6 +324,7 @@ export function downslamAttack(scene, attacker) {
         });
         hit = true;
     }
+    getCharacterScript(attacker)?.onDownslam?.(sharedAttackHelpers, scene, attacker);
     return hit;
 }
 
@@ -328,6 +332,8 @@ const sharedAttackHelpers = {
     NET_IMMUNITY_MS,
     strike,
     blocksHit,
+    deflects,
+    trackDeflectable,
     landHit,
     STANDARD_HITS,
     recoverAfterAttack,
@@ -349,6 +355,7 @@ const sharedAttackHelpers = {
     getAttackSpriteOffset,
     applyKnockback,
     getAttackDamageScale,
+    getHeatStat,
     getAttackCooldown,
     getProjectileBlockingPlatforms,
     attackIsElligible,
@@ -362,6 +369,7 @@ const sharedAttackHelpers = {
     spawnDirtBurst,
     spawnCrater,
     spawnExplosion,
+    spawnHealFlash,
     damagePlank,
     removeGrass,
     cutNearbyGrass,

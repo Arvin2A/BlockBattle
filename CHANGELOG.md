@@ -1,5 +1,136 @@
 # Changelog
 
+## 2026-11-16
+
+### Added
+- DEMOLITIONIST, a new CROWBARMAN variant with his own body sprite. He has no combo; his attack is TAPE PUNCH. Each press shoots the metal fist on the end of his tape measure out of the tape case, up to 350px, with a ratchet sound, and it hits the first opponent anywhere along its path, stopping on them, for 6% with real knockback that grows with damage. The tape case stays kicked back for 0.5s while the tape winds in, and there's a 1.5 second cooldown between punches, the longest of any fighter's attack.
+- DEMOLITIONIST's tilts: RULER UP (straight up), FLOOR MEASURE (a low poke at the feet that pops them up) and QUICK TAPE (a short straight punch). Each is a fixed-length tape poke for 3.5% with no knockback growth, no recoil and no wind back, with a 0.2s cooldown between tilts.
+- DEMOLITIONIST can downslam after only 0.25s in the air instead of the usual full second, so the 3 downslams for SUPER PRY are much quicker to pull off.
+- DEMOLITIONIST is ANCHORED while his crowbar is on his back: 0.6x walk speed and 0.8x jump height, and his punches have no recoil. Without the crowbar he moves normally, but every TAPE PUNCH launches him backwards a little.
+- DEMOLITIONIST's neutral special, PLANT. On the ground, he slams the crowbar into the ground just in front of him (0.3s). Pressing it again while touching the crowbar straps it back on. A TAPE PUNCH that ends right at the planted crowbar latches on and ZIPs him straight to it.
+- DEMOLITIONIST's directional special, CROWBAR SLAM. In one slow, continuous swing over 3 seconds he hauls the crowbar off his back, up and over, and down about 175px in front of him, then puts it back on (4 seconds in total). It hits for 20% and implants them like GRUELING SLAM, but longer (2s on the ground, 3s if they're caught in the air), and they're squashed flat for as long as they're stuck. It runs alongside his attacks, so he can keep punching and walking while it winds up; nothing can interrupt it once it starts, not even getting hit (only getting KO'd stops it). The 3.5s cooldown starts after it ends. While the crowbar is planted, the same input calls the crowbar back from anywhere instead (and starts the cooldown).
+- SUPER PRY. Planting the crowbar within 40px of a bottom corner of a platform's image (where it meets the ground he's standing on) wedges it into that corner, with a heavier clang, a dust burst and the platform shaking. Each downslam he lands on the wedged crowbar drives it in a notch, plays a rip sound, cracks the platform a bit more and shakes it. The notches fade after 4 seconds without a new one. On the 3rd notch the platform tears out in a big explosion and flies off the top of the screen spinning while the crowbar flies back onto his back. Anyone standing on it just drops instead of getting carried off. About 1.4s later a red column with a flashing ! locks onto the nearest opponent and follows them, and the platform comes down on them over the last 350ms, still turning, homing in slowly behind the column, timed to land as the falling whistle ends. It crashes down with a slam and an even bigger explosion. It hits for 85% with a huge launch, a real KO move, then stays where it crashed for the rest of the match, tilted, and anyone can stand on it. If there's no ground where it comes down, it falls off the map. Each platform can only be pried once.
+- CPUs can play DEMOLITIONIST: they punch as soon as the tape can reach you, use CROWBAR SLAM up close, and block when one of his slams is about to land on them. They also go for SUPER PRY on their own while their opponent is far away (450px+) or off the stage: they walk to the nearest platform corner on their ground, plant the crowbar, then jump and downslam onto it until the platform rips out, giving up if the opponent comes within 220px.
+- DAGGER's new directional special, PLUNGE (double-tap left/right), replacing QUICKSTEP there. He dashes forward in 5 short bursts and stabs at each stop: the first four hits deal 5% each with a small push that keeps the opponent in front of him, and the fifth deals 10% with real knockback, 30% in total.
+- DAGGER's neutral special, QUICKSTEP. He vanishes in a puff of smoke for 0.18s (invincible while gone), reappears about 150px away in the direction held (up, down, nothing for straight ahead, or up/down plus left/right for diagonals; he stops short of the main stage and walls instead of going into them), then, only if the blink passed through an opponent, darts about 100px straight back at them, hitting for 7.5%. 0.6 second cooldown. Plain special + left/right and double-taps are still PLUNGE.
+- A SCREEN SHAKE setting with DEFAULT, REDUCED (40%) and NONE. It's saved with the other settings and also applies in online matches, where the server now sends the shake separately from the camera.
+- ANGLER's neutral special, FISH THROW. He winds his arm up with a fish in his hand and flings it forward. The fish flies under normal gravity and never travels more than 200px forward (after that it just drops). It hits the first opponent in its path for 6% with a small push (no knockback growth), then flies off backwards, spinning fast as it falls off the map. If it misses, it lands on the ground and fades away. There's no limit on fish; the windup is what keeps it in check. The three fish colors take turns. LONGSWORD's SWORD GUARD bats it straight back at ANGLER 1.3x faster, hitting him with the fish's hit (credited to LONGSWORD).
+- LUMBERER's neutral special, THROW / RECALL. Pressing it throws his axe forward in a spinning arc. It hits the first opponent it touches for 7% with a small push (no knockback growth) and leaves them CHOPPED for 0.5 seconds, then drops; otherwise it sticks into the first platform, ground or plank it lands on (planks take 0.3 damage, and if one breaks the axe keeps going). 1.5 seconds after the throw, or as soon as it reaches the edge of the map, the axe RECALLs itself: it flies straight back to him, speeding up, and hits every opponent it passes through once for 5% (no CHOPPED). There's no manual recall, so the axe can't be spammed back and forth. While the axe is out he can't attack, use tilts or POWER SWING, and he always has it after respawning. LONGSWORD's SWORD GUARD bats it straight back at LUMBERER 1.3x faster, hitting him with the throw's hit (credited to LONGSWORD), and he catches it.
+- JUNGLE ARENA's map danger: mud pillars with flytraps. Every so often 1-2 mud pillars rise out of the bottom of the arena at random spots, jittering as they come up, to 300-500px above the bottom. They're solid, and always stay at least 50px from every platform's hitbox (so they can come up under a scaffold top but never block one). A flytrap head sits on top of each pillar's stem. It turns to follow the nearest player (each flytrap picks a different player when it can) for 5 seconds, then lunges out on a green vine at its target if they're within 375px, waiting up to 3 more seconds for them to come in range. A caught player is held in the closed flytrap for 3 seconds, taking 3% every 0.5s (18% total) and can't be hit by anything else, then gets spat out toward the middle of the arena. Then the pillar sinks back down. NO DANGERS turns it off.
+
+### Changed
+- Heavy, violent and death-ray launches no longer shake the screen. Instead, the launched fighter jitters in place for the length of the hit freeze (3-6px for heavy, 8px for violent, 12px for the death ray).
+- Projectiles LONGSWORD bats back with SWORD GUARD while SHEATHED now deal 1.2x their normal damage: GUNMAN's shots, the SNOWY cannonball, TRAPPER's harpoon, LAWNMOWER's EJECT, LUMBERER's axe and ANGLER's fish.
+
+### Fixed
+- ANGLER's GRAPPLE no longer bounces the reeled-in opponent back out. Being yanked in at high speed counted as a crash into ANGLER, which rebounded them. Players being reeled in by GRAPPLE, and ANGLER himself while GRAPPLE pulls him to a platform, can't crash-rebound for the length of the pull.
+
+## 2026-11-15
+
+### Added
+- An alpha desktop app of BLOCK BATTLE!! for Windows (installer and portable .exe), macOS (universal .dmg) and Linux (.AppImage), built with Electron and published on the GitHub Releases page by a new release workflow. The website is still the recommended way to play during the alpha. Press F11 in the app for fullscreen.
+- GUNMAN's new neutral special, SHOTGUN, replacing the grenade (CHUCK). A close-range blast that hits every opponent in a cone in front of him (up to 200px, roughly 40 degrees either side of where he aims) with the grenade's old hit: 8%, 0.5s hitstun and the same knockback. Each shot kicks him back a little. He has 2 shells; after the second, they reload together in 1.2s.
+- GUNMAN always shows the last gun he used (pistol, MINI or shotgun) instead of hiding it between shots. He starts holding the pistol.
+- LONGSWORD's neutral special, SHEATHE. Pressing it puts the sword away with a light shove (range 100, 2%, no knockback growth). While sheathed he moves 1.25x faster. His next attack, basic or tilt, becomes a QUICK DRAW: he's rooted for a ~0.27s windup, then slashes for 12% with strong knockback that grows with damage (range 150), with its own QUICK DRAW sound. He can block while sheathed with SWORD GUARD as normal (counter and deflect included), but his shield drains twice as fast while held. When a hit actually lands on that block (and his shield survives), he QUICK DRAWs straight into the attacker: no windup, the draw animation and sound, and the same 12% slash on top of the counter. The QUICK DRAW slash can't trigger the death ray. A hit during the windup cancels it and leaves the sword drawn. Pressing neutral again while sheathed does the QUICK DRAW right away (windup and slash included), and LUNGE draws it too. He's always drawn after respawning.
+- SLATEMAN's neutral special, BRACE. On the ground, pressing it turns him to stone with a rock-break sound and locks him in place: he heals 10% KB once every second (down to 0%) with MALLET's green heal flash, and he's locked in for at least 1 second. After that, pressing special again or any other button (move, jump, attack, block) ends it, and that button goes through right away. Leaving the ground ends it at any time. A hit also ends it, but that hit deals 1.5x less damage (2/3). Burning in the DESERT heat ray doesn't break it. Touch buttons other than S grey out for that first second.
+- SLATEMAN's air neutral special, ROCKFALL. He turns to stone and drops straight down fast, invincible for the whole fall, hitting anyone right below him once for 4% with a small push, then lands with a dirt burst and goes straight into BRACE. Pressing special again mid-fall cancels it.
+- JUNGLE ARENA lighting. Soft shafts of sunlight slant down from the canopy gap at the top right and slowly shimmer, with sharp see-through shadow strips falling between them at the same angle.
+- Fighters cast the same simple slanted shadow on JUNGLE ARENA that they do on SNOWY ARENA.
+- JUNGLE ARENA's scaffolds cast a sharp slanted shadow just under each top bar.
+
+### Changed
+- JUNGLE ARENA's layout was reworked so no scaffold overlaps another. There's now a tower on each side (left lower, right higher) with a smaller tower stacked on each, and a small tower standing on the middle of the main stage. Stacked towers end where they sit instead of running down behind the one below.
+- JUNGLE ARENA's light shafts reach all the way down past the stage and fade out gradually instead of stopping short.
+- New JUNGLE ARENA preview on map select showing the new layout and lighting.
+- Blocking or deflecting LAWNMOWER's EJECT now costs 0.45 shield instead of 0.67, so LONGSWORD no longer always shatters his shield batting it back (he takes about two-thirds of a full shield). The eject's hit damage is unchanged at 0.40.
+- JUNGLE ARENA runs smoother. Its scaffold images were trimmed down to just the scaffolds, so the game no longer draws huge empty areas around each tower.
+- DESERT ARENA's heat ray has a new look: a wide white core with thin yellow edges, both see-through, instead of a narrow white strip down a wide orange beam.
+
+### Fixed
+- LAWNMOWER's EJECT now explodes the moment it reaches the edge of the map instead of sitting there until it runs out of time.
+
+### Removed
+- GUNMAN's grenade (CHUCK). The SHOTGUN replaces it.
+
+## 2026-11-14
+
+### Added
+- NO DANGERS modifier (yellow). It turns off map dangers (what used to be called map hazards): the SNOWY cannon and the DESERT heat ray. The cannon still shows on the cliff but never fires. Weather isn't affected; that's still WEATHER HAZARDS / NO MERCY.
+- A new character select screen. All fighters sit in one large grid at the top, and below it each side has its own card showing the fighter holding their weapon and cycling through their attacks, plus the name, variant, CPU difficulty (for CPUs) and a P1 / P2 / CPU badge.
+  - WASD / arrows move, Q / `/` switch variants, E / SHIFT lock in and R / `.` unlock. Controllers use the D-pad, A to lock in, B to unlock and the shoulder buttons for variants. Clicking a fighter picks for P1 (right-click for P2), and each card has a full-width READY / UNREADY button at the bottom, with a P1 / P2 / CPU tab on the card's top edge.
+  - When both sides are locked in, a READY TO FIGHT bar slides in. Click it or press E / SHIFT / ENTER to start.
+  - On touchscreens each card has its own D-pad with an OK button.
+- Press I during a match to pause and open ADVANCED INFO on your fighter. Press I or Esc again to close it and keep playing.
+- An info button in the pause menu that opens ADVANCED INFO.
+- A FIGHTER INFO row in the settings menu with a VIEW button that opens ADVANCED INFO, on every menu screen and in offline matches. Closing it goes back to settings.
+- Press I on the character select screen to open ADVANCED INFO on P1's current fighter and variant.
+
+### Changed
+- DESERT ARENA's heat ray comes back 7 seconds after it fades instead of 5, and each burn tick while you're standing in it deals 1% instead of 2%. The afterburn and NO MERCY timing are unchanged.
+- LAWNMOWER's PLOW only grinds opponents in a narrow strip straight in front of the mower: they have to be roughly level with it (at most 30px above or 35px below) and close to straight ahead (within about 37 degrees). It can no longer hit people above you.
+- HOOKER CROWBARMAN's crowbar now turns to point at the player he's grabbed for the whole grab, instead of only leaning toward them a little.
+- ADVANCED INFO isn't on the character select screen anymore. Open it in a match or from the online menu.
+- The in-match play, restart, settings, home and info buttons are tinted to match SNOWY ARENA, JUNGLE and INFINITE BRIDGE. DESERT ARENA keeps the original sandy colors. The settings gear on map select and character select switches to the highlighted map's tint right away.
+
+### Fixed
+- TRAPPER's net no longer passes through a wall when thrown right next to it. If a wall is in the way when the net leaves his hands, it stops against that wall and drops down on his side.
+
+## 2026-11-13
+
+### Added
+- A VIEW MODIFIERS button in online lobbies, next to the modifier count. It opens a scrollable list of every modifier the host picked, with its setting and description. The lobby's mode, arena, modifier count and the button are centered together as a group.
+- An ADVANCED INFO panel for fighters, replacing the BASIC VIEW / ADVANCED VIEW toggle. Open it from the character select screen or the online menu. It shows the fighter's name and a big icon, the arrows flip through every fighter and variant, the text scrolls when it's long, and X (or Esc) closes it. The text types itself out when the panel opens.
+- Moves that weren't written down are now in each fighter's info: TRAPPER's harpoons and harpoon throw, CHAINSAW's dig and build, LONGSWORD's block, LUMBERER's CHOPPED, GUNMAN's explosive 5th shot, and SIPHONING REPAIR's heal numbers.
+- A separate count of players waiting in QUICK 1V1, on the QUICK 1V1 button, in the search screen and in the online status bar.
+
+### Changed
+- The online fighter box is slimmer, so the lobby panel next to it is much wider.
+- TRAPPER's net can't be blocked or parried anymore, and it traps for 2 seconds instead of 3.
+- TRAPPER's net stops at walls (platform sides, steel planks, lodged cannonballs). Hitting one from the side makes it crash straight down; landing on top makes it lie there, and it falls again if that wall goes away.
+- MALLET HAMMERMAN's SIPHONING REPAIR heals 5% per strike that misses instead of 7.5%. Strikes that land still heal 25%.
+- CHOPPED slows you to 35% speed on the ground and 75% in the air instead of a flat 50%. It still halves your damage.
+- GUNMAN's shots, including MINI, hit whoever is first in the line of fire instead of only his main target.
+- A cannonball LONGSWORD bats into someone pops off them and arcs down with some of its sideways speed instead of dropping straight down.
+- Players who tabbed away still show up in the invite list, marked AWAY, and can be invited.
+
+### Fixed
+- Players who left the online menu and came back sometimes didn't show up in the invite list until a refresh.
+
+## 2026-11-12
+
+### Added
+- SNOWY ARENA's cannon hazard. A cannon sits on the cliff behind the bridge, and every 15 seconds of a match it picks a random player.
+  - A red mark follows that player for 3 seconds while the cannon slowly turns to aim.
+  - Then the mark spins fast and jumps ahead to where the cannon predicts the player will be, and a second mark appears where the player was standing. The cannon fires one cannonball at each mark.
+  - A cannonball launches anyone in its path for the last 0.2 seconds before it reaches its mark, or anyone it lands on. It launches them hard (it can KO at high damage), then drops through the platforms, still launching anyone it falls on, and lodges in the bridge as a solid, round obstacle for 5 seconds.
+  - Blocking a cannonball stops the launch, but it always shatters your shield.
+  - Map hazards like the cannon are always on. The WEATHER HAZARDS modifier still controls the blizzard and sandstorm.
+  - The cannon doesn't appear on INFINITE BRIDGE.
+- DESERT ARENA's heat ray. A wide, blazing ray slams down at an angle toward a random player, then sways a little for 3 seconds (it doesn't follow anyone). The next one comes 5 seconds after it fades.
+  - Standing in the ray burns you fast. Once you get out you keep burning a bit longer, for 10% more damage in total.
+  - SLATEMAN loves it. While he's burning he glows red and gets hotter: 1.3x damage, 10 more range, a 1.3x faster PLUNGE slide and 1.5x movement speed, but he takes a bit more knockback (his resistance drops by a quarter). It lasts until he stops burning.
+- CPUs in online lobbies. The host can press ADD CPU on an open slot to fill it with a CPU on a random fighter (HARD difficulty), and REMOVE to take it back out. One CPU per lobby, and not in 1V1 lobbies.
+- NO MERCY modifier (red). Weather hazards never stop, and map hazards get a lot more dangerous: the SNOWY cannon fires twice as often and the DESERT heat ray comes back after just 1 second. It turns on weather by itself, so WEATHER HAZARDS doesn't need to be on too.
+
+### Changed
+- LONGSWORD has its own block now.
+  - Blocking a melee hit (jabs, tilts, the smack down and so on) knocks the attacker back in a short hop like the smack down and puts them in hitstun instead of freezing them, so a good block sets up a combo.
+  - That hitstun lasts up to 1.1 seconds when you block right as the hit lands, dropping to 0.5 seconds the longer you've held block.
+  - It deflects projectiles back at whoever threw them: TRAPPER's harpoons, GUNMAN's grenades and LAWNMOWER's eject. GUNMAN's shots get sent back at him too. TRAPPER's net still goes through.
+  - He can deflect SNOWY cannonballs too, which shatters his shield. The ball turns the color of the nearest other player and rockets at them 3 times faster.
+  - The trade-off: LONGSWORD's shield only has 2/3 the health of a normal block, so hits and holding block wear it down faster. It does refill 1.5 times faster.
+  - It has its own parry sound.
+  - He raises his sword into his third-hit swing pose while he blocks, and a successful block flashes a sword-shaped cue in his player color instead of the usual shield.
+  - CPUs know about it. A LONGSWORD CPU blocks more often, bats projectiles and GUNMAN shots back (more reliably on harder difficulties) and drops its block to punish right after a counter. It holds its block through a GUNMAN's whole round and knows how to bat SNOWY cannonballs away. HARD and VERY HARD CPUs back off instead of swinging into a LONGSWORD's raised block.
+- LAWNMOWER's eject hits harder (0.40 instead of 0.25). Blocking it costs a big chunk of shield, enough to break LONGSWORD's shield in one go, even when he deflects it.
+- LAWNMOWER's PLOW reaches further (150 instead of 110) and its explosion hits much harder: 0.60 instead of 0.25, with a stronger launch and longer hitstun.
+- Blocking LAWNMOWER's PLOW now wrecks it right away. The mower still blows up, but it only pushes the blocker a bit sideways with almost no lift and adds no damage, and LAWNMOWER is stuck with the PULL CORD like after any PLOW explosion.
+- The SNOWY cannon launches you less high.
+- GUNMAN's normal shots take less off a block (0.05 instead of 0.08), so a block can survive a full round of shots plus the explosion shot.
+- After a smack down, specials (neutral and directional) come back 0.15 seconds before normal attacks do.
+- The broken-shield mark is now tinted to each player's color (CPU color for CPUs) instead of only red or blue.
+- The death ray (the purple KO launch) needs a stronger sideways launch now: at least 1000 speed sideways instead of 800 in any direction. Launches that also send you high up need even more, since those are easier to recover from. Spikes downward don't need extra.
+
 ## 2026-11-10
 
 ### Added

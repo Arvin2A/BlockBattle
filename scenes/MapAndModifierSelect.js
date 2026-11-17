@@ -3,7 +3,7 @@
 // Licensed under the GNU GPL v3 only. See LICENSE.
 
 import Phaser from 'phaser';
-import { addSettingsButton } from '../ui/settings.js';
+import { addSettingsButton, setSettingsButtonTint } from '../ui/settings.js';
 import { DEFAULT_MAP, MAP_LIST, SECRET_MAPS, getRandomMap } from './GameScene/MapDefinitions.js';
 import { preloadMapSelection } from './GameScene/preload.js';
 import { fadeOutTo } from './transitions.js';
@@ -36,6 +36,11 @@ export function getActiveKillZones(map) {
 		verticalWall: vertical.enabled && vertical.collisions,
 		horizontalWall: !map.infinite && horizontal.enabled && horizontal.collisions
 	};
+}
+
+export function getSelectedButtonTint() {
+	if (modifierOptions.INFINITE_BRIDGE.enabled) return SECRET_MAPS.BRIDGE.buttonTint ?? null;
+	return selectedMapIsRandom ? null : selectedMapDefinition.buttonTint ?? null;
 }
 
 export function getSelectedMapPreview() {
@@ -118,7 +123,7 @@ export class MapAndModifierSelectScene extends Phaser.Scene {
 
 	create(data = {}) {
 		this.cameras.main.fadeIn(200, 0, 0, 0);
-		addSettingsButton(this);
+		this.settingsButton = setSettingsButtonTint(this, addSettingsButton(this), getSelectedButtonTint());
 		this.cameras.main.setBackgroundColor('#1b1b1b');
 		this.page = data.page === 'modifiers' ? 'modifiers' : 'maps';
 
@@ -289,6 +294,7 @@ export class MapAndModifierSelectScene extends Phaser.Scene {
 			const selectedMap = maps[this.selectedMapIndex];
 			this.selectedMapName.setText(selectedMap.name);
 			this.setBackdrop?.(selectedMap.preview);
+			setSettingsButtonTint(this, this.settingsButton, getSelectedButtonTint());
 			this.selectedMapCount.setText(`MAP ${this.selectedMapIndex + 1} / ${count}`);
 			this.mapCards.forEach((mapCard, index) => {
 				let offset = (index - this.selectedMapIndex + count) % count;
@@ -411,7 +417,7 @@ export class MapAndModifierSelectScene extends Phaser.Scene {
 			fontSize: '38px',
 			fill: COLORS.text
 		}).setOrigin(0.5);
-		this.add.text(500, PAGE_HEIGHT + 84, 'MOST CHAOTIC ON TOP. SOME MODIFIERS MAY OVERRIDE OTHERS.', {
+		this.add.text(500, PAGE_HEIGHT + 84, 'LEAST CHAOTIC ON TOP. SOME MODIFIERS MAY OVERRIDE OTHERS.', {
 			fontFamily: FONTS.body,
 			fontSize: '16px',
 			fill: COLORS.muted

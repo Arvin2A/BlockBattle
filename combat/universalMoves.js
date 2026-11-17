@@ -20,7 +20,7 @@ export const SMACK = {
     reach: 45,
     damage: 0.03,
     totalStunMs: 1200,
-    attackerFreeBeforeMs: 0,
+    specialFreeBeforeMs: 150,
     arcHeight: 70,
     arcMs: 900,
     reboundAway: 240,
@@ -229,11 +229,11 @@ function stepSmack(scene, attacker, dt) {
     releaseSmack(scene, attacker);
     attacker.canAttack = false;
     const victimStunMs = SMACK.totalStunMs - SMACK.grabMs - SMACK.slamMs;
-    const recoverMs = victimStunMs - SMACK.attackerFreeBeforeMs;
+    const recoverMs = victimStunMs;
     attacker.nextAttackTime = Math.max(attacker.nextAttackTime ?? 0, scene.time.now + recoverMs);
-    attacker.smackEndlagUntil = scene.time.now + recoverMs;
+    attacker.smackEndlagUntil = scene.time.now + Math.max(0, recoverMs - SMACK.specialFreeBeforeMs);
     scene.time.delayedCall(recoverMs, () => {
-        if (!attacker.smack) attacker.canAttack = true;
+        if (!attacker.smack && !attacker.isUsingSideSpecial) attacker.canAttack = true;
     });
     landHit(scene, attacker, target, {
         damage: SMACK.damage,
@@ -279,6 +279,8 @@ export function hideWeaponsForUniversalMoves(players) {
         if (!atk || !weaponHidden(player)) continue;
         player.atkHiddenWas = atk.visible;
         atk.setVisible(false);
+        player.attachedHiddenWas = player.attachedWeapons?.map(part => part.visible);
+        player.attachedWeapons?.forEach(part => part.setVisible(false));
         if (player.mower) {
             player.mowerHiddenWas = player.mower.visible;
             player.mower.setVisible(false);
@@ -291,6 +293,8 @@ export function restoreHiddenWeapons(players) {
         if (player?.atkHiddenWas === undefined) continue;
         player.atk?.setVisible(player.atkHiddenWas);
         player.atkHiddenWas = undefined;
+        player.attachedWeapons?.forEach((part, index) => part.setVisible(player.attachedHiddenWas?.[index] ?? part.visible));
+        player.attachedHiddenWas = undefined;
         if (player.mowerHiddenWas !== undefined) {
             player.mower?.setVisible(player.mowerHiddenWas);
             player.mowerHiddenWas = undefined;
@@ -298,9 +302,9 @@ export function restoreHiddenWeapons(players) {
     }
 }
 
-function startSmackArc(scene, target, dir) {
+export function startSmackArc(scene, target, dir, { away = SMACK.reboundAway, height = SMACK.arcHeight } = {}) {
     const seconds = SMACK.arcMs / 1000;
-    const arcGravity = 8 * SMACK.arcHeight / (seconds * seconds);
+    const arcGravity = 8 * height / (seconds * seconds);
     target.smackArc = {
         elapsed: 0,
         hitAt: target.lastHitAt,
@@ -309,7 +313,7 @@ function startSmackArc(scene, target, dir) {
     target.willDecelerate = false;
     target.body.allowGravity = true;
     target.body.gravity.y = target.smackArc.extraGravity;
-    target.setVelocity(dir * SMACK.reboundAway, -4 * SMACK.arcHeight / seconds);
+    target.setVelocity(dir * away, -4 * height / seconds);
 }
 
 function endSmackArc(player) {
@@ -337,8 +341,9 @@ export function getFlatSquash(player, now) {
     const flat = player.flatSquash;
     if (!flat) return 0;
     const elapsed = now - flat.startedAt;
-    if (elapsed < FLAT_SQUASH.holdMs) return 1;
-    const t = (elapsed - FLAT_SQUASH.holdMs) / FLAT_SQUASH.easeMs;
+    const holdMs = flat.holdMs ?? FLAT_SQUASH.holdMs;
+    if (elapsed < holdMs) return 1;
+    const t = (elapsed - holdMs) / FLAT_SQUASH.easeMs;
     if (t >= 1) {
         player.flatSquash = null;
         return 0;

@@ -9,7 +9,152 @@ function tilt(api, scene, attacker, victim, xMul, yMul, kbTime) {
     });
 }
 
-const neutralSpecial = () => {};
+const BRACE = { healTick: 0.1, tickMs: 1000, minMs: 1000, healFlashMs: 200, healSound: 'slateheal', minKB: 1, tint: 0x8f949c, sound: 'rockbreak', hitDamageScale: 1 / 1.5 };
+const ROCKFALL = {
+    speed: 1100,
+    invincibleWindowMs: 60,
+    range: 60,
+    shake: 6,
+    sound: 'sledgewhoosh',
+    hit: {
+        damage: 0.04,
+        plankDamage: 0,
+        hitstun: 300,
+        hitstunGrowth: false,
+        sound: 'slatepunch',
+        knockback: { x: 250, y: 350, growth: false, scaleWithDamage: false },
+        resetCombo: false,
+        noDeathRay: true
+    }
+};
+
+function isGrounded(player) {
+    return player.body.blocked.down || player.body.touching.down;
+}
+
+function inHitstun(scene, player) {
+    return scene.time.now < (player.hitstunUntil ?? 0);
+}
+
+function setStone(player, stone) {
+    if (stone) {
+        player.setTint(BRACE.tint);
+        player.atk?.setTint(BRACE.tint);
+        return;
+    }
+    if (player.heatTinted) return;
+    player.clearTint();
+    player.atk?.clearTint();
+}
+
+function startBrace(scene, player) {
+    player.bracing = true;
+    player.inputLocked = true;
+    player.inputLockReleasableAt = scene.time.now + BRACE.minMs;
+    player.releaseInputLock = () => stopBrace(player);
+    player.braceKB = player.KBmultiplier;
+    player.nextBraceHealAt = scene.time.now + BRACE.tickMs;
+    player.setVelocityX(0);
+    setStone(player, true);
+    scene.sound.play(BRACE.sound);
+}
+
+function keepRockfallInvincible(scene, player) {
+    player.invincibleUntil = Math.max(player.invincibleUntil ?? 0, scene.time.now + ROCKFALL.invincibleWindowMs);
+}
+
+function startRockfall(scene, player) {
+    player.rockfalling = true;
+    player.inputLocked = true;
+    player.inputLockReleasableAt = Infinity;
+    player.releaseInputLock = null;
+    player.rockfallHits = new Set();
+    keepRockfallInvincible(scene, player);
+    player.setVelocity(0, ROCKFALL.speed);
+    setStone(player, true);
+    scene.sound.play(ROCKFALL.sound);
+}
+
+function stopBrace(player) {
+    if (!player.bracing && !player.rockfalling) return;
+    player.bracing = false;
+    player.rockfalling = false;
+    player.inputLocked = false;
+    player.inputLockReleasableAt = Infinity;
+    player.releaseInputLock = null;
+    setStone(player, false);
+}
+
+function brace(api, scene, player) {
+    if (player.rockfalling) {
+        stopBrace(player);
+        return;
+    }
+    if (player.bracing) {
+        if (scene.time.now >= player.inputLockReleasableAt) stopBrace(player);
+        return;
+    }
+    if (player.hitstun || player.freeze || player.isAttacking) return;
+    if (isGrounded(player)) startBrace(scene, player);
+    else startRockfall(scene, player);
+}
+
+function updateRockfall(api, scene, player) {
+    if (inHitstun(scene, player) || !player.active || player.respawnFalling) {
+        stopBrace(player);
+        return;
+    }
+    keepRockfallInvincible(scene, player);
+    for (const enemy of api.getEnemies(scene, player)) {
+        if (player.rockfallHits.has(enemy) || api.isInvincible(enemy)) continue;
+        const below = api.attackIsElligible(player, enemy, ROCKFALL.range, {
+            ignoreCanAttack: true,
+            silent: true,
+            direction: { x: 0, y: 1 },
+            minDot: 0.5
+        });
+        if (!below) continue;
+        player.rockfallHits.add(enemy);
+        api.landHit(scene, player, enemy, { ...ROCKFALL.hit, direction: { x: Math.sign(enemy.x - player.x) || 1, y: 0 } });
+    }
+    if (isGrounded(player)) {
+        player.rockfalling = false;
+        api.spawnDirtBurst(scene, player.x, player.body.bottom, 14);
+        api.triggerScreenShake(scene, ROCKFALL.shake, 200);
+        startBrace(scene, player);
+        return;
+    }
+    player.setVelocity(0, Math.max(player.body.velocity.y, ROCKFALL.speed));
+}
+
+function updateBrace(api, scene, player) {
+    if (player.rockfalling) {
+        updateRockfall(api, scene, player);
+        return;
+    }
+    if (!player.bracing) return;
+    if (inHitstun(scene, player)) {
+        const taken = player.KBmultiplier - player.braceKB;
+        if (taken > 0) player.KBmultiplier -= taken * (1 - BRACE.hitDamageScale);
+        stopBrace(player);
+        return;
+    }
+    if (!player.active || player.respawnFalling || !isGrounded(player)) {
+        stopBrace(player);
+        return;
+    }
+    player.setVelocityX(0);
+    if (scene.time.now >= player.nextBraceHealAt) {
+        player.nextBraceHealAt += BRACE.tickMs;
+        if (player.KBmultiplier > BRACE.minKB) {
+            player.KBmultiplier = Math.max(BRACE.minKB, player.KBmultiplier - BRACE.healTick);
+            api.spawnHealFlash(scene, player, BRACE.healFlashMs);
+            scene.sound.play(BRACE.healSound);
+        }
+    }
+    player.braceKB = player.KBmultiplier;
+}
+
 const PLUNGE_FRAMES = { bladeOut: 15, bladeIn: 33 };
 const PLUNGE_BLADE_SPEED_BOOST = 1.5;
 const PLUNGE_ARM_OFFSET = 38;
@@ -52,7 +197,8 @@ function markPlunged(scene, target) {
 function updatePlungeMovement(api, scene, player) {
     if (!player.isPlunging || player.hitstun || player.freeze || !player.horizontalMovementActive) return;
     const boost = player.plungeBladeOut ? PLUNGE_BLADE_SPEED_BOOST : 1;
-    player.movementSpeed = player.baseMovementSpeed * (1 + player.playerSpeedScaling) * boost;
+    player.movementSpeed = player.baseMovementSpeed * (1 + player.playerSpeedScaling) * boost *
+        api.getHeatStat(player, 'speedScale') * api.getHeatStat(player, 'slideScale');
 }
 
 function tryPlunge(api, scene, player, target, direction, currentTime) {
@@ -80,6 +226,7 @@ function tryPlunge(api, scene, player, target, direction, currentTime) {
     arm.body.setAllowGravity(false);
     arm.setFrame(0);
     arm.setFlipX(dirX < 0);
+    if (player.heated) arm.setTint(player.tintTopLeft);
     scene.objs.add(arm);
 
     player.atk.stop();
@@ -149,7 +296,10 @@ const unlessPlunging = handler => (api, scene, attacker, ...args) => {
 };
 
 export default {
+    demoAnimations: ['slateatk', 'slateatksecond', 'slateatkthird', 'slateatktilt'],
+    demoIdle: 'slateatk1',
     armColor: 0x2c2d31,
+    heat: { damageScale: 1.3, slideScale: 1.3, speedScale: 1.5, resistanceScale: 0.75, rangeBonus: 10, tint: 0xff9c8a },
     hitSounds: {
         light: ['slatelight1', 'slatelight2'],
         finisher: 'slatepunch'
@@ -165,9 +315,13 @@ export default {
             attacker.combo === 1 ? 'slateatksecond' : 'slateatk', 'slateatkthird')),
     handleDirSpecial: (api, scene, attacker, direction, currentTime, victim) =>
         tryPlunge(api, scene, attacker, victim, direction, currentTime),
-    update: updatePlungeMovement,
-    handleNeutralSpecial: unlessPlunging(neutralSpecial),
-    variantNeutralSpecials: { METAMORPHIC: unlessPlunging(neutralSpecial) },
+    update: (api, scene, player) => {
+        updatePlungeMovement(api, scene, player);
+        updateBrace(api, scene, player);
+    },
+    onMatchEnd: (scene, player) => stopBrace(player),
+    handleNeutralSpecial: unlessPlunging(brace),
+    variantNeutralSpecials: { METAMORPHIC: unlessPlunging(brace) },
     handleHorizantalTilt: unlessPlunging((api, scene, attacker, victim) =>
         tilt(api, scene, attacker, victim, 0.6, 1, 600)),
     handleDownTilt: unlessPlunging((api, scene, attacker, victim) =>

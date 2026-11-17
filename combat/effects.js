@@ -107,6 +107,17 @@ export function spawnCrater(scene, x, y, duration) {
     });
 }
 
+export function spawnHealFlash(scene, player, duration = 100) {
+    const flash = scene.add.rectangle(player.x, player.y, 50, 50, 0x00ff00);
+    scene.objs.add(flash);
+    scene.tweens.add({
+        targets: flash,
+        alpha: 0,
+        duration,
+        onComplete: () => flash.destroy()
+    });
+}
+
 export function spawnExplosion(scene, victim, scale = 0.7) {
     const explosion = scene.add.sprite(victim.x, victim.y, 'explosion')
         .setDepth(8)

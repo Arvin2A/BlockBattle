@@ -64,10 +64,11 @@ export function grindTick(api, scene, attacker, victim, lastContactAt, {
     freeze = 60,
     blockCost = 0.02,
     blockedBuildsContact = true,
-    float = {}
+    float = {},
+    eligibility = {}
 } = {}) {
     const inReach = victim.active && api.attackIsElligible(
-        attacker, victim, grindReach(attacker, victim, range), { ignoreCanAttack: true, silent: true }
+        attacker, victim, grindReach(attacker, victim, range), { ignoreCanAttack: true, silent: true, ...eligibility }
     );
     if (!inReach) {
         setGrindFloat(scene, attacker, false);
@@ -102,11 +103,13 @@ export function grindExplosion(api, scene, attacker, victim, {
     explosionScale = 0.7,
     noDeathRay = false,
     direction = null,
-    ranged = false
+    ranged = false,
+    shieldCost = null
 } = {}) {
     api.landHit(scene, attacker, victim, {
         direction,
         ranged,
+        shieldCost,
         damage,
         plankDamage: 0,
         hitstun,

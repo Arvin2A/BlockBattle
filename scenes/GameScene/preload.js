@@ -11,6 +11,7 @@ export function preloadMenu() {
     this.load.audio('buttonhover', 'audio/buttonhover.wav');
     this.load.audio('deny', 'audio/deny.wav');
     this.load.audio('hover2', 'audio/hover2.wav');
+    preloadCharacterIcons.call(this);
 }
 
 export function preloadMapSelection() {
@@ -22,6 +23,13 @@ export function preloadMapSelection() {
     this.load.audio('buttonhover', 'audio/buttonhover.wav');
     this.load.audio('hover2', 'audio/hover2.wav');
     this.load.audio('revolveselect', 'audio/revolveselect.wav');
+    preloadCharacterIcons.call(this);
+    preloadGreySettingsButton.call(this);
+}
+
+export function preloadGreySettingsButton() {
+    this.load.image('settingsBtnGrey', 'assets/ingame/settingsBtnGrey.png');
+    this.load.image('pressedSettingsBtnGrey', 'assets/ingame/pressedSettingsBtnGrey.png');
 }
 
 export function preloadCharacterSelection() {
@@ -31,29 +39,15 @@ export function preloadCharacterSelection() {
     this.load.image('jungle_preview', 'assets/menu/jungle_preview.png');
     this.load.image('selectedoverlay', 'assets/menu/selectedOverlay.png');
     this.load.image('ready', 'assets/menu/READY.png');
+    preloadGreySettingsButton.call(this);
     this.load.audio('hover', 'audio/hover.wav');
     this.load.audio('buttonhover', 'audio/buttonhover.wav');
     this.load.audio('deny', 'audio/deny.wav');
     this.load.audio('hover2', 'audio/hover2.wav');
 
 
-    const characterTextures = [
-        ['axeman', 'assets/sprites/axeman/axeman-default.png'],
-        ['chainsawman', 'assets/sprites/axeman/axeman-chainsaw.png'],
-        ['swordman', 'assets/sprites/swordman/swordman-default.png'],
-        ['daggerman', 'assets/sprites/swordman/swordman-dagger.png'],
-        ['fisherman', 'assets/sprites/fisherman/fisherman-default.png'],
-        ['trapperman', 'assets/sprites/fisherman/fisherman-trapper.png'],
-        ['scytheman', 'assets/sprites/scytheman/scytheman-default.png'],
-        ['lawnmowerman', 'assets/sprites/scytheman/scytheman-lawnmower.png'],
-        ['hammerman', 'assets/sprites/hammerman/hammerman-default.png'],
-        ['sledgehammerman', 'assets/sprites/hammerman/hammerman-sledgehammer.png'],
-        ['slateman', 'assets/sprites/slateman/slateman-default-1.png'],
-        ['crowbarman', 'assets/sprites/crowbarman/crowbarman-default.png'],
-        ['gunman', 'assets/sprites/gunman/gunman-default.png']
-    ];
-
-    characterTextures.forEach(([key, path]) => this.load.image(key, path));
+    preloadCharacterIcons.call(this);
+    preloadFighterSprites.call(this);
 }
 
 export function preload() {
@@ -84,6 +78,7 @@ export function preload() {
     this.load.audio('hover', 'audio/hover.wav');
     this.load.audio('buttonhover', 'audio/buttonhover.wav');
     this.load.audio('deny', 'audio/deny.wav');
+    this.load.audio('hover2', 'audio/hover2.wav');
 
     //map preview images
     this.load.image('desertpreview', 'assets/menu/arenapreview.png');
@@ -106,6 +101,12 @@ export function preload() {
 
     this.load.image('snowy_background', 'assets/ingame/snowy_background.png');
     this.load.image('snowy_betterground', 'assets/ingame/snowy_betterground.png');
+    this.load.image('cannon_headless', 'assets/ingame/cannon_headless.png');
+    this.load.spritesheet('snowycannonshothead', 'assets/ingame/snowycannonshothead.png', { frameWidth: 100, frameHeight: 100 });
+    this.load.image('dangermark', 'assets/ingame/dangermark.png');
+    this.load.image('cannonball_impact', 'assets/ingame/cannonball_impact.png');
+    this.load.image('mudpillar', 'assets/ingame/mudpillar.png');
+    this.load.spritesheet('flytraphead', 'assets/ingame/flytraphead.png', { frameWidth: 30, frameHeight: 30 });
     
     this.load.image('snowplatform1', 'assets/ingame/snowplatform1.png');
     this.load.image('snowplatform2', 'assets/ingame/snowplatform2.png');
@@ -113,6 +114,7 @@ export function preload() {
     this.load.image('jungle_background', 'assets/ingame/jungle_background.png');
     this.load.image('jungle_betterground', 'assets/ingame/jungle_betterground.png');
     this.load.image('jungle_platform', 'assets/ingame/jungle_platform.png');
+    this.load.image('jungle_ray', 'assets/ingame/jungle_ray.png');
 
     this.load.image('jungle_preview', 'assets/menu/jungle_preview.png');
 
@@ -145,6 +147,17 @@ export function preload() {
     this.load.image('forfeitBtn', 'assets/ingame/forfeitBtn.png');
 
     this.load.image('resumeBtn', 'assets/ingame/resumeBtn.png');
+    this.load.image('characterInfoBtn', 'assets/ingame/characterInfoBtn.png');
+    [
+        ['resumeBtnGrey', 'resumeBtnGrey'],
+        ['restartBtnGrey', 'restartBtnGrey'],
+        ['restartBtnPressedGrey', 'pressedRestartGrey'],
+        ['gohomeBtnGrey', 'goHomeBtnGrey'],
+        ['gohomeBtnPressedGrey', 'pressedgoHomeGrey'],
+        ['settingsBtnGrey', 'settingsBtnGrey'],
+        ['pressedSettingsBtnGrey', 'pressedSettingsBtnGrey'],
+        ['characterInfoBtnGrey', 'characterInfoBtnGrey']
+    ].forEach(([key, file]) => this.load.image(key, `assets/ingame/${file}.png`));
 
     for (let i = 1; i < 5; i++) {
         this.load.image('countdown' + i, 'assets/ingame/countdown' + i + '.png');
@@ -176,10 +189,175 @@ export function preload() {
 
     this.load.spritesheet('uni-ledgepull', 'assets/sprites/universal/uni-ledgepull.png', { frameWidth: 100, frameHeight: 100 });
     this.load.spritesheet('uni-slam', 'assets/sprites/universal/uni-slam.png', { frameWidth: 100, frameHeight: 100 });
-    this.load.image('p1shieldbreak', 'assets/ingame/p1shieldbreak.png');
+    this.load.image('shieldbreak', 'assets/ingame/shieldbreak.png');
     this.load.image('blockshield', 'assets/ingame/resistanceshield.png');
-    this.load.image('p2shieldbreak', 'assets/ingame/p2shieldbreak.png');
 
+    preloadFighterSprites.call(this);
+
+    // =====================================================
+    // MISC SPRITESHEETS/ASSETS
+    // =====================================================
+
+    this.load.spritesheet(
+        'upbambooGrow',
+        'assets/ingame/upBamboo.png',
+        {
+            frameWidth: 50,
+            frameHeight: 50
+        }
+    );
+    this.load.spritesheet(
+        'upgrassGrow',
+        'assets/ingame/upGrass.png',
+        {
+            frameWidth: 75,
+            frameHeight: 75
+        }
+    );
+    this.load.image('impactcrater', 'assets/ingame/impactcrater.png');
+
+
+
+
+    // =====================================================
+    // AUDIO - GLOBAL
+    // =====================================================
+
+    this.load.audio('anyhit', 'audio/hit1.mp3');
+    this.load.audio('miss', 'audio/swordslash.wav');
+
+    this.load.audio('countdown', 'audio/countdown.wav');
+
+    this.load.audio('swosh', 'audio/swosh.wav');
+
+    this.load.audio('slamimpact', 'audio/slamimpact.wav');
+
+    this.load.audio('scytheslam', 'audio/scytheslam.wav');
+
+    // =====================================================
+    // AUDIO - SWORDMAN
+    // =====================================================
+
+    this.load.audio('swordthirdhitsfx', 'audio/swordlunge.wav');
+    this.load.audio('lunge', 'audio/Dodge3.wav');
+    this.load.audio('swordslash1', 'audio/swordslash1.wav');
+    this.load.audio('swordslash2', 'audio/swordslash2.wav');
+    this.load.audio('quickdraw', 'audio/quickdraw.wav');
+
+    this.load.audio('teleport', 'audio/teleport.wav');
+
+
+    // =====================================================
+    // AUDIO - AXEMAN
+    // =====================================================
+
+    this.load.audio('axethirdhitsfx', 'audio/snd_damage_c.wav');
+    this.load.audio('axecleavesfx', 'audio/axechop.wav');
+    this.load.audio('axeslash1', 'audio/axeslash1.wav');
+    this.load.audio('axeslash2', 'audio/axeslash2.wav');
+
+    this.load.audio('chainsaw', 'audio/chainsaw.wav');
+    this.load.audio('deactivatechainsaw', 'audio/deactivatechainsaw.wav');
+    this.load.audio('collectwood', 'audio/collectwood.wav');
+    this.load.audio('plankbreak', 'audio/plankbreak.wav');
+    this.load.audio('placeplank','audio/placeplank.wav');
+
+    // =====================================================
+    // AUDIO - FISHERMAN
+    // =====================================================
+
+    this.load.audio('rodthirdhitsfx', 'audio/whipcrack.wav');
+    this.load.audio('whoosh', 'audio/hookwhoosh.wav');
+
+    // =====================================================
+    // AUDIO - SCYTHEMAN
+    // =====================================================
+
+    this.load.audio('scythethirdhitsfx', 'audio/scythethird.wav');
+    this.load.audio('slash', 'audio/slash.mp3');
+    this.load.audio('twirl', 'audio/Twirling.mp3');
+    this.load.audio('slice', 'audio/preslice.wav');
+
+    // =====================================================
+    // AUDIO - HAMMERMAN
+    // =====================================================
+
+    this.load.audio('hammerhit', 'audio/punch.wav');
+    this.load.audio('repair', 'audio/Hitwrench.mp3');
+
+    this.load.audio('rocksliding', 'audio/rocksliding.wav');
+    this.load.audio('flytrapgulp', 'audio/flytrapgulp.wav');
+    this.load.audio('ratchet', 'audio/ratchet.wav');
+    this.load.audio('crowbarslam', 'audio/crowbarslam.wav');
+    this.load.audio('ripfling', 'audio/ripfling.wav');
+    this.load.audio('rip1', 'audio/rip1.wav');
+    this.load.audio('rip2', 'audio/rip2.wav');
+    this.load.audio('rip3', 'audio/rip3.wav');
+    this.load.audio('falling', 'audio/falling.wav');
+    this.load.audio('sledgehammerhit', 'audio/sledgehammerhit.wav');
+    this.load.audio('sledgewhoosh', 'audio/sledgewhoosh.wav');
+    this.load.audio('sledgehammerquickslam', 'audio/quickslamgrounded.wav');
+    this.load.audio('steelplank', 'audio/steelplank.wav');
+    this.load.audio('thicksteelplank', 'audio/steelplank2.wav');
+
+
+    // =====================================================
+    // AUDIO - SLATEMAN
+    // =====================================================
+
+    this.load.audio('slatepunch', 'audio/slatepunch.wav');
+    this.load.audio('rockbreak', 'audio/rockbreak.wav');
+    this.load.audio('plunge', 'audio/plunge.mp3');
+    this.load.audio('slatelight1', 'audio/slatelight1.wav');
+    this.load.audio('slatelight2', 'audio/slatelight2.wav');
+    this.load.audio('slateheal', 'audio/slateheal.wav');
+
+    // =====================================================
+    // AUDIO - CROWBARMAN
+    // =====================================================
+
+    this.load.audio('grab', 'audio/snd_grab.wav');
+    this.load.audio('crowbarhit', 'audio/hl_crowbar.mp3');
+    this.load.audio('crowbarclang1', 'audio/crowbarclang1.wav');
+    this.load.audio('crowbarclang2', 'audio/crowbarclang2.wav');
+
+    // =====================================================
+    // AUDIO - GUNMAN
+    // =====================================================
+
+    this.load.audio('gunshot', 'audio/fire.wav');
+    this.load.audio('reload', 'audio/reload.mp3');
+    this.load.audio('explosion', 'audio/explosion.wav');
+    this.load.audio('gunspecialend', 'audio/gunspecialend.mp3')
+
+
+    // =====================================================
+    // AUDIO - MISC
+    // =====================================================
+
+    this.load.audio('harvest', 'audio/harvest.wav');
+    this.load.audio('damn', 'audio/daaaaaamn.wav');
+    this.load.audio('glassbreak', 'audio/glassbreak.wav');
+    this.load.audio('block', 'audio/block.wav');
+    this.load.audio('longswordparry', 'audio/longswordparry.wav');
+    this.load.audio('lawnmower-loop', 'audio/lawnmower-loop.wav');
+    this.load.audio('lawnmower-end', 'audio/lawnmower-end.wav');
+
+    // =====================================================
+    // AUDIO - AUTOMATICALLY ADDED
+    // =====================================================
+
+    this.load.audio('reel', 'audio/reel.wav');
+
+    // =====================================================
+    // AUDIO - NEW (added by add-audio.js, move into a section if you like)
+    // =====================================================
+
+    this.load.audio('superexplosion', 'audio/superexplosion.mp3');
+
+}
+
+export function preloadFighterSprites() {
     // =====================================================
     // AXEMAN
     // =====================================================
@@ -188,6 +366,7 @@ export function preload() {
         'axeman',
         'assets/sprites/axeman/axeman-default.png'
     );
+    this.load.image('axeprojectile', 'assets/sprites/axeman/axeprojectile.png');
 
     this.load.spritesheet(
         'axeatk',
@@ -265,6 +444,8 @@ export function preload() {
         }
     );
 
+    this.load.image('longswordblock', 'assets/sprites/swordman/longswordblock.png');
+
     this.load.spritesheet(
         'swordatktilt',
         'assets/sprites/swordman/swordatk3.png',
@@ -274,6 +455,9 @@ export function preload() {
         }
         
     );
+    this.load.spritesheet('sheathe', 'assets/sprites/swordman/sheathe.png', { frameWidth: 200, frameHeight: 75 });
+    this.load.spritesheet('sheatheatk', 'assets/sprites/swordman/sheateatk.png', { frameWidth: 200, frameHeight: 75 });
+
     // =====================================================
     // SWORDMAN - DAGGER
     // =====================================================
@@ -375,6 +559,10 @@ export function preload() {
             frameHeight: 300
         }
     );
+    this.load.spritesheet('fishslap', 'assets/sprites/fisherman/fishermanslap.png', { frameWidth: 300, frameHeight: 300 });
+    this.load.image('fish1', 'assets/sprites/fisherman/fish1.png');
+    this.load.image('fish2', 'assets/sprites/fisherman/fish2.png');
+    this.load.image('fish3', 'assets/sprites/fisherman/fish3.png');
 
     // TRAPPER
     this.load.image(
@@ -429,8 +617,6 @@ export function preload() {
     this.load.image('lawnmower-only', 'assets/sprites/scytheman/lawnmower-only.png');
     this.load.spritesheet('lawnmowerrun', 'assets/sprites/scytheman/lawnmowerrun.png', { frameWidth: 130, frameHeight: 75 });
     this.load.spritesheet('pullcord', 'assets/sprites/scytheman/pullcord.png', { frameWidth: 130, frameHeight: 75 });
-    this.load.audio('lawnmower-loop', 'audio/lawnmower-loop.wav');
-    this.load.audio('lawnmower-end', 'audio/lawnmower-end.wav');
 
     this.load.image(
         'whitescythe',
@@ -612,6 +798,7 @@ export function preload() {
         'crowbarman',
         'assets/sprites/crowbarman/crowbarman-default.png'
     );
+    this.load.image('demolitionistman', 'assets/sprites/crowbarman/crowbarman-demolishionist.png');
 
     this.load.spritesheet(
         'crowbaratk',
@@ -630,6 +817,11 @@ export function preload() {
             frameHeight: 200
         }
     );
+    this.load.spritesheet('bigcrowbarslam', 'assets/sprites/crowbarman/bigcrowbarslam.png', { frameWidth: 200, frameHeight: 150 });
+    this.load.spritesheet('tapecast', 'assets/sprites/crowbarman/tapecast.png', { frameWidth: 75, frameHeight: 60 });
+    this.load.image('tapestrip', 'assets/sprites/crowbarman/tapestrip.png');
+    this.load.image('tapefist', 'assets/sprites/crowbarman/tapefist.png');
+    this.load.image('bigcrowbar', 'assets/sprites/crowbarman/bigcrowbar.png');
 
     // =====================================================
     // GUNMAN
@@ -665,155 +857,26 @@ export function preload() {
             frameHeight: 75
         }
     );
-    this.load.image('grenade', 'assets/sprites/gunman/grenade.png')
-    
+    this.load.spritesheet('shotgunfire', 'assets/sprites/gunman/shotgunfire.png', { frameWidth: 100, frameHeight: 100 });
+}
 
-    // =====================================================
-    // MISC SPRITESHEETS/ASSETS
-    // =====================================================
+export function preloadCharacterIcons() {
+    const characterTextures = [
+        ['axeman', 'assets/sprites/axeman/axeman-default.png'],
+        ['chainsawman', 'assets/sprites/axeman/axeman-chainsaw.png'],
+        ['swordman', 'assets/sprites/swordman/swordman-default.png'],
+        ['daggerman', 'assets/sprites/swordman/swordman-dagger.png'],
+        ['fisherman', 'assets/sprites/fisherman/fisherman-default.png'],
+        ['trapperman', 'assets/sprites/fisherman/fisherman-trapper.png'],
+        ['scytheman', 'assets/sprites/scytheman/scytheman-default.png'],
+        ['lawnmowerman', 'assets/sprites/scytheman/scytheman-lawnmower.png'],
+        ['hammerman', 'assets/sprites/hammerman/hammerman-default.png'],
+        ['sledgehammerman', 'assets/sprites/hammerman/hammerman-sledgehammer.png'],
+        ['slateman', 'assets/sprites/slateman/slateman-default-1.png'],
+        ['crowbarman', 'assets/sprites/crowbarman/crowbarman-default.png'],
+        ['demolitionistman', 'assets/sprites/crowbarman/crowbarman-demolishionist.png'],
+        ['gunman', 'assets/sprites/gunman/gunman-default.png']
+    ];
 
-    this.load.spritesheet(
-        'upbambooGrow',
-        'assets/ingame/upBamboo.png',
-        {
-            frameWidth: 50,
-            frameHeight: 50
-        }
-    );
-    this.load.spritesheet(
-        'upgrassGrow',
-        'assets/ingame/upGrass.png',
-        {
-            frameWidth: 75,
-            frameHeight: 75
-        }
-    );
-    this.load.image('impactcrater', 'assets/ingame/impactcrater.png');
-
-
-
-
-    // =====================================================
-    // AUDIO - GLOBAL
-    // =====================================================
-
-    this.load.audio('anyhit', 'audio/hit1.mp3');
-    this.load.audio('miss', 'audio/swordslash.wav');
-
-    this.load.audio('countdown', 'audio/countdown.wav');
-
-    this.load.audio('swosh', 'audio/swosh.wav');
-
-    this.load.audio('slamimpact', 'audio/slamimpact.wav');
-
-    this.load.audio('scytheslam', 'audio/scytheslam.wav');
-
-    // =====================================================
-    // AUDIO - SWORDMAN
-    // =====================================================
-
-    this.load.audio('swordthirdhitsfx', 'audio/swordlunge.wav');
-    this.load.audio('lunge', 'audio/Dodge3.wav');
-    this.load.audio('swordslash1', 'audio/swordslash1.wav');
-    this.load.audio('swordslash2', 'audio/swordslash2.wav');
-
-    this.load.audio('teleport', 'audio/teleport.wav');
-
-
-    // =====================================================
-    // AUDIO - AXEMAN
-    // =====================================================
-
-    this.load.audio('axethirdhitsfx', 'audio/snd_damage_c.wav');
-    this.load.audio('axecleavesfx', 'audio/axechop.wav');
-    this.load.audio('axeslash1', 'audio/axeslash1.wav');
-    this.load.audio('axeslash2', 'audio/axeslash2.wav');
-
-    this.load.audio('chainsaw', 'audio/chainsaw.wav');
-    this.load.audio('deactivatechainsaw', 'audio/deactivatechainsaw.wav');
-    this.load.audio('collectwood', 'audio/collectwood.wav');
-    this.load.audio('plankbreak', 'audio/plankbreak.wav');
-    this.load.audio('placeplank','audio/placeplank.wav');
-
-    // =====================================================
-    // AUDIO - FISHERMAN
-    // =====================================================
-
-    this.load.audio('rodthirdhitsfx', 'audio/whipcrack.wav');
-    this.load.audio('whoosh', 'audio/hookwhoosh.wav');
-
-    // =====================================================
-    // AUDIO - SCYTHEMAN
-    // =====================================================
-
-    this.load.audio('scythethirdhitsfx', 'audio/scythethird.wav');
-    this.load.audio('slash', 'audio/slash.mp3');
-    this.load.audio('twirl', 'audio/Twirling.mp3');
-    this.load.audio('slice', 'audio/preslice.wav');
-
-    // =====================================================
-    // AUDIO - HAMMERMAN
-    // =====================================================
-
-    this.load.audio('hammerhit', 'audio/punch.wav');
-    this.load.audio('repair', 'audio/Hitwrench.mp3');
-
-    this.load.audio('rocksliding', 'audio/rocksliding.wav');
-    this.load.audio('sledgehammerhit', 'audio/sledgehammerhit.wav');
-    this.load.audio('sledgewhoosh', 'audio/sledgewhoosh.wav');
-    this.load.audio('sledgehammerquickslam', 'audio/quickslamgrounded.wav');
-    this.load.audio('steelplank', 'audio/steelplank.wav');
-    this.load.audio('thicksteelplank', 'audio/steelplank2.wav');
-
-
-    // =====================================================
-    // AUDIO - SLATEMAN
-    // =====================================================
-
-    this.load.audio('slatepunch', 'audio/slatepunch.wav');
-    this.load.audio('rockbreak', 'audio/rockbreak.wav');
-    this.load.audio('plunge', 'audio/plunge.mp3');
-    this.load.audio('slatelight1', 'audio/slatelight1.wav');
-    this.load.audio('slatelight2', 'audio/slatelight2.wav');
-
-    // =====================================================
-    // AUDIO - CROWBARMAN
-    // =====================================================
-
-    this.load.audio('grab', 'audio/snd_grab.wav');
-    this.load.audio('crowbarhit', 'audio/hl_crowbar.mp3');
-    this.load.audio('crowbarclang1', 'audio/crowbarclang1.wav');
-    this.load.audio('crowbarclang2', 'audio/crowbarclang2.wav');
-
-    // =====================================================
-    // AUDIO - GUNMAN
-    // =====================================================
-
-    this.load.audio('gunshot', 'audio/fire.wav');
-    this.load.audio('reload', 'audio/reload.mp3');
-    this.load.audio('explosion', 'audio/explosion.wav');
-    this.load.audio('gunspecialend', 'audio/gunspecialend.mp3')
-
-
-    // =====================================================
-    // AUDIO - MISC
-    // =====================================================
-
-    this.load.audio('harvest', 'audio/harvest.wav');
-    this.load.audio('damn', 'audio/daaaaaamn.wav');
-    this.load.audio('glassbreak', 'audio/glassbreak.wav');
-    this.load.audio('block', 'audio/block.wav');
-
-    // =====================================================
-    // AUDIO - AUTOMATICALLY ADDED
-    // =====================================================
-
-    this.load.audio('reel', 'audio/reel.wav');
-
-    // =====================================================
-    // AUDIO - NEW (added by add-audio.js, move into a section if you like)
-    // =====================================================
-
-    this.load.audio('superexplosion', 'audio/superexplosion.mp3');
-
+    characterTextures.forEach(([key, path]) => this.load.image(key, path));
 }

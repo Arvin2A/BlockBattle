@@ -2,6 +2,8 @@
 // Original source: https://github.com/Arvin2A/BlockBattle
 // Licensed under the GNU GPL v3 only. See LICENSE.
 
+import Phaser from 'phaser';
+
 function basicAttack(api, scene, attacker, victim) {
     if (attacker.variant === 'TRAPPER') return harpoonAttack(api, scene, attacker, victim);
     api.tryAttack(scene, attacker, victim, 'rodatk', 'rodatkthird');
@@ -18,6 +20,238 @@ function tilt(api, scene, attacker, victim, xMul, yMul, kbTime) {
 const neutralSpecial = () => {};
 
 
+
+const FISH_THROW = {
+    types: 3,
+    durationMs: 450,
+    frameSize: 300,
+    releaseFrame: 12,
+    hands: [
+        [138, 157], [139, 155], [140, 150], [146, 142], [136, 138], [132, 130],
+        [120, 133], [112, 132], [105, 136], [102, 137], [110, 131], [128, 129],
+        [138, 141], [140, 152], [138, 156], [138, 156], [138, 156], [138, 156]
+    ],
+    shoulders: [
+        [82, 153], [82, 154], [84, 158], [86, 163], [89, 170], [92, 177],
+        [95, 183], [97, 189], [99, 193], [100, 194], [98, 190], [93, 180],
+        [88, 167], [83, 157], [82, 153], [82, 153], [82, 153], [82, 153]
+    ],
+    tail: { x: 4 / 30, y: 27 / 30 },
+    axis: Phaser.Math.DegToRad(47.5),
+    launch: { x: 470, y: -300 },
+    gravity: 1500,
+    maxTravel: 200,
+    hitPad: 12,
+    landFadeMs: 300,
+    fling: { x: 320, y: -480, spin: Math.PI * 10 },
+    reflectSpeedScale: 1.3,
+    outSides: { left: -200, right: 2200, top: -300 },
+    outBottom: 1400
+};
+const FISH_HIT = {
+    ranged: true,
+    damage: 0.06,
+    plankDamage: 0,
+    hitstun: 380,
+    hitstunGrowth: false,
+    hitFreeze: 60,
+    sound: 'hammerhit',
+    knockback: { x: 520, y: 380, growth: false, scaleWithDamage: false },
+    noDeathRay: true,
+    decelerateAfter: 650,
+    resetCombo: false
+};
+
+function nextFishTexture(player) {
+    player.fishType = (player.fishType ?? 0) % FISH_THROW.types + 1;
+    return `fish${player.fishType}`;
+}
+
+function handPose(atk, frame) {
+    const index = Phaser.Math.Clamp(frame, 0, FISH_THROW.hands.length - 1);
+    const [hx, hy] = FISH_THROW.hands[index];
+    const [sx, sy] = FISH_THROW.shoulders[index];
+    const half = FISH_THROW.frameSize / 2;
+    const mirror = atk.flipX ? -1 : 1;
+    const scale = Math.abs(atk.scaleX);
+    const local = { x: (hx - half) * scale * mirror, y: (hy - half) * scale };
+    const cos = Math.cos(atk.rotation);
+    const sin = Math.sin(atk.rotation);
+    const armAngle = Math.atan2(hy - sy, (hx - sx) * mirror);
+    return {
+        x: atk.x + local.x * cos - local.y * sin,
+        y: atk.y + local.x * sin + local.y * cos,
+        angle: armAngle + atk.rotation
+    };
+}
+
+function poseFish(fish, pose, facing) {
+    fish.setFlipX(facing < 0);
+    fish.setOrigin(facing < 0 ? 1 - FISH_THROW.tail.x : FISH_THROW.tail.x, FISH_THROW.tail.y);
+    fish.setPosition(pose.x, pose.y);
+    fish.setRotation(pose.angle + facing * FISH_THROW.axis);
+}
+
+function fishThrow(api, scene, attacker) {
+    const now = scene.time.now;
+    if (attacker.hitstun || attacker.freeze || attacker.heldFish) return;
+    if (now < (attacker.fishThrowReadyAt ?? 0)) return;
+    if (attacker.isAttacking && attacker.atk.anims.isPlaying && attacker.atk.texture.key !== 'fishslap') return;
+    attacker.fishThrowReadyAt = now + FISH_THROW.durationMs;
+    const facing = attacker.lastDir.x || attacker.fishFacing || 1;
+    attacker.lastDir = { x: facing, y: 0 };
+    const fish = scene.add.image(attacker.x, attacker.y, nextFishTexture(attacker));
+    scene.objs.add(fish);
+    attacker.heldFish = { sprite: fish, facing };
+    api.setAttackSprite(attacker, 'fishslap');
+    scene.sound.play('swosh');
+}
+
+function releaseFish(scene, player, pose) {
+    const held = player.heldFish;
+    player.heldFish = null;
+    const sprite = held.sprite;
+    player.thrownFish ??= [];
+    player.thrownFish.push({
+        sprite,
+        facing: held.facing,
+        startX: pose.x,
+        vx: held.facing * FISH_THROW.launch.x,
+        vy: FISH_THROW.launch.y,
+        phase: 'flying'
+    });
+    scene.sound.play('whoosh', { volume: 0.6 });
+}
+
+function flingFish(fish) {
+    fish.phase = 'flung';
+    fish.vx = -fish.facing * FISH_THROW.fling.x;
+    fish.vy = FISH_THROW.fling.y;
+}
+
+function landFish(scene, fish, top) {
+    fish.phase = 'landed';
+    fish.sprite.setY(top - 6);
+    scene.tweens.add({
+        targets: fish.sprite,
+        alpha: 0,
+        angle: fish.sprite.angle + fish.facing * 25,
+        duration: FISH_THROW.landFadeMs,
+        onComplete: () => fish.sprite.destroy()
+    });
+}
+
+function reflectFish(fish, sender, deflector, scale) {
+    const sprite = fish.sprite;
+    const dx = sender.x - sprite.x;
+    const dy = sender.y - sprite.y;
+    const distance = Math.hypot(dx, dy) || 1;
+    const speed = Math.max(Math.hypot(fish.vx, fish.vy), FISH_THROW.launch.x) * FISH_THROW.reflectSpeedScale;
+    fish.phase = 'reflected';
+    fish.owner = deflector;
+    fish.damageScale = (fish.damageScale ?? 1) * scale;
+    fish.vx = dx / distance * speed;
+    fish.vy = dy / distance * speed;
+    fish.facing = Math.sign(dx) || 1;
+    sprite.setFlipX(fish.facing < 0);
+}
+
+function updateFishFlight(api, scene, player, fish, seconds) {
+    const sprite = fish.sprite;
+    const from = { x: sprite.x, y: sprite.y };
+    const reflected = fish.phase === 'reflected';
+    if (!reflected) fish.vy += FISH_THROW.gravity * seconds;
+    let toX = from.x + fish.vx * seconds;
+    const toY = from.y + fish.vy * seconds;
+    if (fish.phase === 'flung') {
+        sprite.setPosition(toX, toY);
+        sprite.rotation += -fish.facing * FISH_THROW.fling.spin * seconds;
+        if (toY > FISH_THROW.outBottom) {
+            sprite.destroy();
+            fish.phase = 'gone';
+        }
+        return;
+    }
+    const limit = fish.startX + fish.facing * FISH_THROW.maxTravel;
+    if (!reflected && (toX - limit) * fish.facing >= 0) {
+        toX = limit;
+        fish.vx = 0;
+    }
+    sprite.setPosition(toX, toY);
+    sprite.setRotation(Math.atan2(fish.vy, fish.vx || fish.facing * 1e-3) + fish.facing * FISH_THROW.axis);
+    const path = new Phaser.Geom.Line(from.x, from.y, toX, toY);
+    const owner = fish.owner ?? player;
+    const damage = FISH_HIT.damage * (fish.damageScale ?? 1);
+    for (const foe of api.getEnemies(scene, owner)) {
+        const body = foe.body;
+        if (!body?.enable || api.isInvincible(foe)) continue;
+        const pad = FISH_THROW.hitPad;
+        const reach = new Phaser.Geom.Rectangle(body.x - pad, body.y - pad, body.width + pad * 2, body.height + pad * 2);
+        if (!Phaser.Geom.Intersects.LineToRectangle(path, reach)) continue;
+        const scale = api.deflects(scene, foe, owner, damage);
+        if (scale) {
+            reflectFish(fish, owner, foe, scale);
+            return;
+        }
+        foe.flash?.();
+        api.landHit(scene, owner, foe, { ...FISH_HIT, damage, direction: { x: fish.facing, y: 0 } });
+        flingFish(fish);
+        return;
+    }
+    if (reflected) {
+        const out = FISH_THROW.outSides;
+        if (toX < out.left || toX > out.right || toY < out.top || toY > FISH_THROW.outBottom) {
+            sprite.destroy();
+            fish.phase = 'gone';
+        }
+        return;
+    }
+    if (fish.vy <= 0) return;
+    for (const platform of api.getMapPlatforms(scene)) {
+        const top = platform.body.top;
+        if (toX < platform.body.left || toX > platform.body.right) continue;
+        if (from.y <= top && toY >= top) {
+            landFish(scene, fish, top);
+            return;
+        }
+    }
+    if (toY > FISH_THROW.outBottom) {
+        sprite.destroy();
+        fish.phase = 'gone';
+    }
+}
+
+function updateAngler(api, scene, player) {
+    if (player.variant !== 'ANGLER') return;
+    if (player.lastDir.x) player.fishFacing = player.lastDir.x;
+    const now = scene.time.now;
+    if (player.respawnFalling) {
+        player.fishThrowReadyAt = 0;
+        player.heldFish?.sprite.destroy();
+        player.heldFish = null;
+    }
+    const held = player.heldFish;
+    if (held) {
+        const atk = player.atk;
+        const slapping = atk.texture.key === 'fishslap' && atk.visible;
+        if (!slapping || player.hitstun) {
+            held.sprite.destroy();
+            player.heldFish = null;
+        } else {
+            const frame = Number(atk.frame.name) || 0;
+            const pose = handPose(atk, frame);
+            if (frame >= FISH_THROW.releaseFrame) releaseFish(scene, player, pose);
+            else poseFish(held.sprite, pose, held.facing);
+        }
+    }
+    if (!player.thrownFish?.length) return;
+    const delta = scene.hitFreezeUntil > now ? 0 : scene.game.loop.delta;
+    for (const fish of player.thrownFish) {
+        if (!fish.sprite.active) fish.phase = 'gone';
+        if (fish.phase === 'flying' || fish.phase === 'flung' || fish.phase === 'reflected') updateFishFlight(api, scene, player, fish, delta / 1000);
+    }
+    player.thrownFish = player.thrownFish.filter(fish => fish.phase !== 'gone' && fish.sprite.active);
+}
 
 const HARPOON_REACH = 120;
 // Harpoons are limited, so the armed swings hit harder than a normal jab/finisher.
@@ -239,8 +473,12 @@ function throwHarpoon(api, scene, attacker, target) {
     harpoon.setAccelerationY(HARPOON_THROW_SINK);
     harpoon.setRotation(Math.atan2(direction.y, direction.x));
     scene.objs.add(harpoon);
+    api.trackDeflectable(scene, harpoon, attacker);
 
     const platforms = api.platformsWithoutStandingPlatform(scene, attacker);
+    let owner = attacker;
+    let foe = target;
+    let damageScale = 1;
     let plankDamage = HARPOON_PLANK_DAMAGE;
     const pierced = new Set();
     let lastTip = {
@@ -277,7 +515,7 @@ function throwHarpoon(api, scene, attacker, target) {
         const path = new Phaser.Geom.Line(lastTip.x, lastTip.y, tipX, tipY);
         lastTip = { x: tipX, y: tipY };
         const walls = scene.planks?.getChildren().filter(plank =>
-            plank.active && plank.body?.enable && plank.owner !== attacker && !pierced.has(plank) &&
+            plank.active && plank.body?.enable && plank.owner !== owner && !pierced.has(plank) &&
             Phaser.Geom.Intersects.LineToRectangle(path, plank.body)) ?? [];
         for (const wall of walls) {
             pierced.add(wall);
@@ -301,12 +539,23 @@ function throwHarpoon(api, scene, attacker, target) {
             plankDamage = Math.max(0, +(plankDamage - HARPOON_PIERCE_FALLOFF).toFixed(2));
         }
 
-        const body = target.body;
-        if (target.active && !api.isInvincible(target) &&
+        const body = foe.body;
+        if (foe.active && body && !api.isInvincible(foe) &&
             tipX > body.left - 6 && tipX < body.right + 6 &&
             tipY > body.top - 6 && tipY < body.bottom + 6) {
-            target.flash();
-            api.landHit(scene, attacker, target, { ...THROWN_HARPOON_HIT, direction });
+            const deflectScale = api.deflects(scene, foe, owner, THROWN_HARPOON_HIT.damage * damageScale);
+            if (deflectScale) {
+                damageScale *= deflectScale;
+                harpoon.setVelocity(-vx, -vy);
+                direction.x = -direction.x;
+                direction.y = -direction.y;
+                [owner, foe] = [foe, owner];
+                harpoon.deflectOwner = owner;
+                lastTip = { x: harpoon.x, y: harpoon.y };
+                return;
+            }
+            foe.flash();
+            api.landHit(scene, owner, foe, { ...THROWN_HARPOON_HIT, damage: THROWN_HARPOON_HIT.damage * damageScale, direction });
             harpoon.destroy();
             done = true;
             removeUpdate();
@@ -326,7 +575,7 @@ function throwHarpoon(api, scene, attacker, target) {
 
 const NET_RELEASE_MS = 100;
 const NET_LAUNCH = { x: 420, y: -250 };
-const NET_STUN = 3000;
+const NET_STUN = 2000;
 const NET_HUNT_SPEED = 1.8;
 const NET_BUMP = {
     ranged: true,
@@ -337,12 +586,14 @@ const NET_BUMP = {
     sound: 'anyhit',
     knockback: { x: 700, y: 500, lift: -0.7, growth: false, scaleWithDamage: false },
     resetCombo: false,
-    noDeathRay: true
+    noDeathRay: true,
+    unblockable: true
 };
 const NET_AIR_MS = 3000;
 const NET_GROUND_MS = 6000;
 const NET_GROUND_ORIGIN_Y = 31 / 50;
 const NET_GROUND_HALF_WIDTH = 128;
+const NET_AIR_BODY = { width: 180, height: 30, offsetX: 10, offsetY: 20 };
 
 function netFoe(api, scene, owner, target, duration, holdInPlace) {
     const now = scene.time.now;
@@ -355,6 +606,7 @@ function netFoe(api, scene, owner, target, duration, holdInPlace) {
         sound: 'grab',
         resetCombo: false,
         noDeathRay: true,
+        unblockable: true,
         knockback: () => ({ x: 0, y: Math.max(0, target.body.velocity.y) }),
         onHit: () => {
             target.nettedUntil = now + duration;
@@ -421,19 +673,32 @@ function throwNet(api, scene, player, target, direction, currentTime) {
         player.activeNetCleanup = removeNet;
         scene.events.once('shutdown', removeNet);
 
-        // Lands on top of platforms only, so it can fly up through them.
-        const landsFromAbove = (_net, platform) =>
-            net.body.velocity.y >= 0 && net.body.prev.y + net.body.height <= platform.body.top + 8;
+        let crashed = false;
+        let support = null;
+        const landsFromAbove = (other) =>
+            net.body.velocity.y >= 0 && net.body.prev.y + net.body.height <= other.body.top + 8;
+        const hitsSide = (other) => {
+            const { prev, width } = net.body;
+            return prev.x + width <= other.body.left + 4 || prev.x >= other.body.right - 4;
+        };
+        const touchSurface = (_net, other) => {
+            if (landsFromAbove(other)) support = other;
+            else crashed = true;
+        };
+        const solidFromAboveOrSide = (_net, other) => landsFromAbove(other) || hitsSide(other);
 
-        const release = () => {
-            if (state !== 'held') return;
+        const fly = (velocityX, velocityY) => {
             state = 'air';
+            support = null;
+            crashed = velocityX === 0;
             net.setTexture('netinair');
             net.body.enable = true;
-            net.body.setSize(180, 30).setOffset(10, 20);
-            net.setVelocity(facing * NET_LAUNCH.x, NET_LAUNCH.y);
+            net.body.setSize(NET_AIR_BODY.width, NET_AIR_BODY.height).setOffset(NET_AIR_BODY.offsetX, NET_AIR_BODY.offsetY);
+            net.setVelocity(velocityX, velocityY);
             colliders.push(
-                scene.physics.add.collider(net, api.getMapPlatforms(scene), null, landsFromAbove),
+                scene.physics.add.collider(net, api.getMapPlatforms(scene), touchSurface, solidFromAboveOrSide),
+                ...[scene.planks, scene.gameState.map.lodgedBalls].filter(Boolean)
+                    .map(walls => scene.physics.add.collider(net, walls, touchSurface)),
                 ...api.overlapEnemies(scene, net, player, target => {
                     if (state !== 'air' || api.isInvincible(target)) return;
                     if (canBeNetted(scene, api, target)) netFoe(api, scene, player, target, NET_STUN, false);
@@ -441,6 +706,44 @@ function throwNet(api, scene, player, target, direction, currentTime) {
                     removeNet();
                 })
             );
+        };
+        const nearestWallAhead = () => {
+            const { top, bottom, left, right } = net.body;
+            const solids = [
+                ...api.getMapPlatforms(scene),
+                ...[scene.planks, scene.gameState.map.lodgedBalls].filter(Boolean).flatMap(group => group.getChildren())
+            ];
+            let nearest = null;
+            for (const solid of solids) {
+                const body = solid.body;
+                if (!solid.active || !body?.enable) continue;
+                if (body.top >= bottom || body.bottom <= top) continue;
+                const near = facing > 0 ? body.left : body.right;
+                const ahead = facing > 0 ? near >= player.x && near < right : near <= player.x && near > left;
+                if (ahead && (nearest === null || Math.abs(near - player.x) < Math.abs(nearest - player.x))) nearest = near;
+            }
+            return nearest;
+        };
+        const release = () => {
+            if (state !== 'held') return;
+            fly(facing * NET_LAUNCH.x, NET_LAUNCH.y);
+            net.body.reset(net.x, net.y);
+            const wall = nearestWallAhead();
+            if (wall === null) {
+                net.setVelocity(facing * NET_LAUNCH.x, NET_LAUNCH.y);
+            } else {
+                net.x += wall - (facing > 0 ? net.body.right : net.body.left);
+                net.body.reset(net.x, net.y);
+                crashed = true;
+            }
+            expireEvent = scene.time.delayedCall(NET_AIR_MS, fadeOut);
+        };
+        const fallAgain = () => {
+            removeColliders();
+            net.setOrigin(0.5, 0.5);
+            net.setPosition(net.x, floorY - NET_AIR_BODY.offsetY - NET_AIR_BODY.height + net.height / 2);
+            fly(0, 0);
+            expireEvent?.remove(false);
             expireEvent = scene.time.delayedCall(NET_AIR_MS, fadeOut);
         };
         const layOnGround = () => {
@@ -467,6 +770,12 @@ function throwNet(api, scene, player, target, direction, currentTime) {
                 net.setPosition(player.x + facing * heldOffsetX, player.y - 25);
             } else if (state === 'air' && (net.body.blocked.down || net.body.touching.down)) {
                 layOnGround();
+            } else if (state === 'air' && (crashed || net.body.blocked.left || net.body.blocked.right ||
+                net.body.touching.left || net.body.touching.right)) {
+                crashed = true;
+                net.setVelocityX(0);
+            } else if (state === 'ground' && support && !(support.active && support.body?.enable)) {
+                fallAgain();
             } else if (state === 'ground' && target.active && canBeNetted(scene, api, target)) {
                 const body = target.body;
                 const steppedIn = body.right > net.x - NET_GROUND_HALF_WIDTH &&
@@ -499,6 +808,7 @@ const ROD_TIPS = {
 const ROD_SWING_ANIMS = ['rodatk', 'rodatkthird'];
 const SHEET_LINE_WIDTH = 3;
 const REEL_SPEED = 1600;
+const REEL_CRASH_IMMUNITY_MS = 200;
 const PULL_SPEED = 900;
 
 const SWING_MS = 500;
@@ -695,6 +1005,7 @@ function tryPull(api, scene, player, target, direction, currentTime) {
             }
             const towardX = dx / distance;
             const towardY = dy / distance;
+            player.crashImmuneUntil = scene.time.now + REEL_CRASH_IMMUNITY_MS;
             // Stops swinging early once he has come up level with the hook.
             if (scene.time.now < swingUntil && player.y > hook.y) {
                 // Of the two directions perpendicular to the rope, take the one going up.
@@ -734,7 +1045,10 @@ function tryPull(api, scene, player, target, direction, currentTime) {
                     knockback: () => ({ x: (dx / dist) * pullStrength, y: (dy / dist) * pullStrength }),
                     noDeathRay: true,
                     decelerateAfter: 550,
-                    resetCombo: false
+                    resetCombo: false,
+                    onHit: () => {
+                        target.crashImmuneUntil = scene.time.now + 550 + REEL_CRASH_IMMUNITY_MS;
+                    }
                 });
                 latchToTarget(target);
             }),
@@ -844,6 +1158,12 @@ function updateTrapper(api, scene, player, victim) {
 }
 
 export default {
+    variantAttackSpriteScales: { ANGLER: 0.6 },
+    variantDemoAnimations: {
+        ANGLER: ['rodatk', 'rodatkthird'],
+        TRAPPER: ['harpoonatk', 'harpoonatkthird', 'netthrow']
+    },
+    variantDemoIdle: { ANGLER: 'rodatk', TRAPPER: 'harpoonatk' },
     armColor: 0x0a0a0a,
     attackCooldown: 275,
     hitSounds: { finisher: 'rodthirdhitsfx' },
@@ -851,9 +1171,10 @@ export default {
         TRAPPER: { hitSounds: { light: 'axeslash1', finisher: 'slash' }, armColor: 0x4b4d5a }
     },
     // The rod and harpoon sheets are drawn facing right with the arms on the left of each frame.
-    rightFacingAttackSprites: ['rodatk', 'linelessrod', 'reelin', 'harpoonatk', 'harpoonlessatk', 'netthrow'],
+    rightFacingAttackSprites: ['fishslap', 'rodatk', 'linelessrod', 'reelin', 'harpoonatk', 'harpoonlessatk', 'netthrow'],
     textureAttackSpriteOffsets: {
         rodatk: { x: -13, y: 17 },
+        fishslap: { x: -13, y: 17 },
         linelessrod: { x: -13, y: 17 },
         reelin: { x: -13, y: 17 },
         harpoonatk: { x: 0, y: 12 },
@@ -861,13 +1182,16 @@ export default {
         netthrow: { x: 0, y: 12 }
     },
     handleAttack: basicAttack,
-    update: updateTrapper,
+    update: (api, scene, player, victim) => {
+        updateTrapper(api, scene, player, victim);
+        updateAngler(api, scene, player);
+    },
     handleDirSpecial: (api, scene, attacker, direction, currentTime, victim) =>
         attacker.variant === 'TRAPPER'
             ? throwNet(api, scene, attacker, victim, direction, currentTime)
             : tryPull(api, scene, attacker, victim, direction, currentTime),
     handleNeutralSpecial: neutralSpecial,
-    variantNeutralSpecials: { ANGLER: neutralSpecial, TRAPPER: throwHarpoon },
+    variantNeutralSpecials: { ANGLER: fishThrow, TRAPPER: throwHarpoon },
     handleHorizantalTilt: (api, scene, attacker, victim) =>
         tilt(api, scene, attacker, victim, 0.6, 1, 600),
     handleDownTilt: (api, scene, attacker, victim) =>

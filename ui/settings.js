@@ -4,13 +4,16 @@
 
 import { COLORS, HEX, makeButton, makePanel, textStyle } from './theme.js';
 import { isPhoneScreen } from './touchAssist.js';
+import { openAdvancedInfo } from './advancedInfo.js';
 
 const STORAGE_KEY = 'blockBattleSettings';
 const VOLUME_STEP = 0.1;
 const MATCH_SCENES = ['GameScene', 'OnlineGameScene'];
 export const TOUCH_LAYOUTS = ['DPAD', 'THUMBSTICK'];
+const SCREEN_SHAKE = { DEFAULT: 1, REDUCED: 0.4, NONE: 0 };
+const SCREEN_SHAKE_OPTIONS = Object.keys(SCREEN_SHAKE);
 
-const DEFAULTS = { masterVolume: 1, gameVolume: 1, touchControls: null };
+const DEFAULTS = { masterVolume: 1, gameVolume: 1, touchControls: null, screenShake: 'DEFAULT' };
 
 function loadSettings() {
     try {
@@ -34,6 +37,14 @@ export function getTouchLayout() {
     return TOUCH_LAYOUTS.includes(settings.touchControls)
         ? settings.touchControls
         : (isPhoneScreen() ? 'THUMBSTICK' : 'DPAD');
+}
+
+function getScreenShakeOption() {
+    return SCREEN_SHAKE_OPTIONS.includes(settings.screenShake) ? settings.screenShake : 'DEFAULT';
+}
+
+export function getScreenShakeScale() {
+    return SCREEN_SHAKE[getScreenShakeOption()];
 }
 
 export function usesThumbstick() {
@@ -67,20 +78,43 @@ function setEnabled({ box, text }, enabled) {
     else box.disableInteractive();
 }
 
-export function addSettingsButton(scene, { x = 968, y = 32, scale = 0.12, depth = 3000, container = null, onPress } = {}) {
-    const button = scene.add.image(x, y, 'settingsBtn')
+export function addSettingsButton(scene, {
+    x = 968,
+    y = 32,
+    scale = 0.12,
+    depth = 3000,
+    container = null,
+    onPress,
+    texture = 'settingsBtn',
+    pressedTexture = 'pressedSettingsBtn',
+    tint = null
+} = {}) {
+    const button = scene.add.image(x, y, texture)
         .setScale(scale)
         .setScrollFactor(0)
         .setDepth(depth)
         .setInteractive({ useHandCursor: true });
+    if (tint !== null) button.setTint(tint);
+    button.skin = { texture, pressedTexture };
     container?.add(button);
-    const lift = () => button.setTexture('settingsBtn');
+    const lift = () => button.setTexture(button.skin.texture);
     button.on('pointerdown', () => {
-        button.setTexture('pressedSettingsBtn');
+        button.setTexture(button.skin.pressedTexture);
         (onPress ?? (() => openSettings(scene, { container })))();
     });
     scene.input.on('pointerup', lift);
     button.on('pointerout', lift);
+    return button;
+}
+
+export function setSettingsButtonTint(scene, button, tint) {
+    const grey = tint !== null && scene.textures.exists('settingsBtnGrey') && scene.textures.exists('pressedSettingsBtnGrey');
+    button.skin = grey
+        ? { texture: 'settingsBtnGrey', pressedTexture: 'pressedSettingsBtnGrey' }
+        : { texture: 'settingsBtn', pressedTexture: 'pressedSettingsBtn' };
+    button.setTexture(button.skin.texture);
+    if (grey) button.setTint(tint);
+    else button.clearTint();
     return button;
 }
 
@@ -96,7 +130,10 @@ export function openSettings(scene, { container = null, onClose } = {}) {
         }
     };
     const touch = scene.sys.game.device.input.touch;
-    const rows = touch ? 3 : 2;
+    const showInfo = !MATCH_SCENES.includes(scene.sys.settings.key) || Boolean(scene.openCharacterInfo);
+    const touchRow = 3;
+    const infoRow = touch ? 4 : 3;
+    const rows = infoRow + (showInfo ? 1 : 0);
     const rowGap = 70;
     const height = 170 + rows * rowGap;
     const top = 300 - height / 2;
@@ -132,9 +169,18 @@ export function openSettings(scene, { container = null, onClose } = {}) {
     volumeRow(0, 'MASTER VOLUME', 'masterVolume');
     volumeRow(1, 'IN GAME VOLUME', 'gameVolume');
 
+    label(2, 'SCREEN SHAKE');
+    const shake = makeButton(scene, 690, rowY(2), 194, 40, getScreenShakeOption(), () => {
+        const next = SCREEN_SHAKE_OPTIONS[(SCREEN_SHAKE_OPTIONS.indexOf(getScreenShakeOption()) + 1) % SCREEN_SHAKE_OPTIONS.length];
+        settings.screenShake = next;
+        saveSettings();
+        shake.text.setText(next);
+    }, 20);
+    add(shake.box, shake.text);
+
     if (touch) {
-        label(2, 'TOUCH CONTROLS');
-        const toggle = makeButton(scene, 690, rowY(2), 194, 40, getTouchLayout(), () => {
+        label(touchRow, 'TOUCH CONTROLS');
+        const toggle = makeButton(scene, 690, rowY(touchRow), 194, 40, getTouchLayout(), () => {
             const next = TOUCH_LAYOUTS[(TOUCH_LAYOUTS.indexOf(getTouchLayout()) + 1) % TOUCH_LAYOUTS.length];
             settings.touchControls = next;
             saveSettings();
@@ -142,17 +188,31 @@ export function openSettings(scene, { container = null, onClose } = {}) {
         }, 20);
         add(toggle.box, toggle.text);
         if (matchRunning(scene.game)) {
-            add(scene.add.text(690, rowY(2) + 30, 'STARTS NEXT MATCH', textStyle('body', { fontSize: '13px', fill: COLORS.muted }))
+            add(scene.add.text(690, rowY(touchRow) + 30, 'STARTS NEXT MATCH', textStyle('body', { fontSize: '13px', fill: COLORS.muted }))
                 .setOrigin(0.5));
         }
     }
 
-    const close = () => {
+    const dismiss = () => {
         parts.forEach(object => object.destroy());
         scene.settingsPanel = null;
         scene.input.keyboard?.off('keydown-ESC', close);
+    };
+    const close = () => {
+        dismiss();
         onClose?.();
     };
+
+    if (showInfo) {
+        label(infoRow, 'FIGHTER INFO');
+        const view = makeButton(scene, 690, rowY(infoRow), 194, 40, 'VIEW', () => {
+            dismiss();
+            const reopen = () => openSettings(scene, { container, onClose });
+            if (scene.openCharacterInfo) scene.openCharacterInfo(reopen);
+            else openAdvancedInfo(scene, { container, onClose: reopen });
+        }, 20);
+        add(view.box, view.text);
+    }
     const back = makeButton(scene, 500, top + height - 45, 200, 44, 'BACK', close);
     add(back.box, back.text);
     scene.input.keyboard?.once('keydown-ESC', close);

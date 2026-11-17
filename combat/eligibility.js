@@ -5,6 +5,7 @@
 import { isInvincible } from './knockback.js';
 import { isBlockedByWall } from './planks.js';
 import { isTeammate } from './targets.js';
+import { getHeatBonus } from './characterStats.js';
 
 // Every check attackIsElligible makes can be skipped with one of these.
 // Pass only the ones you need: attackIsElligible(a, t, 150, { ignoreCanAttack: true }).
@@ -24,7 +25,9 @@ export const DEFAULT_BYPASS_OPTIONS = Object.freeze({
     // A pure check: no flash, no grass cutting, no hitstun bypass. For the bots.
     silent: false,
     // Aim this way instead of attacker.lastDir, as { x, y }.
-    direction: null
+    direction: null,
+    minDot: null,
+    verticalReach: null
 });
 
 function isFacingTarget(direction, dx, dy, distance, allowTargetBelow) {
@@ -53,7 +56,9 @@ export function attackIsElligible(attacker, target, range = 100, bypassOptions =
         ignoreFacing,
         ignoreWalls,
         silent,
-        direction
+        direction,
+        minDot,
+        verticalReach
     } = { ...DEFAULT_BYPASS_OPTIONS, ...bypassOptions };
 
     if (attacker.hitstun || target.eliminated || isTeammate(attacker, target)) return false;
@@ -62,12 +67,15 @@ export function attackIsElligible(attacker, target, range = 100, bypassOptions =
     const dx = target.x - attacker.x;
     const dy = target.y - attacker.y;
     const distance = Math.hypot(dx, dy);
-    if (distance > range) return false;
+    if (distance > range + getHeatBonus(attacker, 'rangeBonus')) return false;
+    if (verticalReach && (dy < -verticalReach.up || dy > verticalReach.down)) return false;
     if (!ignoreWalls && isBlockedByWall(attacker, target)) return false;
     if (!silent) target.flash();
 
-    const eligible = ignoreFacing ||
-        isFacingTarget(direction ?? attacker.lastDir, dx, dy, distance, allowTargetBelow);
+    const aim = direction ?? attacker.lastDir;
+    const eligible = ignoreFacing || (minDot !== null
+        ? distance > 0 && (dx * aim.x + dy * aim.y) / distance >= minDot
+        : isFacingTarget(aim, dx, dy, distance, allowTargetBelow));
     if (eligible && !silent && ignoreCanAttack) attacker.attackBypassesHitstun = true;
     return eligible;
 }

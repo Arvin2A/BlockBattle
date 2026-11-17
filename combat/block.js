@@ -4,7 +4,8 @@
 
 import { PLAYER_COLORS } from '../matchModes.js';
 import { HEX } from '../ui/theme.js';
-import { getAttackCooldown } from './characterStats.js';
+import { getAttackCooldown, getCharacterStat } from './characterStats.js';
+import { startSmackArc } from './universalMoves.js';
 
 export const BLOCK = {
     minStart: 0.3,
@@ -29,8 +30,25 @@ export const BLOCK = {
     cueScale: 1.8,
     cueEndScale: 2.3,
     cueAlpha: 0.9,
-    cueMs: 220
+    cueMs: 220,
+    counterSelfFreezeMs: 120,
+    counterHop: { away: 80, height: 45 }
 };
+
+const DEFAULT_STYLE = {
+    stunStartMs: BLOCK.blockStunStartMs,
+    stunFloorMs: BLOCK.blockStunFloorMs,
+    costScale: 1,
+    regrowScale: 1,
+    counter: false,
+    deflects: false,
+    sound: 'block',
+    cueTexture: 'blockshield'
+};
+
+export function blockStyle(player, key) {
+    return getCharacterStat(player, 'block', null)?.[key] ?? DEFAULT_STYLE[key];
+}
 
 function isFrozen(scene) {
     return scene.gamePaused || scene.hitFreezeUntil > scene.time.now;
@@ -76,8 +94,8 @@ function breakShield(scene, player) {
 
 function getBreakMark(scene, player) {
     if (!player.shieldBreakMark) {
-        const texture = player.color === 'blue' ? 'p2shieldbreak' : 'p1shieldbreak';
-        player.shieldBreakMark = scene.add.image(player.x, player.y, texture)
+        player.shieldBreakMark = scene.add.image(player.x, player.y, 'shieldbreak')
+            .setTint(shieldColors(player).fill)
             .setDepth(9)
             .setVisible(false);
         scene.objs?.add(player.shieldBreakMark);
@@ -99,7 +117,7 @@ function shieldColors(player) {
 }
 
 function showBlockCue(scene, player) {
-    const cue = scene.add.image(player.x, player.y, 'blockshield')
+    const cue = scene.add.image(player.x, player.y, blockStyle(player, 'cueTexture'))
         .setTint(shieldColors(player).fill)
         .setScale(BLOCK.cueScale)
         .setAlpha(BLOCK.cueAlpha)
@@ -160,11 +178,11 @@ export function updateBlock(scene, player, wantsBlock) {
             startBlock(scene, player);
         }
         if (player.blocking) {
-            player.shield -= BLOCK.drainPerSec * dt;
+            player.shield -= BLOCK.drainPerSec * blockStyle(player, 'costScale') * (player.blockDrainScale ?? 1) * dt;
             player.setVelocityX(player.body.velocity.x * 0.8);
             if (player.shield <= 0) breakShield(scene, player);
         } else if (scene.time.now >= (player.shieldRegrowAt ?? 0)) {
-            player.shield = Math.min(1, player.shield + BLOCK.regrowPerSec * dt);
+            player.shield = Math.min(1, player.shield + BLOCK.regrowPerSec * blockStyle(player, 'regrowScale') * dt);
         }
     }
     drawShield(scene, player);
@@ -173,32 +191,64 @@ export function updateBlock(scene, player, wantsBlock) {
 
 function blockStunMs(target, now) {
     const held = Math.max(0, now - (target.blockStartedAt ?? -Infinity));
-    const decayed = BLOCK.blockStunStartMs * Math.pow(0.5, held / BLOCK.blockStunHalfLifeMs);
-    return Math.max(BLOCK.blockStunFloorMs, decayed);
+    const decayed = blockStyle(target, 'stunStartMs') * Math.pow(0.5, held / BLOCK.blockStunHalfLifeMs);
+    return Math.max(blockStyle(target, 'stunFloorMs'), decayed);
 }
 
-export function blocksHit(scene, target, attacker, damage = 0, { minCost = BLOCK.minHitCost, ranged = false } = {}) {
+function counterLaunch(scene, blocker, attacker, stunMs) {
+    const now = scene.time.now;
+    const dir = Math.sign(attacker.x - blocker.x) || -(blocker.lastDir?.x ?? 1);
+    attacker.lastHitAt = now;
+    attacker.freezeUntil = now - 1;
+    attacker.hitstunUntil = Math.max(attacker.hitstunUntil ?? 0, now + stunMs);
+    attacker.flash?.();
+    if (attacker.body) startSmackArc(scene, attacker, dir, BLOCK.counterHop);
+}
+
+export function blocksHit(scene, target, attacker, damage = 0, { minCost = BLOCK.minHitCost, ranged = false, shieldCost = null } = {}) {
     if (!target?.blocking) return false;
     const now = scene.time.now;
-    target.shield -= Phaser.Math.Clamp(damage * BLOCK.hitCostScale, minCost, BLOCK.maxHitCost);
+    const cost = shieldCost ?? Phaser.Math.Clamp(damage * BLOCK.hitCostScale, minCost, BLOCK.maxHitCost);
+    target.shield -= cost * blockStyle(target, 'costScale');
     target.shieldHitUntil = now + 80;
-    target.freezeUntil = Math.max(target.freezeUntil ?? 0, now + blockStunMs(target, now));
+    const stunMs = blockStunMs(target, now);
+    const counters = !ranged && blockStyle(target, 'counter');
+    target.freezeUntil = Math.max(target.freezeUntil ?? 0, now + (counters ? BLOCK.counterSelfFreezeMs : stunMs));
     const away = Math.sign(target.x - attacker.x) || (attacker.lastDir?.x ?? 1);
     target.setVelocityX(away * BLOCK.pushback);
     if (now - (target.lastBlockSoundAt ?? -Infinity) >= BLOCK.soundGapMs) {
         target.lastBlockSoundAt = now;
-        scene.sound.play('block');
+        scene.sound.play(blockStyle(target, 'sound'));
         showBlockCue(scene, target);
     }
     if (attacker.isUsingSideSpecial) attacker.hasHitSideSpecial = true;
-    const stunMs = blockStunMs(target, now);
-    if (!ranged) attacker.freezeUntil = Math.max(attacker.freezeUntil ?? 0, now + stunMs);
+    if (counters) counterLaunch(scene, target, attacker, stunMs);
+    else if (!ranged) attacker.freezeUntil = Math.max(attacker.freezeUntil ?? 0, now + stunMs);
     attacker.blockPenaltyUntil = Math.max(
         attacker.blockPenaltyUntil ?? 0,
         now + getAttackCooldown(attacker) + stunMs
     );
     if (target.shield <= 0) breakShield(scene, target);
+    else target.onBlockedHit?.(scene, attacker, { ranged });
     return true;
+}
+
+export function trackDeflectable(scene, object, owner) {
+    object.deflectOwner = owner;
+    scene.deflectables ??= new Set();
+    scene.deflectables.add(object);
+    object.once('destroy', () => scene.deflectables?.delete(object));
+}
+
+export function deflectables(scene) {
+    return scene.deflectables ?? [];
+}
+
+export function deflects(scene, target, shooter, damage = 0, { shieldCost = null } = {}) {
+    if (!target?.blocking || !blockStyle(target, 'deflects')) return 0;
+    const damageScale = target.deflectDamageScale ?? 1;
+    blocksHit(scene, target, shooter, damage, { ranged: true, shieldCost });
+    return damageScale;
 }
 
 export function attackLockedByBlock(scene, attacker) {

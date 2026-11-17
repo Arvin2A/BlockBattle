@@ -15,6 +15,16 @@ export function getCharacterStat(attacker, key, fallback) {
     return script?.variantStats?.[attacker.variant]?.[key] ?? script?.[key] ?? fallback;
 }
 
+export function getHeatStat(player, key) {
+    if (!player.heated) return 1;
+    return getCharacterStat(player, 'heat', null)?.[key] ?? 1;
+}
+
+export function getHeatBonus(player, key) {
+    if (!player.heated) return 0;
+    return getCharacterStat(player, 'heat', null)?.[key] ?? 0;
+}
+
 export function getAttackCooldown(attacker) {
     return getCharacterStat(attacker, 'attackCooldown', 400);
 }
@@ -40,7 +50,7 @@ export function getAttackDamageScale(attacker) {
         ? 0.75
         : 1;
 
-    return baseDamageScale * externalDamageScale * grassDamageScale;
+    return baseDamageScale * externalDamageScale * grassDamageScale * getHeatStat(attacker, 'damageScale');
 }
 
 // How much a fighter's launches are divided by. Scripts with grassCutResistance
@@ -49,7 +59,8 @@ export function getKnockbackResistance(target) {
     const base = Number.isFinite(target.playerKBresistance) && target.playerKBresistance > 0
         ? target.playerKBresistance
         : 1;
+    const heated = base * getHeatStat(target, 'resistanceScale');
     const grass = getCharacterStat(target, 'grassCutResistance', null);
-    if (!grass) return base;
-    return base * (1 + Math.min((target.grassCutCount || 0) * grass.perCut, grass.max));
+    if (!grass) return heated;
+    return heated * (1 + Math.min((target.grassCutCount || 0) * grass.perCut, grass.max));
 }

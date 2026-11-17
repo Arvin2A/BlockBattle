@@ -56,7 +56,8 @@ function steer(player, direction) {
 }
 
 function jumpVelocity(player) {
-    return player.keepsMomentum ? Math.min(player.body.velocity.y, -JUMP_SPEED) : -JUMP_SPEED;
+    const speed = JUMP_SPEED * (player.jumpScale ?? 1);
+    return player.keepsMomentum ? Math.min(player.body.velocity.y, -speed) : -speed;
 }
 
 export function executeStateCommand(scene, players, command) {

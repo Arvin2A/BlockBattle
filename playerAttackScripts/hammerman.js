@@ -202,6 +202,8 @@ function tryAttack3(api, scene, attacker, target, animKey, thirdAnimKey) {
 
     attacker.nextAttackTime = scene.time.now + 400; // Attack cooldown
 }
+const REPAIR_BASE_HEAL = 0.05;
+const REPAIR_SIPHON_HEAL = 0.25;
 function tryRepair(api, scene, player, target, direction, currentTime) {
     const dtapDelay = 250;
     const repairCD = player.dirSpecialCooldown;
@@ -217,62 +219,19 @@ function tryRepair(api, scene, player, target, direction, currentTime) {
         api.setAttackSprite(player, "hammeratkheal");
         player.isUsingSideSpecial = false;
 
-        const spawnRepairBox = () => {
-            const box = scene.add.rectangle(
-                player.x,
-                player.y,
-                50,
-                50,
-                0x00ff00
-            );
-            scene.objs.add(box);
-            scene.tweens.add({
-                targets: box,
-                alpha: 0,
-                duration: 100,
-                onComplete: () => {
-                    box.destroy();
-                }
-            });
-        };
+        const spawnRepairBox = () => api.spawnHealFlash(scene, player);
 
-        // Windup before the first hit lands.
-        scene.time.delayedCall(300, () => {
+        const repairStrike = () => {
             scene.sound.play("repair");
-
             const hasAttacked = api.pushAttack(scene, player, target, null);
-            if (hasAttacked) {
-                player.KBmultiplier -= 0.25;
-            } else {
-                player.KBmultiplier -= 0.075;
-            }
+            player.KBmultiplier -= hasAttacked ? REPAIR_SIPHON_HEAL : REPAIR_BASE_HEAL;
             spawnRepairBox();
-
+        };
+        scene.time.delayedCall(300, () => {
+            repairStrike();
             scene.time.delayedCall(100, () => {
-                scene.sound.play("repair");
-
-
-                const hasAttacked1 = api.pushAttack(scene, player, target, null);
-                if (hasAttacked1) {
-                    player.KBmultiplier -= 0.25;
-                } else {
-                    player.KBmultiplier -= 0.075;
-                }
-                spawnRepairBox();
-
-                scene.time.delayedCall(150, () => {
-                    scene.sound.play("repair");
-
-
-                    const hasAttacked2 = api.pushAttack(scene, player, target, null);
-                    if (hasAttacked2) {
-                        player.KBmultiplier -= 0.25;
-                    } else {
-                        player.KBmultiplier -= 0.075;
-                    }
-                    spawnRepairBox();
-
-                });
+                repairStrike();
+                scene.time.delayedCall(150, repairStrike);
             });
         });
         api.startSideSpecialCooldown(player, currentTime, repairCD);
@@ -434,6 +393,13 @@ function tryQuickslam(api, scene, attacker, target, direction, currentTime) {
 }
 
 export default {
+    variantAttackSpriteScales: { MALLET: 0.75 },
+    variantDemoAnimations: {
+        MALLET: ['hammeratk', 'hammeratkheal'],
+        SLEDGEHAMMER: ['sledgehammeratk', 'sledgehammerquickslam1']
+    },
+    variantDemoIdle: { MALLET: 'hammeratk', SLEDGEHAMMER: 'sledge_idle' },
+    variantDemoAnchors: { SLEDGEHAMMER: { x: 0, y: 0 } },
     armColor: 0x072900,
     variantStats: { SLEDGEHAMMER: { armColor: 0x8a8a8a } },
     hitSounds: { light: 'hammerhit' },

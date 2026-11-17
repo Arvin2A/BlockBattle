@@ -18,6 +18,7 @@ export const CRASH = {
 
 function isExempt(player) {
     return Boolean(!player.body.enable || player.freeze || player.downslamming || player.isUsingSideSpecial ||
+        player.scene.time.now < (player.crashImmuneUntil ?? 0) ||
         player.ledge || player.ledgeSlide || player.grabbedBy || player.activeGrab ||
         player.smackedBy || player.smackArc);
 }

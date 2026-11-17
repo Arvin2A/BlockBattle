@@ -22,6 +22,10 @@ export const CHARACTER_VARIANT_TEXTURES = {
     hammerman: {
         MALLET: 'hammerman',
         SLEDGEHAMMER: 'sledgehammerman'
+    },
+    crowbarman: {
+        HOOKER: 'crowbarman',
+        DEMOLITIONIST: 'demolitionistman'
     }
 };
 

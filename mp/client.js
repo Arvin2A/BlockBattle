@@ -197,7 +197,10 @@ class NetClient {
 
     startPing() {
         this.stopPing();
-        const ping = () => this.send({ t: 'ping', c: performance.now() });
+        const ping = () => {
+            this.send({ t: 'ping', c: performance.now() });
+            this.sendAway();
+        };
         ping();
         this.pingTimer = setInterval(ping, 2000);
     }

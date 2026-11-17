@@ -17,7 +17,7 @@ import { resetMapAndModifierSelection, setSelectedMap } from '../scenes/MapAndMo
 import { applyModifierSelection } from '../modifiers.js';
 import { SLOTS, buildRoster } from '../matchModes.js';
 import { getMap } from '../scenes/GameScene/MapDefinitions.js';
-import { changeBotMode } from '../gameSettings.js';
+import { changeBotMode, setBotDifficulty, BOT_DIFFICULTIES } from '../gameSettings.js';
 
 function readAuthorityParams() {
     const params = new URLSearchParams(globalThis.location?.search ?? '');
@@ -121,7 +121,7 @@ export function pollNetworkInput(slot) {
 export function getOnlineMatchSettings() {
     return {
         mode: matchConfig.mode,
-        players: buildRoster(matchConfig.mode, matchConfig.roster.map(({ name, character, variant }) => ({ name, character, variant })))
+        players: buildRoster(matchConfig.mode, matchConfig.roster.map(({ name, character, variant, bot }) => ({ name, character, variant, bot: Boolean(bot) })))
     };
 }
 
@@ -161,6 +161,9 @@ function createAuthorityBootScene(preload) {
                     case 'config':
                         matchConfig = message;
                         changeBotMode(false);
+                        matchConfig.roster.forEach((entry, index) => {
+                            if (entry.bot && BOT_DIFFICULTIES.includes(entry.difficulty)) setBotDifficulty(index + 1, entry.difficulty);
+                        });
                         resetMapAndModifierSelection();
                         applyModifierSelection(message.modifiers);
                         setSelectedMap(getMap(message.map));

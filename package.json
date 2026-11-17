@@ -1,4 +1,12 @@
 {
+  "name": "blockbattle",
+  "productName": "BLOCK BATTLE!!",
+  "version": "2026.11.17",
+  "description": "BLOCK BATTLE!! - a 2D platform fighter",
+  "author": "Arvin Zaman",
+  "homepage": "https://github.com/Arvin2A/BlockBattle",
+  "main": "desktop/main.cjs",
+  "desktopName": "blockbattle.desktop",
   "license": "GPL-3.0-only",
   "type": "module",
   "scripts": {
@@ -7,7 +15,10 @@
     "preview": "vite preview",
     "add-audio": "node add-audio.js",
     "server": "node server/index.js",
-    "build:legacy": "vite build --config legacy/vite.config.js && node -e \"for (const dir of ['assets', 'audio']) require('fs').cpSync(dir, 'dist-legacy/' + dir, { recursive: true })\""
+    "build:legacy": "vite build --config legacy/vite.config.js && node -e \"for (const dir of ['assets', 'audio']) require('fs').cpSync(dir, 'dist-legacy/' + dir, { recursive: true })\"",
+    "build:desktop": "vite build --mode desktop && node -e \"for (const dir of ['assets', 'audio']) require('fs').cpSync(dir, (process.env.BUILD_DIR || 'dist') + '/' + dir, { recursive: true })\"",
+    "desktop": "npm run build:desktop && electron .",
+    "dist:desktop": "npm run build:desktop && electron-builder"
   },
   "dependencies": {
     "phaser": "^4.2.1",
@@ -16,9 +27,76 @@
   },
   "devDependencies": {
     "@vitejs/plugin-legacy": "^6.1.1",
+    "electron": "^45.3.2",
+    "electron-builder": "^26.18.0",
     "esbuild": "^0.28.2",
     "terser": "^5.51.2",
     "vite": "^6.3.5",
     "ws": "^8.22.0"
+  },
+  "build": {
+    "appId": "com.arvin2a.blockbattle",
+    "productName": "BLOCK BATTLE!!",
+    "copyright": "Copyright (C) 2026 Arvin Zaman",
+    "directories": {
+      "output": "release",
+      "buildResources": "desktop/build"
+    },
+    "files": [
+      "dist/**/*",
+      "desktop/main.cjs",
+      "desktop/build/icon.png",
+      "LICENSE",
+      "!node_modules/**/*"
+    ],
+    "artifactName": "BlockBattle-${version}-${os}-${arch}.${ext}",
+    "win": {
+      "target": [
+        "nsis",
+        "portable"
+      ],
+      "icon": "desktop/build/icon.png"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "artifactName": "BlockBattle-${version}-windows-setup.${ext}"
+    },
+    "portable": {
+      "artifactName": "BlockBattle-${version}-windows-portable.${ext}"
+    },
+    "mac": {
+      "target": [
+        {
+          "target": "dmg",
+          "arch": [
+            "universal"
+          ]
+        },
+        {
+          "target": "zip",
+          "arch": [
+            "universal"
+          ]
+        }
+      ],
+      "category": "public.app-category.games",
+      "icon": "desktop/build/icon.png"
+    },
+    "linux": {
+      "target": [
+        "AppImage"
+      ],
+      "category": "Game",
+      "executableName": "blockbattle",
+      "icon": "desktop/build/icon.png",
+      "syncDesktopName": true
+    },
+    "publish": {
+      "provider": "github",
+      "owner": "Arvin2A",
+      "repo": "BlockBattle",
+      "releaseType": "draft"
+    }
   }
 }

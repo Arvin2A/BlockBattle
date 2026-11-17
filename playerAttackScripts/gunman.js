@@ -4,6 +4,8 @@
 
 const MINI_DAMAGE = 0.007;
 const MINI_FALL_SPEED = 60;
+const SHOT_SHIELD_COST = 0.05;
+const EXPLOSION_SHIELD_COST = 0.4;
 
 function playShotAnimation(
     scene,
@@ -23,10 +25,14 @@ function playShotAnimation(
 
     const play = () => {
         if (!attacker.active || !sprite.active) return;
+        if (sprite === attacker.atk) {
+            attacker.idleWeaponTexture = attacker.scene.anims.get(animation)?.frames[0]?.textureKey ?? animation;
+            if (sprite.texture.key !== attacker.idleWeaponTexture) sprite.setTexture(attacker.idleWeaponTexture);
+        }
         sprite.setFrame(0);
         sprite.setVisible(true);
         sprite.play(animation, true);
-        if (hideAfter !== null) {
+        if (hideAfter !== null && sprite !== attacker.atk) {
             scene.time.delayedCall(hideAfter, () => {
                 if (attacker.active && !attacker.activeGrab) sprite.setVisible(false);
             });
@@ -37,7 +43,7 @@ function playShotAnimation(
     else play();
 }
 
-function createBeam(api, scene, attacker, victim, sprite = attacker.atk, shotDir) {
+function createBeam(api, scene, attacker, candidates, sprite = attacker.atk, shotDir) {
     const aimLength = Math.hypot(shotDir.x, shotDir.y) || 1;
     const directionX = shotDir.x / aimLength;
     const directionY = shotDir.y / aimLength;
@@ -49,12 +55,17 @@ function createBeam(api, scene, attacker, victim, sprite = attacker.atk, shotDir
         0,
         visualOffsetX * directionX + visualOffsetY * directionY
     );
-    const contactDistance = getBeamContactDistance(victim, {
-        directionX,
-        directionY,
-        startX: rayOriginX,
-        startY: rayOriginY
-    });
+    const ray = { directionX, directionY, startX: rayOriginX, startY: rayOriginY };
+    let contactDistance = null;
+    let target = null;
+    for (const candidate of candidates) {
+        if (!candidate?.active || !candidate.body || api.isInvincible(candidate)) continue;
+        const distance = getBeamContactDistance(candidate, ray);
+        if (distance !== null && (contactDistance === null || distance < contactDistance)) {
+            contactDistance = distance;
+            target = candidate;
+        }
+    }
     const obstacleHit = getBeamObstacleDistance(scene, {
         directionX,
         directionY,
@@ -84,9 +95,11 @@ function createBeam(api, scene, attacker, victim, sprite = attacker.atk, shotDir
         onComplete: () => beam.destroy()
     });
 
+    const hit = contactDistance !== null &&
+        (obstacleDistance === null || contactDistance < obstacleDistance);
     return {
-        hit: contactDistance !== null &&
-            (obstacleDistance === null || contactDistance < obstacleDistance),
+        hit,
+        target: hit ? target : null,
         blockedPlank: obstacleHit?.obstacle?.health !== undefined &&
             (contactDistance === null || obstacleDistance <= contactDistance)
             ? obstacleHit.obstacle
@@ -173,16 +186,38 @@ function getBeamContactDistance(victim, beam) {
 }
 
 
+function reflectShot(api, scene, gunman, reflector, damage, isExplosion) {
+    if (!gunman.active || api.isInvincible(gunman)) return;
+    const back = { x: gunman.x - reflector.x, y: gunman.y - reflector.y };
+    const muzzle = { x: reflector.x, y: reflector.y + 10 };
+    if (!createBeam(api, scene, reflector, [gunman], muzzle, back).hit) return;
+    const length = Math.hypot(back.x, back.y) || 1;
+    const direction = { x: Math.sign(back.x) || 1, y: Math.abs(back.y / length) > 0.7 ? Math.sign(back.y) : 0 };
+    gunman.flash();
+    api.landHit(scene, reflector, gunman, {
+        direction,
+        ranged: true,
+        damage,
+        plankDamage: 0,
+        hitstun: isExplosion ? 300 : 0,
+        sound: isExplosion ? 'explosion' : null,
+        knockback: isExplosion
+            ? ({ kb, damageScale }) => ({ x: direction.x * 600 * kb * damageScale, y: direction.y === 0 ? -220 : direction.y * 600 * kb * damageScale })
+            : null,
+        decelerateAfter: isExplosion ? 800 : null,
+        resetCombo: false,
+        noDeathRay: true
+    });
+    if (isExplosion) api.spawnExplosion(scene, gunman);
+}
+
 function handleShot(api, scene, attacker, victim, options = {}) {
     if ((!options.ignoreCooldown &&
         (scene.time.now < attacker.nextAttackTime || !attacker.canAttack)) || attacker.hitstun) return;
     if (!options.isSpecial && attacker.gunmanSpecialActive) return;
     const shotDir = options.isSpecial
-    ? {
-        x: victim.x >= attacker.x ? 1 : -1,
-        y: 0
-    }
-    : attacker.lastDir;
+        ? { x: victim?.active ? (victim.x >= attacker.x ? 1 : -1) : (attacker.lastDir.x || 1), y: 0 }
+        : attacker.lastDir;
     const isExplosion = options.damageIncrement === undefined && attacker.combo >= 4;
     if (options.isSpecial) {
         playShotAnimation(
@@ -203,10 +238,11 @@ function handleShot(api, scene, attacker, victim, options = {}) {
         api,
         scene,
         attacker,
-        victim,
+        api.getEnemies(scene, attacker),
         options.sprite,
         shotDir
     )];
+    victim = beams.find(beam => beam.target)?.target ?? null;
     beams.forEach(beam => {
         if (beam.blockedPlank && options.isSpecial) {
             api.damagePlank(scene, beam.blockedPlank, 0.005);
@@ -218,11 +254,12 @@ function handleShot(api, scene, attacker, victim, options = {}) {
     scene.sound.play('gunshot');
     if (isExplosion) scene.sound.play('reload');
 
-    const hitCount = api.isInvincible(victim)
-        ? 0
-        : beams.filter(beam => beam.hit).length;
+    const hitCount = victim ? beams.filter(beam => beam.target === victim).length : 0;
     const shotDamage = options.damageIncrement ?? (isExplosion ? 0.10 : 0.02);
-    if (hitCount > 0 && !api.blocksHit(scene, victim, attacker, shotDamage * hitCount, { ranged: true })) {
+    const shieldCost = options.isSpecial ? null : (isExplosion ? EXPLOSION_SHIELD_COST : SHOT_SHIELD_COST) * hitCount;
+    const deflected = hitCount > 0 && api.deflects(scene, victim, attacker, shotDamage * hitCount, { shieldCost });
+    if (deflected) reflectShot(api, scene, attacker, victim, shotDamage * hitCount * deflected, isExplosion);
+    if (hitCount > 0 && !deflected && !api.blocksHit(scene, victim, attacker, shotDamage * hitCount, { ranged: true, shieldCost })) {
         victim.flash();
         const damageScale = api.getAttackDamageScale(attacker);
         victim.KBmultiplier += shotDamage * damageScale * hitCount;
@@ -295,6 +332,7 @@ function handleGunmanSpecial(api, scene, attacker, direction, currentTime, victi
         attacker.hasHitSideSpecial = false;
 
         attacker.isUsingSideSpecial = false;
+        attacker.atk.setVisible(false);
 
         startSideSpecialCooldown(attacker, currentTime, gunCD);
 
@@ -305,9 +343,9 @@ function handleGunmanSpecial(api, scene, attacker, direction, currentTime, victi
         attacker.gunmanSpecialActive = true;
 
         const fireBullet = () => {
-            if (!attacker.active || !victim.active) return;
+            if (!attacker.active) return;
 
-            if (attacker.lastDir.y === 0) {
+            if (attacker.lastDir.y === 0 && victim.active) {
                 attacker.lastDir.x = victim.x >= attacker.x ? 1 : -1;
             }
 
@@ -334,102 +372,92 @@ function handleGunmanSpecial(api, scene, attacker, direction, currentTime, victi
             scene.sound.play('gunspecialend', {volume: 0.75})
             specialSprite.destroy();
             attacker.gunmanSpecialActive = false;
+            attacker.isAttacking = false;
+            attacker.idleWeaponTexture = 'gunmanspecial';
             if (!attacker.active) return;
+            attacker.atk.stop().setTexture('gunmanspecial', 2).setVisible(true);
         });
     }
     attacker.lastTap[direction] = currentTime;
 }
 
-const GRENADE_COOLDOWN = 250;
-const GRENADE_KNOCKBACK = 750;
-const GRENADE_LIFT = 300;
-const GRENADE_HITSTUN = 500;
+const SHOTGUN = {
+    shells: 2,
+    reloadMs: 1200,
+    gapMs: 250,
+    range: 200,
+    minDot: 0.75,
+    recoil: 260,
+    sound: 'gunshot',
+    reloadSound: 'reload',
+    hit: {
+        damage: 0.08,
+        hitstun: 500,
+        hitstunGrowth: false,
+        decelerateAfter: 300,
+        resetCombo: false,
+        noDeathRay: true
+    },
+    knockback: 750,
+    lift: 300
+};
 
-function chuck(api, scene, attacker, victim) {
-    if (attacker.hitstun || attacker.freeze ||
-        attacker.activeGrenade || scene.time.now < (attacker.nextGrenadeTime ?? 0)) return;
+function shotgun(api, scene, attacker) {
+    if (attacker.hitstun || attacker.freeze || attacker.gunmanSpecialActive) return;
+    const now = scene.time.now;
+    if (now < (attacker.nextShotgunTime ?? 0)) return;
+    if ((attacker.shotgunShells ?? SHOTGUN.shells) <= 0 && now < attacker.shotgunReloadAt) return;
+    if ((attacker.shotgunShells ?? 0) <= 0) attacker.shotgunShells = SHOTGUN.shells;
 
-    const direction = attacker.lastDir;
-    const grenade = scene.physics.add.image(
-        attacker.x + direction.x * 50,
-        attacker.y + direction.y * 50 - 20,
-        'grenade'
+    const aim = attacker.lastDir.x || attacker.lastDir.y ? attacker.lastDir : { x: 1, y: 0 };
+    playShotAnimation(scene, attacker, attacker.atk, 0, 'shotgunfire');
+    scene.sound.play(SHOTGUN.sound);
+    for (const enemy of api.getEnemies(scene, attacker)) {
+        if (api.isInvincible(enemy)) continue;
+        const inCone = api.attackIsElligible(attacker, enemy, SHOTGUN.range, {
+            ignoreCanAttack: true,
+            silent: true,
+            direction: aim,
+            minDot: SHOTGUN.minDot
+        });
+        if (!inCone) continue;
+        api.landHit(scene, attacker, enemy, {
+            ...SHOTGUN.hit,
+            direction: aim,
+            knockback: ({ kb, damageScale }) => ({
+                x: aim.x * SHOTGUN.knockback * kb * damageScale,
+                y: aim.y === 0 ? -SHOTGUN.lift * kb : aim.y * SHOTGUN.knockback * kb * damageScale
+            })
+        });
+    }
+    attacker.setVelocity(
+        attacker.body.velocity.x - aim.x * SHOTGUN.recoil,
+        aim.y > 0 ? Math.min(attacker.body.velocity.y, -aim.y * SHOTGUN.recoil) : attacker.body.velocity.y
     );
-    attacker.activeGrenade = grenade;
-    grenade.setDepth(7);
-    grenade.body.setAllowGravity(true);
-    grenade.setCollideWorldBounds(true);
-    grenade.body.onWorldBounds = true;
-    grenade.setVelocity(direction.x * 500, direction.y);
-    scene.objs.add(grenade);
-
-    let detonated = false;
-    const colliders = [];
-    const removeColliders = () => {
-        colliders.forEach(collider => collider.destroy());
-        grenade.off('worldbounds', detonateAtWorldBounds);
-        scene.events.off('update', detonateIfBelow);
-    };
-    const detonate = (hitVictim = null) => {
-        if (detonated || !grenade.active) return;
-        detonated = true;
-        const victim = hitVictim;
-
-        if (hitVictim && victim.active && !api.isInvincible(victim) &&
-            !api.blocksHit(scene, victim, attacker, 0.08, { ranged: true })) {
-            const damageScale = api.getAttackDamageScale(attacker);
-            victim.KBmultiplier += 0.08 * damageScale;
-            victim.lastHitBy = attacker;
-            victim.hitstunUntil = Math.max(victim.hitstunUntil ?? 0, scene.time.now + GRENADE_HITSTUN);
-            victim.willDecelerate = false;
-            const knockback = GRENADE_KNOCKBACK * victim.KBmultiplier * damageScale;
-            const verticalKick = direction.y === 0
-                ? -GRENADE_LIFT * victim.KBmultiplier
-                : direction.y * knockback;
-            api.applyKnockback(
-                scene,
-                victim,
-                direction.x * knockback,
-                verticalKick,
-                { noDeathRay: true }
-            );
-            scene.time.delayedCall(300, () => {
-                if (victim.active) victim.willDecelerate = true;
-            });
-        }
-
-        api.spawnExplosion(scene, grenade);
-        scene.sound.play('explosion');
-        if (attacker.activeGrenade === grenade) attacker.activeGrenade = null;
-        attacker.nextGrenadeTime = scene.time.now + GRENADE_COOLDOWN;
-        removeColliders();
-        grenade.destroy();
-    };
-    const detonateAtWorldBounds = () => detonate();
-    const detonateIfBelow = () => {
-        if (grenade.y > 1000) detonate();
-    };
-
-    colliders.push(
-        ...api.getEnemies(scene, attacker).map(enemy => scene.physics.add.collider(grenade, enemy, () => detonate(enemy))),
-        ...api.getProjectileBlockingPlatforms(scene, attacker).map(platform =>
-            scene.physics.add.collider(grenade, platform, () => detonate())
-        ),
-        scene.physics.add.collider(grenade, scene.planks, (projectile, plank) => {
-            if (plank.health > 0) api.damagePlank(scene, plank, plank.health);
-            detonate();
-        })
-    );
-    grenade.on('worldbounds', detonateAtWorldBounds);
-    scene.events.on('update', detonateIfBelow);
+    attacker.shotgunShells -= 1;
+    attacker.nextShotgunTime = now + SHOTGUN.gapMs;
+    if (attacker.shotgunShells <= 0) {
+        attacker.shotgunReloadAt = now + SHOTGUN.reloadMs;
+        scene.time.delayedCall(SHOTGUN.reloadMs, () => {
+            if (attacker.active) scene.sound.play(SHOTGUN.reloadSound);
+        });
+    }
 }
 
 export default {
+    demoAnimations: ['gunmanatk', 'gunmanspecial'],
+    demoIdle: 'gunmanatk',
+    demoAnchor: { x: 50, y: 0, facesRight: true },
     armColor: 0x383838,
+    rightFacingAttackSprites: ['gunmanatk', 'gunmanspecial', 'shotgunfire'],
+    textureAttackSpriteOffsets: {
+        gunmanspecial: { x: 5, y: 10 },
+        shotgunfire: { x: 26, y: 10 }
+    },
     handleAttack: handleShot,
     handleDirSpecial: handleGunmanSpecial,
-    handleNeutralSpecial: chuck,
-    variantNeutralSpecials: { CRAZER: chuck },
+    handleNeutralSpecial: shotgun,
+    variantNeutralSpecials: { CRAZER: shotgun },
     handleHorizantalTilt: handleShot,
     handleDownTilt: handleShot,
     handleUpTilt: handleShot

@@ -9,6 +9,8 @@
 // MirrorView rebuilds the same picture on each player's screen from those changes.
 // Players never run game logic, they only see the result and send inputs.
 
+import { getScreenShakeScale } from '../ui/settings.js';
+
 const ROOT = 0;
 const LATE_SOUND_MS = 250;
 
@@ -98,6 +100,7 @@ function serialize(obj) {
         case 'Sprite':
             state.k = obj.texture?.key;
             state.f = obj.frame?.name;
+            state.cr = obj.isCropped ? `${obj._crop.x},${obj._crop.y},${obj._crop.width},${obj._crop.height}` : '';
             break;
         case 'Text':
             state.tx = obj.text;
@@ -223,7 +226,8 @@ export class MirrorCapture {
         }
 
         const cam = this.scene.cameras.main;
-        const camera = [round(cam.scrollX, 2), round(cam.scrollY, 2), round(cam.zoom, 4)];
+        const shake = this.scene.shakeOffset ?? { x: 0, y: 0 };
+        const camera = [round(cam.scrollX, 2), round(cam.scrollY, 2), round(cam.zoom, 4), round(shake.x, 2), round(shake.y, 2)];
         const cameraKey = camera.join(',');
         const cameraChanged = cameraKey !== this.lastCamera;
         this.lastCamera = cameraKey;
@@ -411,8 +415,9 @@ export class MirrorView {
         if (message.cam && frame > this.cameraFrame) {
             this.cameraFrame = frame;
             const cam = this.scene.cameras.main;
-            cam.scrollX = message.cam[0];
-            cam.scrollY = message.cam[1];
+            const calm = 1 - getScreenShakeScale();
+            cam.scrollX = message.cam[0] - (message.cam[3] ?? 0) * calm;
+            cam.scrollY = message.cam[1] - (message.cam[4] ?? 0) * calm;
             cam.setZoom(message.cam[2]);
         }
 
@@ -524,6 +529,10 @@ export class MirrorView {
             } else if (frame !== obj.frame.name && obj.texture.has(frame)) {
                 obj.setFrame(frame);
             }
+        }
+        if ('cr' in s) {
+            if (s.cr) obj.setCrop(...s.cr.split(',').map(Number));
+            else if (obj.isCropped) obj.setCrop();
         }
         if ('tn' in s) {
             const [tl, tr, bl, br, mode] = s.tn.split(',').map(Number);

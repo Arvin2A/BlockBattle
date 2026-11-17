@@ -8,6 +8,7 @@ const MAX_FIGHTER_VELOCITY = 4294967295;
 const MAP_CENTER_X = 1000;
 import { getCharacterTexture } from './characterTextures.js';
 import { hasIdleAttackSprite } from './attacks.js';
+import { getCharacterScript } from './combat/characterStats.js';
 import { COLORS, FONTS } from './ui/theme.js';
 import { MATCH_LIVES, PLAYER_COLORS } from './matchModes.js';
 export function initiatePlayers(scene, matchSettings) {
@@ -25,7 +26,7 @@ export function initiatePlayers(scene, matchSettings) {
             icon: getCharacterTexture(entry.character, entry.variant),
             lives: MATCH_LIVES,
             eliminated: false,
-            isCpu: Boolean(scene.simulationMode || (scene.botMode && index === 1))
+            isCpu: Boolean(entry.bot || scene.simulationMode || (scene.botMode && index === 1))
         });
         return fighter;
     });
@@ -58,7 +59,14 @@ export function initiatePlayers(scene, matchSettings) {
             nextTiltTime: 0,
             combo: 0,
             comboTimer: 0,
-            playerKBresistance: 1
+            playerKBresistance: 1,
+            attackSequence: 0,
+            attackLockedFor: 0,
+            attackBypassesHitstun: false,
+            lastAttackAnim: null,
+            lastAttackEndTime: 0,
+            lastLandedHitAt: 0,
+            idleWeaponTexture: null
         });
 
         // Hitstun, freeze, and grab state.
@@ -75,7 +83,37 @@ export function initiatePlayers(scene, matchSettings) {
             freezeUntil: 0,
             freezeGravity: null,
             willDecelerate: true,
-            hitstunGroundDeceleration: 0.98
+            hitstunGroundDeceleration: 0.98,
+            decelerateEvent: null,
+            lastHitAt: 0,
+            lastHitBy: null,
+            uninterruptible: false,
+            invincibleUntil: 0,
+            crashImmuneUntil: 0,
+            launchArc: false,
+            heavyLaunch: false,
+            heavyLaunchAt: 0,
+            violentLaunch: false,
+            ultraLaunch: false,
+            smack: null,
+            smackedBy: null,
+            smackArc: null,
+            smackEndlagUntil: 0,
+            nextSmackAt: 0
+        });
+        // Block and shield state.
+        Object.assign(p, {
+            blocking: false,
+            wantsBlock: false,
+            shield: 1,
+            shieldHitUntil: 0,
+            shieldBrokenUntil: 0,
+            shieldRegrowAt: 0,
+            blockStartedAt: -Infinity,
+            blockPenaltyUntil: 0,
+            blockDrainScale: 1,
+            deflectDamageScale: 1,
+            onBlockedHit: null
         });
         // Always read straight from hitstunUntil, so a hit counts the moment it
         // lands. A cached flag let the victim swing back in the same frame (both
@@ -100,8 +138,17 @@ export function initiatePlayers(scene, matchSettings) {
             plankGhost: null,
             outOfBounds: false,
             airTime: 0,
+            fallSpeed: 0,
             downslamming: false,
             downslamFx: false,
+            ledge: null,
+            ledgeSlide: null,
+            ledgeUsed: false,
+            nextLedgeAt: 0,
+            respawnFalling: false,
+            koLockedUntil: 0,
+            nextImmunityFlashAt: 0,
+            heated: false,
             KBmultiplier: 1.00
         });
         if (modifierOptions.SUDDEN_DEATH.enabled) {
@@ -126,12 +173,13 @@ export function initiatePlayers(scene, matchSettings) {
             p.y + 40, 'doublejump');
         scene.objs.add(p.doubleJumpEffect);
         p.doubleJumpEffect.setAlpha(0);
-        if (scene.gameState.map.definition.id === 'SNOWY') {
+        const shadowStyle = scene.gameState.map.definition.playerShadow;
+        if (shadowStyle) {
             const w = p.displayWidth;
             const h = 8;
-            const skew = 6;
+            const skew = shadowStyle.skew;
             p.shadow = scene.add.graphics();
-            p.shadow.fillStyle(0x000000, 0.4);
+            p.shadow.fillStyle(0x000000, shadowStyle.alpha);
             p.shadow.fillPoints([
                 { x: -w / 2 + skew, y: -h / 2 },
                 { x: w / 2 + skew, y: -h / 2 },
@@ -158,7 +206,11 @@ export function initiatePlayers(scene, matchSettings) {
             },
             atkXOffset: 45,
             atkYOffset: 50,
-            lastAttackTime: 0
+            lastAttackTime: 0,
+            horizontalMovementActive: false,
+            inputLocked: false,
+            inputLockReleasableAt: Infinity,
+            releaseInputLock: null
         });
         p.flashObject = scene.add.rectangle(p.x, p.y, 50, 50, 0xffffff);
         p.flashObject.setAlpha(0);
@@ -181,7 +233,9 @@ export function initiatePlayers(scene, matchSettings) {
             chopped: false,
             choppedUntil: 0,
             netted: false,
-            nettedUntil: 0
+            nettedUntil: 0,
+            nettedBy: null,
+            netImmuneUntil: 0
         });
         p.choppedMark = scene.add.image(p.x, p.y, 'chopped');
         p.choppedMark.visible = false;
@@ -198,6 +252,8 @@ export function initiatePlayers(scene, matchSettings) {
             baseMovementSpeed: 300,
             baseDamageScale: 1,
             externalDamageScale: 1,
+            moveSpeedScale: 1,
+            jumpScale: 1,
             dirSpecialCooldown: 3500
         });
         const unmodifiedSpeed = p.baseMovementSpeed;
@@ -312,7 +368,6 @@ export function initiatePlayers(scene, matchSettings) {
                 p.y + (p.lastDir.y * 50),
                 p.variant === 'TRAPPER' ? 'harpoonatk' : 'rodatk'
             );
-            if (p.variant !== 'TRAPPER') p.atk.setScale(0.6);
         } else if (p.name == "SCYTHEMAN") {
             p.atk = scene.add.sprite(
                 p.x + (p.lastDir.x * 50),
@@ -325,7 +380,6 @@ export function initiatePlayers(scene, matchSettings) {
                 p.y + (p.lastDir.y * 50),
                 p.variant === 'SLEDGEHAMMER' ? 'sledgehammeratk' : 'hammeratk'
             );
-            if (p.variant !== 'SLEDGEHAMMER') p.atk.setScale(0.75);
         } else if (p.name == "SLATEMAN") {
             p.atk = scene.add.sprite(
                 p.x + (p.lastDir.x * 50),
@@ -352,12 +406,13 @@ export function initiatePlayers(scene, matchSettings) {
                 'axeatk'
             );
         }
+        p.atk.setScale(getCharacterScript(p)?.variantAttackSpriteScales?.[p.variant] ?? 1);
         scene.objs.add(p.atk);
     }
 
     for (const player of players) {
         const label = scene.simulationMode ? `CPU ${player.id}` : player.isCpu ? 'CPU' : player.slot.toUpperCase();
-        const fill = player.isCpu ? COLORS.cpu : PLAYER_COLORS[player.color].css;
+        const fill = player.isCpu && !scene.online ? COLORS.cpu : PLAYER_COLORS[player.color].css;
         player.header = scene.add.text(player.x, player.y - 50, label, { fontFamily: FONTS.title, fontSize: '18px', fill });
         scene.objs.add(player.header);
         player.atk.setVisible(

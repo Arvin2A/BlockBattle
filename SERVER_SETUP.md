@@ -99,7 +99,7 @@ WorkingDirectory=/home/blockbattle/BlockBattle
 # run `which node` if unsure of this path
 ExecStart=/usr/bin/node server/index.js
 # your website(s), see "Server settings" below
-Environment=BB_ALLOWED_ORIGINS=https://<your-username>.github.io
+Environment=BB_ALLOWED_ORIGINS=https://<your-username>.github.io,app://blockbattle
 ```
 
 Then start it:
@@ -137,6 +137,9 @@ the domain, so `https://<your-username>.github.io` covers
 different, so list both if your site uses both. Pages served by the server itself are always
 allowed. Leave the setting out to allow any website (fine for testing, not for a public
 server).
+
+The desktop app (see the README) connects from the origin `app://blockbattle`. Add it to
+the list if you set `BB_ALLOWED_ORIGINS`, or desktop players get SERVER OFFLINE.
 
 ### Faster online play (WebRTC + Cloudflare TURN)
 

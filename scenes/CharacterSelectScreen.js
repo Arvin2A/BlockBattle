@@ -3,7 +3,7 @@
 // Licensed under the GNU GPL v3 only. See LICENSE.
 
 import Phaser from 'phaser';
-import { addSettingsButton } from '../ui/settings.js';
+import { addSettingsButton, setSettingsButtonTint } from '../ui/settings.js';
 import {
     botMode,
     simulationMode,
@@ -11,12 +11,14 @@ import {
     botDifficulty,
     setBotDifficulty
 } from "../gameSettings.js";
-import { FONTS, COLORS, HEX } from "../ui/theme.js";
+import { COLORS, HEX, makeButton, textStyle } from "../ui/theme.js";
 import { preloadCharacterSelection } from "./GameScene/preload.js";
 import { getCharacterTexture } from "../characterTextures.js";
 import { fadeOutTo } from "./transitions.js";
-import { addMapBackdrop, getSelectedMapPreview } from "./MapAndModifierSelect.js";
+import { addMapBackdrop, getSelectedButtonTint, getSelectedMapPreview } from "./MapAndModifierSelect.js";
 import { CHARACTER_ROSTER } from "../characterRoster.js";
+import { createFighterDemo } from "../ui/fighterDemo.js";
+import { openAdvancedInfo } from "../ui/advancedInfo.js";
 import {
     getConnectedControllers,
     getMenuGamepadInput
@@ -27,13 +29,29 @@ export var player2Character = '';
 export var player1Variant = '';
 export var player2Variant = '';
 
-// Online matches pick characters in the lobby instead of on this screen.
 export function setSelectedCharacters(p1Character, p1Variant, p2Character, p2Variant) {
     player1Character = p1Character;
     player1Variant = p1Variant;
     player2Character = p2Character;
     player2Variant = p2Variant;
 }
+
+const TITLE_Y = 34;
+const GRID = { columns: 8, top: 66, cell: 100, smallCell: 78, gap: 8 };
+const CARD = { width: 470, xs: [255, 745], bottom: 588, gapAbove: 54 };
+const BANNER_HEIGHT = 36;
+const TAB = { width: 84, height: 24 };
+const PAD_BUTTON = 40;
+const PAD_SPREAD = 44;
+
+const KEYBOARD = {
+    1: { up: 'W', down: 'S', left: 'A', right: 'D', lock: 'E', variant: 'Q', unlock: 'R' },
+    2: { up: 'UP', down: 'DOWN', left: 'LEFT', right: 'RIGHT', lock: 'SHIFT', variant: 'FORWARD_SLASH', unlock: 'PERIOD' }
+};
+const INSTRUCTIONS = {
+    1: 'WASD  MOVE\nE  LOCK IN\nQ  VARIANT\nR  UNLOCK\nI  FIGHTER INFO',
+    2: 'ARROWS  MOVE\nSHIFT  LOCK IN\n/  VARIANT\n.  UNLOCK'
+};
 
 export class CharacterSelectScene extends Phaser.Scene {
     constructor() {
@@ -46,888 +64,447 @@ export class CharacterSelectScene extends Phaser.Scene {
 
     create() {
         this.cameras.main.fadeIn(200, 0, 0, 0);
-        addSettingsButton(this);
-
-        // -----------------------------
-        // DATA
-        // -----------------------------
-
-        this.characters = CHARACTER_ROSTER.map(({ key }) => ({ key }));
-        this.characterData = CHARACTER_ROSTER;
-
-        const getCharacterIcon = (characterIndex, variantIndex = 0) => {
-            const character = this.characters[characterIndex];
-            const variant = this.characterData[characterIndex].variants[variantIndex];
-            return getCharacterTexture(character.key, variant.name);
-        };
-
-        this.p1Index = 1;
-        this.p2Index = botMode
-            ? Phaser.Math.Between(0, this.characters.length - 1)
-            : 0;
-        this.p1VariantIndex = 0;
-        this.p2VariantIndex = 0;
-
-        // background
         this.cameras.main.setBackgroundColor('#1b1b1b');
-
         addMapBackdrop(this, getSelectedMapPreview());
-
-        
-
-        this.p1IsReady = false;
-        this.p2IsReady = false;
-
-        // Each slot's color for its select box, wheel arrows and ready button.
-        // A CPU is grey; in SIMULATION the two CPUs are black and white instead.
-        const slotColors = {
-            1: simulationMode
-                ? { fill: HEX.simCpu1, hover: 0x333333, text: COLORS.text }
-                : { fill: 0xf54242, hover: 0xff6666, text: COLORS.text },
-            2: simulationMode
-                ? { fill: HEX.simCpu2, hover: 0xdddddd, text: COLORS.stroke }
-                : botMode
-                    ? { fill: HEX.cpu, hover: 0x888888, text: COLORS.text }
-                    : { fill: 0x00aaff, hover: 0x48c2ff, text: COLORS.text }
-        };
-
-        this.controllerPreviousInput = [{}, {}];
-
-        // -----------------------------
-        // TITLE
-        // -----------------------------
-
-        this.add.text(
-            500,
-            50,
-            simulationMode
-                ? 'SELECT BOTH CPUS'
-                : botMode
-                    ? 'SELECT PLAYER AND CPU'
-                    : 'SELECT YOUR CHARACTER',
-            {
-                fontFamily: 'VCROSD',
-                fontSize: '35px',
-                fill: '#ffffff',
-                stroke: '#000000',
-                strokeThickness: 6
-            }
-        ).setOrigin(0.5);
-
-        //select boxes!
-
-        this.p1SelectBox = this.add.rectangle(
-            0,
-            0,
-            60,
-            60
-        ).setStrokeStyle(4, slotColors[1].fill);
-
-        this.p2SelectBox = this.add.rectangle(
-            0,
-            0,
-            60,
-            60
-        ).setStrokeStyle(4, slotColors[2].fill);
-
-        // CHARACTER LIST
-
-        this.characterIcons = [];
-        const isTouchDevice = this.sys.game.device.input.touch;
-        // Touch devices show a one-column wheel instead of the grid, so up/down
-        // (from a keyboard or controller) step one character instead of a row.
-        this.verticalStep = isTouchDevice ? 1 : 4;
+        setSettingsButtonTint(this, addSettingsButton(this), getSelectedButtonTint());
         this.input.mouse?.disableContextMenu();
 
-        const spacingX = 75;
-        const spacingY = 75;
+        this.isTouch = this.sys.game.device.input.touch;
+        this.characters = CHARACTER_ROSTER;
+        this.controllerPreviousInput = [{}, {}];
+        this.lastMover = 2;
+        this.starting = false;
 
-        const rows = Math.ceil(this.characters.length / 4);
-        const columns = Math.min(4, this.characters.length);
+        this.slots = {
+            1: this.makeSlot(1, 1),
+            2: this.makeSlot(2, botMode ? Phaser.Math.Between(0, this.characters.length - 1) : 0)
+        };
 
-        const gridWidth = (columns - 1) * spacingX;
-        const gridHeight = (rows - 1) * spacingY;
+        this.add.text(500, TITLE_Y, simulationMode
+            ? 'SELECT BOTH CPUS'
+            : botMode ? 'SELECT PLAYER AND CPU' : 'SELECT PLAYER 1 AND PLAYER 2',
+        textStyle('body', { fontSize: '32px', stroke: COLORS.stroke, strokeThickness: 6 })).setOrigin(0.5);
 
-        const startX = 500 - gridWidth / 2;
-        const startY = 200 - gridHeight / 2;
+        makeButton(this, 868, 32, 100, 34, 'BACK', () => this.goBack(), 18);
 
-        for (let i = 0; i < this.characters.length; i++) {
+        this.buildGrid();
+        this.buildBanner();
+        [1, 2].forEach(player => this.buildCard(player));
 
-            const row = Math.floor(i / 4);
-            const col = i % 4;
+        this.keys = Object.fromEntries([1, 2].map(player => [player,
+            this.input.keyboard.addKeys(KEYBOARD[player], false)]));
+        this.startKeys = this.input.keyboard.addKeys({ enter: 'ENTER' }, false);
 
-            const icon = this.add.image(
-                startX + col * spacingX,
-                startY + row * spacingY,
-                this.characters[i].key
-            )
-                .setScale(1)
+        [1, 2].forEach(player => this.refreshSlot(player));
+        this.refreshGrid();
+
+        const onInfoKey = () => {
+            if (this.advancedInfo) this.advancedInfo.close();
+            else if (!this.settingsPanel && !this.starting) this.openCharacterInfo();
+        };
+        const onEscape = () => {
+            if (this.settingsPanel || this.advancedInfo || this.starting) return;
+            this.goBack();
+        };
+        this.input.keyboard.on('keydown-I', onInfoKey);
+        this.input.keyboard.on('keydown-ESC', onEscape);
+        this.events.once('shutdown', () => {
+            this.input.keyboard.off('keydown-I', onInfoKey);
+            this.input.keyboard.off('keydown-ESC', onEscape);
+        });
+    }
+
+    openCharacterInfo(afterClose) {
+        const slot = this.slots[1];
+        this.sound.play('hover2');
+        openAdvancedInfo(this, { characterIndex: slot.index, variantIndex: slot.variant, onClose: afterClose });
+    }
+
+    makeSlot(player, index) {
+        const colors = player === 1
+            ? simulationMode
+                ? { fill: HEX.simCpu1, hover: 0x333333, text: COLORS.text, label: 'CPU 1' }
+                : { fill: HEX.p1, hover: 0xff6666, text: COLORS.text, label: 'P1' }
+            : simulationMode
+                ? { fill: HEX.simCpu2, hover: 0xdddddd, text: COLORS.stroke, label: 'CPU 2' }
+                : botMode
+                    ? { fill: HEX.cpu, hover: 0x888888, text: COLORS.text, label: 'CPU' }
+                    : { fill: HEX.p2, hover: 0x5aa0ff, text: COLORS.text, label: 'P2' };
+        const isCpu = simulationMode || (botMode && player === 2);
+        return { player, index, variant: 0, locked: false, colors, isCpu, card: null, cursor: null };
+    }
+
+    get gridCell() {
+        return this.characters.length > GRID.columns ? GRID.smallCell : GRID.cell;
+    }
+
+    tilePosition(index) {
+        const cell = this.gridCell;
+        const columns = Math.min(GRID.columns, this.characters.length);
+        const rowStart = Math.floor(index / columns) * columns;
+        const inRow = Math.min(columns, this.characters.length - rowStart);
+        const rowWidth = inRow * cell + (inRow - 1) * GRID.gap;
+        const column = index - rowStart;
+        return {
+            x: 500 - rowWidth / 2 + cell / 2 + column * (cell + GRID.gap),
+            y: GRID.top + cell / 2 + Math.floor(index / columns) * (cell + GRID.gap)
+        };
+    }
+
+    get gridBottom() {
+        const rows = Math.ceil(this.characters.length / GRID.columns);
+        return GRID.top + rows * this.gridCell + (rows - 1) * GRID.gap;
+    }
+
+    buildGrid() {
+        const cell = this.gridCell;
+        this.tiles = this.characters.map((character, index) => {
+            const { x, y } = this.tilePosition(index);
+            const box = this.add.rectangle(x, y, cell, cell, 0x1e1e1e, 0.92)
+                .setStrokeStyle(2, 0x555555)
                 .setInteractive({ useHandCursor: true })
                 .setData('silentHover', true);
+            const icon = this.add.image(x, y - cell * 0.08, character.key).setDisplaySize(cell * 0.72, cell * 0.72);
+            const name = this.add.text(x, y + cell / 2 - 11, character.name, textStyle('body', {
+                fontSize: `${Math.round(cell * 0.13)}px`
+            })).setOrigin(0.5);
+            box.on('pointerdown', pointer => this.pickFromGrid(index, pointer.rightButtonDown()));
+            box.on('pointerover', () => box.setStrokeStyle(2, 0x999999));
+            box.on('pointerout', () => box.setStrokeStyle(2, 0x555555));
+            return { box, icon, name, x, y };
+        });
 
-            icon.characterIndex = i;
-            // Left click picks for P1, right click for P2.
-            icon.on('pointerdown', pointer => {
-                const player = pointer.rightButtonDown() ? 2 : 1;
-                if (player === 1 && this.p1IsReady) return;
-                if (player === 2 && this.p2IsReady) return;
-                this.sound.play('hover');
-                if (player === 1) this.p1Index = i;
-                else this.p2Index = i;
-                this.updateCharacterDescriptions();
-            });
+        [1, 2].forEach(player => {
+            const slot = this.slots[player];
+            const frame = this.add.rectangle(0, 0, cell + 6, cell + 6).setStrokeStyle(4, slot.colors.fill).setDepth(10);
+            const tag = this.add.rectangle(0, 0, slot.colors.label.length * 9 + 12, 18, slot.colors.fill).setDepth(11)
+                .setStrokeStyle(1, HEX.border);
+            const tagText = this.add.text(0, 0, slot.colors.label, textStyle('body', {
+                fontSize: '14px', fill: slot.colors.text
+            })).setOrigin(0.5).setDepth(12);
+            slot.cursor = { frame, tag, tagText };
+        });
+    }
 
-            this.characterIcons.push(icon);
+    buildBanner() {
+        const y = (this.gridBottom + this.cardTop - TAB.height / 2) / 2;
+        const hint = this.isTouch ? 'TAP TO START' : 'PRESS E / SHIFT / ENTER OR CLICK';
+        const box = this.add.rectangle(0, 0, 1000, BANNER_HEIGHT, 0xb3261e, 0.95)
+            .setInteractive({ useHandCursor: true });
+        const title = this.add.text(-150, 0, 'READY TO FIGHT!', textStyle('title', {
+            fontSize: '28px'
+        })).setOrigin(0.5);
+        const sub = this.add.text(300, 0, hint, textStyle('body', { fontSize: '16px', fill: COLORS.accent })).setOrigin(0.5);
+        box.on('pointerdown', () => this.startMatch());
+        this.banner = this.add.container(-1000, y, [box, title, sub]).setDepth(40);
+        this.bannerShown = false;
+    }
+
+    get cardTop() {
+        return this.gridBottom + CARD.gapAbove;
+    }
+
+    buildCard(player) {
+        const slot = this.slots[player];
+        const top = this.cardTop;
+        const height = CARD.bottom - top;
+        const centerX = CARD.xs[player - 1];
+        const left = centerX - CARD.width / 2;
+        const columnX = left + 347;
+        const previewX = left + 121;
+        const previewY = top + (height + 12) / 2;
+        const previewWidth = 210;
+        const previewHeight = height - 42;
+
+        this.add.rectangle(centerX, top + height / 2, CARD.width, height, HEX.panel, 0.95)
+            .setStrokeStyle(4, slot.colors.fill === HEX.simCpu1 ? 0x444444 : slot.colors.fill);
+
+        this.add.rectangle(previewX, previewY, previewWidth, previewHeight, 0x0d0d0d, 0.9).setStrokeStyle(2, 0x333333);
+        const demo = createFighterDemo(this, { x: previewX, y: previewY, width: previewWidth - 16, height: previewHeight - 30 });
+
+        if (this.isTouch) this.buildPad(player, columnX, top + 78);
+        else {
+            this.add.text(columnX, top + 78, INSTRUCTIONS[player], textStyle('body', {
+                fontSize: '16px', fill: COLORS.muted, align: 'center', lineSpacing: 4
+            })).setOrigin(0.5);
         }
 
-        if (isTouchDevice) {
-            this.characterIcons.forEach(icon => icon.setVisible(false));
-            this.p1SelectBox.setVisible(false);
-            this.p2SelectBox.setVisible(false);
-        }
+        const name = this.add.text(columnX, top + 172, '', textStyle('title', { fontSize: '26px', strokeThickness: 4 })).setOrigin(0.5);
+        const variantText = this.add.text(columnX, top + 204, '', textStyle('body', { fontSize: '18px' })).setOrigin(0.5);
+        const variantArrows = [-1, 1].map(direction => {
+            const arrow = this.add.text(columnX + direction * 92, top + 204, direction < 0 ? '<' : '>', textStyle('body', {
+                fontSize: '28px', fill: COLORS.muted
+            })).setOrigin(0.5).setInteractive({ useHandCursor: true });
+            arrow.on('pointerover', () => arrow.setColor(COLORS.text));
+            arrow.on('pointerout', () => arrow.setColor(COLORS.muted));
+            arrow.on('pointerdown', () => this.cycleVariant(player, direction));
+            return arrow;
+        });
 
+        if (slot.isCpu) this.buildDifficulty(player, columnX, top + 244);
 
+        const readyY = top + height - 42;
 
-        //DESCRIPTIONS:
-        const DESCBOX1 = this.add.rectangle(
-            130,
-            300,
-            225,
-            400,
-            0x171717
-        );
-        const DESCBOX2 = this.add.rectangle(
-            870,
-            300,
-            225,
-            400,
-            0x171717
-        );
+        const lockShade = this.add.rectangle(centerX, top + height / 2, CARD.width, height, 0x000000, 0.45).setVisible(false);
+        const readyImage = this.add.image(previewX, previewY, 'ready').setVisible(false);
+        readyImage.setScale(Math.min(previewWidth / readyImage.width, previewHeight / readyImage.height));
 
-        
-        this.p1NameText = this.add.text(130, 150, '', {
-            fontFamily: 'GameFont',
-            fontSize: '26px',
-            fill: '#ffffff',
-            align: 'center',
-        }).setOrigin(0.5);
-
-        this.p1DescText = this.add.text(130, 340, '', {
-            fontFamily: 'VCROSD',
-            fontSize: '20px',
-            fill: '#ffffff',
-            align: 'center',
-            wordWrap: { width: 200 }
-        }).setOrigin(0.5);
-
-        this.p2NameText = this.add.text(870, 150, '', {
-            fontFamily: 'GameFont',
-            fontSize: '26px',
-            fill: '#ffffff'
-        }).setOrigin(0.5);
-
-        this.p1VariantText = this.add.text(130, 180, '', {
-            fontFamily: 'VCROSD',
-            fontSize: '16px',
-            fill: '#686868'
-        }).setOrigin(0.5);
-
-        this.p2VariantText = this.add.text(870, 180, '', {
-            fontFamily: 'VCROSD',
-            fontSize: '16px',
-            fill: '#686868'
-        }).setOrigin(0.5);
-
-
-        const createVariantButton = (x, player, direction) => {
-            const button = this.add.text(x, 180, direction < 0 ? '<' : '>', {
-                fontFamily: 'VCROSD',
-                fontSize: '30px',
-                fill: '#686868'
-            }).setOrigin(0.5).setInteractive({ useHandCursor: true });
-
-            const variantText = player === 1 ? this.p1VariantText : this.p2VariantText;
-
-            button.on('pointerover', () => button.setColor('#ffffff'));
-            button.on('pointerout', () => button.setColor('#686868'));
-            button.on('pointerdown', () => {
-                if (player === 1 && this.p1IsReady) return;
-                if (player === 2 && this.p2IsReady) return;
-
-                const characterIndex = player === 1 ? this.p1Index : this.p2Index;
-                const variants = this.characterData[characterIndex].variants;
-                if (variants.length === 1) {
-                    this.sound.play('deny');
-                    return;
-                }
-                const variantIndex = player === 1 ? this.p1VariantIndex : this.p2VariantIndex;
-               
-                const nextVariantIndex = (variantIndex + direction + variants.length) % variants.length;
-
-                this.lastSelectedIconPlayer = player;
-                if (player === 1) {
-                    this.p1VariantIndex = nextVariantIndex;
-                } else {
-                    this.p2VariantIndex = nextVariantIndex;
-                }
-
-                
-
-                this.sound.play('hover2');
-                this.updateCharacterDescriptions();
-            });
-
-            return button;
+        const readyBox = this.add.rectangle(columnX, readyY, 198, 40, slot.colors.fill)
+            .setStrokeStyle(3, HEX.border)
+            .setInteractive({ useHandCursor: true });
+        const readyText = this.add.text(columnX, readyY, 'READY', textStyle('body', {
+            fontSize: '22px', fill: slot.colors.text
+        })).setOrigin(0.5);
+        readyBox.on('pointerdown', () => this.toggleLock(player));
+        readyBox.on('pointerover', () => readyBox.setFillStyle(slot.locked ? 0x888888 : slot.colors.hover));
+        readyBox.on('pointerout', () => readyBox.setFillStyle(slot.locked ? HEX.cpu : slot.colors.fill));
+        const refreshReady = () => {
+            readyBox.setFillStyle(slot.locked ? HEX.cpu : slot.colors.fill);
+            readyText.setText(slot.locked ? 'UNREADY' : 'READY').setColor(slot.locked ? COLORS.text : slot.colors.text);
         };
 
-        this.p1VariantButtons = [
-            createVariantButton(60, 1, -1),
-            createVariantButton(200, 1, 1)
-        ];
-        this.p2VariantButtons = [
-            createVariantButton(800, 2, -1),
-            createVariantButton(940, 2, 1)
-        ];
-
-        this.p2DescText = this.add.text(870, 340, '', {
-            fontFamily: 'VCROSD',
-            fontSize: '20px',
-            fill: '#ffffff',
-            align: 'center',
-            wordWrap: { width: 200 }
-        }).setOrigin(0.5);
-
-        this.descAdvanced = { 1: false, 2: false };
-        const createDescToggle = (x, player) => {
-            const toggle = this.add.text(x, 482, '', {
-                fontFamily: FONTS.body,
-                fontSize: '16px',
-                fill: COLORS.accent
-            }).setOrigin(0.5).setInteractive({ useHandCursor: true });
-            toggle.on('pointerover', () => toggle.setColor(COLORS.text));
-            toggle.on('pointerout', () => toggle.setColor(COLORS.accent));
-            toggle.on('pointerdown', () => {
-                this.descAdvanced[player] = !this.descAdvanced[player];
-                this.sound.play('hover2');
-                this.updateCharacterDescriptions();
-            });
-            return toggle;
-        };
-        this.descToggles = { 1: createDescToggle(130, 1), 2: createDescToggle(870, 2) };
-        const DESC_BASIC_SIZE = 20;
-        const DESC_ADVANCED_SIZE = 17;
-        const DESC_ADVANCED_MIN_SIZE = 11;
-        const DESC_ADVANCED_MAX_HEIGHT = 250;
-        this.showDescription = (player, variant) => {
-            const text = player === 1 ? this.p1DescText : this.p2DescText;
-            const advanced = this.descAdvanced[player] && Boolean(variant.abilities);
-            this.descToggles[player]
-                .setText(this.descAdvanced[player] ? 'BASIC VIEW' : 'ADVANCED VIEW')
-                .setVisible(Boolean(variant.abilities));
-            if (!advanced) {
-                text.setFontSize(DESC_BASIC_SIZE).setText(variant.desc).setY(330);
-                return;
-            }
-            text.setFontSize(DESC_ADVANCED_SIZE).setText(variant.abilities).setY(330);
-            for (let size = DESC_ADVANCED_SIZE - 1; size >= DESC_ADVANCED_MIN_SIZE && text.height > DESC_ADVANCED_MAX_HEIGHT; size--) {
-                text.setFontSize(size);
-            }
-        };
-
-        // CPU difficulty: "< NORMAL >" above each CPU's description box.
-        const createDifficultyPicker = (x, player) => {
-            const label = this.add.text(x, 82, '', {
-                fontFamily: FONTS.body,
-                fontSize: '18px',
-                fill: COLORS.text
-            }).setOrigin(0.5);
-            const show = () => label.setText(`CPU: ${botDifficulty[player]}`);
-
-            [-1, 1].forEach(direction => {
-                const arrow = this.add.text(x + direction * 110, 82, direction < 0 ? '<' : '>', {
-                    fontFamily: FONTS.body,
-                    fontSize: '26px',
-                    fill: COLORS.cpu
-                }).setOrigin(0.5).setInteractive({ useHandCursor: true });
-                arrow.on('pointerover', () => arrow.setColor(COLORS.text));
-                arrow.on('pointerout', () => arrow.setColor(COLORS.cpu));
-                arrow.on('pointerdown', () => {
-                    if (player === 1 && this.p1IsReady) return;
-                    if (player === 2 && this.p2IsReady) return;
-                    const count = BOT_DIFFICULTIES.length;
-                    const index = BOT_DIFFICULTIES.indexOf(botDifficulty[player]);
-                    setBotDifficulty(player, BOT_DIFFICULTIES[(index + direction + count) % count]);
-                    this.sound.play('hover2');
-                    show();
-                });
-            });
-            show();
-        };
-        if (simulationMode) createDifficultyPicker(130, 1);
-        if (botMode) createDifficultyPicker(870, 2);
-
-        const p1BoxSelectedOverlay = this.add.image(
-            0,
-            0,
-            'selectedoverlay'
-        ).setAlpha(0).setDepth(50);
-
-        const p2BoxSelectedOverlay = this.add.image(
-            0,
-            0,
-            'selectedoverlay'
-        ).setAlpha(0).setDepth(50);
-
-        let previousP1Index = null;
-        let previousP2Index = null;
-        this.lastSelectedIconPlayer = 2;
-
-        this.updateCharacterDescriptions = function (
-            p1Direction = 0,
-            p2Direction = 0
-        ) {
-            const p1 = this.characterData[this.p1Index];
-            const p2 = this.characterData[this.p2Index];
-
-            if (this.p1Index !== previousP1Index) {
-                this.p1VariantIndex = 0;
-                previousP1Index = this.p1Index;
-                this.lastSelectedIconPlayer = 1;
-            }
-            if (this.p2Index !== previousP2Index) {
-                this.p2VariantIndex = 0;
-                previousP2Index = this.p2Index;
-                this.lastSelectedIconPlayer = 2;
-            }
-
-            const p1Variant = p1.variants[this.p1VariantIndex];
-            const p2Variant = p2.variants[this.p2VariantIndex];
-            this.characterIcons.forEach((icon, index) => {
-                icon.setTexture(this.characters[index].key);
-            });
-            if (this.p1Index === this.p2Index) {
-                const selectedVariantIndex = this.lastSelectedIconPlayer === 1
-                    ? this.p1VariantIndex
-                    : this.p2VariantIndex;
-                this.characterIcons[this.p1Index].setTexture(
-                    getCharacterIcon(this.p1Index, selectedVariantIndex)
-                );
-            } else {
-                this.characterIcons[this.p1Index].setTexture(
-                    getCharacterIcon(this.p1Index, this.p1VariantIndex)
-                );
-                this.characterIcons[this.p2Index].setTexture(
-                    getCharacterIcon(this.p2Index, this.p2VariantIndex)
-                );
-            }
-            const p1HasMultipleVariants = p1.variants.length > 1;
-            const p2HasMultipleVariants = p2.variants.length > 1;
-
-            this.p1VariantText.setVisible(p1HasMultipleVariants);
-            this.p1VariantButtons.forEach(button => button.setVisible(p1HasMultipleVariants));
-            this.p2VariantText.setVisible(p2HasMultipleVariants);
-            this.p2VariantButtons.forEach(button => button.setVisible(p2HasMultipleVariants));
-
-            this.p1NameText.setText(p1.name);
-            this.p1NameText.setColor(p1Variant.color);
-            this.p1VariantText.setText(p1Variant.name);
-            this.p1VariantText.setColor(p1Variant.color);
-
-            this.showDescription(1, p1Variant);
-
-            this.p2NameText.setText(p2.name);
-            this.p2NameText.setColor(p2Variant.color);
-            this.p2VariantText.setText(p2Variant.name);
-            this.p2VariantText.setColor(p2Variant.color);
-
-            const p1Icon = this.characterIcons[this.p1Index];
-            const p2Icon = this.characterIcons[this.p2Index];
-
-            if (p1Icon === p2Icon) {
-                this.p2SelectBox.setStrokeStyle(4, 0xc300ff);
-            } else {
-                this.p2SelectBox.setStrokeStyle(4, slotColors[2].fill);
-            }
-
-
-            if (this.p1BoxTween) this.p1BoxTween = null;
-            this.p1BoxTween = this.tweens.add({
-                targets: this.p1SelectBox, p1BoxSelectedOverlay,
-                x: p1Icon.x,
-                y: p1Icon.y,
-                duration: 100,
-                ease: 'Quad.easeOut'
-            });
-            if (this.p2BoxTween) this.p2BoxTween = null;
-            this.p2BoxTween = this.tweens.add({
-                targets: this.p2SelectBox,
-                x: p2Icon.x,
-                y: p2Icon.y,
-                duration: 100,
-                ease: 'Quad.easeOut'
-            });
-            if (!isTouchDevice) {
-                p1BoxSelectedOverlay.setPosition(p1Icon.x, p1Icon.y);
-                p2BoxSelectedOverlay.setPosition(p2Icon.x, p2Icon.y);
-            }
-
-
-            this.showDescription(2, p2Variant);
-
-            if (this.mobileWheels) {
-                this.mobileWheels.p1.refresh(this.p1Index, p1Direction);
-                this.mobileWheels.p2.refresh(this.p2Index, p2Direction);
-            }
-        };
-
-        
-        
-        const createCharacterWheel = (x, player) => {
-            const colors = slotColors[player];
-            const wheelIcons = [-1, 0, 1].map(offset =>
-                this.add.image(
-                    x,
-                    320 + offset * 65,
-                    this.characters[0].key
-                ).setScale(offset === 0 ? 1 : 0.65)
-            );
-
-            let isAnimating = false;
-
-            const getIndex = () =>
-                player === 1 ? this.p1Index : this.p2Index;
-
-            const getVariantIndex = () =>
-                player === 1 ? this.p1VariantIndex : this.p2VariantIndex;
-
-            const selectedOverlay = player === 1
-                ? p1BoxSelectedOverlay
-                : p2BoxSelectedOverlay;
-
-            const drawIcons = index => {
-                [-1, 0, 1].forEach((offset, i) => {
-                    const characterIndex =
-                        (index + offset + this.characters.length) %
-                        this.characters.length;
-
-                    wheelIcons[i].setTexture(
-                        getCharacterIcon(
-                            characterIndex,
-                            offset === 0 ? getVariantIndex() : 0
-                        )
-                    );
-
-                    wheelIcons[i]
-                        .setPosition(x, 320 + offset * 65)
-                        .setAlpha(offset === 0 ? 1 : 0.45)
-                        .setScale(offset === 0 ? 1 : 0.65);
-                });
-
-                selectedOverlay.setPosition(x, 320);
-            };
-
-            const refresh = (index, direction = 0) => {
-                if (isAnimating) return;
-
-                if (direction === 0) {
-                    drawIcons(index);
-                    return;
-                }
-
-                isAnimating = true;
-
-                const oldTextures = wheelIcons.map(icon => icon.texture.key);
-                const oldAlphas = wheelIcons.map(icon => icon.alpha);
-                const oldScales = wheelIcons.map(icon => icon.scaleX);
-
-                const newIcons = [-1, 0, 1].map(offset => {
-                    const characterIndex =
-                        (index + offset + this.characters.length) %
-                        this.characters.length;
-
-                    const icon = this.add.image(
-                        x,
-                        320 + offset * 65 + direction * 65,
-                        getCharacterIcon(
-                            characterIndex,
-                            offset === 0 ? getVariantIndex() : 0
-                        )
-                    );
-
-                    return icon
-                        .setScale(offset === 0 ? 1 : 0.65)
-                        .setAlpha(0);
-                });
-
-                // Keep the old icons intact while they slide away.
-                wheelIcons.forEach((icon, i) => {
-                    this.tweens.add({
-                        targets: icon,
-                        y: icon.y - direction * 65,
-                        alpha: 0,
-                        duration: 300,
-                        ease: 'Sine.easeInOut'
-                    });
-                });
-
-                // Slide the new icons into the wheel.
-                newIcons.forEach((icon, i) => {
-                    const offset = i - 1;
-
-                    this.tweens.add({
-                        targets: icon,
-                        y: 320 + offset * 65,
-                        alpha: offset === 0 ? 1 : 0.45,
-                        duration: 300,
-                        ease: 'Sine.easeInOut'
-                    });
-                });
-
-                this.tweens.add({
-                    targets: selectedOverlay,
-                    x,
-                    y: 320,
-                    duration: 300,
-                    ease: 'Sine.easeInOut'
-                });
-
-                this.time.delayedCall(120, () => {
-                    wheelIcons.forEach(icon => icon.destroy());
-                    newIcons.forEach((icon, i) => {
-                        wheelIcons[i] = icon;
-                    });
-
-                    isAnimating = false;
-                });
-            };
-
-            const createWheelButton = (y, label, direction) => {
-                const button = this.add.rectangle(x, y, 70, 45, colors.fill)
-                    .setStrokeStyle(3, 0xffffff)
-                    .setInteractive({ useHandCursor: true });
-
-                this.add.text(x, y, label, {
-                    fontFamily: 'VCROSD',
-                    fontSize: '30px',
-                    fill: colors.text
-                }).setOrigin(0.5);
-
-                button.on('pointerover', () => button.setAlpha(0.8));
-                button.on('pointerout', () => button.setAlpha(1));
-
-                button.on('pointerdown', () => {
-                    if (isAnimating) return;
-                    if (player === 1 && this.p1IsReady) return;
-                    if (player === 2 && this.p2IsReady) return;
-
-                    this.sound.play('hover');
-
-                    if (player === 1) {
-                        this.p1Index = (
-                            this.p1Index + direction + this.characters.length
-                        ) % this.characters.length;
-                    } else {
-                        this.p2Index = (
-                            this.p2Index + direction + this.characters.length
-                        ) % this.characters.length;
-                    }
-
-                    this.updateCharacterDescriptions(
-                        player === 1 ? direction : 0,
-                        player === 2 ? direction : 0
-                    );
-                });
-            };
-
-            createWheelButton(200, '^', -1);
-            createWheelButton(440, 'v', 1);
-
-            drawIcons(getIndex());
-
-            return { refresh };
-        };
-
-
-
-        this.mobileWheels = isTouchDevice
-            ? {
-                p1: createCharacterWheel(300, 1),
-                p2: createCharacterWheel(700, 2)
-            }
-            : null;
-
-        // START GAME ON CLICK
-
-        //changing it so that both players must click their ready button, then the play button will be activated.
-        const playBox = this.add.rectangle(
-            500,
-            520,
-            220,
-            70,
-            0x228B22
-        ).setAlpha(0);
-
-        playBox.setStrokeStyle(4, 0xffffff);
-
-        const playText = this.add.text(
-            500,
-            520,
-            'PLAY',
-            {
-                fontFamily: 'GameFont',
-                fontSize: '44px',
-                fill: '#ffffff'
-            }
-        ).setOrigin(0.5).setAlpha(0);
-
-        
-
-        const DESCOVERLAY1 = this.add.rectangle(
-            130,
-            300,
-            225,
-            400,
-            0x171717
-        ).setAlpha(0);
-        const DESCOVERLAY2 = this.add.rectangle(
-            870,
-            300,
-            225,
-            400,
-            0x171717
-        ).setAlpha(0);
-
-        const DESCIMAGE1 = this.add.image(
-            130,
-            300,
-            'ready'
-        ).setAlpha(0);
-        const DESCIMAGE2 = this.add.image(
-            870,
-            300,
-            'ready'
-        ).setAlpha(0);
-
-
-        const createReadyButton = (player, x, overlay, image, selectedOverlay) => {
-            const colors = slotColors[player];
-            const button = this.add.rectangle(x, 550, 150, 50, colors.fill)
-                .setStrokeStyle(3, 0xffffff)
+        const tabX = left + 22 + TAB.width / 2;
+        this.add.rectangle(tabX, top, TAB.width, TAB.height, slot.colors.fill).setStrokeStyle(3, HEX.border);
+        this.add.text(tabX, top, slot.colors.label, textStyle('title', {
+            fontSize: '18px', fill: slot.colors.text, strokeThickness: 0
+        })).setOrigin(0.5);
+
+        slot.card = { demo, name, variantText, variantArrows, lockShade, readyImage, refreshReady };
+    }
+
+    buildPad(player, x, y) {
+        const slot = this.slots[player];
+        const button = (bx, by, label, onPress) => {
+            const box = this.add.rectangle(bx, by, PAD_BUTTON, PAD_BUTTON, slot.colors.fill, 0.9)
+                .setStrokeStyle(2, HEX.border)
                 .setInteractive({ useHandCursor: true });
-            const label = this.add.text(x, 550, 'READY', {
-                fontFamily: 'VCROSD',
-                fontSize: '24px',
-                fill: colors.text
-            }).setOrigin(0.5);
-            const isReady = () => player === 1 ? this.p1IsReady : this.p2IsReady;
-            const setReady = ready => {
-                if (player === 1) this.p1IsReady = ready;
-                else this.p2IsReady = ready;
-                button.setFillStyle(ready ? 0x686868 : colors.fill);
-                label.setText(ready ? 'UNREADY' : 'READY').setColor(ready ? COLORS.text : colors.text);
-                overlay.setAlpha(ready ? 0.5 : 0);
-                image.setAlpha(ready ? 1 : 0);
-                selectedOverlay.setAlpha(ready ? 1 : 0);
-                const bothReady = this.p1IsReady && this.p2IsReady;
-                playBox.setAlpha(bothReady ? 1 : 0);
-                playText.setAlpha(bothReady ? 1 : 0);
-            };
-            button.on('pointerdown', () => {
+            this.add.text(bx, by, label, textStyle('body', { fontSize: label.length > 1 ? '16px' : '24px', fill: slot.colors.text }))
+                .setOrigin(0.5);
+            box.on('pointerdown', () => {
+                box.setAlpha(0.6);
+                onPress();
+            });
+            box.on('pointerup', () => box.setAlpha(1));
+            box.on('pointerout', () => box.setAlpha(1));
+        };
+        button(x, y - PAD_SPREAD, '^', () => this.moveCursor(player, 0, -1));
+        button(x, y + PAD_SPREAD, 'v', () => this.moveCursor(player, 0, 1));
+        button(x - PAD_SPREAD, y, '<', () => this.moveCursor(player, -1, 0));
+        button(x + PAD_SPREAD, y, '>', () => this.moveCursor(player, 1, 0));
+        button(x, y, 'OK', () => this.toggleLock(player));
+    }
+
+    buildDifficulty(player, x, y) {
+        const label = this.add.text(x, y, '', textStyle('body', { fontSize: '18px', fill: COLORS.accent })).setOrigin(0.5);
+        const show = () => label.setText(`CPU: ${botDifficulty[player]}`);
+        [-1, 1].forEach(direction => {
+            const arrow = this.add.text(x + direction * 92, y, direction < 0 ? '<' : '>', textStyle('body', {
+                fontSize: '26px', fill: COLORS.cpu
+            })).setOrigin(0.5).setInteractive({ useHandCursor: true });
+            arrow.on('pointerover', () => arrow.setColor(COLORS.text));
+            arrow.on('pointerout', () => arrow.setColor(COLORS.cpu));
+            arrow.on('pointerdown', () => {
+                if (this.slots[player].locked) return;
+                const count = BOT_DIFFICULTIES.length;
+                const index = BOT_DIFFICULTIES.indexOf(botDifficulty[player]);
+                setBotDifficulty(player, BOT_DIFFICULTIES[(index + direction + count) % count]);
                 this.sound.play('hover2');
-                setReady(!isReady());
+                show();
             });
-            button.on('pointerover', () => button.setFillStyle(isReady() ? 0x888888 : colors.hover));
-            button.on('pointerout', () => button.setFillStyle(isReady() ? 0x686868 : colors.fill));
-        };
-
-        createReadyButton(1, 130, DESCOVERLAY1, DESCIMAGE1, p1BoxSelectedOverlay);
-        createReadyButton(2, 870, DESCOVERLAY2, DESCIMAGE2, p2BoxSelectedOverlay);
-
-
-        
-
-        
-
-        
-
-        playBox.setInteractive({ useHandCursor: true });
-
-        playBox.on('pointerover', () => {
-            playBox.setFillStyle(0x2ecc71);
         });
+        show();
+    }
 
-        playBox.on('pointerout', () => {
-            playBox.setFillStyle(0x228B22);
+    pickFromGrid(index, wantsP2) {
+        const player = wantsP2 || this.slots[1].locked ? 2 : 1;
+        const slot = this.slots[player];
+        if (slot.locked) return;
+        this.sound.play('hover');
+        this.setIndex(player, index);
+    }
+
+    moveCursor(player, dx, dy) {
+        const slot = this.slots[player];
+        if (slot.locked) return;
+        const length = this.characters.length;
+        const columns = Math.min(GRID.columns, length);
+        let next = slot.index;
+        if (dx) next = (slot.index + dx + length) % length;
+        if (dy) {
+            next = slot.index + dy * columns;
+            if (next < 0 || next >= length) return;
+        }
+        if (next === slot.index) return;
+        this.sound.play('hover');
+        this.setIndex(player, next);
+    }
+
+    setIndex(player, index) {
+        const slot = this.slots[player];
+        if (slot.index !== index) slot.variant = 0;
+        slot.index = index;
+        this.lastMover = player;
+        this.refreshSlot(player);
+        this.refreshGrid();
+    }
+
+    cycleVariant(player, direction) {
+        const slot = this.slots[player];
+        if (slot.locked) return;
+        const variants = this.characters[slot.index].variants;
+        if (variants.length === 1) {
+            this.sound.play('deny');
+            return;
+        }
+        slot.variant = (slot.variant + direction + variants.length) % variants.length;
+        this.lastMover = player;
+        this.sound.play('hover2');
+        this.refreshSlot(player);
+        this.refreshGrid();
+    }
+
+    toggleLock(player) {
+        const slot = this.slots[player];
+        this.setLocked(player, !slot.locked);
+    }
+
+    setLocked(player, locked) {
+        const slot = this.slots[player];
+        if (slot.locked === locked) return;
+        slot.locked = locked;
+        this.sound.play('hover2');
+        slot.card.lockShade.setVisible(locked);
+        slot.card.readyImage.setVisible(locked);
+        slot.cursor.frame.setFillStyle(slot.colors.fill, locked ? 0.3 : 0);
+        slot.card.refreshReady();
+        this.refreshBanner();
+    }
+
+    refreshBanner() {
+        const show = this.slots[1].locked && this.slots[2].locked;
+        if (show === this.bannerShown) return;
+        this.bannerShown = show;
+        this.tweens.killTweensOf(this.banner);
+        this.tweens.add({
+            targets: this.banner,
+            x: show ? 500 : -1000,
+            duration: show ? 260 : 180,
+            ease: show ? 'Back.easeOut' : 'Quad.easeIn'
         });
+    }
 
-        playBox.on('pointerdown', () => {
-            fadeOutTo(this, () => {
-                this.scene.start('GameScene', {
-                    player1Character: this.characters[this.p1Index].key,
-                    player2Character: this.characters[this.p2Index].key,
-                    player1Variant: this.characterData[this.p1Index].variants[this.p1VariantIndex].name,
-                    player2Variant: this.characterData[this.p2Index].variants[this.p2VariantIndex].name
-                });
+    refreshSlot(player) {
+        const slot = this.slots[player];
+        const character = this.characters[slot.index];
+        const variant = character.variants[slot.variant];
+        const { name, variantText, variantArrows, demo } = slot.card;
+        name.setFontSize(26).setText(character.name).setColor(variant.color ?? COLORS.text);
+        if (name.width > 180) name.setFontSize(Math.floor(26 * 180 / name.width));
+        const multiple = character.variants.length > 1;
+        variantText.setText(variant.name).setColor(multiple ? variant.color ?? COLORS.text : COLORS.cpu);
+        variantArrows.forEach(arrow => arrow.setVisible(multiple));
+        demo.show(slot.index, slot.variant);
+
+        const cell = this.gridCell;
+        const other = this.slots[player === 1 ? 2 : 1];
+        const shared = other.index === slot.index;
+        [1, 2].forEach(each => {
+            const eachSlot = this.slots[each];
+            const eachTile = this.tiles[eachSlot.index];
+            const inset = shared && each === 2;
+            const size = inset ? cell - 8 : cell + 6;
+            const { frame, tag, tagText } = eachSlot.cursor;
+            frame.setSize(size, size);
+            this.tweens.killTweensOf(frame);
+            this.tweens.add({ targets: frame, x: eachTile.x, y: eachTile.y, duration: each === player ? 90 : 0, ease: 'Quad.easeOut' });
+            const tagX = eachTile.x + (each === 1 ? -1 : 1) * (cell / 2 - tag.width / 2 - 2);
+            const tagY = eachTile.y - cell / 2 - 2;
+            tag.setPosition(tagX, tagY);
+            tagText.setPosition(tagX, tagY);
+        });
+    }
+
+    refreshGrid() {
+        this.tiles.forEach((tile, index) => tile.icon.setTexture(this.characters[index].key));
+        const order = this.lastMover === 1 ? [2, 1] : [1, 2];
+        order.forEach(player => {
+            const slot = this.slots[player];
+            const character = this.characters[slot.index];
+            this.tiles[slot.index].icon.setTexture(getCharacterTexture(character.key, character.variants[slot.variant].name));
+        });
+    }
+
+    selection(player) {
+        const slot = this.slots[player];
+        const character = this.characters[slot.index];
+        return { key: character.key, variant: character.variants[slot.variant].name };
+    }
+
+    startMatch() {
+        if (!this.slots[1].locked || !this.slots[2].locked || this.starting) return;
+        this.starting = true;
+        this.sound.play('hover2');
+        const p1 = this.selection(1);
+        const p2 = this.selection(2);
+        setSelectedCharacters(p1.key, p1.variant, p2.key, p2.variant);
+        fadeOutTo(this, () => {
+            this.scene.start('GameScene', {
+                player1Character: p1.key,
+                player2Character: p2.key,
+                player1Variant: p1.variant,
+                player2Variant: p2.variant
             });
-            player1Character = this.characters[this.p1Index].key;
-            player2Character = this.characters[this.p2Index].key;
-            player1Variant = this.characterData[this.p1Index].variants[this.p1VariantIndex].name;
-            player2Variant = this.characterData[this.p2Index].variants[this.p2VariantIndex].name;
-
         });
+    }
 
-        const backBox = this.add.rectangle(
-            500,
-            580,
-            150,
-            35,
-            0x686868
-        ).setStrokeStyle(3, 0xffffff).setInteractive({ useHandCursor: true });
+    goBack() {
+        if (this.starting) return;
+        fadeOutTo(this, () => this.scene.start('MapAndModifierSelectScene', { page: 'modifiers' }));
+    }
 
-        this.add.text(500, 580, 'BACK', {
-            fontFamily: 'VCROSD',
-            fontSize: '20px',
-            fill: '#ffffff'
-        }).setOrigin(0.5);
-
-        backBox.on('pointerover', () => backBox.setFillStyle(0x888888));
-        backBox.on('pointerout', () => backBox.setFillStyle(0x686868));
-        backBox.on('pointerdown', () => {
-            fadeOutTo(this, () => this.scene.start('MapAndModifierSelectScene', { page: 'modifiers' }));
-        });
-
-        // -----------------------------
-        // INPUT
-        // -----------------------------
-
-        this.moveSelection = (player, delta) => {
-            if (delta === 0) return;
-
-            const length = this.characters.length;
-
-            if (player === 1) {
-                this.p1Index = (this.p1Index + delta + length) % length;
-            } else {
-                this.p2Index = (this.p2Index + delta + length) % length;
-            }
-
-            this.sound.play("hover");
-
-            const wheelDirection = Math.sign(delta);
-
-            this.updateCharacterDescriptions(
-                player === 1 ? wheelDirection : 0,
-                player === 2 ? wheelDirection : 0
-            );
-        };
-
-        this.keys = this.input.keyboard.addKeys({
-
-            w: Phaser.Input.Keyboard.KeyCodes.W,
-            s: Phaser.Input.Keyboard.KeyCodes.S,
-            a: Phaser.Input.Keyboard.KeyCodes.A,
-            d: Phaser.Input.Keyboard.KeyCodes.D,
-
-            up: Phaser.Input.Keyboard.KeyCodes.UP,
-            down: Phaser.Input.Keyboard.KeyCodes.DOWN,
-            left: Phaser.Input.Keyboard.KeyCodes.LEFT,
-            right: Phaser.Input.Keyboard.KeyCodes.RIGHT
-
-        });
-
-        this.updateCharacterDescriptions();
-
-
-        /*this.input.on('pointerdown', (pointer) => {
-            // Ignore clicks on the PLAY button area
-            if (
-                pointer.x >= 390 &&
-                pointer.x <= 610 &&
-                pointer.y >= 485 &&
-                pointer.y <= 555
-            ) {
-                return;
-            }
-
-            // Character list starts at y=180 and each row is 50px apart
-            const index = Math.round((pointer.y - 180) / 50);
-
-            if (index < 0 || index >= this.characters.length) {
-                return;
-            }
-
-            this.sound.play('hover');
-
-            if (pointer.x < 500) {
-                // P1 selection
-                this.p1Index = index;
-            } else {
-                // P2 selection
-                this.p2Index = index;
-            }
-
-            this.updateCharacterDescriptions();
-        });*/
-
+    handleCommand(player, command) {
+        const slot = this.slots[player];
+        if (command === 'unlock') return this.setLocked(player, false);
+        if (command === 'lock') {
+            if (slot.locked) return this.startMatch();
+            return this.setLocked(player, true);
+        }
+        if (slot.locked) return;
+        if (command === 'variant') return this.cycleVariant(player, 1);
+        if (command === 'variantBack') return this.cycleVariant(player, -1);
+        const moves = { left: [-1, 0], right: [1, 0], up: [0, -1], down: [0, 1] };
+        if (moves[command]) this.moveCursor(player, ...moves[command]);
     }
 
     update() {
-
-        const justDown = key => Phaser.Input.Keyboard.JustDown(this.keys[key]);
-        const keyboardDelta = (left, right, up, down) => {
-            if (justDown(left)) return -1;
-            if (justDown(right)) return 1;
-            if (justDown(up)) return -this.verticalStep;
-            if (justDown(down)) return this.verticalStep;
-            return 0;
-        };
-
-        // P1 uses WASD, P2 uses the arrow keys. Both are polled every frame
-        // so a key pressed while ready isn't remembered for later.
-        const p1KeyDelta = keyboardDelta('a', 'd', 'w', 's');
-        const p2KeyDelta = keyboardDelta('left', 'right', 'up', 'down');
-        if (!this.p1IsReady) this.moveSelection(1, p1KeyDelta);
-        if (!this.p2IsReady) this.moveSelection(2, p2KeyDelta);
+        const justDown = key => Phaser.Input.Keyboard.JustDown(key);
+        const keyCommands = [1, 2].map(player => {
+            const keys = this.keys[player];
+            return Object.keys(KEYBOARD[player]).filter(command => justDown(keys[command]))
+                .map(command => [player, command]);
+        }).flat();
+        const enter = justDown(this.startKeys.enter);
 
         const controllers = getConnectedControllers(this);
-
+        const padCommands = [];
         for (let slot = 0; slot < 2; slot++) {
             const pad = controllers[slot];
             const previous = this.controllerPreviousInput[slot];
-
             if (!pad) {
                 this.controllerPreviousInput[slot] = {};
                 continue;
             }
-
             const input = getMenuGamepadInput(pad);
-
-            const justPressed = key =>
-                input[key] && !previous[key];
-
-            // Save the current state for edge detection.
             this.controllerPreviousInput[slot] = { ...input };
-
-            // Controller 1 = Player 1; Controller 2 = Player 2.
-            const player = slot + 1;
-
-            if (player === 1 && this.p1IsReady) continue;
-            if (player === 2 && this.p2IsReady) continue;
-
-            let delta = 0;
-
-            if (justPressed("left")) {
-                delta = -1;
-            } else if (justPressed("right")) {
-                delta = 1;
-            } else if (justPressed("up")) {
-                delta = -this.verticalStep;
-            } else if (justPressed("down")) {
-                delta = this.verticalStep;
-            }
-
-            this.moveSelection(player, delta);
+            const pressed = key => input[key] && !previous[key];
+            const map = { left: 'left', right: 'right', up: 'up', down: 'down', a: 'lock', b: 'unlock', rb: 'variant', lb: 'variantBack' };
+            Object.entries(map).forEach(([button, command]) => {
+                if (pressed(button)) padCommands.push([slot + 1, command]);
+            });
         }
 
+        if (this.settingsPanel || this.advancedInfo || this.starting) return;
+        if (enter) this.startMatch();
+        [...keyCommands, ...padCommands].forEach(([player, command]) => this.handleCommand(player, command));
     }
 }

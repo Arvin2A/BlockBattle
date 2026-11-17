@@ -3,6 +3,7 @@
 // Licensed under the GNU GPL v3 only. See LICENSE.
 
 import { DEFAULT_MAP, INFINITE_SPAN } from './MapDefinitions.js';
+import { getMapEvent } from './mapEvents.js';
 
 export class Map {
     constructor(scene, definition = DEFAULT_MAP) {
@@ -12,7 +13,9 @@ export class Map {
         this.topPlatforms = scene.physics.add.staticGroup();
         this.createBackground();
         this.createGeometry();
+        this.createLighting();
         if (definition.infinite) this.createInfiniteParts();
+        getMapEvent(definition.mapEvent)?.setup?.(scene, this);
     }
 
     createBackground() {
@@ -30,7 +33,6 @@ export class Map {
             definition.groundVisualPosition.y,
             definition.groundVisual
         );
-        groundVisual.setDisplaySize(groundVisual.width, 1200);
 
         this.ground = this.platforms.create(
             definition.mainGround.x,
@@ -51,6 +53,10 @@ export class Map {
                 platformDefinition.texture
             );
             platform.setScale(platformDefinition.scale);
+            if (platformDefinition.bottom !== undefined) {
+                const top = platformDefinition.y - platform.height * platformDefinition.scale / 2;
+                platform.setCrop(0, 0, platform.width, (platformDefinition.bottom - top) / platformDefinition.scale);
+            }
             visuals[index] = platform;
             if (platformDefinition.name) visuals[platformDefinition.name] = platform;
         });
@@ -71,6 +77,14 @@ export class Map {
             scene.objs.add(platform);
             this[`platform${index + 1}`] = platform;
         });
+        this.pryables = definition.platformVisuals
+            .map((platformDefinition, index) => ({
+                visual: visuals[index],
+                platform: this[`platform${index + 1}`],
+                bottom: platformDefinition.bottom ?? null,
+                pried: false
+            }))
+            .filter(pryable => pryable.visual && pryable.platform);
     }
 
     addVisualsInDepthOrder(visuals) {
@@ -82,6 +96,61 @@ export class Map {
         [...ordered, ...remaining].forEach((visual, index) => {
             visual.setDepth(index + 1);
             this.scene.objs.add(visual);
+        });
+    }
+
+    createLighting() {
+        const lighting = this.definition.lighting;
+        if (!lighting) return;
+        const { scene } = this;
+        const { source } = lighting;
+        const beam = (x, make) => {
+            const dx = x - source.x;
+            const dy = lighting.rayEndY - source.y;
+            const object = make(Math.hypot(dx, dy))
+                .setOrigin(0.5, 0)
+                .setRotation(Math.atan2(dy, dx) - Math.PI / 2);
+            scene.objs.add(object);
+            return object;
+        };
+        const platformShadow = lighting.platformShadow;
+        if (platformShadow) {
+            const bands = [
+                ...this.definition.platformVisuals.map(visual => ({ x: visual.x, ...visual.shadow })),
+                { x: this.definition.groundVisualPosition.x, ...this.definition.groundShadow }
+            ].filter(band => band.width);
+            this.platformShadows = bands.map(band => {
+                const half = band.width / 2;
+                const shadow = scene.add.graphics({ x: band.x, y: band.y });
+                shadow.fillStyle(lighting.shadowColor, platformShadow.alpha);
+                shadow.fillPoints([
+                    { x: -half, y: 0 },
+                    { x: half, y: 0 },
+                    { x: half - platformShadow.skew, y: band.height },
+                    { x: -half - platformShadow.skew, y: band.height }
+                ], true);
+                scene.objs.add(shadow);
+                return shadow;
+            });
+        }
+        this.castShadows = (lighting.shadows ?? []).map(shadow => beam(shadow.x, length =>
+            scene.add.rectangle(source.x, source.y, shadow.width, length, lighting.shadowColor, shadow.alpha)));
+        this.lightRays = (lighting.rays ?? []).map((ray, index) => {
+            const image = beam(ray.x, length => scene.add.image(source.x, source.y, lighting.rayTexture)
+                .setDisplaySize(ray.width, length)
+                .setBlendMode(Phaser.BlendModes.ADD)
+                .setTint(lighting.rayTint)
+                .setAlpha(ray.alpha));
+            scene.tweens.add({
+                targets: image,
+                alpha: ray.alpha * 0.4,
+                duration: 2400 + index * 650,
+                delay: index * 400,
+                yoyo: true,
+                repeat: -1,
+                ease: 'Sine.easeInOut'
+            });
+            return image;
         });
     }
 

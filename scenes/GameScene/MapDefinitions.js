@@ -2,6 +2,7 @@
 // Original source: https://github.com/Arvin2A/BlockBattle
 // Licensed under the GNU GPL v3 only. See LICENSE.
 
+
 export const INFINITE_SPAN = 268435455;
 
 function applyWeatherDamage(scene, amount) {
@@ -75,6 +76,7 @@ const DESERT_MAP = {
         { x: 1200, y: 847 }
     ],
     tint: '#8d5c00',
+    mapEvent: 'DESERT_HEAT_RAY',
 
     hazard: {
         chance: 0.5,
@@ -149,6 +151,9 @@ const SNOWY_MAP = {
         { x: 925, y: 780 }
     ],
     tint: '#2b6335',
+    buttonTint: 0x3a6190,
+    playerShadow: { skew: 6, alpha: 0.4 },
+    mapEvent: 'SNOWY_CANNON',
 
     hazard: {
         chance: 0.5,
@@ -171,6 +176,31 @@ const SNOWY_MAP = {
         }
     }
 };
+const JUNGLE_TOWER_SURFACE = 585;
+const JUNGLE_TOWER_WIDTH = 360;
+
+const JUNGLE_TOWER_BAR = { below: 21, height: 30, width: 350 };
+const JUNGLE_TOWER_ART_SHIFT = -4.5;
+
+function jungleTowerTop(x, top, scale) {
+    return { x, y: top, texture: 'groundhitbox', width: JUNGLE_TOWER_WIDTH * scale, height: 0 };
+}
+
+function jungleTower(x, top, scale, bottom) {
+    return {
+        x: x + JUNGLE_TOWER_ART_SHIFT * scale,
+        y: top + JUNGLE_TOWER_SURFACE * scale,
+        texture: 'jungle_platform',
+        scale,
+        bottom,
+        shadow: {
+            y: top + JUNGLE_TOWER_BAR.below * scale,
+            width: JUNGLE_TOWER_BAR.width * scale,
+            height: JUNGLE_TOWER_BAR.height * scale
+        }
+    };
+}
+
 const JUNGLE_MAP = {
     id: 'JUNGLE',
     name: 'JUNGLE ARENA',
@@ -178,7 +208,8 @@ const JUNGLE_MAP = {
     maxZoom: 0.8,
     background: 'jungle_background',
     groundVisual: 'jungle_betterground',
-    groundVisualPosition: { x: 1000, y: 1250 },
+    groundVisualPosition: { x: 991.5, y: 1326.5 },
+    groundShadow: { y: 845, width: 600, height: 34 },
     mainGround: {
         x: 1000,
         y: 830,
@@ -188,61 +219,53 @@ const JUNGLE_MAP = {
         visible: false
     },
     platforms: [
-        {
-            x: 500,
-            y: 690,
-            texture: 'groundhitbox',
-            width: 360,
-            height: 0
-        },
-        {
-            x: 1375,
-            y: 490,
-            texture: 'groundhitbox',
-            width: 360,
-            height: 0
-        },
-        {
-            x: 600,
-            y: 370,
-            texture: 'groundhitbox',
-            width: 360,
-            height: 0
-        },
-        // Smaller middle platform over the main ground. The visual's surface
-        // sits 585px above its centre at scale 1, so that offset scales too.
-        {
-            x: 1000,
-            y: 670,
-            texture: 'groundhitbox',
-            width: 216,
-            height: 0
-        },
-        {
-            x: 1000,
-            y: 525,
-            texture: 'groundhitbox',
-            width: 216,
-            height: 0
-        }
+        jungleTowerTop(470, 690, 0.8),
+        jungleTowerTop(1530, 600, 0.8),
+        jungleTowerTop(1000, 665, 0.6),
+        jungleTowerTop(470, 545, 0.55),
+        jungleTowerTop(1530, 450, 0.55)
     ],
     platformVisuals: [
-        { x: 500, y: 1275, texture: 'jungle_platform', scale: 1 },
-        { x: 1375, y: 1075, texture: 'jungle_platform', scale: 1 },
-        { x: 600, y: 955, texture: 'jungle_platform', scale: 1 },
-        { x: 1000, y: 670 + 585 * 0.6, texture: 'jungle_platform', scale: 0.6 },
-        { x: 1000, y: 525 + 585 * 0.6, texture: 'jungle_platform', scale: 0.6 }
-
+        jungleTower(470, 690, 0.8),
+        jungleTower(1530, 600, 0.8),
+        jungleTower(1000, 665, 0.6, 812),
+        jungleTower(470, 545, 0.55, 694),
+        jungleTower(1530, 450, 0.55, 604)
     ],
-
-    platformDepthOrder: [4, 3, 2, 1, 0, 'main'],
+    platformDepthOrder: [2, 3, 4, 0, 1, 'main'],
     playerSpawns: [
-        { x: 750, y: 787 },
-        { x: 1300, y: 462 },
-        { x: 500, y: 662 },
-        { x: 1000, y: 642 }
+        { x: 800, y: 787 },
+        { x: 1200, y: 787 },
+        { x: 470, y: 662 },
+        { x: 1530, y: 572 }
     ],
+    lighting: {
+        source: { x: 1250, y: -150 },
+        rayTexture: 'jungle_ray',
+        rayTint: 0xfff1b8,
+        rayEndY: 1700,
+        rays: [
+            { x: 560, width: 150, alpha: 0.32 },
+            { x: 760, width: 110, alpha: 0.4 },
+            { x: 930, width: 190, alpha: 0.26 },
+            { x: 1120, width: 90, alpha: 0.44 },
+            { x: 1330, width: 140, alpha: 0.3 }
+        ],
+        shadowColor: 0x0a1a0c,
+        platformShadow: { alpha: 0.38, skew: 10 },
+        shadows: [
+            { x: 450, width: 90, alpha: 0.32 },
+            { x: 665, width: 60, alpha: 0.3 },
+            { x: 845, width: 50, alpha: 0.34 },
+            { x: 1025, width: 70, alpha: 0.3 },
+            { x: 1225, width: 80, alpha: 0.28 },
+            { x: 1500, width: 120, alpha: 0.34 }
+        ]
+    },
+    playerShadow: { skew: 6, alpha: 0.4 },
     tint: '#2b4363',
+    buttonTint: 0x40924e,
+    mapEvent: 'JUNGLE_FLYTRAP',
 
     hazard: {
         chance: 0.5,
@@ -296,6 +319,7 @@ const BRIDGE_MAP = {
         { x: 1300, y: 780 }
     ],
     tint: '#2b6335',
+    buttonTint: 0xd9d9d9,
     infinite: {
         segmentWidth: 1730,
         parallax: 0.9,

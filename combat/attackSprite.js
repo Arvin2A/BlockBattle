@@ -40,6 +40,12 @@ export function getAttackSpriteOffset(player, textureKey = player.atk?.texture.k
     };
 }
 
+export function getAttackSpriteScale(player, textureKey = player.atk?.texture.key) {
+    const script = getCharacterScript(player);
+    return script?.textureAttackSpriteScales?.[textureKey] ??
+        script?.variantAttackSpriteScales?.[player.variant] ?? 1;
+}
+
 // Attack art is drawn facing left; textures listed in a script's
 // rightFacingAttackSprites are drawn facing right and flip the other way.
 export function getAttackSpriteFlipX(player, textureKey = player.atk?.texture.key) {
@@ -102,6 +108,7 @@ export function positionAttackSprite(attacker, animKey = '') {
     const sawAim = animKey === 'activechainsaw' ? getChainsawAim(attacker) : 0;
     // The blade swings around the axeman toward the target instead of only turning.
     const reachAngle = Math.atan2(attacker.lastDir.y, attacker.lastDir.x) + Phaser.Math.DegToRad(sawAim);
+    attacker.atk.setScale(getAttackSpriteScale(attacker, textureKey));
     attacker.atk.x = attacker.x + Math.cos(reachAngle) * 50 + offset.x;
     attacker.atk.y = attacker.y + Math.sin(reachAngle) * 50 - 20 + offset.y;
     attacker.atk.setFlipX(animKey === 'scytheatktilt'

@@ -8,7 +8,7 @@ import fs from 'node:fs';
 import { WebSocket } from 'ws';
 import { createNameFilter } from '../mp/nameFilter.js';
 import { ALL_BUTTONS_MASK } from '../input.js';
-import { isValidSelection } from '../characterRoster.js';
+import { CHARACTER_ROSTER, isValidSelection } from '../characterRoster.js';
 import { cleanName, cleanDeviceId, END_REASONS, MAP_CHOICES, MAX_LOBBY_NAME_LENGTH, PROTOCOL_VERSION } from '../mp/protocol.js';
 import { MATCH_MODES, SLOTS, buildRoster, isValidMode } from '../matchModes.js';
 import { sanitizeOnlineModifiers } from '../modifiers.js';
@@ -23,6 +23,9 @@ const MAX_PLAYER_MESSAGE_BYTES = 4096;
 const MAX_LISTED_ROOMS = 50;
 const MAX_LISTED_PLAYERS = 100;
 const INVITE_GAP_MS = 3000;
+const BOT_NAME = 'CPU';
+const BOT_DIFFICULTY = 'HARD';
+const MODES_WITH_BOTS = new Set(Object.keys(MATCH_MODES).filter(mode => mode !== '1v1'));
 const MAX_RTC_SIGNALS_PER_MATCH = 64;
 const MAX_RTC_SIGNAL_BYTES = 16384;
 const BUSY_ARENAS_MESSAGE = 'All arenas on this server are busy, try again in a moment.';
@@ -38,6 +41,7 @@ function loadNameFilter() {
 }
 const isNameBlocked = loadNameFilter();
 
+const lobbyCount = lobby => lobby.members.length + (lobby.bot ? 1 : 0);
 const randomId = (bytes = 6) => crypto.randomBytes(bytes).toString('hex');
 const randomTag = () => String(crypto.randomInt(1000, 10000));
 
@@ -162,8 +166,8 @@ export class Lobby {
             client.deviceId = cleanDeviceId(message.d);
             if (message.n !== undefined) this.setName(client, message.n);
             sendJson(client.ws, { t: 'welcome', id: client.id, tag: client.tag });
-            this.sendStatus(client);
             this.sendRooms(client);
+            this.broadcastStatus();
             return;
         }
 
@@ -185,6 +189,12 @@ export class Lobby {
                 break;
             case 'startLobby':
                 this.startLobby(client);
+                break;
+            case 'addBot':
+                this.addBot(client);
+                break;
+            case 'removeBot':
+                this.removeBot(client);
                 break;
             case 'name':
                 this.setName(client, message.name);
@@ -323,6 +333,7 @@ export class Lobby {
             map: client.choice.map,
             modifiers,
             members: [client],
+            bot: null,
             private: Boolean(message.private),
             invited: new Set()
         };
@@ -337,7 +348,7 @@ export class Lobby {
     joinLobby(client, message) {
         if (client.state === 'match' || client.state === 'lobby') return;
         const lobby = this.lobbies.get(message.room);
-        if (!lobby || lobby.members.length >= MATCH_MODES[lobby.mode].players) {
+        if (!lobby || lobbyCount(lobby) >= MATCH_MODES[lobby.mode].players) {
             sendJson(client.ws, { t: 'joinFailed', msg: 'That lobby is full or no longer open.' });
             return;
         }
@@ -374,7 +385,7 @@ export class Lobby {
     startLobby(client) {
         const lobby = client.lobby;
         if (!lobby || lobby.members[0] !== client) return;
-        if (lobby.members.length < MATCH_MODES[lobby.mode].players) {
+        if (lobbyCount(lobby) < MATCH_MODES[lobby.mode].players) {
             sendJson(client.ws, { t: 'error', msg: 'The lobby needs to be full to start.' });
             return;
         }
@@ -384,18 +395,38 @@ export class Lobby {
         }
         this.lobbies.delete(lobby.id);
         for (const member of lobby.members) member.lobby = null;
-        this.createMatch({ mode: lobby.mode, clients: lobby.members, map: lobby.map, modifiers: lobby.modifiers, quick: false });
+        this.createMatch({ mode: lobby.mode, clients: lobby.members, bot: lobby.bot, map: lobby.map, modifiers: lobby.modifiers, quick: false });
         this.roomsChanged();
     }
 
+    addBot(client) {
+        const lobby = client.lobby;
+        if (!lobby || lobby.members[0] !== client || lobby.bot || !MODES_WITH_BOTS.has(lobby.mode)) return;
+        if (lobbyCount(lobby) >= MATCH_MODES[lobby.mode].players) return;
+        const character = CHARACTER_ROSTER[crypto.randomInt(CHARACTER_ROSTER.length)];
+        const variant = character.variants[crypto.randomInt(character.variants.length)];
+        lobby.bot = { name: BOT_NAME, character: character.key, variant: variant.name, bot: true, difficulty: BOT_DIFFICULTY };
+        this.lobbyChanged(lobby);
+    }
+
+    removeBot(client) {
+        const lobby = client.lobby;
+        if (!lobby || lobby.members[0] !== client || !lobby.bot) return;
+        lobby.bot = null;
+        this.lobbyChanged(lobby);
+    }
+
     describeLobby(lobby, viewer) {
-        const roster = buildRoster(lobby.mode, lobby.members.map(member => ({
-            name: member.name,
-            character: member.choice.character,
-            variant: member.choice.variant,
-            tag: member.tag,
-            you: member === viewer
-        })));
+        const roster = buildRoster(lobby.mode, [
+            ...lobby.members.map(member => ({
+                name: member.name,
+                character: member.choice.character,
+                variant: member.choice.variant,
+                tag: member.tag,
+                you: member === viewer
+            })),
+            ...(lobby.bot ? [{ name: lobby.bot.name, character: lobby.bot.character, variant: lobby.bot.variant, bot: true }] : [])
+        ]);
         return {
             id: lobby.id,
             name: lobby.name,
@@ -418,7 +449,7 @@ export class Lobby {
 
     getRooms() {
         return [...this.lobbies.values()]
-            .filter(lobby => !lobby.private && lobby.members.length < MATCH_MODES[lobby.mode].players)
+            .filter(lobby => !lobby.private && lobbyCount(lobby) < MATCH_MODES[lobby.mode].players)
             .slice(0, MAX_LISTED_ROOMS)
             .map(lobby => ({
                 id: lobby.id,
@@ -428,22 +459,28 @@ export class Lobby {
                 mode: lobby.mode,
                 map: lobby.map,
                 modifiers: lobby.modifiers.length,
-                players: lobby.members.length,
+                players: lobbyCount(lobby),
                 max: MATCH_MODES[lobby.mode].players
             }));
     }
 
+    isInMenu(client) {
+        return client.greeted && client.state !== 'match';
+    }
+
     isWaiting(client) {
-        return client.greeted && client.state !== 'match' && !client.away;
+        return this.isInMenu(client) && !client.away;
     }
 
     getPlayers(viewer) {
         return [...this.clients.values()]
-            .filter(client => client !== viewer && this.isWaiting(client))
+            .filter(client => client !== viewer && this.isInMenu(client))
+            .sort((a, b) => Number(a.away) - Number(b.away))
             .slice(0, MAX_LISTED_PLAYERS)
             .map(client => ({
                 tag: client.tag,
                 name: client.name,
+                away: client.away,
                 busy: client.state === 'lobby' && client.lobby !== viewer.lobby,
                 inLobby: Boolean(viewer.lobby) && client.lobby === viewer.lobby
             }));
@@ -457,12 +494,12 @@ export class Lobby {
         const lobby = client.lobby;
         if (!lobby || lobby.members[0] !== client || !lobby.private) return;
         const fail = msg => sendJson(client.ws, { t: 'inviteFailed', tag: String(message.tag ?? ''), msg });
-        if (lobby.members.length >= MATCH_MODES[lobby.mode].players) {
+        if (lobbyCount(lobby) >= MATCH_MODES[lobby.mode].players) {
             fail('Your lobby is already full.');
             return;
         }
         const target = [...this.clients.values()].find(other => other.tag === String(message.tag ?? ''));
-        if (!target || target === client || !this.isWaiting(target)) {
+        if (!target || target === client || !this.isInMenu(target)) {
             fail('That player is not waiting anymore.');
             return;
         }
@@ -502,8 +539,11 @@ export class Lobby {
 
     // ---- matches ----
 
-    createMatch({ mode, clients, map, modifiers, quick }) {
-        const roster = buildRoster(mode, clients.map(client => ({ name: client.name, ...client.choice })));
+    createMatch({ mode, clients, bot = null, map, modifiers, quick }) {
+        const roster = buildRoster(mode, [
+            ...clients.map(client => ({ name: client.name, ...client.choice })),
+            ...(bot ? [bot] : [])
+        ]);
         const match = {
             id: randomId(),
             key: randomId(16),
@@ -524,7 +564,7 @@ export class Lobby {
         };
         this.matches.set(match.id, match);
 
-        const publicRoster = roster.map(({ slot, name, character, variant, color, team }) => ({ slot, name, character, variant, color, team }));
+        const publicRoster = roster.map(({ slot, name, character, variant, color, team, bot }) => ({ slot, name, character, variant, color, team, bot: Boolean(bot) }));
         for (const [slot, client] of Object.entries(match.players)) {
             const opponent = publicRoster.find(entry => entry.slot !== slot);
             client.state = 'match';
@@ -608,7 +648,7 @@ export class Lobby {
                         t: 'config',
                         map: match.map,
                         mode: match.mode,
-                        roster: match.roster.map(({ slot, name, character, variant }) => ({ slot, name, character, variant })),
+                        roster: match.roster.map(({ slot, name, character, variant, bot, difficulty }) => ({ slot, name, character, variant, bot: Boolean(bot), difficulty })),
                         modifiers: match.modifiers,
                         ice
                     });
@@ -621,7 +661,7 @@ export class Lobby {
                 this.log(`Match ${match.id}: game host ready after ${this.secondsSince(match)}s`);
                 this.tryStart(match);
             } else if (message.t === 'end' && Array.isArray(message.winners) &&
-                message.winners.length > 0 && message.winners.every(slot => Object.hasOwn(match.players, slot))) {
+                message.winners.length > 0 && message.winners.every(slot => match.roster.some(entry => entry.slot === slot))) {
                 this.endMatch(match, message.winners, END_REASONS.KO);
             }
         });
@@ -704,6 +744,10 @@ export class Lobby {
     forfeit(match, leavingSlot, reason) {
         if (match.state === 'ended' || match.left.has(leavingSlot)) return;
         match.left.add(leavingSlot);
+        if (Object.keys(match.players).every(slot => match.left.has(slot))) {
+            this.endMatch(match, null, reason);
+            return;
+        }
         const staying = match.roster.filter(entry => !match.left.has(entry.slot));
         const teams = new Set(staying.map(entry => entry.team));
         if (teams.size <= 1) {
@@ -727,7 +771,7 @@ export class Lobby {
         if (match.state === 'ended') return;
         match.state = 'ended';
         clearTimeout(match.bootTimer);
-        const winnerNames = (winners ?? []).map(slot => match.players[slot].name).join(' + ');
+        const winnerNames = (winners ?? []).map(slot => match.roster.find(entry => entry.slot === slot)?.name).join(' + ');
         this.log(`Match ${match.id} ended: ${reason}${winnerNames ? `, ${winnerNames} won` : ''}`);
 
         for (const client of Object.values(match.players)) {
@@ -739,6 +783,7 @@ export class Lobby {
             client.state = 'idle';
             this.sendRooms(client);
         }
+        this.broadcastStatus();
 
         // Keep the arena up a moment after a KO so the final frames reach players.
         const linger = reason === END_REASONS.KO ? END_LINGER_MS : 0;
@@ -758,7 +803,8 @@ export class Lobby {
             online: greeted.length,
             // In the online lobby (browsing or hosting), not in a match.
             waiting: greeted.filter(client => this.isWaiting(client)).length,
-            queued: this.queue.length + this.lobbies.size,
+            quick: this.queue.length,
+            lobbies: this.lobbies.size,
             matches: [...this.matches.values()].filter(match => match.state !== 'ended').length
         };
     }

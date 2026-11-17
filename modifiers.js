@@ -17,28 +17,50 @@ const clickModifier = (name, description, tier, stat, step, steps) => ({
 });
 
 export const modifierOptions = {
-    NO_ABILITY_COOLDOWN: {
-        name: 'NO ABILITY COOLDOWNS',
-        description: 'spam spam spam spam spams spam sapm.',
-        tier: 'purple',
+    INFINITE_BRIDGE: {
+        name: 'INFINITE BRIDGE',
+        description: 'A snowy bridge that never ends, with speedometers.',
+        tier: 'misc',
+        onlineAllowed: false,
         enabled: false
     },
-    NO_GRAVITY_FRICTION: {
-        name: 'NO GRAVITY + FRICTION',
-        description: 'Remember the hitstun bugs? They are a feature now.',
-        tier: 'purple',
+    NO_DANGERS: {
+        name: 'NO DANGERS',
+        description: 'Turns off map dangers like the SNOWY cannon, the DESERT heat ray and the JUNGLE flytraps.',
+        tier: 'yellow',
         enabled: false
     },
-
-    FAST: {
-        name: 'FAST',
-        description: '200% Movement Speed and Halved Cooldowns.',
-        tier: 'red',
+    CUSTOM_DAMAGE_R: clickModifier('CUSTOM DAMAGE R', 'Multiplies all damage. Click the box for +0.1x, up to 1x.', 'yellow', 'damage', 0.1, 10),
+    CUSTOM_SPEED_R: clickModifier('CUSTOM SPEED R', 'Adds movement speed. Click the box for +10%, up to +100%.', 'yellow', 'speed', 10, 10),
+    SLUGGISH: {
+        name: 'SLUGGISH',
+        description: 'Players have 50% Movement Speed.',
+        tier: 'yellow',
+        enabled: false
+    },
+    SUPER_SLUGGISH: {
+        name: 'SUPER SLUGGISH',
+        description: 'Players have 25% Movement Speed. Why bro??',
+        tier: 'yellow',
+        enabled: false
+    },
+    DOUBLE_DAMAGE: {
+        name: 'DOUBLE DAMAGE',
+        description: 'Players deal 200% more damage.',
+        tier: 'orange',
         enabled: false
     },
     MAP_HAZARDS: {
         name: 'WEATHER HAZARDS',
         description: 'Maps now have a chance for disasters to occur!',
+        tier: 'red',
+        enabled: false
+    },
+    CUSTOM_DAMAGE_A: clickModifier('CUSTOM DAMAGE A', 'Multiplies all damage. Click the box for +1x, up to 10x.', 'red', 'damage', 1, 10),
+    CUSTOM_SPEED_A: clickModifier('CUSTOM SPEED A', 'Adds movement speed. Click the box for +50%, up to +500%.', 'red', 'speed', 50, 10),
+    FAST: {
+        name: 'FAST',
+        description: '200% Movement Speed and Halved Cooldowns.',
         tier: 'red',
         enabled: false
     },
@@ -48,11 +70,10 @@ export const modifierOptions = {
         tier: 'red',
         enabled: false
     },
-	INFINITE_BRIDGE: {
-        name: 'INFINITE BRIDGE',
-        description: 'A snowy bridge that never ends, with speedometers.',
-        tier: 'misc',
-        onlineAllowed: false,
+    NO_MERCY: {
+        name: 'NO MERCY',
+        description: 'The weather never lets up, and map dangers get a lot nastier.',
+        tier: 'red',
         enabled: false
     },
     NO_VERTICAL_KILLZONE: {
@@ -72,33 +93,27 @@ export const modifierOptions = {
         collisionToggle: true
     },
     CUSTOM_DAMAGE_S: clickModifier('CUSTOM DAMAGE S', 'Multiplies all damage. Click the box for +5x, up to 50x.', 'purple', 'damage', 5, 10),
-    CUSTOM_SPEED_S: clickModifier('CUSTOM SPEED S', 'Adds movement speed. Click the box for +500%, up to +5000%.', 'purple', 'speed', 500, 10),    CUSTOM_DAMAGE_A: clickModifier('CUSTOM DAMAGE A', 'Multiplies all damage. Click the box for +1x, up to 10x.', 'red', 'damage', 1, 10),
-    CUSTOM_SPEED_A: clickModifier('CUSTOM SPEED A', 'Adds movement speed. Click the box for +50%, up to +500%.', 'red', 'speed', 50, 10),
-    DOUBLE_DAMAGE: {
-        name: 'DOUBLE DAMAGE',
-        description: 'Players deal 200% more damage.',
-        tier: 'orange',
+    CUSTOM_SPEED_S: clickModifier('CUSTOM SPEED S', 'Adds movement speed. Click the box for +500%, up to +5000%.', 'purple', 'speed', 500, 10),
+    NO_ABILITY_COOLDOWN: {
+        name: 'NO ABILITY COOLDOWNS',
+        description: 'spam spam spam spam spams spam sapm.',
+        tier: 'purple',
         enabled: false
     },
-    CUSTOM_DAMAGE_R: clickModifier('CUSTOM DAMAGE R', 'Multiplies all damage. Click the box for +0.1x, up to 1x.', 'yellow', 'damage', 0.1, 10),
-    CUSTOM_SPEED_R: clickModifier('CUSTOM SPEED R', 'Adds movement speed. Click the box for +10%, up to +100%.', 'yellow', 'speed', 10, 10),
-    SLUGGISH: {
-        name: 'SLUGGISH',
-        description: 'Players have 50% Movement Speed.',
-        tier: 'yellow',
-        enabled: false
-    },
-    SUPER_SLUGGISH: {
-        name: 'SUPER SLUGGISH',
-        description: 'Players have 25% Movement Speed. Why bro??',
-        tier: 'yellow',
+    NO_GRAVITY_FRICTION: {
+        name: 'NO GRAVITY + FRICTION',
+        description: 'Remember the hitstun bugs? They are a feature now.',
+        tier: 'purple',
         enabled: false
     }
 };
 
 const NULLIFIED_WHEN = {
     SLUGGISH: options => options.SUPER_SLUGGISH.enabled,
-    NO_HORIZONTAL_KILLZONE: (_options, map) => Boolean(map?.infinite)
+    NO_HORIZONTAL_KILLZONE: (_options, map) => Boolean(map?.infinite),
+    MAP_HAZARDS: options => options.NO_MERCY.enabled,
+    NO_MERCY: (_options, map) => Boolean(map?.infinite),
+    NO_DANGERS: (_options, map) => Boolean(map && (!map.mapEvent || map.infinite))
 };
 
 export function formatModifierValue(modifier) {

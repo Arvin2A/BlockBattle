@@ -18,6 +18,8 @@ import { createNameFilter } from '../mp/nameFilter.js';
 import inappropriateWords from '../assets/inappropriate_words?raw';
 import { getOnlineServerHost, getServerName, isOnlineConfigured } from '../mp/serverConfig.js';
 import { CHAOS_TIERS, COLORS, HEX, makeButton, makePanel } from '../ui/theme.js';
+import { openAdvancedInfo } from '../ui/advancedInfo.js';
+import { clipScrollablePanel } from '../ui/clipScroll.js';
 
 const SETTINGS_KEY = 'blockBattleOnline';
 const ROOMS_PER_PAGE = 4;
@@ -25,8 +27,16 @@ const MODIFIERS_PER_PAGE = 6;
 const PLAYERS_PER_PAGE = 5;
 const INVITE_RESEND_MS = 3000;
 const INVITE_POPUP_MS = 30000;
-const PANEL = { x: 710, y: 330, width: 400, height: 330 };
+const FIGHTER = { x: 145, y: 330, width: 250, height: 330 };
+const PANEL = { x: 635, y: 330, width: 690, height: 330 };
+const PANEL_LEFT = PANEL.x - PANEL.width / 2;
+const PANEL_RIGHT = PANEL.x + PANEL.width / 2;
+const ROW_WIDTH = PANEL.width - 50;
+const ROW_LEFT = PANEL.x - ROW_WIDTH / 2;
+const ROW_RIGHT = PANEL.x + ROW_WIDTH / 2;
 const STAGE_CARD = { width: 204, height: 108, nameOffset: 38 };
+const LOBBY_INFO = { y: 214, gap: 14, buttonWidth: 130, buttonHeight: 20 };
+const MODIFIER_LIST = { width: 520, height: 440, listHeight: 330, cardWidth: 440 };
 const SUB_SCREENS = ['create', 'stage', 'modifiers', 'browse', 'invite'];
 const mapLabel = map => MAPS[map]?.name ?? map;
 const isNameBlocked = createNameFilter(inappropriateWords);
@@ -238,7 +248,9 @@ export class OnlineLobbyScene extends Phaser.Scene {
         }).setOrigin(0.5);
 
         makeButton(this, 500, 568, 150, 40, 'BACK', () => this.goToMenu(), 20);
-        this.input.keyboard.on('keydown-ESC', () => this.goBack());
+        this.input.keyboard.on('keydown-ESC', () => {
+            if (!this.modalOpen) this.goBack();
+        });
 
         this.cleanups = [];
         this.events.once('shutdown', () => {
@@ -275,6 +287,7 @@ export class OnlineLobbyScene extends Phaser.Scene {
         this.modifierPage = 0;
         this.lobby = null;
         this.waitingPlayers = [];
+        this.quickWaiting = 0;
         this.playerPage = 0;
         this.invitesSent = new Map();
         this.invitePopup = null;
@@ -282,10 +295,13 @@ export class OnlineLobbyScene extends Phaser.Scene {
         this.closeNameBox = null;
         this.cleanups.push(() => this.closeNameBox?.());
         this.cleanups.push(() => this.closeInvitePopup());
+        this.cleanups.push(() => this.closeModifierList());
+        this.modifierList = null;
 
         this.buildFighterPanel();
         this.buildMatchPanel();
         this.refreshSelection();
+        this.screen = null;
         this.showScreen('home');
         this.bindLobbyKeys();
         this.connectToServer();
@@ -313,38 +329,138 @@ export class OnlineLobbyScene extends Phaser.Scene {
     }
 
     buildFighterPanel() {
-        this.nameButton = makeButton(this, 250, 146, 460, 30, '', () => this.editName(), 17);
-        this.fighterPanel = this.add.rectangle(250, 330, 460, 330, HEX.panel, 0.92).setStrokeStyle(3, HEX.border);
-        this.add.text(140, 185, 'YOUR FIGHTER', {
+        this.nameButton = makeButton(this, FIGHTER.x, 146, FIGHTER.width, 30, '', () => this.editName(), 15);
+        this.fighterPanel = this.add.rectangle(FIGHTER.x, FIGHTER.y, FIGHTER.width, FIGHTER.height, HEX.panel, 0.92).setStrokeStyle(3, HEX.border);
+        this.add.text(FIGHTER.x, 184, 'YOUR FIGHTER', {
             fontFamily: 'GameFont',
-            fontSize: '18px',
+            fontSize: '16px',
             fill: '#ffffff'
         }).setOrigin(0.5);
 
-        this.fighterIcon = this.add.image(140, 275, 'axeman').setDisplaySize(120, 120);
-        this.fighterArrowLeft = makeArrow(this, 50, 275, '<', () => this.changeCharacter(-1));
-        this.fighterArrowRight = makeArrow(this, 230, 275, '>', () => this.changeCharacter(1));
+        this.fighterIcon = this.add.image(FIGHTER.x, 248, 'axeman').setDisplaySize(96, 96);
+        this.fighterArrowLeft = makeArrow(this, FIGHTER.x - 90, 248, '<', () => this.changeCharacter(-1));
+        this.fighterArrowRight = makeArrow(this, FIGHTER.x + 90, 248, '>', () => this.changeCharacter(1));
 
-        this.fighterName = this.add.text(140, 370, '', {
+        this.fighterName = this.add.text(FIGHTER.x, 314, '', {
             fontFamily: 'GameFont',
-            fontSize: '24px',
-            fill: '#ffffff'
-        }).setOrigin(0.5);
-        this.variantText = this.add.text(140, 402, '', {
-            fontFamily: 'VCROSD',
             fontSize: '20px',
             fill: '#ffffff'
         }).setOrigin(0.5);
-        this.variantButton = makeButton(this, 140, 450, 190, 36, 'SWITCH VARIANT', () => this.changeVariant(1), 18);
-
-        this.add.rectangle(265, 330, 2, 290, 0x686868);
-        this.fighterDesc = this.add.text(372, 330, '', {
+        this.variantText = this.add.text(FIGHTER.x, 338, '', {
             fontFamily: 'VCROSD',
-            fontSize: '15px',
-            fill: '#ffffff',
-            align: 'center',
-            wordWrap: { width: 190 }
+            fontSize: '18px',
+            fill: '#ffffff'
         }).setOrigin(0.5);
+        this.fighterDesc = this.add.text(FIGHTER.x, 378, '', {
+            fontFamily: 'VCROSD',
+            fontSize: '13px',
+            fill: COLORS.muted,
+            align: 'center',
+            wordWrap: { width: FIGHTER.width - 30 }
+        }).setOrigin(0.5);
+        this.variantButton = makeButton(this, FIGHTER.x, 428, 200, 30, 'SWITCH VARIANT', () => this.changeVariant(1), 16);
+        this.infoButton = makeButton(this, FIGHTER.x, 466, 200, 30, 'ADVANCED INFO', () => this.openInfo(), 16);
+        this.infoButton.text.setColor(COLORS.accent);
+    }
+
+    get modalOpen() {
+        return Boolean(this.advancedInfo || this.modifierList);
+    }
+
+    openModifierList() {
+        const modifiers = this.lobby?.modifiers ?? [];
+        if (!modifiers.length || this.modalOpen || this.invitePopup || this.closeNameBox) return;
+        const parts = [];
+        const add = (object, depth = 0) => {
+            parts.push(object.setDepth(2000 + depth));
+            return object;
+        };
+        const top = 300 - MODIFIER_LIST.height / 2;
+        add(this.add.rectangle(500, 300, 2000, 1200, 0x000000, 0.78).setInteractive());
+        add(makePanel(this, 500, 300, MODIFIER_LIST.width, MODIFIER_LIST.height, 1), 1);
+        add(text(this, 500, top + 36, 'LOBBY MODIFIERS', { fontFamily: 'VCROSD', fontSize: '28px', stroke: COLORS.stroke, strokeThickness: 5 }).setOrigin(0.5), 2);
+        add(text(this, 500, top + 68, `${modifiers.length} SELECTED BY THE HOST`, { fontSize: '11px', fill: COLORS.muted }).setOrigin(0.5), 2);
+        const closeX = 500 + MODIFIER_LIST.width / 2 - 34;
+        const closeBox = add(this.add.rectangle(closeX, top + 34, 48, 40, 0x771c1c).setStrokeStyle(2, HEX.border)
+            .setInteractive({ useHandCursor: true }), 3);
+        add(text(this, closeX, top + 34, 'X', { fontFamily: 'VCROSD', fontSize: '26px' }).setOrigin(0.5), 4);
+        closeBox.on('pointerover', () => closeBox.setFillStyle(0xc0392b));
+        closeBox.on('pointerout', () => closeBox.setFillStyle(0x771c1c));
+        closeBox.on('pointerdown', () => this.closeModifierList(true));
+
+        const content = this.rexUI.add.sizer({ orientation: 'y', space: { item: 10 } });
+        for (const entry of modifiers) {
+            const modifier = modifierOptions[entry.key];
+            if (!modifier) continue;
+            const tier = CHAOS_TIERS[modifier.tier];
+            const card = this.rexUI.add.sizer({
+                orientation: 'y',
+                width: MODIFIER_LIST.cardWidth,
+                space: { left: 12, right: 12, top: 8, bottom: 8, item: 4 }
+            });
+            card.addBackground(this.add.rectangle(0, 0, MODIFIER_LIST.cardWidth, 10, tier.hex, 0.15).setStrokeStyle(2, tier.hex));
+            let setting = '';
+            if (modifier.clicker && entry.value !== undefined) setting = `   ${formatModifierValue({ ...modifier, value: entry.value })}`;
+            if (modifier.collisionToggle) setting = `   ${entry.collisions ? 'COLLIDE ON' : 'COLLIDE OFF'}`;
+            card.add(text(this, 0, 0, `${modifier.name}${setting}`, { fontFamily: 'VCROSD', fontSize: '20px', fill: tier.css }), { align: 'left' });
+            card.add(text(this, 0, 0, modifier.description ?? '', {
+                fontFamily: 'VCROSD',
+                fontSize: '15px',
+                fill: COLORS.text,
+                wordWrap: { width: MODIFIER_LIST.cardWidth - 24 }
+            }), { align: 'left' });
+            content.add(card, { expand: true });
+        }
+        const listWidth = MODIFIER_LIST.width - 40;
+        const panel = this.rexUI.add.scrollablePanel({
+            x: 500,
+            y: top + 88 + MODIFIER_LIST.listHeight / 2,
+            width: listWidth,
+            height: MODIFIER_LIST.listHeight,
+            scrollMode: 0,
+            background: this.add.rectangle(0, 0, listWidth, MODIFIER_LIST.listHeight, 0x202020).setStrokeStyle(2, 0x444444),
+            panel: { child: content, mask: false },
+            sliderY: {
+                track: this.add.rectangle(0, 0, 12, 0, 0x444444),
+                thumb: this.add.rectangle(0, 0, 12, 50, 0xaaaaaa)
+            },
+            scroller: { rectBoundsInteractive: true, threshold: 5, slidingDeceleration: 5000, backDeceleration: 2000 },
+            space: { left: 10, right: 10, top: 10, bottom: 10, panel: 10 },
+            mouseWheelScroller: { focus: 2, speed: 0.1 }
+        }).layout();
+        panel.setDepth(2002);
+        panel.getElement('background').setDepth(2002);
+        content.getAllChildren().forEach(child => child.setDepth?.(2003));
+        panel.getElement('slider')?.getAllChildren?.().forEach(child => child.setDepth?.(2004));
+        clipScrollablePanel(this, panel, { inset: 4 });
+        parts.push(panel);
+        const onEsc = () => this.closeModifierList(true);
+        this.time.delayedCall(0, () => {
+            if (this.modifierList?.parts === parts) this.input.keyboard.on('keydown-ESC', onEsc);
+        });
+        this.modifierList = { parts, onEsc };
+    }
+
+    closeModifierList(withSound = false) {
+        const list = this.modifierList;
+        if (!list) return;
+        this.modifierList = null;
+        this.input.keyboard.off('keydown-ESC', list.onEsc);
+        list.parts.forEach(part => part.destroy());
+        if (withSound) this.sound.play('hover2');
+    }
+
+    openInfo() {
+        if (!this.selection || this.modalOpen || this.invitePopup || this.closeNameBox) return;
+        this.openCharacterInfo();
+    }
+
+    openCharacterInfo(afterClose) {
+        openAdvancedInfo(this, {
+            characterIndex: this.selection?.characterIndex ?? 0,
+            variantIndex: this.selection?.variantIndex ?? 0,
+            onClose: afterClose
+        });
     }
 
     buildMatchPanel() {
@@ -358,7 +474,7 @@ export class OnlineLobbyScene extends Phaser.Scene {
         this.buildBrowseScreen();
         this.buildLobbyScreen();
         this.buildInviteScreen();
-        const panelBack = makeButton(this, 560, 146, 100, 30, '< BACK', () => this.goBack(), 17);
+        const panelBack = makeButton(this, PANEL_LEFT + 50, 146, 100, 30, '< BACK', () => this.goBack(), 17);
         SUB_SCREENS.forEach(screen => this.addToScreen(screen, panelBack));
 
         this.queueText = this.add.text(PANEL.x, 484, '', {
@@ -411,26 +527,29 @@ export class OnlineLobbyScene extends Phaser.Scene {
         if (name === 'modifiers') this.refreshModifiers();
         if (name === 'lobby') this.refreshLobby();
         if (name === 'quick') this.refreshQueue();
+        if (name === 'quick' || name === 'home') this.refreshQuickCount();
         if (name === 'invite') this.refreshInvite();
     }
 
     buildHomeScreen() {
         this.screenTitle('home', 'PLAY ONLINE');
+        this.quickButton = makeButton(this, PANEL.x, 318, 360, 48, 'QUICK 1V1', () => this.startQuick(), 24);
         this.addToScreen('home',
-            makeButton(this, PANEL.x, 250, 320, 48, 'CREATE LOBBY', () => this.showScreen('create'), 24),
-            makeButton(this, PANEL.x, 318, 320, 48, 'QUICK 1V1', () => this.startQuick(), 24),
-            makeButton(this, PANEL.x, 418, 320, 48, 'BROWSE LOBBIES', () => this.showScreen('browse'), 24)
+            makeButton(this, PANEL.x, 250, 360, 48, 'CREATE LOBBY', () => this.showScreen('create'), 24),
+            this.quickButton,
+            makeButton(this, PANEL.x, 418, 360, 48, 'BROWSE LOBBIES', () => this.showScreen('browse'), 24)
         );
-        this.addToScreen('home', text(this, 560, 362, 'QUICK 1V1 STAGE', { fontSize: '11px', fill: '#bbbbbb' }).setOrigin(0, 0.5));
-        this.quickMapText = this.addToScreen('home', text(this, 775, 362, '', { fontFamily: 'VCROSD', fontSize: '16px' }).setOrigin(0.5));
+        this.addToScreen('home', text(this, PANEL.x - 170, 362, 'QUICK 1V1 STAGE', { fontSize: '11px', fill: '#bbbbbb' }).setOrigin(0, 0.5));
+        this.quickMapText = this.addToScreen('home', text(this, PANEL.x + 75, 362, '', { fontFamily: 'VCROSD', fontSize: '16px' }).setOrigin(0.5));
         this.addToScreen('home',
-            makeArrow(this, 695, 362, '<', () => this.changeQuickMap(-1)).setFontSize(20),
-            makeArrow(this, 855, 362, '>', () => this.changeQuickMap(1)).setFontSize(20)
+            makeArrow(this, PANEL.x - 10, 362, '<', () => this.changeQuickMap(-1)).setFontSize(20),
+            makeArrow(this, PANEL.x + 160, 362, '>', () => this.changeQuickMap(1)).setFontSize(20)
         );
     }
 
     buildQuickScreen() {
         this.screenTitle('quick', 'QUICK 1V1');
+        this.quickCountText = this.addToScreen('quick', text(this, PANEL.x, 228, '', { fontSize: '12px', fill: COLORS.accent }).setOrigin(0.5));
         this.quickStatus = this.addToScreen('quick', text(this, PANEL.x, 285, '', {
             fontFamily: 'VCROSD',
             fontSize: '20px',
@@ -446,7 +565,7 @@ export class OnlineLobbyScene extends Phaser.Scene {
     }
 
     makeRow(screen, y, height, label, onClick) {
-        const box = this.add.rectangle(PANEL.x, y, 360, height, 0x262626).setStrokeStyle(2, 0x686868);
+        const box = this.add.rectangle(PANEL.x, y, ROW_WIDTH, height, 0x262626).setStrokeStyle(2, 0x686868);
         if (onClick) {
             box.setInteractive({ useHandCursor: true });
             box.on('pointerdown', () => {
@@ -454,7 +573,7 @@ export class OnlineLobbyScene extends Phaser.Scene {
                 onClick();
             });
         }
-        const title = text(this, 545, y - (height > 44 ? 10 : 0), label, { fontFamily: 'VCROSD', fontSize: '20px' }).setOrigin(0, 0.5);
+        const title = text(this, ROW_LEFT + 15, y - (height > 44 ? 10 : 0), label, { fontFamily: 'VCROSD', fontSize: '20px' }).setOrigin(0, 0.5);
         this.addToScreen(screen, box, title);
         return box;
     }
@@ -473,17 +592,17 @@ export class OnlineLobbyScene extends Phaser.Scene {
 
     buildCreateScreen() {
         this.screenTitle('create', 'LOBBY CREATION');
-        this.lobbyNameButton = this.addToScreen('create', makeButton(this, PANEL.x, 222, 360, 30, '', () => this.editLobbyName(), 17));
+        this.lobbyNameButton = this.addToScreen('create', makeButton(this, PANEL.x, 222, ROW_WIDTH, 30, '', () => this.editLobbyName(), 17));
         this.makeRow('create', 264, 40, 'GAMEMODE');
-        this.modeLabel = this.makeValueBox('create', 815, 264, 130, () => this.cycleMode());
+        this.modeLabel = this.makeValueBox('create', ROW_RIGHT - 80, 264, 130, () => this.cycleMode());
         this.makeRow('create', 314, 50, 'MODIFIERS', () => this.showScreen('modifiers'));
-        this.modifierSummary = this.addToScreen('create', text(this, 545, 326, '', { fontSize: '11px', fill: COLORS.muted }).setOrigin(0, 0.5));
-        this.addToScreen('create', text(this, 855, 314, '>', { fontFamily: 'VCROSD', fontSize: '26px' }).setOrigin(0.5));
+        this.modifierSummary = this.addToScreen('create', text(this, ROW_LEFT + 15, 326, '', { fontSize: '11px', fill: COLORS.muted }).setOrigin(0, 0.5));
+        this.addToScreen('create', text(this, ROW_RIGHT - 20, 314, '>', { fontFamily: 'VCROSD', fontSize: '26px' }).setOrigin(0.5));
         this.makeRow('create', 362, 40, 'STAGE', () => this.showScreen('stage'));
-        this.stageLabel = this.addToScreen('create', text(this, 840, 362, '', { fontFamily: 'VCROSD', fontSize: '18px', fill: COLORS.accent }).setOrigin(1, 0.5));
-        this.addToScreen('create', text(this, 855, 362, '>', { fontFamily: 'VCROSD', fontSize: '26px' }).setOrigin(0.5));
+        this.stageLabel = this.addToScreen('create', text(this, ROW_RIGHT - 40, 362, '', { fontFamily: 'VCROSD', fontSize: '18px', fill: COLORS.accent }).setOrigin(1, 0.5));
+        this.addToScreen('create', text(this, ROW_RIGHT - 20, 362, '>', { fontFamily: 'VCROSD', fontSize: '26px' }).setOrigin(0.5));
         this.privateRow = this.makeRow('create', 406, 40, 'PRIVATE', () => this.togglePrivate());
-        this.privateLabel = this.makeValueBox('create', 815, 406, 130, () => this.togglePrivate());
+        this.privateLabel = this.makeValueBox('create', ROW_RIGHT - 80, 406, 130, () => this.togglePrivate());
         this.addToScreen('create', makeButton(this, PANEL.x, 454, 300, 38, 'CREATE LOBBY', () => this.createLobby(), 22));
     }
 
@@ -508,7 +627,7 @@ export class OnlineLobbyScene extends Phaser.Scene {
         });
         this.addToScreen('stage', makeButton(this, PANEL.x, 462, 200, 36, 'DONE', () => this.showScreen('create'), 20));
         this.input.on('wheel', (_pointer, _objects, _deltaX, deltaY) => {
-            if (this.screen === 'stage' && deltaY !== 0) this.pickStage(this.lobbySettings.mapIndex + Math.sign(deltaY));
+            if (this.screen === 'stage' && deltaY !== 0 && !this.modalOpen) this.pickStage(this.lobbySettings.mapIndex + Math.sign(deltaY));
         });
     }
 
@@ -519,21 +638,21 @@ export class OnlineLobbyScene extends Phaser.Scene {
         for (let index = 0; index < MODIFIERS_PER_PAGE; index++) {
             const y = 222 + index * 38;
             const row = { key: null };
-            row.box = this.add.rectangle(PANEL.x, y, 370, 32, HEX.panel).setStrokeStyle(2, 0xffffff)
+            row.box = this.add.rectangle(PANEL.x, y, ROW_WIDTH, 32, HEX.panel).setStrokeStyle(2, 0xffffff)
                 .setInteractive({ useHandCursor: true })
                 .setData('silentHover', true);
             row.box.on('pointerdown', () => this.toggleModifier(row.key));
-            row.name = text(this, 532, y, '', { fontFamily: 'VCROSD', fontSize: '17px' }).setOrigin(0, 0.5);
-            row.valueBox = this.add.rectangle(845, y, 110, 24, HEX.panel).setStrokeStyle(2, HEX.border)
+            row.name = text(this, ROW_LEFT + 12, y, '', { fontFamily: 'VCROSD', fontSize: '17px' }).setOrigin(0, 0.5);
+            row.valueBox = this.add.rectangle(ROW_RIGHT - 65, y, 110, 24, HEX.panel).setStrokeStyle(2, HEX.border)
                 .setInteractive({ useHandCursor: true });
             row.valueBox.on('pointerdown', () => this.cycleModifierValue(row.key));
-            row.value = text(this, 845, y, '', { fontFamily: 'VCROSD', fontSize: '15px' }).setOrigin(0.5);
+            row.value = text(this, ROW_RIGHT - 65, y, '', { fontFamily: 'VCROSD', fontSize: '15px' }).setOrigin(0.5);
             this.addToScreen('modifiers', row.box, row.name, row.valueBox, row.value);
             this.modifierRows.push(row);
         }
         this.addToScreen('modifiers',
-            makeArrow(this, 560, 462, '<', () => this.changeModifierPage(-1)),
-            makeArrow(this, 860, 462, '>', () => this.changeModifierPage(1)),
+            makeArrow(this, PANEL.x - 150, 462, '<', () => this.changeModifierPage(-1)),
+            makeArrow(this, PANEL.x + 150, 462, '>', () => this.changeModifierPage(1)),
             makeButton(this, PANEL.x, 462, 180, 34, 'DONE', () => this.showScreen('create'), 20)
         );
     }
@@ -542,8 +661,8 @@ export class OnlineLobbyScene extends Phaser.Scene {
         this.roomsHeader = this.screenTitle('browse', '');
         this.roomsHeader.setFontSize(20);
         this.pageArrows = [
-            makeArrow(this, 540, 188, '<', () => this.changeRoomPage(-1)),
-            makeArrow(this, 880, 188, '>', () => this.changeRoomPage(1))
+            makeArrow(this, PANEL.x - 200, 188, '<', () => this.changeRoomPage(-1)),
+            makeArrow(this, PANEL.x + 200, 188, '>', () => this.changeRoomPage(1))
         ];
         this.pageArrows.forEach(arrow => arrow.setFontSize(22));
         this.addToScreen('browse', ...this.pageArrows);
@@ -552,11 +671,11 @@ export class OnlineLobbyScene extends Phaser.Scene {
         for (let i = 0; i < ROOMS_PER_PAGE; i++) {
             const y = 238 + i * 54;
             const row = { room: null };
-            row.box = this.add.rectangle(PANEL.x, y, 380, 48, 0x262626).setStrokeStyle(2, 0x555555);
-            row.name = text(this, 522, y - 11, '', { fontFamily: 'VCROSD', fontSize: '18px' }).setOrigin(0, 0.5);
-            row.details = text(this, 522, y + 11, '', { fontSize: '10px', fill: '#aaaaaa' }).setOrigin(0, 0.5);
-            row.count = text(this, 800, y, '', { fontFamily: 'VCROSD', fontSize: '18px' }).setOrigin(0.5);
-            row.join = makeButton(this, 862, y, 70, 30, 'JOIN', () => this.joinRoom(row.room), 16);
+            row.box = this.add.rectangle(PANEL.x, y, ROW_WIDTH, 48, 0x262626).setStrokeStyle(2, 0x555555);
+            row.name = text(this, ROW_LEFT + 12, y - 11, '', { fontFamily: 'VCROSD', fontSize: '18px' }).setOrigin(0, 0.5);
+            row.details = text(this, ROW_LEFT + 12, y + 11, '', { fontSize: '10px', fill: '#aaaaaa' }).setOrigin(0, 0.5);
+            row.count = text(this, ROW_RIGHT - 105, y, '', { fontFamily: 'VCROSD', fontSize: '18px' }).setOrigin(0.5);
+            row.join = makeButton(this, ROW_RIGHT - 42, y, 70, 30, 'JOIN', () => this.joinRoom(row.room), 16);
             this.addToScreen('browse', row.box, row.name, row.details, row.count, row.join);
             this.roomRows.push(row);
         }
@@ -570,24 +689,30 @@ export class OnlineLobbyScene extends Phaser.Scene {
 
     buildLobbyScreen() {
         this.lobbyTitle = this.screenTitle('lobby', '');
-        this.lobbyInfo = this.addToScreen('lobby', text(this, PANEL.x, 214, '', { fontSize: '11px', fill: '#bbbbbb', align: 'center' }).setOrigin(0.5));
+        this.lobbyInfo = this.addToScreen('lobby', text(this, PANEL.x, LOBBY_INFO.y, '', { fontSize: '11px', fill: '#bbbbbb' }).setOrigin(0, 0.5));
+        this.viewModifiersButton = makeButton(this, PANEL.x, LOBBY_INFO.y, LOBBY_INFO.buttonWidth, LOBBY_INFO.buttonHeight,
+            'VIEW MODIFIERS', () => this.openModifierList(), 12);
+        this.viewModifiersButton.text.setColor(COLORS.accent);
+        this.addToScreen('lobby', this.viewModifiersButton);
         this.memberRows = [];
         for (let i = 0; i < 4; i++) {
             const y = 252 + i * 42;
             const row = {};
-            row.box = this.add.rectangle(PANEL.x, y, 370, 36, 0x262626).setStrokeStyle(2, 0x555555);
-            row.swatch = this.add.rectangle(540, y, 18, 18, 0xffffff);
-            row.name = text(this, 558, y - 7, '', { fontFamily: 'VCROSD', fontSize: '17px' }).setOrigin(0, 0.5);
-            row.fighter = text(this, 558, y + 9, '', { fontSize: '10px', fill: '#aaaaaa' }).setOrigin(0, 0.5);
-            row.tag = text(this, 880, y, '', { fontFamily: 'VCROSD', fontSize: '15px', fill: '#ffd34d' }).setOrigin(1, 0.5);
-            row.invite = makeButton(this, 840, y, 90, 26, 'INVITE', () => this.showScreen('invite'), 15);
-            this.addToScreen('lobby', row.box, row.swatch, row.name, row.fighter, row.tag, row.invite);
+            row.box = this.add.rectangle(PANEL.x, y, ROW_WIDTH, 36, 0x262626).setStrokeStyle(2, 0x555555);
+            row.swatch = this.add.rectangle(ROW_LEFT + 18, y, 18, 18, 0xffffff);
+            row.name = text(this, ROW_LEFT + 36, y - 7, '', { fontFamily: 'VCROSD', fontSize: '17px' }).setOrigin(0, 0.5);
+            row.fighter = text(this, ROW_LEFT + 36, y + 9, '', { fontSize: '10px', fill: '#aaaaaa' }).setOrigin(0, 0.5);
+            row.tag = text(this, ROW_RIGHT - 15, y, '', { fontFamily: 'VCROSD', fontSize: '15px', fill: '#ffd34d' }).setOrigin(1, 0.5);
+            row.invite = makeButton(this, ROW_RIGHT - 55, y, 90, 26, 'INVITE', () => this.showScreen('invite'), 15);
+            row.addCpu = makeButton(this, ROW_RIGHT - 150, y, 90, 26, 'ADD CPU', () => net.send({ t: 'addBot' }), 15);
+            row.removeCpu = makeButton(this, ROW_RIGHT - 55, y, 90, 26, 'REMOVE', () => net.send({ t: 'removeBot' }), 15);
+            this.addToScreen('lobby', row.box, row.swatch, row.name, row.fighter, row.tag, row.invite, row.addCpu, row.removeCpu);
             this.memberRows.push(row);
         }
-        this.startButton = this.addToScreen('lobby', makeButton(this, 615, 446, 170, 40, 'START', () => this.startLobby(), 22));
-        this.leaveButton = makeButton(this, 805, 446, 170, 40, 'LEAVE', () => this.leaveLobby(), 22);
+        this.startButton = this.addToScreen('lobby', makeButton(this, PANEL.x - 95, 446, 170, 40, 'START', () => this.startLobby(), 22));
+        this.leaveButton = makeButton(this, PANEL.x + 95, 446, 170, 40, 'LEAVE', () => this.leaveLobby(), 22);
         this.addToScreen('lobby', this.leaveButton);
-        this.lobbyWaitText = this.addToScreen('lobby', text(this, 615, 446, 'WAITING FOR\nTHE HOST', { fontSize: '11px', fill: '#bbbbbb', align: 'center' }).setOrigin(0.5));
+        this.lobbyWaitText = this.addToScreen('lobby', text(this, PANEL.x - 95, 446, 'WAITING FOR\nTHE HOST', { fontSize: '11px', fill: '#bbbbbb', align: 'center' }).setOrigin(0.5));
     }
 
     buildInviteScreen() {
@@ -596,16 +721,16 @@ export class OnlineLobbyScene extends Phaser.Scene {
         for (let i = 0; i < PLAYERS_PER_PAGE; i++) {
             const y = 230 + i * 42;
             const row = { player: null };
-            row.box = this.add.rectangle(PANEL.x, y, 370, 36, HEX.panel).setStrokeStyle(2, 0x555555);
-            row.name = text(this, 540, y - 7, '', { fontFamily: 'VCROSD', fontSize: '17px' }).setOrigin(0, 0.5);
-            row.tag = text(this, 540, y + 9, '', { fontSize: '10px', fill: COLORS.muted }).setOrigin(0, 0.5);
-            row.button = makeButton(this, 835, y, 100, 26, 'INVITE', () => this.sendInvite(row.player), 15);
+            row.box = this.add.rectangle(PANEL.x, y, ROW_WIDTH, 36, HEX.panel).setStrokeStyle(2, 0x555555);
+            row.name = text(this, ROW_LEFT + 15, y - 7, '', { fontFamily: 'VCROSD', fontSize: '17px' }).setOrigin(0, 0.5);
+            row.tag = text(this, ROW_LEFT + 15, y + 9, '', { fontSize: '10px', fill: COLORS.muted }).setOrigin(0, 0.5);
+            row.button = makeButton(this, ROW_RIGHT - 60, y, 100, 26, 'INVITE', () => this.sendInvite(row.player), 15);
             this.addToScreen('invite', row.box, row.name, row.tag, row.button);
             this.playerRows.push(row);
         }
         this.playerArrows = [
-            makeArrow(this, 560, 452, '<', () => this.changePlayerPage(-1)),
-            makeArrow(this, 860, 452, '>', () => this.changePlayerPage(1))
+            makeArrow(this, PANEL.x - 150, 452, '<', () => this.changePlayerPage(-1)),
+            makeArrow(this, PANEL.x + 150, 452, '>', () => this.changePlayerPage(1))
         ];
         this.addToScreen('invite', ...this.playerArrows,
             makeButton(this, PANEL.x, 452, 220, 36, 'BACK TO LOBBY', () => this.showScreen('lobby'), 18));
@@ -650,7 +775,7 @@ export class OnlineLobbyScene extends Phaser.Scene {
             const state = this.inviteState(player);
             const usable = state === 'INVITE' || state === 'AGAIN';
             row.name.setText(player.name);
-            row.tag.setText(`#${player.tag}`);
+            row.tag.setText(player.away ? `#${player.tag}   AWAY` : `#${player.tag}`);
             row.button.text.setText(state).setColor(state === 'SENT' ? COLORS.accent : COLORS.text);
             row.button.box.setAlpha(usable ? 1 : 0.5);
             row.button.text.setAlpha(usable ? 1 : 0.6);
@@ -715,7 +840,9 @@ export class OnlineLobbyScene extends Phaser.Scene {
 
     bindLobbyKeys() {
         const keyboard = this.input.keyboard;
-        const bind = (keys, action) => keys.forEach(key => keyboard.on(`keydown-${key}`, action));
+        const bind = (keys, action) => keys.forEach(key => keyboard.on(`keydown-${key}`, () => {
+            if (!this.modalOpen) action();
+        }));
         bind(['LEFT', 'A'], () => this.changeCharacter(-1));
         bind(['RIGHT', 'D'], () => this.changeCharacter(1));
         bind(['UP', 'W'], () => this.screen === 'stage' ? this.pickStage(this.lobbySettings.mapIndex - 1) : this.changeVariant(-1));
@@ -746,8 +873,10 @@ export class OnlineLobbyScene extends Phaser.Scene {
 
         listen('status', message => {
             if (this.queueState !== 'found') {
-                this.setStatus(`Connected to ${getOnlineServerHost()}   |   ${message.online} online   |   ${message.waiting ?? message.online} waiting   |   ${message.queued} open   |   ${message.matches} playing`);
+                this.setStatus(`Connected to ${getOnlineServerHost()}   |   ${message.online} online   |   ${message.waiting ?? message.online} waiting   |   ${message.quick ?? 0} in quick 1v1   |   ${message.lobbies ?? message.queued} open   |   ${message.matches} playing`);
             }
+            this.quickWaiting = message.quick ?? 0;
+            this.refreshQuickCount();
         });
         listen('queued', () => {
             this.queueState = 'queued';
@@ -798,6 +927,7 @@ export class OnlineLobbyScene extends Phaser.Scene {
             }
         });
         listen('disconnected', () => {
+            this.closeModifierList();
             this.queueState = 'idle';
             this.lobby = null;
             this.rooms = [];
@@ -834,6 +964,10 @@ export class OnlineLobbyScene extends Phaser.Scene {
         const pad = getConnectedControllers(this)[0];
         if (!pad) return;
         const input = getMenuGamepadInput(pad);
+        if (this.modalOpen) {
+            this.previousPad = input;
+            return;
+        }
         const pressed = key => input[key] && !this.previousPad[key];
         if (pressed('left')) this.changeCharacter(-1);
         if (pressed('right')) this.changeCharacter(1);
@@ -1096,13 +1230,25 @@ export class OnlineLobbyScene extends Phaser.Scene {
         this.lobbyTitle.setText(lobby.name).setFontSize(lobby.name.length > 16 ? 18 : 24);
         const mods = lobby.modifiers.length ? `   ${lobby.modifiers.length} MODIFIER${lobby.modifiers.length === 1 ? '' : 'S'}` : '   NO MODIFIERS';
         this.lobbyInfo.setText(`${lobby.private ? 'PRIVATE   ' : ''}${lobby.mode.toUpperCase()}   ${mapLabel(lobby.map)}${mods}`.toUpperCase());
+        const hasModifiers = lobby.modifiers.length > 0;
+        const buttonSpace = hasModifiers ? LOBBY_INFO.gap + LOBBY_INFO.buttonWidth : 0;
+        const infoLeft = PANEL.x - (this.lobbyInfo.width + buttonSpace) / 2;
+        this.lobbyInfo.setX(infoLeft);
+        const buttonX = infoLeft + this.lobbyInfo.width + LOBBY_INFO.gap + LOBBY_INFO.buttonWidth / 2;
+        this.viewModifiersButton.box.setX(buttonX).setVisible(visible && hasModifiers);
+        this.viewModifiersButton.text.setX(buttonX).setVisible(visible && hasModifiers);
         const mode = MATCH_MODES[lobby.mode];
+        const canAddCpu = lobby.host && lobby.mode !== '1v1' && !lobby.members.some(member => member.bot);
         this.memberRows.forEach((row, index) => {
             const member = lobby.members[index];
             const used = index < mode.players;
             [row.box, row.swatch, row.name, row.fighter, row.tag].forEach(part => part.setVisible(visible && used));
             const canInvite = visible && used && !member && lobby.private && lobby.host;
             [row.invite.box, row.invite.text].forEach(part => part.setVisible(canInvite));
+            const addCpuHere = visible && used && canAddCpu && index === lobby.members.length;
+            [row.addCpu.box, row.addCpu.text].forEach(part => part.setVisible(addCpuHere));
+            const removeCpuHere = visible && lobby.host && Boolean(member?.bot);
+            [row.removeCpu.box, row.removeCpu.text].forEach(part => part.setVisible(removeCpuHere));
             if (!used) return;
             const color = PLAYER_COLORS[mode.colors[index]];
             row.swatch.setFillStyle(color.hex, member ? 1 : 0.3);
@@ -1117,7 +1263,7 @@ export class OnlineLobbyScene extends Phaser.Scene {
             row.name.setText(member.name).setColor(color.css);
             const tag = member.tag ? `#${member.tag}   ` : '';
             row.fighter.setText(`${tag}${character?.name ?? member.character} - ${member.variant}${mode.teams ? `   TEAM ${color.label}` : ''}`.toUpperCase());
-            row.tag.setText([index === 0 ? 'HOST' : '', member.you ? 'YOU' : ''].filter(Boolean).join(' / '));
+            row.tag.setText(member.bot ? (lobby.host ? '' : 'CPU') : [index === 0 ? 'HOST' : '', member.you ? 'YOU' : ''].filter(Boolean).join(' / '));
         });
         const full = lobby.members.length >= mode.players;
         this.startButton.box.setVisible(visible && lobby.host);
@@ -1154,21 +1300,33 @@ export class OnlineLobbyScene extends Phaser.Scene {
 
     refreshSelection() {
         const { character, variant, map } = this.getChoice();
-        this.fighterIcon.setTexture(getCharacterTexture(character.key, variant.name)).setDisplaySize(120, 120);
+        this.fighterIcon.setTexture(getCharacterTexture(character.key, variant.name)).setDisplaySize(96, 96);
         this.fighterName.setText(character.name);
         this.variantText.setText(variant.name).setColor(variant.color ?? '#ffffff');
-        this.fighterDesc.setFontSize(15).setText([variant.desc, variant.abilities].filter(Boolean).join(' \n\n'));
-        for (let size = 14; size >= 10 && this.fighterDesc.height > 280; size--) {
+        this.fighterDesc.setFontSize(13).setText(variant.desc ?? '');
+        for (let size = 12; size >= 9 && this.fighterDesc.height > 56; size--) {
             this.fighterDesc.setFontSize(size);
         }
         const hasVariants = character.variants.length > 1;
         this.variantButton.box.setVisible(hasVariants);
         this.variantButton.text.setVisible(hasVariants);
-        this.nameButton.text.setText(`NAME: ${this.selection.name}${net.tag ? ` #${net.tag}` : ''}   (CHANGE)`);
+        this.nameButton.text.setFontSize(15).setText(`NAME: ${this.selection.name}${net.tag ? ` #${net.tag}` : ''}`);
+        for (let size = 14; size >= 10 && this.nameButton.text.width > FIGHTER.width - 16; size--) {
+            this.nameButton.text.setFontSize(size);
+        }
         net.setName(this.selection.name);
         this.quickMapText.setText(mapLabel(map));
         if (this.screen === 'create') this.refreshCreate();
         this.saveAll();
+    }
+
+    refreshQuickCount() {
+        if (!this.quickButton?.text.active) return;
+        const others = Math.max(0, this.quickWaiting - (this.queueState === 'queued' ? 1 : 0));
+        this.quickButton.text.setText(this.quickWaiting > 0 ? `QUICK 1V1 (${this.quickWaiting} WAITING)` : 'QUICK 1V1');
+        this.quickCountText.setText(others > 0
+            ? `${others} OTHER PLAYER${others === 1 ? ' IS' : 'S ARE'} WAITING IN QUICK 1V1`
+            : 'NO ONE ELSE IS WAITING IN QUICK 1V1 YET');
     }
 
     refreshQueue(time = this.time.now) {
@@ -1243,6 +1401,7 @@ export class OnlineLobbyScene extends Phaser.Scene {
 
     leaveLobby() {
         if (this.queueState !== 'lobby') return;
+        this.closeModifierList();
         net.send({ t: 'leave' });
         this.queueState = 'idle';
         this.lobby = null;
@@ -1251,6 +1410,7 @@ export class OnlineLobbyScene extends Phaser.Scene {
     }
 
     startMatch(match) {
+        this.closeModifierList();
         this.queueState = 'found';
         if (this.screen === 'quick') this.refreshQueue();
         const others = match.roster.filter(entry => entry.slot !== match.slot);

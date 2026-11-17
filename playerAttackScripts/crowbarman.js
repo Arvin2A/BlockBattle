@@ -2,6 +2,8 @@
 // Original source: https://github.com/Arvin2A/BlockBattle
 // Licensed under the GNU GPL v3 only. See LICENSE.
 
+import demolitionist from './demolitionist.js';
+
 function tilt(api, scene, attacker, victim, xMul, yMul, kbTime) {
     api.tiltAttack(scene, attacker, victim, {
         animKey: 'crowbaratk', kb: 0.035, xMul, yMul,
@@ -11,6 +13,7 @@ function tilt(api, scene, attacker, victim, xMul, yMul, kbTime) {
 
 const neutralSpecial = () => {};
 const GRAB_WINDUP_MS = 250;
+const GRAB_AIM = { originX: 62 / 200, originY: 98 / 200, tip: { x: -42, y: -3 } };
 function tryGrab(api, scene, attacker, target, direction, currentTime, animKey = 'crowbargrab') {
     //Exclusive to the crowbarman, this attack initiates a grab on the target
     //When the target is grabbed, they are unable to move or attack, they will be hooked on the crowbar for 3 seconds before released
@@ -74,6 +77,7 @@ function tryGrab(api, scene, attacker, target, direction, currentTime, animKey =
                     },
                     atkFlipX: attacker.atk.flipX,
                     atkAngle: attacker.atk.angle,
+                    aim: GRAB_AIM,
                     releaseEvent: scene.time.delayedCall(3000, () => releaseGrab(api, scene, attacker, scene.time.now, false))
                 };
                 const holdGrabPose = () => {
@@ -145,27 +149,51 @@ function releaseGrab(api, scene, attacker, currentTime, fling = true) {
 
 }
 
+const isDemolitionist = player => player.variant === 'DEMOLITIONIST';
+
+function byVariant(hooker, demolitionist) {
+    return (api, scene, player, ...rest) => isDemolitionist(player)
+        ? demolitionist(api, scene, player, ...rest)
+        : hooker(api, scene, player, ...rest);
+}
+
 export default {
+    variantDemoAnimations: {
+        HOOKER: ['crowbaratk', 'crowbargrab'],
+        DEMOLITIONIST: ['crowbarslam']
+    },
+    variantDemoIdle: { DEMOLITIONIST: 'bigcrowbarslam' },
+    variantDemoAnchors: { DEMOLITIONIST: { x: 35, y: -50, facesRight: true } },
     armColor: 0x1a1a1a,
+    variantStats: { DEMOLITIONIST: { armColor: 0xbe5e00, downslamAirTime: 250 } },
     hitSounds: {
         light: ['crowbarclang1', 'crowbarclang2'],
         finisher: 'crowbarhit'
     },
-    handleAttack: (api, scene, attacker, victim) => {
+    handleAttack: byVariant((api, scene, attacker, victim) => {
         if (attacker.activeGrab) {
             releaseGrab(api, scene, attacker, scene.time.now, true);
         } else {
             api.tryAttack(scene, attacker, victim, 'crowbaratk', 'crowbaratk');
         }
-    },
-    handleDirSpecial: (api, scene, attacker, direction, currentTime, victim) =>
-        tryGrab(api, scene, attacker, victim, direction, currentTime),
+    }, demolitionist.handleAttack),
+    handleDirSpecial: byVariant((api, scene, attacker, direction, currentTime, victim) =>
+        tryGrab(api, scene, attacker, victim, direction, currentTime), demolitionist.handleDirSpecial),
     handleNeutralSpecial: neutralSpecial,
-    variantNeutralSpecials: { HOOKER: neutralSpecial },
-    handleHorizantalTilt: (api, scene, attacker, victim) =>
-        tilt(api, scene, attacker, victim, 0.6, 1, 600),
-    handleDownTilt: (api, scene, attacker, victim) =>
-        tilt(api, scene, attacker, victim, 0, 2, 300),
-    handleUpTilt: (api, scene, attacker, victim) =>
-        tilt(api, scene, attacker, victim, 0, 0.88, 300)
+    variantNeutralSpecials: { HOOKER: neutralSpecial, DEMOLITIONIST: demolitionist.neutral },
+    update: (api, scene, player) => {
+        if (isDemolitionist(player)) demolitionist.update(api, scene, player);
+    },
+    onDownslam: (api, scene, player) => {
+        if (isDemolitionist(player)) demolitionist.onDownslam(api, scene, player);
+    },
+    onMatchEnd: (scene, player) => {
+        if (isDemolitionist(player)) demolitionist.onMatchEnd(scene, player);
+    },
+    handleHorizantalTilt: byVariant((api, scene, attacker, victim) =>
+        tilt(api, scene, attacker, victim, 0.6, 1, 600), demolitionist.sideTilt),
+    handleDownTilt: byVariant((api, scene, attacker, victim) =>
+        tilt(api, scene, attacker, victim, 0, 2, 300), demolitionist.downTilt),
+    handleUpTilt: byVariant((api, scene, attacker, victim) =>
+        tilt(api, scene, attacker, victim, 0, 0.88, 300), demolitionist.upTilt)
 };

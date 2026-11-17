@@ -13,6 +13,11 @@ import { handleNeutralSpecial, tryQuickslamJump } from "../../attacks.js";
 import { isBlockedByWall } from "../../combat/planks.js";
 import { botDifficulty } from "../../gameSettings.js";
 import { isUniversalBusy, tryLedgeGrab, ledgeClimb, smackDown, canSmackDown } from "../../combat/universalMoves.js";
+import { blockStyle, deflectables } from "../../combat/block.js";
+import { isTeammate } from "../../combat/targets.js";
+import { isTapeBusy, slamLandsWithin, TAPE_REACH, superPryState } from "../../playerAttackScripts/demolitionist.js";
+import { pryCornersAt } from "../../playerAttackScripts/superPry.js";
+import { getCharacterStat } from "../../combat/characterStats.js";
 
 // How each difficulty holds back. VERY HARD is the bot at full strength.
 //  thinkMs:       time between decisions; movement is held in between.
@@ -23,22 +28,26 @@ const DIFFICULTY = {
     EASY: {
         thinkMs: 320, attackDelayMs: 450, hesitateChance: 0.55, hesitateMs: 500,
         edgeguard: false, dodgeSpecials: false, downslam: false,
-        smack: false, ledge: true, blockChance: 0, dodgeMinigun: false
+        smack: false, ledge: true, blockChance: 0, dodgeMinigun: false,
+        deflectChance: 0, respectCounter: false
     },
     NORMAL: {
         thinkMs: 140, attackDelayMs: 150, hesitateChance: 0.25, hesitateMs: 300,
         edgeguard: true, dodgeSpecials: false, downslam: true,
-        smack: true, ledge: true, blockChance: 0.25, dodgeMinigun: false
+        smack: true, ledge: true, blockChance: 0.25, dodgeMinigun: false,
+        deflectChance: 0.3, respectCounter: false
     },
     HARD: {
         thinkMs: 0, attackDelayMs: 0, hesitateChance: 0, hesitateMs: 0,
         edgeguard: false, dodgeSpecials: true, downslam: true,
-        smack: false, ledge: false, blockChance: 0.5, dodgeMinigun: true, predictBlock: false
+        smack: false, ledge: false, blockChance: 0.5, dodgeMinigun: true, predictBlock: false,
+        deflectChance: 0.6, respectCounter: true
     },
     'VERY HARD': {
         thinkMs: 0, attackDelayMs: 0, hesitateChance: 0, hesitateMs: 0,
         edgeguard: true, dodgeSpecials: true, downslam: true,
-        smack: true, ledge: true, blockChance: 0.5, dodgeMinigun: true, predictBlock: true
+        smack: true, ledge: true, blockChance: 0.5, dodgeMinigun: true, predictBlock: true,
+        deflectChance: 0.85, respectCounter: true
     }
 };
 
@@ -53,6 +62,7 @@ const SPECIAL_REACH = {
     HOOKER: 220
 };
 const SPECIAL_BLOCK_MS = 600;
+const SLAM_BLOCK_LEAD_MS = 250;
 const SPECIAL_WATCH_RANGE = 450;
 const GUARD_ROLL_MS = 500;
 const GUARD_CHANCE = 0.3;
@@ -86,6 +96,14 @@ const SLEDGE_TOO_CLOSE = 95;
 const QUICKSLAM_REACH = 240;
 const QUICKSLAM_MAX_DY = 60;
 
+const COUNTER_BLOCK_CHANCE_SCALE = 1.5;
+const DEFLECT_LOOKAHEAD_MS = 180;
+const DEFLECT_MISS_RADIUS = 70;
+const DEFLECT_BLOCK_MS = 220;
+const GUN_DEFLECT_BLOCK_MS = 250;
+const GUN_RELOAD_IGNORE_MS = 300;
+const COUNTER_KEEP_AWAY = 220;
+
 const BOT_BLOCK_MS = 350;
 const BOT_BLOCK_RANGE = 160;
 const BOT_BLOCK_MIN_SHIELD = 0.35;
@@ -114,6 +132,9 @@ function predictBlocks(bot, target, distance, now, specialStarted) {
     if (dodgesInsteadOfBlocking(target)) return;
 
     if (specialStarted && distance < SPECIAL_WATCH_RANGE) blockFor(bot, now, SPECIAL_BLOCK_MS);
+    if (slamLandsWithin(target, now, SLAM_BLOCK_LEAD_MS) && distance < SPECIAL_WATCH_RANGE) {
+        blockFor(bot, now, SLAM_BLOCK_LEAD_MS * 2);
+    }
 
     const reach = SPECIAL_REACH[target.variant];
     const facingBot = Math.sign(bot.x - target.x) === Math.sign(target.lastDir?.x ?? 0);
@@ -133,7 +154,64 @@ function predictBlocks(bot, target, distance, now, specialStarted) {
     }
 }
 
-function updateBotBlock(bot, target, distance, difficulty, now) {
+function incomingProjectile(scene, bot) {
+    for (const projectile of deflectables(scene)) {
+        const owner = projectile.deflectOwner;
+        if (!projectile.active || (projectile.body && !projectile.body.enable)) continue;
+        if (owner === bot || (owner && isTeammate(owner, bot))) continue;
+        const velocity = projectile.body?.velocity ?? projectile.deflectVelocity;
+        if (!velocity) continue;
+        const { x: vx, y: vy } = velocity;
+        const speedSq = vx * vx + vy * vy;
+        if (speedSq < 1) continue;
+        const dx = bot.x - projectile.x;
+        const dy = bot.y - projectile.y;
+        const seconds = (dx * vx + dy * vy) / speedSq;
+        if (seconds < 0 || seconds * 1000 > DEFLECT_LOOKAHEAD_MS) continue;
+        if (Math.hypot(dx - vx * seconds, dy - vy * seconds) > DEFLECT_MISS_RADIUS) continue;
+        return projectile;
+    }
+    return null;
+}
+
+function gunAimedAt(bot, target, now) {
+    if (target.name !== 'GUNMAN' || target.gunmanSpecialActive || !target.active) return false;
+    const side = Math.sign(bot.x - target.x);
+    const lined = target.lastDir?.y === 0 && target.lastDir.x === side &&
+        Math.abs(bot.y - target.y) <= bot.body.height / 2;
+    return lined && (target.nextAttackTime ?? 0) - now < GUN_RELOAD_IGNORE_MS;
+}
+
+function updateDeflects(scene, bot, target, difficulty, now) {
+    if (!blockStyle(bot, 'deflects') || !difficulty.deflectChance) return;
+    bot.botDeflectRolls ??= new WeakMap();
+    const projectile = incomingProjectile(scene, bot);
+    if (projectile) {
+        if (!bot.botDeflectRolls.has(projectile)) {
+            bot.botDeflectRolls.set(projectile, Math.random() < difficulty.deflectChance);
+        }
+        if (bot.botDeflectRolls.get(projectile)) blockFor(bot, now, DEFLECT_BLOCK_MS);
+    }
+    const aimed = gunAimedAt(bot, target, now);
+    if (aimed && !bot.botGunAimSeen) bot.botGunDeflecting = Math.random() < difficulty.deflectChance;
+    if (aimed && bot.botGunDeflecting) blockFor(bot, now, GUN_DEFLECT_BLOCK_MS);
+    bot.botGunAimSeen = aimed;
+}
+
+function counterLanded(bot, target) {
+    return blockStyle(bot, 'counter') && target.hitstun && target.smackArc && !target.smackedBy;
+}
+
+function counterBlockUp(bot, target) {
+    return target.blocking && blockStyle(target, 'counter') && !isTeammate(bot, target);
+}
+
+function keepAwayFromCounter(scene, bot, target, side, distance, surfaces) {
+    if (distance < COUNTER_KEEP_AWAY && walk(scene, bot, -side, surfaces)) return;
+    send(scene, bot, Commands.NONE);
+}
+
+function updateBotBlock(scene, bot, target, distance, difficulty, now) {
     const specialStarted = specialJustStarted(bot, target);
     if (specialStarted && difficulty.dodgeSpecials && target.name === 'FISHERMAN' &&
         distance < SPECIAL_WATCH_RANGE) {
@@ -143,12 +221,15 @@ function updateBotBlock(bot, target, distance, difficulty, now) {
 
     const threat = (target.isAttacking || target.isUsingSideSpecial) && distance < BOT_BLOCK_RANGE &&
         !dodgesInsteadOfBlocking(target);
+    const blockChance = difficulty.blockChance * (blockStyle(bot, 'counter') ? COUNTER_BLOCK_CHANCE_SCALE : 1);
     if (threat && !bot.botThreatSeen) {
         bot.botThreatSeen = true;
-        if (Math.random() < difficulty.blockChance) blockFor(bot, now, BOT_BLOCK_MS);
+        if (Math.random() < blockChance) blockFor(bot, now, BOT_BLOCK_MS);
     } else if (!threat) {
         bot.botThreatSeen = false;
     }
+    updateDeflects(scene, bot, target, difficulty, now);
+    if (counterLanded(bot, target)) bot.botBlockUntil = 0;
     bot.botWantsBlock = now < (bot.botBlockUntil ?? 0) && (bot.shield ?? 1) > BOT_BLOCK_MIN_SHIELD;
 }
 
@@ -418,7 +499,7 @@ export function runBotAI(scene, bot, target, fiveframecount) {
         return;
     }
 
-    updateBotBlock(bot, target, distance, difficulty, now);
+    updateBotBlock(scene, bot, target, distance, difficulty, now);
     if (bot.hitstun && target.name === 'GUNMAN' && target.gunmanSpecialActive) bot.botMiniHitAt = now;
     if (isUniversalBusy(bot)) {
         if (bot.ledge && !bot.ledge.climbing && now >= (bot.botLedgeClimbAt ?? 0)) ledgeClimb(scene, bot);
@@ -482,6 +563,8 @@ export function runBotAI(scene, bot, target, fiveframecount) {
     }
 
     if (dodgeMinigun(scene, bot, target, surfaces, grounded, difficulty, now)) return;
+    if (bot.variant === 'DEMOLITIONIST' &&
+        planSuperPry(scene, bot, target, surfaces, grounded, distance, targetOffStage, now)) return;
 
     // Lower difficulties react slower: between decisions they keep walking
     // the way they were.
@@ -490,6 +573,11 @@ export function runBotAI(scene, bot, target, fiveframecount) {
         return;
     }
     bot.botNextThinkAt = now + difficulty.thinkMs;
+
+    if (difficulty.respectCounter && counterBlockUp(bot, target)) {
+        keepAwayFromCounter(scene, bot, target, side, distance, surfaces);
+        return;
+    }
 
     // ======================
     // DOWNSLAM (only over the stage)
@@ -640,6 +728,10 @@ export function runBotAI(scene, bot, target, fiveframecount) {
     const usesBasicCombo = bot.name !== "GUNMAN" && !isChainsawAxeman;
     const readyToAttack = bot.canAttack && now >= bot.nextAttackTime &&
         now >= (bot.botNextAttackAt ?? 0);
+    if (bot.variant === 'DEMOLITIONIST' && targetHittable &&
+        planTapePunch(scene, bot, target, side, dx, dy, readyToAttack, difficulty, now)) {
+        return;
+    }
     const hammerSwing = bot.name === 'HAMMERMAN' ? HAMMER_SWINGS[bot.variant] : null;
     if (hammerSwing && targetHittable &&
         planHammerSwing(scene, bot, target, surfaces, hammerSwing, readyToAttack, difficulty, now)) {
@@ -750,6 +842,124 @@ function flankX(bot, target, stageCenter, surfaces, offset = FLANK_OFFSET) {
     return target.x + onSide * offset;
 }
 
+// The tape reaches far, so DEMOLITIONIST punches as soon as it can reach the target.
+function planTapePunch(scene, bot, target, side, dx, dy, readyToAttack, difficulty, now) {
+    if (isTapeBusy(bot)) {
+        send(scene, bot, Commands.NONE);
+        return true;
+    }
+    const adx = Math.abs(dx);
+    if (!readyToAttack || Math.abs(dy) > 50 || adx > TAPE_REACH) return false;
+    if (hesitates(bot, difficulty, now)) return false;
+    bot.lastDir = { x: side, y: 0 };
+    bot.lastAttack = now;
+    bot.botNextAttackAt = now + difficulty.attackDelayMs;
+    send(scene, bot, Commands.NONE);
+    handleAttack(scene, bot, target);
+    return true;
+}
+
+const PRY = {
+    startDistance: 450,
+    abortDistance: 220,
+    maxWalk: 700,
+    standSlop: 12,
+    slamSlop: 30,
+    plantWaitMs: 600,
+    giveUpMs: 9000,
+    retryMs: 8000,
+    edgeMargin: 45
+};
+
+function endSuperPry(bot, now) {
+    bot.botPry = null;
+    bot.botNextPryAt = now + PRY.retryMs;
+}
+
+function pickPrySpot(bot, surfaces) {
+    let best = null;
+    for (const corner of pryCornersAt(bot.scene, bot.body.bottom)) {
+        const surface = surfaceBelow(surfaces, corner.x, bot.body.bottom);
+        if (!surface) continue;
+        const x = Phaser.Math.Clamp(corner.x, surface.left + PRY.edgeMargin, surface.right - PRY.edgeMargin);
+        const walk = Math.abs(x - bot.x);
+        if (walk <= PRY.maxWalk && (!best || walk < best.walk)) best = { x, walk };
+    }
+    return best;
+}
+
+// SUPER PRY takes three downslams in the open, so DEMOLITIONIST only goes for
+// it while the target is far away or off the stage: walk to a platform's
+// bottom corner, plant the crowbar there, then jump and downslam onto it.
+function planSuperPry(scene, bot, target, surfaces, grounded, distance, targetOffStage, now) {
+    const pry = superPryState(bot);
+    if (!pry) return false;
+    const safe = targetOffStage || distance >= PRY.abortDistance;
+    let plan = bot.botPry;
+
+    if (!plan) {
+        if (!grounded || now < (bot.botNextPryAt ?? 0)) return false;
+        if (!targetOffStage && distance < PRY.startDistance) return false;
+        if (pry.planted && pry.wedgeX !== null) {
+            plan = bot.botPry = { phase: 'slam', startedAt: now };
+        } else if (pry.ready) {
+            const spot = pickPrySpot(bot, surfaces);
+            if (!spot) {
+                bot.botNextPryAt = now + PRY.retryMs;
+                return false;
+            }
+            plan = bot.botPry = { phase: 'walk', x: spot.x, startedAt: now };
+        } else {
+            return false;
+        }
+    }
+
+    if (!safe || now - plan.startedAt > PRY.giveUpMs) {
+        endSuperPry(bot, now);
+        return false;
+    }
+
+    if (plan.phase === 'walk') {
+        if (!walkTo(scene, bot, plan.x, surfaces, PRY.standSlop)) return true;
+        if (!grounded) return true;
+        handleNeutralSpecial(scene, bot, target);
+        plan.phase = 'planting';
+        plan.plantedAt = now;
+        return true;
+    }
+
+    if (plan.phase === 'planting') {
+        send(scene, bot, Commands.NONE);
+        if (pry.planted && pry.wedgeX !== null) {
+            plan.phase = 'slam';
+        } else if (pry.planted) {
+            handleNeutralSpecial(scene, bot, target);
+            endSuperPry(bot, now);
+        } else if (now - plan.plantedAt > PRY.plantWaitMs) {
+            endSuperPry(bot, now);
+        }
+        return true;
+    }
+
+    if (pry.flying || !pry.planted || pry.wedgeX === null) {
+        bot.botPry = null;
+        return false;
+    }
+    if (grounded && Math.abs(bot.x - pry.wedgeX) > PRY.slamSlop) {
+        walkTo(scene, bot, pry.wedgeX, surfaces, PRY.standSlop);
+        return true;
+    }
+    if (grounded) {
+        bot.lastJump = now;
+        send(scene, bot, Commands.UP);
+    } else if (bot.airTime >= getCharacterStat(bot, 'downslamAirTime', 1000) && !bot.downslamming) {
+        send(scene, bot, Commands.DOWNSLAM);
+    } else {
+        send(scene, bot, Commands.NONE);
+    }
+    return true;
+}
+
 // Whether this character's dir special is worth using from here.
 function specialFits(bot, dx, dy, grounded) {
     const adx = Math.abs(dx);
@@ -774,6 +984,7 @@ function specialFits(bot, dx, dy, grounded) {
         case 'SLATEMAN':
             return adx < 130 && ady < 50;
         case 'CROWBARMAN':
+            if (bot.variant === 'DEMOLITIONIST') return grounded && adx < 220 && ady < 80;
             return grounded && adx > 90 && adx < 200 && ady < 50;
         default:
             return false;
