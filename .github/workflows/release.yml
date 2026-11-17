@@ -1,0 +1,46 @@
+# BlockBattle — Copyright (C) 2026 Arvin Zaman
+# Original source: https://github.com/Arvin2A/BlockBattle
+# Licensed under the GNU GPL v3 only. See LICENSE.
+
+name: Desktop release
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, macos-latest, ubuntu-latest]
+    runs-on: ${{ matrix.os }}
+    env:
+      VITE_MP_SERVER: ${{ vars.MP_SERVER_URL }}
+      VITE_MP_SERVER_NAME: ${{ vars.MP_SERVER_NAME }}
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      CSC_IDENTITY_AUTO_DISCOVERY: false
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build the game for desktop
+        run: npm run build:desktop
+
+      - name: Package and upload to a draft release
+        run: npx electron-builder --publish always
