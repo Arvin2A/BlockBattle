@@ -20,6 +20,10 @@ const DOWNSLAM_SPEED = 800;
 function getPlayer(players, id) {
     return players[id - 1];
 }
+function groundTraction(player) {
+    return player.body.blocked.down ? (player.traction ?? 1) : 1;
+}
+
 function decelerate(player) {
     if (player.isUsingSideSpecial) return;
     let vx = player.body.velocity.x;
@@ -29,7 +33,7 @@ function decelerate(player) {
             if (player.hitstun) {
                 player.setVelocityX(vx * player.hitstunGroundDeceleration);
             } else {
-                player.setVelocityX(vx * 0.9);
+                player.setVelocityX(vx * (1 - (1 - deccelFactor) * groundTraction(player)));
             }
         } else {
             player.setVelocityX(vx * 0.95);
@@ -40,11 +44,21 @@ function decelerate(player) {
         player.setVelocityX(0);
     }
 }
+function move(player, direction) {
+    if (player.moveDirLock && player.moveDirLock !== direction) {
+        player.horizontalMovementActive = false;
+        if (player.willDecelerate) decelerate(player);
+        return;
+    }
+    player.horizontalMovementActive = true;
+    if (!player.isUsingSideSpecial) steer(player, direction);
+}
+
 function steer(player, direction) {
     const vx = player.body.velocity.x;
     const speed = player.movementSpeed;
     if (!player.keepsMomentum) {
-        player.setVelocityX(Phaser.Math.Clamp(vx + direction * accelFactor, -speed, speed));
+        player.setVelocityX(Phaser.Math.Clamp(vx + direction * accelFactor * groundTraction(player), -speed, speed));
         return;
     }
     if (vx * direction >= speed) return;
@@ -52,7 +66,7 @@ function steer(player, direction) {
         player.setVelocityX(-vx);
         return;
     }
-    player.setVelocityX(direction * Math.min((vx + direction * accelFactor) * direction, speed));
+    player.setVelocityX(direction * Math.min((vx + direction * accelFactor * groundTraction(player)) * direction, speed));
 }
 
 function jumpVelocity(player) {
@@ -65,17 +79,11 @@ export function executeStateCommand(scene, players, command) {
 
     switch (command.type) {
         case Commands.LEFT:
-            attacker.horizontalMovementActive = true;
-            if (!attacker.isUsingSideSpecial) {
-                steer(attacker, -1);
-            }
+            move(attacker, -1);
             break;
 
         case Commands.RIGHT:
-            attacker.horizontalMovementActive = true;
-            if (!attacker.isUsingSideSpecial) {
-                steer(attacker, 1);
-            }
+            move(attacker, 1);
             break;
 
         case Commands.UP:

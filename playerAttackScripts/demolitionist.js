@@ -3,13 +3,19 @@
 // Licensed under the GNU GPL v3 only. See LICENSE.
 
 import Phaser from 'phaser';
-import { isGrounded, pinTarget, slamImpact } from '../combat/pin.js';
+import { isGrounded } from '../combat/pin.js';
+import { smackHitSpec, smackAftermath } from '../combat/universalMoves.js';
 import {
     findPryCorner,
     announceWedge,
     tryNotch,
     notchesFaded,
+    relaxNotches,
     clearNotches,
+    releaseBar,
+    buildBar,
+    barTop,
+    hookFlipped,
     launchPlatform,
     updateFlight,
     abandonFlight
@@ -21,10 +27,9 @@ const BUSY_SPEED_SCALE = 0.3;
 const TAPE = {
     shoulder: { x: 6, y: 4 },
     armLength: 50,
-    caseOrigins: [{ x: 1 / 75, y: 33 / 60 }, { x: 1 / 75, y: 28 / 60 }],
+    caseOrigin: { x: 1 / 75, y: 33 / 60 },
     stripLength: 700,
     stripHeight: 3,
-    punchSpeed: 4200,
     hitReach: 34,
     latchWindow: 70,
     cancelEndlagMs: 150,
@@ -34,10 +39,11 @@ const TAPE = {
 };
 
 const PUNCH = {
-    length: 350,
-    endlagMs: 500,
-    cooldownMs: 1500,
-    retractMs: 250,
+    length: 250,
+    extendMs: 300,
+    cycleMs: 1000,
+    minRetractMs: 100,
+    parriedRetractScale: 0.25,
     recoil: { push: 650, lift: 200, lockMs: 250 },
     hit: {
         damage: 0.06,
@@ -45,7 +51,7 @@ const PUNCH = {
         hitstun: 450,
         hitFreeze: 80,
         sound: 'light',
-        knockback: { x: 700, y: 520 },
+        knockback: { x: 400, y: 220 },
         decelerateAfter: 700
     }
 };
@@ -84,24 +90,32 @@ const CROWBAR = {
     wedgeClangRate: 1.1
 };
 
+const FLING = { speed: { x: 900, y: 1300 }, gravity: 2600, spin: 0.03, returnMs: 2000, returnFrom: { x: 700, y: 600 } };
+
+const SLAM_SPEED = 3.6;
+const SLAM_CLANG_LEAD_MS = 250;
+const SLAM_IMPACT_AT = 3000;
+const SLAM_PUTBACK_MS = 2000;
+
+function slamTime(at) {
+    if (at <= SLAM_IMPACT_AT) return at / SLAM_SPEED;
+    return SLAM_IMPACT_AT / SLAM_SPEED + (at - SLAM_IMPACT_AT) / 1000 * SLAM_PUTBACK_MS;
+}
+
 const SLAM = {
     origin: { x: 65 / 200, y: 125 / 150 },
     frames: [
         [0, 1], [500, 2], [1000, 3], [1500, 4], [2000, 5], [2500, 6], [3000, 7], [3050, 8],
         [3400, 9], [3500, 10], [3600, 11], [3700, 12], [3780, 13], [3835, 14], [3890, 15], [3945, 16]
-    ],
-    soundAtMs: 2750,
-    swingAtMs: 2500,
-    impactMs: 3000,
-    totalMs: 4000,
+    ].map(([at, frame]) => [slamTime(at), frame]),
+    soundAtMs: 3000 / SLAM_SPEED - SLAM_CLANG_LEAD_MS,
+    swingAtMs: 2500 / SLAM_SPEED,
+    impactMs: slamTime(SLAM_IMPACT_AT),
+    totalMs: slamTime(4000),
     reach: { front: 175, back: 10, up: 120, down: 70 },
     dirtOffset: 120,
-    damage: 0.20,
-    plankDamage: 0.15,
-    groundPinMs: 2000,
-    airPinMs: 3000,
-    crashSpeed: 2200,
-    crashTimeoutMs: 1500
+    rushSpeedScale: 2.5,
+    recoverSpeedScale: 0.6
 };
 
 const DEPTH = { planted: 1.8, back: 1.9, slam: 2.2, strip: 2.3, fist: 2.4, case: 2.5 };
@@ -133,7 +147,6 @@ function stateOf(scene, player) {
         lockMoveUntil: 0,
         ownsSideSpecial: false,
         respawnSeen: false,
-        kickUntil: 0,
         tape: { phase: 'idle', readyAt: 0, nextTiltAt: 0, dir: { x: 1, y: 0 }, length: 0 },
         slam: null,
         crowbar: { state: 'back', x: 0, y: 0 },
@@ -178,11 +191,10 @@ function drawTape(scene, player, d) {
     const flip = dir.x < 0 || (dir.x === 0 && d.facing < 0);
     const angle = Math.atan2(dir.y, dir.x);
     const turn = flip ? angle - Math.PI : angle;
-    const kick = scene.time.now < d.kickUntil ? 1 : 0;
-    const origin = TAPE.caseOrigins[kick];
+    const origin = TAPE.caseOrigin;
     const shoulder = shoulderOf(player, d.facing);
 
-    tapeCase.setFrame(kick).setFlipX(flip).setOrigin(flip ? 1 - origin.x : origin.x, origin.y)
+    tapeCase.setFrame(0).setFlipX(flip).setOrigin(flip ? 1 - origin.x : origin.x, origin.y)
         .setPosition(shoulder.x, shoulder.y).setRotation(turn).setVisible(true);
 
     const length = Math.min(tape.length, TAPE.stripLength);
@@ -232,23 +244,33 @@ function enemiesOf(api, scene, player) {
     return api.getEnemies(scene, player).filter(foe => foe.active && !foe.eliminated);
 }
 
+function punchDirection(scene, player, d) {
+    const input = scene.playerInputs?.[player.slot] ?? {};
+    if (input.up && !input.down) return { x: 0, y: -1 };
+    if (input.down && !input.up) return { x: 0, y: 1 };
+    return { x: d.facing, y: 0 };
+}
+
 function handleAttack(api, scene, player) {
     const d = stateOf(scene, player);
     const now = scene.time.now;
     if (player.hitstun || now < d.busyUntil || now < d.tape.readyAt) return;
     if (now < player.nextAttackTime || isTapeBusy(player)) return;
-    const dir = { x: d.facing, y: 0 };
-    player.nextAttackTime = now + PUNCH.cooldownMs;
-    d.kickUntil = now + PUNCH.endlagMs;
+    const dir = punchDirection(scene, player, d);
+    player.nextAttackTime = now + PUNCH.cycleMs;
     scene.sound.play('ratchet', { rate: TAPE.extendRate, volume: TAPE.ratchetVolume });
     scene.sound.play('whoosh', { volume: 0.7 });
     if (!d.anchored) {
-        player.setVelocityX(-dir.x * PUNCH.recoil.push);
-        player.setVelocityY(Math.min(player.body.velocity.y, -PUNCH.recoil.lift));
+        if (dir.y === 0) {
+            player.setVelocityX(-dir.x * PUNCH.recoil.push);
+            player.setVelocityY(Math.min(player.body.velocity.y, -PUNCH.recoil.lift));
+        } else {
+            player.setVelocityY(-dir.y * PUNCH.recoil.push);
+        }
         player.afterimage = true;
         d.lockMoveUntil = now + PUNCH.recoil.lockMs;
     }
-    d.tape = { ...d.tape, phase: 'punch', aim: PUNCH.length, dir, length: 0, readyAt: now + PUNCH.endlagMs };
+    d.tape = { ...d.tape, phase: 'punch', aim: PUNCH.length, dir, length: 0, startedAt: now, readyAt: now + PUNCH.cycleMs };
 }
 
 function lineContact(mouth, dir, point, radius, reach) {
@@ -285,7 +307,7 @@ function updatePunch(api, scene, player, d) {
         startRetract(scene, player, d, TAPE.cancelEndlagMs);
         return;
     }
-    const reach = Math.min(tape.aim, tape.length + TAPE.punchSpeed * scene.game.loop.delta / 1000);
+    const reach = Math.min(tape.aim, tape.length + tape.aim / PUNCH.extendMs * scene.game.loop.delta);
     const contact = firstContact(api, scene, player, d, mouthOf(player, d, tape.dir), reach);
     if (contact?.grip) {
         tape.length = contact.at;
@@ -294,7 +316,12 @@ function updatePunch(api, scene, player, d) {
     }
     if (contact) {
         tape.length = contact.at;
+        player.pendingCounter = null;
         const hit = punchFoe(api, scene, player, contact.foe, tape.dir);
+        if (player.pendingCounter) {
+            parryPunch(scene, player, d);
+            return;
+        }
         finishPunch(scene, player, d, hit);
         return;
     }
@@ -305,20 +332,27 @@ function updatePunch(api, scene, player, d) {
 function finishPunch(scene, player, d, hit) {
     if (!hit) scene.sound.play('miss');
     const readyAt = d.tape.readyAt;
-    startRetract(scene, player, d, PUNCH.retractMs);
+    startRetract(scene, player, d, Math.max(PUNCH.minRetractMs, readyAt - scene.time.now));
     d.tape.readyAt = Math.max(readyAt, d.tape.readyAt);
+}
+
+function parryPunch(scene, player, d) {
+    const remaining = Math.max(PUNCH.minRetractMs, d.tape.readyAt - scene.time.now);
+    startRetract(scene, player, d, remaining * PUNCH.parriedRetractScale);
+    d.tape.parried = true;
 }
 
 function punchFoe(api, scene, player, foe, dir) {
     if (!api.attackIsElligible(player, foe, TAPE_REACH + TAPE.hitReach,
         { ignoreCanAttack: true, ignoreFacing: true })) return false;
-    return api.landHit(scene, player, foe, { ...PUNCH.hit, direction: dir });
+    return api.landHit(scene, player, foe, { ...PUNCH.hit, direction: dir, deferCounter: true });
 }
 
 function startRetract(scene, player, d, duration) {
     const now = scene.time.now;
     d.tape = {
         ...d.tape,
+        parried: false,
         phase: d.tape.length > 0 ? 'retract' : 'idle',
         from: d.tape.length,
         retractStart: now,
@@ -327,7 +361,7 @@ function startRetract(scene, player, d, duration) {
     };
 }
 
-function updateRetract(scene, d) {
+function updateRetract(api, scene, player, d) {
     const tape = d.tape;
     const t = Phaser.Math.Clamp((scene.time.now - tape.retractStart) / tape.retractMs, 0, 1);
     tape.length = tape.from * (1 - t * t);
@@ -335,6 +369,10 @@ function updateRetract(scene, d) {
     if (t >= 1) {
         tape.phase = 'idle';
         tape.length = 0;
+        if (tape.parried) {
+            tape.parried = false;
+            api.releaseCounter(scene, player);
+        }
     }
 }
 
@@ -467,12 +505,13 @@ function plantCrowbar(api, scene, player, d) {
     const wedge = findPryCorner(scene, spot.x, groundY) ?? findPryCorner(scene, player.x, groundY);
     if (wedge) spot.x = wedge.x;
     const rotation = wedge ? wedge.rotation : -Math.PI / 2 + d.facing * CROWBAR.plantTilt;
-    d.pry = wedge ? { wedge, groundY, notches: 0, lastNotchAt: 0, cracks: null } : null;
+    d.pry = wedge ? { wedge, groundY, base: spot, notches: 0, lastNotchAt: 0, cracks: null, bar: null } : null;
     d.anchored = false;
     d.busyUntil = now + CROWBAR.busyMs;
     d.crowbar = { state: 'planting', x: spot.x, y: spot.y };
     scene.tweens.killTweensOf(image);
-    image.setVisible(true).setPosition(from.x, from.y).setRotation(-Math.PI / 2);
+    image.setVisible(true).setPosition(from.x, from.y).setRotation(-Math.PI / 2)
+        .setFlipY(Boolean(wedge && hookFlipped(wedge)));
     scene.sound.play('swosh');
     scene.tweens.add({
         targets: image,
@@ -491,6 +530,7 @@ function plantCrowbar(api, scene, player, d) {
                 return;
             }
             scene.sound.play('ripfling', { rate: CROWBAR.wedgeClangRate });
+            buildBar(scene, player, d.pry);
             announceWedge(scene, d.pry.wedge, groundY,
                 (x, y) => api.spawnDirtBurst(scene, x, y, 18, 6, 10, 1.6));
         }
@@ -520,6 +560,7 @@ function pickUpCrowbar(scene, player, d) {
 
 function dropPry(d) {
     clearNotches(d.pry);
+    releaseBar(d.pry);
     d.pry = null;
 }
 
@@ -537,7 +578,41 @@ function recallCrowbar(scene, player, d) {
     scene.sound.play('whoosh');
 }
 
+function flingCrowbar(scene, d, side) {
+    dropPry(d);
+    scene.tweens.killTweensOf(d.parts.crowbar);
+    d.crowbar = {
+        state: 'flung',
+        x: d.parts.crowbar.x,
+        y: d.parts.crowbar.y,
+        vx: side * FLING.speed.x,
+        vy: -FLING.speed.y,
+        side,
+        returnAt: scene.time.now + FLING.returnMs
+    };
+    scene.sound.play('whoosh');
+}
+
+function updateFlung(scene, player, d) {
+    const image = d.parts.crowbar;
+    const bar = d.crowbar;
+    if (scene.time.now >= bar.returnAt) {
+        image.setVisible(true).setPosition(player.x + bar.side * FLING.returnFrom.x, player.y - FLING.returnFrom.y);
+        d.crowbar = { state: 'returning', x: 0, y: 0 };
+        scene.sound.play('whoosh');
+        return;
+    }
+    const dt = scene.game.loop.delta / 1000;
+    bar.vy += FLING.gravity * dt;
+    image.setPosition(image.x + bar.vx * dt, image.y + bar.vy * dt);
+    image.setRotation(image.rotation + bar.side * FLING.spin * scene.game.loop.delta);
+}
+
 function updateCrowbar(scene, player, d) {
+    if (d.crowbar.state === 'flung') {
+        updateFlung(scene, player, d);
+        return;
+    }
     if (d.crowbar.state !== 'returning') return;
     const image = d.parts.crowbar;
     const target = backPosition(player, d);
@@ -618,23 +693,8 @@ function landSlam(api, scene, player, facing) {
         if (!inSlamReach(player, foe, facing)) continue;
         if (api.isInvincible(foe) || api.isBlockedByWall(player, foe)) continue;
         foe.flash();
-        const grounded = isGrounded(foe);
-        const hit = api.landHit(scene, player, foe, {
-            damage: SLAM.damage,
-            plankDamage: SLAM.plankDamage,
-            hitstun: grounded ? SLAM.groundPinMs : SLAM.airPinMs + SLAM.crashTimeoutMs,
-            hitstunGrowth: false,
-            hitFreeze: 90,
-            sound: 'slamimpact',
-            noDeathRay: true,
-            resetCombo: false,
-            direction: { x: facing, y: 0 },
-            knockback: () => ({ x: 0, y: grounded ? 0 : SLAM.crashSpeed }),
-            decelerateAfter: 50
-        });
-        if (!hit) continue;
-        if (grounded) slamImpact(scene, foe);
-        pinTarget(scene, player, foe, { ...SLAM, grounded, extendCooldown: false, flatten: true });
+        if (!api.landHit(scene, player, foe, smackHitSpec())) continue;
+        smackAftermath(scene, foe, facing, foe.body.bottom);
     }
 }
 
@@ -642,16 +702,13 @@ function onDownslam(api, scene, player) {
     const d = player.demolition;
     if (!d || d.flight || d.crowbar.state !== 'planted' || !d.pry) return;
     if (!tryNotch(api, scene, player, d.pry, d.parts.crowbar)) return;
+    const side = d.pry.wedge.side;
     d.flight = launchPlatform(api, scene, player, d.pry);
-    d.pry = null;
-    recallCrowbar(scene, player, d);
+    flingCrowbar(scene, d, side);
 }
 
 function updatePry(api, scene, player, d) {
-    if (notchesFaded(scene, d.pry)) {
-        clearNotches(d.pry);
-        d.parts.crowbar.y = d.crowbar.y;
-    }
+    if (notchesFaded(scene, d.pry)) relaxNotches(scene, player, d.pry, d.parts.crowbar);
     if (d.flight && updateFlight(api, scene, player, d.flight)) d.flight = null;
 }
 
@@ -661,6 +718,7 @@ function resetDemolition(scene, player, d) {
     if (d.tape.phase === 'zip') player.body.allowGravity = true;
     d.tape = { ...d.tape, phase: 'idle', length: 0, readyAt: 0 };
     d.slam = null;
+    player.moveDirLock = null;
     d.busyUntil = 0;
     d.lockMoveUntil = 0;
     strapOn(d);
@@ -669,9 +727,11 @@ function resetDemolition(scene, player, d) {
 function applyMovement(scene, player, d) {
     const now = scene.time.now;
     let speed = d.anchored ? ANCHORED.speedScale : 1;
+    const rushing = d.slam && now - d.slam.start < SLAM.impactMs;
+    if (d.slam) speed *= rushing ? SLAM.rushSpeedScale : SLAM.recoverSpeedScale;
+    player.moveDirLock = rushing ? d.slam.facing : null;
     if (now < d.busyUntil) speed *= BUSY_SPEED_SCALE;
     player.moveSpeedScale = speed;
-    player.jumpScale = d.anchored ? ANCHORED.jumpScale : 1;
 
     const locked = d.tape.phase === 'zip' || now < d.lockMoveUntil;
     if (locked) {
@@ -693,7 +753,7 @@ function update(api, scene, player) {
     updateSlam(api, scene, player, d);
     switch (d.tape.phase) {
         case 'punch': updatePunch(api, scene, player, d); break;
-        case 'retract': updateRetract(scene, d); break;
+        case 'retract': updateRetract(api, scene, player, d); break;
         case 'tilt': updateTilt(api, scene, player, d); break;
         case 'zip': updateZip(scene, player, d); break;
     }
@@ -729,6 +789,8 @@ export function superPryState(player) {
         ready: d.anchored && d.crowbar.state === 'back' && !d.slam && !d.flight,
         planted: d.crowbar.state === 'planted',
         wedgeX: d.pry?.wedge.x ?? null,
+        side: d.pry?.wedge.side ?? 0,
+        top: d.pry?.bar ? barTop(d.pry) : null,
         flying: Boolean(d.flight)
     };
 }

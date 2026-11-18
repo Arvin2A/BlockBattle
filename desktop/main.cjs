@@ -4,27 +4,70 @@
 
 const path = require('node:path');
 const { pathToFileURL } = require('node:url');
-const { app, BrowserWindow, Menu, net, protocol, shell } = require('electron');
+const { app, BrowserWindow, dialog, Menu, net, protocol, shell } = require('electron');
+const { GameFiles } = require('./updater.cjs');
 
 const SCHEME = 'app';
 const HOST = 'blockbattle';
 const GAME_ROOT = path.join(__dirname, '..', 'dist');
 const GAME_URL = `${SCHEME}://${HOST}/index.html`;
 const WINDOW = { width: 1200, height: 720, minWidth: 640, minHeight: 384, background: '#000000' };
+const RELEASES_URL = 'https://github.com/Arvin2A/BlockBattle/releases';
+const SPLASH_URL = 'data:text/html;charset=utf-8,' + encodeURIComponent(`<!doctype html><html><head><meta charset="utf-8"><title>BLOCK BATTLE!!</title><style>
+html,body{margin:0;height:100%;background:#000;color:#fff;font:bold 20px system-ui,sans-serif;letter-spacing:1px}
+body{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:18px}
+h1{margin:0;font-size:44px}#status{opacity:.75}
+</style></head><body><h1>BLOCK BATTLE!!</h1><div id="status">CHECKING FOR UPDATES...</div></body></html>`);
 
 protocol.registerSchemesAsPrivileged([{
     scheme: SCHEME,
     privileges: { standard: true, secure: true, supportFetchAPI: true, corsEnabled: true, stream: true }
 }]);
 
-function serveGameFile(request) {
+function serveGameFile(gameFiles, request) {
     const { pathname } = new URL(request.url);
-    const relative = decodeURIComponent(pathname === '/' ? '/index.html' : pathname);
-    const file = path.normalize(path.join(GAME_ROOT, relative));
-    if (file !== GAME_ROOT && !file.startsWith(GAME_ROOT + path.sep)) {
-        return new Response('Not found', { status: 404 });
-    }
+    const file = gameFiles.resolve(decodeURIComponent(pathname === '/' ? '/index.html' : pathname));
+    if (!file) return new Response('Not found', { status: 404 });
     return net.fetch(pathToFileURL(file).toString());
+}
+
+async function setStatus(window, text) {
+    if (window.isDestroyed()) return;
+    try {
+        await window.webContents.executeJavaScript(`document.getElementById('status').textContent = ${JSON.stringify(text)}`);
+    } catch {
+    }
+}
+
+async function askForNewApp(window) {
+    const { response } = await dialog.showMessageBox(window, {
+        type: 'info',
+        title: 'BLOCK BATTLE!!',
+        message: 'A new version of the BLOCK BATTLE!! app is out.',
+        detail: 'This update needs the newest app, so it can\'t download by itself. Grab it from the releases page, or keep playing the version you have (online play may not connect until you update).',
+        buttons: ['DOWNLOAD NEW APP', 'PLAY ANYWAY'],
+        defaultId: 0,
+        cancelId: 1
+    });
+    if (response === 0) shell.openExternal(RELEASES_URL);
+}
+
+async function updateGame(window, gameFiles) {
+    try {
+        await window.loadURL(SPLASH_URL);
+        const plan = await gameFiles.check();
+        if (!plan || window.isDestroyed()) return;
+        if (plan.needsNewApp) {
+            await askForNewApp(window);
+            return;
+        }
+        await gameFiles.download(plan, (done, total) => {
+            const percent = total > 0 ? Math.floor((done / total) * 100) : 100;
+            setStatus(window, `DOWNLOADING UPDATE... ${percent}%`);
+        });
+    } catch (error) {
+        console.error('Game update skipped:', error);
+    }
 }
 
 function openOutside(url) {
@@ -62,7 +105,6 @@ function createWindow() {
             event.preventDefault();
         }
     });
-    window.loadURL(GAME_URL);
     return window;
 }
 
@@ -77,10 +119,14 @@ if (!app.requestSingleInstanceLock()) {
     });
     app.whenReady().then(() => {
         Menu.setApplicationMenu(null);
-        protocol.handle(SCHEME, serveGameFile);
-        createWindow();
+        const gameFiles = new GameFiles(GAME_ROOT);
+        protocol.handle(SCHEME, request => serveGameFile(gameFiles, request));
+        const window = createWindow();
+        updateGame(window, gameFiles).then(() => {
+            if (!window.isDestroyed()) window.loadURL(GAME_URL);
+        });
         app.on('activate', () => {
-            if (BrowserWindow.getAllWindows().length === 0) createWindow();
+            if (BrowserWindow.getAllWindows().length === 0) createWindow().loadURL(GAME_URL);
         });
     });
     app.on('window-all-closed', () => app.quit());

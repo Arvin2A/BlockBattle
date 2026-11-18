@@ -173,8 +173,11 @@ export function preload() {
 
     this.load.spritesheet('sandstorm', 'assets/ingame/sandstorm.png', {frameWidth: 1000, frameHeight: 600});    
     this.load.spritesheet('blizzard', 'assets/ingame/blizzard.png', {frameWidth: 1000, frameHeight: 600});
+    this.load.spritesheet('rainstorm', 'assets/ingame/rainstorm.png', {frameWidth: 1000, frameHeight: 600});
 
     this.load.audio('storm', 'audio/sandstorm.wav');
+    this.load.audio('rainfadein', 'audio/rainfadein.wav');
+    this.load.audio('rainloop', 'audio/rainloop.wav');
 
     // =====================================================
     // EFFECTS
@@ -294,6 +297,7 @@ export function preload() {
     this.load.audio('rip2', 'audio/rip2.wav');
     this.load.audio('rip3', 'audio/rip3.wav');
     this.load.audio('falling', 'audio/falling.wav');
+    this.load.audio('danger', 'audio/danger.wav');
     this.load.audio('sledgehammerhit', 'audio/sledgehammerhit.wav');
     this.load.audio('sledgewhoosh', 'audio/sledgewhoosh.wav');
     this.load.audio('sledgehammerquickslam', 'audio/quickslamgrounded.wav');

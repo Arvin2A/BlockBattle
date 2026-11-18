@@ -12,14 +12,18 @@ function applyWeatherDamage(scene, amount) {
     });
 }
 
-function startWeatherOverlay(scene, key) {
+function addWeatherSprite(scene, key, alpha = 0.72) {
     const sprite = scene.add.sprite(500, 300, key)
         .setDisplaySize(1000, 600)
         .setDepth(10000)
-        .setAlpha(0.72);
+        .setAlpha(alpha);
     scene.hud.add(sprite);
     sprite.play(key);
+    return sprite;
+}
 
+function startWeatherOverlay(scene, key) {
+    const sprite = addWeatherSprite(scene, key);
     const sound = scene.sound.add('storm', { volume: 0.80, loop: true });
     sound.play();
     return { sprite, sound };
@@ -28,6 +32,52 @@ function startWeatherOverlay(scene, key) {
 function stopWeatherOverlay(state) {
     state.sprite.destroy();
     state.sound.stop();
+}
+
+const RAINSTORM = {
+    alpha: 0.6,
+    volume: 0.8,
+    fadeOutMs: 600,
+    lightFadeMs: 1500,
+    playerEffects: { tint: 0xb3e0ff, speedScale: 0.8, damageScale: 0.5, traction: 0.4 },
+    flytrapScale: 2
+};
+
+function startRainstorm(scene) {
+    const sprite = addWeatherSprite(scene, 'rainstorm', 0);
+    scene.tweens.add({ targets: sprite, alpha: RAINSTORM.alpha, duration: 1000 });
+    scene.gameState.map.fadeLighting(0, RAINSTORM.lightFadeMs);
+    const fadeIn = scene.sound.add('rainfadein', { volume: RAINSTORM.volume });
+    const loop = scene.sound.add('rainloop', { volume: RAINSTORM.volume, loop: true });
+    fadeIn.play();
+    const loopTimer = scene.time.delayedCall(fadeIn.duration * 1000, () => loop.play());
+    return {
+        sprite,
+        fadeIn,
+        loop,
+        loopTimer,
+        playerEffects: RAINSTORM.playerEffects,
+        flytrapScale: RAINSTORM.flytrapScale
+    };
+}
+
+function stopRainstorm(scene, state) {
+    state.loopTimer.remove();
+    state.fadeIn.stop();
+    state.fadeIn.destroy();
+    const { sprite, loop } = state;
+    scene.tweens.add({ targets: sprite, alpha: 0, duration: RAINSTORM.fadeOutMs, onComplete: () => sprite.destroy() });
+    scene.gameState.map.fadeLighting(1, RAINSTORM.lightFadeMs);
+    scene.tweens.addCounter({
+        from: loop.volume,
+        to: 0,
+        duration: RAINSTORM.fadeOutMs,
+        onUpdate: tween => loop.setVolume(tween.getValue()),
+        onComplete: () => {
+            loop.stop();
+            loop.destroy();
+        }
+    });
 }
 
 const DESERT_MAP = {
@@ -271,27 +321,8 @@ const JUNGLE_MAP = {
         chance: 0.5,
         checkInterval: 5000,
         duration: 5000,
-        start(scene) {
-            return {
-                ...startWeatherOverlay(scene, 'sandstorm'),
-                nextDamageAt: scene.time.now + 1000
-            };
-        },
-        update(scene, state, now) {
-            Object.values(scene.gameState.players).forEach(player => {
-                const resisting = scene.playerInputs[player.id === 1 ? 'p1' : 'p2'].right;
-                const pushStrength = resisting ? 3 : 8;
-                player.setVelocityX(player.body.velocity.x - pushStrength);
-            });
-
-            if (now >= state.nextDamageAt) {
-                applyWeatherDamage(scene, 0.10);
-                state.nextDamageAt += 1000;
-            }
-        },
-        end(scene, state) {
-            stopWeatherOverlay(state);
-        }
+        start: startRainstorm,
+        end: stopRainstorm
     }
 };
 

@@ -100,6 +100,7 @@ export class Map {
     }
 
     createLighting() {
+        this.lightLevel = 1;
         const lighting = this.definition.lighting;
         if (!lighting) return;
         const { scene } = this;
@@ -141,16 +142,42 @@ export class Map {
                 .setBlendMode(Phaser.BlendModes.ADD)
                 .setTint(lighting.rayTint)
                 .setAlpha(ray.alpha));
+            image.baseAlpha = ray.alpha;
+            image.pulse = 1;
             scene.tweens.add({
                 targets: image,
-                alpha: ray.alpha * 0.4,
+                pulse: 0.4,
                 duration: 2400 + index * 650,
                 delay: index * 400,
                 yoyo: true,
                 repeat: -1,
-                ease: 'Sine.easeInOut'
+                ease: 'Sine.easeInOut',
+                onUpdate: () => this.applyRayAlpha(image)
             });
             return image;
+        });
+    }
+
+    applyRayAlpha(image) {
+        image.setAlpha(image.baseAlpha * image.pulse * this.lightLevel);
+    }
+
+    applyLightLevel() {
+        this.lightRays?.forEach(image => this.applyRayAlpha(image));
+        this.castShadows?.forEach(shadow => shadow.setAlpha(this.lightLevel));
+    }
+
+    fadeLighting(level, duration) {
+        if (!this.lightRays?.length && !this.castShadows?.length) return;
+        this.lightingTween?.remove();
+        this.lightingTween = this.scene.tweens.addCounter({
+            from: this.lightLevel,
+            to: level,
+            duration,
+            onUpdate: tween => {
+                this.lightLevel = tween.getValue();
+                this.applyLightLevel();
+            }
         });
     }
 

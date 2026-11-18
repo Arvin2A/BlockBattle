@@ -23,10 +23,6 @@ export function hideAttackSprite(attacker) {
     attacker.atk.setVisible(hasIdleAttackSprite(attacker));
 }
 
-// Extra nudge for a fighter's attack sprite, set in their attack script with
-// attackSpriteOffset (or variantAttackSpriteOffsets per variant, or
-// textureAttackSpriteOffsets per atk texture, which wins over both).
-// x pushes along the facing direction, y pushes down the screen.
 export function getAttackSpriteOffset(player, textureKey = player.atk?.texture.key) {
     const script = getCharacterScript(player);
     const offset = script?.textureAttackSpriteOffsets?.[textureKey] ??

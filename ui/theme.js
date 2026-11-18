@@ -33,6 +33,7 @@ export const HEX = {
     panelHover: 0x444444,
     border: 0xffffff,
     error: 0xff6b6b,
+    danger: 0xff1010,
     lockedPanel: 0x3a1414,
     lockedTint: 0xff8a8a,
     shieldP1: 0xff4343,

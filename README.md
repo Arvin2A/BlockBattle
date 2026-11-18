@@ -21,7 +21,7 @@ It always has the newest version, works on phones, and online play always matche
 
 ### Desktop app (alpha)
 
-There are also desktop builds of **BLOCK BATTLE!!** for Windows, macOS and Linux on the [Releases](https://github.com/Arvin2A/BlockBattle/releases) page. They're early and less tested than the website, and they don't update themselves yet. When a new update comes out, download the new version, or online play may refuse to connect until you do.
+There are also desktop builds of **BLOCK BATTLE!!** for Windows, macOS and Linux on the [Releases](https://github.com/Arvin2A/BlockBattle/releases) page. They're early and less tested than the website. You only download the app once: each time it starts, it grabs the newest game update by itself (just the files that changed). Once in a while an update needs a new app, and it'll tell you when that happens.
 
 | System | Download | Notes |
 |---|---|---|
@@ -35,6 +35,8 @@ These warnings show up because the alpha builds aren't code-signed yet. Press **
 
 - `npm run desktop` builds the game and opens it in the desktop app. Running the app locally needs Node.js 22.12 or newer; the first run may need `npx install-electron` to download Electron.
 - `npm run dist:desktop` builds the installer for the system you're on, into `release/`.
+- Game updates for the app ship with the website: every push to `main` also builds the desktop game into `desktop/` on GitHub Pages, with a `game-update.json` list of every file and its hash. When the app starts, it compares that list with what it has and downloads only the changed files. If it's offline, it starts with what it already has.
+- `desktopShellVersion` in `package.json` is the version of the app itself (`desktop/main.cjs` and `desktop/updater.cjs`). Only raise it when a game update won't work without the new app code. Then make a new release, because older apps will tell players to download it instead of updating.
 - Releases are built by GitHub Actions (`.github/workflows/release.yml`) on Windows, macOS and Linux. To make one, set `"version"` in `package.json` to the update's date (for example `2026.11.17`), push a tag with the same version (`v2026.11.17`), then publish the draft release that appears on the Releases page. The builds use the `MP_SERVER_URL` and `MP_SERVER_NAME` repository variables for the online server, same as the website.
 
 ## License

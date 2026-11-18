@@ -46,6 +46,9 @@ jobs:
       - name: Build for GitHub Pages
         run: npm run build
 
+      - name: Build the desktop app's game update
+        run: BUILD_DIR=dist/desktop npm run build:desktop
+
       - name: Show GitHub Pages build output
         run: find dist -type f -print
 

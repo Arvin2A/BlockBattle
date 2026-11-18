@@ -32,7 +32,7 @@ const VINE = { color: 0x2f9a3a, thickness: 5 };
 const TRACK_MS = 5000;
 const WAIT_FOR_RANGE_MS = 3000;
 const TURN_RATE = 0.12;
-const REACH = 375;
+const REACH = 475;
 const LUNGE_MS = { base: 110, perPixel: 0.5 };
 const HOLD_OPEN_MS = 120;
 const RETRACT_MS = 260;
@@ -191,6 +191,7 @@ function trapPlayer(scene, trap, player) {
     trap.phase = 'caught';
     trap.elapsed = 0;
     trap.ticks = 0;
+    trap.holdMs = TRAP_MS * (scene.activeHazard?.state?.flytrapScale ?? 1);
     trap.head.setFrame(HEAD.box).setFlipY(false);
     scene.objs.bringToTop(trap.vine);
     scene.objs.bringToTop(trap.head);
@@ -198,8 +199,8 @@ function trapPlayer(scene, trap, player) {
     player.isAttacking = false;
     player.willDecelerate = false;
     player.freezeUntil = now - 1;
-    player.hitstunUntil = now + TRAP_MS + CAUGHT_RETRACT_MS;
-    player.invincibleUntil = now + TRAP_MS + CAUGHT_RETRACT_MS;
+    player.hitstunUntil = now + trap.holdMs + CAUGHT_RETRACT_MS;
+    player.invincibleUntil = now + trap.holdMs + CAUGHT_RETRACT_MS;
     player.lastHitAt = now;
     hold(trap);
     triggerScreenShake(scene, 6, 200);
@@ -337,11 +338,11 @@ function updateTrap(scene, state, trap, delta) {
                 break;
             }
             hold(trap);
-            while (trap.ticks < TRAP_MS / TICK_MS && trap.elapsed >= (trap.ticks + 1) * TICK_MS) {
+            while (trap.ticks < trap.holdMs / TICK_MS && trap.elapsed >= (trap.ticks + 1) * TICK_MS) {
                 trap.ticks += 1;
                 chomp(scene, trap);
             }
-            if (trap.elapsed >= TRAP_MS) {
+            if (trap.elapsed >= trap.holdMs) {
                 trap.reach = 0;
                 spit(scene, trap);
                 trap.phase = 'done';

@@ -3,6 +3,7 @@
 // Licensed under the GNU GPL v3 only. See LICENSE.
 
 import Phaser from 'phaser';
+import './assetVersions.js';
 import {handleAttack, handleMatchEnd, tryExtraJump, handleDirSpecial, handleNeutralSpecial, handleDirSpecialAttack, handleHorizantalTilt, handleDownTilt, handleUpTilt, downslamAttack, updateScythemanGrass, updateChainsawWood, updateCharacter, handleMisc, hasMiscButton, usesToggleAttack, getSpecialMeter, tryQuickslamJump, positionAttackSprite, hasIdleAttackSprite, getAttackSpriteOffset, getAttackSpriteAngle, getAttackSpriteFlipX, getAttackSpriteScale, triggerScreenShake, spawnDirtBurst, spawnExplosion} from './attacks.js';
 import { COLORS, FONTS, HEX, makePanel, textStyle } from './ui/theme.js';
 import { MATCH_LIVES, PLAYER_COLORS, buildRoster, isTeamMode } from './matchModes.js';
@@ -1914,7 +1915,28 @@ function updateClippedStatus(scene, player, clipped) {
     else if (!clipped && shed.emitting) shed.stop();
 }
 
+function setWeatherTint(sprite, tint, flag) {
+    if (!sprite) return;
+    const current = sprite.tintTopLeft;
+    if (tint !== undefined && (current === 0xffffff || current === tint)) {
+        sprite.setTint(tint);
+        sprite[flag] = true;
+    } else if (sprite[flag]) {
+        if (current === sprite[flag + 'Color']) sprite.clearTint();
+        sprite[flag] = false;
+    }
+    sprite[flag + 'Color'] = sprite[flag] ? tint : undefined;
+}
+
+function updateWeatherEffects(player, weather) {
+    player.traction = weather?.traction ?? 1;
+    const tint = player.dangerTinted || player.heated ? undefined : weather?.tint;
+    setWeatherTint(player, tint, 'weatherTinted');
+    setWeatherTint(player.atk, tint, 'weatherTinted');
+}
+
 function updateKB(scene) {
+    const weather = scene.activeHazard?.state?.playerEffects;
     for (const player of scene.gameState.players) {
         if (player.eliminated) continue;
         player.movementSpeed = player.baseMovementSpeed * player.playerSpeedScaling * getHeatStat(player, 'speedScale');
@@ -1974,6 +1996,9 @@ function updateKB(scene) {
         const clipped = scene.time.now < (player.clippedUntil ?? 0);
         if (clipped) speedScaling *= CLIPPED_SPEED_SCALE;
         speedScaling *= player.moveSpeedScale ?? 1;
+        speedScaling *= weather?.speedScale ?? 1;
+        damageScale *= weather?.damageScale ?? 1;
+        updateWeatherEffects(player, weather);
         updateClippedStatus(scene, player, clipped);
         player.playerSpeedScaling = speedScaling;
         player.baseDamageScale = damageScale;
@@ -2328,7 +2353,8 @@ function updateFighterBookkeeping(scene, player) {
 }
 
 function updateFacing(player, input) {
-    if (input.left) player.lastDir = { x: -1, y: 0 };
+    if (player.moveDirLock) player.lastDir = { x: player.moveDirLock, y: 0 };
+    else if (input.left) player.lastDir = { x: -1, y: 0 };
     else if (input.right) player.lastDir = { x: 1, y: 0 };
     else if (input.up) player.lastDir = { x: 0, y: -1 };
     else if (input.down) player.lastDir = { x: 0, y: 1 };

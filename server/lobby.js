@@ -158,7 +158,7 @@ export class Lobby {
         if (!client.greeted) {
             if (message.t !== 'hello') return;
             if (message.v !== PROTOCOL_VERSION) {
-                sendJson(client.ws, { t: 'error', msg: 'Your game is out of date with the server. Refresh the page.' });
+                sendJson(client.ws, { t: 'error', msg: 'Your game is out of date with the server. Refresh the page, or restart the desktop app.' });
                 client.ws.close();
                 return;
             }
@@ -249,7 +249,7 @@ export class Lobby {
         const character = String(message.character ?? '');
         const variant = String(message.variant ?? '');
         if (!isValidSelection(character, variant)) {
-            sendJson(client.ws, { t: 'error', msg: 'That fighter does not exist on this server. Refresh the page.' });
+            sendJson(client.ws, { t: 'error', msg: 'That fighter does not exist on this server. Refresh the page, or restart the desktop app.' });
             return false;
         }
         const name = cleanName(message.name);
@@ -318,7 +318,7 @@ export class Lobby {
         if (!this.readChoice(client, message)) return;
         const modifiers = sanitizeOnlineModifiers(message.modifiers ?? []);
         if (!isValidMode(message.mode) || !modifiers) {
-            sendJson(client.ws, { t: 'error', msg: 'Those lobby settings are not allowed on this server. Refresh the page.' });
+            sendJson(client.ws, { t: 'error', msg: 'Those lobby settings are not allowed on this server. Refresh the page, or restart the desktop app.' });
             return;
         }
         const name = cleanName(message.lobbyName ?? `${client.name}'s Lobby`, MAX_LOBBY_NAME_LENGTH);

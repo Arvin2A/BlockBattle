@@ -289,6 +289,12 @@ export function createGameAnimations(scene) {
         repeat: -1
     });
     create({
+        key: 'rainstorm',
+        frames: frames('rainstorm', { start: 0, end: 1 }),
+        frameRate: 12,
+        repeat: -1
+    });
+    create({
         key: 'sandstorm',
         frames: frames('sandstorm', { start: 0, end: 3 }),
         frameRate: 32,

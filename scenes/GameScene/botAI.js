@@ -865,6 +865,8 @@ const PRY = {
     maxWalk: 700,
     standSlop: 12,
     slamSlop: 30,
+    barStand: 55,
+    steerSlop: 10,
     plantWaitMs: 600,
     giveUpMs: 9000,
     retryMs: 8000,
@@ -941,19 +943,26 @@ function planSuperPry(scene, bot, target, surfaces, grounded, distance, targetOf
         return true;
     }
 
-    if (pry.flying || !pry.planted || pry.wedgeX === null) {
+    if (pry.flying || !pry.planted || pry.wedgeX === null || !pry.top) {
         bot.botPry = null;
         return false;
     }
-    if (grounded && Math.abs(bot.x - pry.wedgeX) > PRY.slamSlop) {
-        walkTo(scene, bot, pry.wedgeX, surfaces, PRY.standSlop);
+    const standX = pry.wedgeX + pry.side * PRY.barStand;
+    if (grounded && bot.body.bottom > pry.top.y && Math.abs(bot.x - standX) > PRY.slamSlop) {
+        walkTo(scene, bot, standX, surfaces, PRY.standSlop);
         return true;
     }
     if (grounded) {
         bot.lastJump = now;
         send(scene, bot, Commands.UP);
-    } else if (bot.airTime >= getCharacterStat(bot, 'downslamAirTime', 1000) && !bot.downslamming) {
+        return true;
+    }
+    const offBy = pry.top.x - bot.x;
+    const overTop = bot.body.bottom < pry.top.y && Math.abs(offBy) <= PRY.steerSlop;
+    if (overTop && bot.airTime >= getCharacterStat(bot, 'downslamAirTime', 1000) && !bot.downslamming) {
         send(scene, bot, Commands.DOWNSLAM);
+    } else if (Math.abs(offBy) > PRY.steerSlop) {
+        send(scene, bot, offBy < 0 ? Commands.LEFT : Commands.RIGHT);
     } else {
         send(scene, bot, Commands.NONE);
     }

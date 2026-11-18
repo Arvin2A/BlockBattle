@@ -16,6 +16,7 @@ export const BLOCK = {
     regrowPerSec: 0.25,
     regrowDelayMs: 500,
     breakStunMs: 1500,
+    breakOverflowStunScale: 1.5,
     breakRefill: 0.3,
     blockstunMs: 120,
     pushback: 120,
@@ -77,16 +78,22 @@ export function stopBlock(scene, player) {
     player.shieldRegrowAt = scene.time.now + BLOCK.regrowDelayMs;
 }
 
+function breakStunMs(player) {
+    const overflow = Math.max(0, -(player.shield ?? 0));
+    return BLOCK.breakStunMs * (1 + BLOCK.breakOverflowStunScale * overflow);
+}
+
 function breakShield(scene, player) {
     const now = scene.time.now;
+    const stunMs = breakStunMs(player);
     player.blocking = false;
     player.shield = BLOCK.breakRefill;
-    player.shieldRegrowAt = now + BLOCK.breakStunMs;
-    player.hitstunUntil = Math.max(player.hitstunUntil ?? 0, now + BLOCK.breakStunMs);
+    player.shieldRegrowAt = now + stunMs;
+    player.hitstunUntil = Math.max(player.hitstunUntil ?? 0, now + stunMs);
     player.willDecelerate = true;
     player.setVelocityX(0);
     scene.sound.play('glassbreak');
-    player.shieldBrokenUntil = now + BLOCK.breakStunMs;
+    player.shieldBrokenUntil = now + stunMs;
     const mark = getBreakMark(scene, player);
     mark.setScale(1.6);
     scene.tweens.add({ targets: mark, scale: 1, duration: 180, ease: 'Back.Out' });
@@ -205,7 +212,7 @@ function counterLaunch(scene, blocker, attacker, stunMs) {
     if (attacker.body) startSmackArc(scene, attacker, dir, BLOCK.counterHop);
 }
 
-export function blocksHit(scene, target, attacker, damage = 0, { minCost = BLOCK.minHitCost, ranged = false, shieldCost = null } = {}) {
+export function blocksHit(scene, target, attacker, damage = 0, { minCost = BLOCK.minHitCost, ranged = false, shieldCost = null, deferCounter = false } = {}) {
     if (!target?.blocking) return false;
     const now = scene.time.now;
     const cost = shieldCost ?? Phaser.Math.Clamp(damage * BLOCK.hitCostScale, minCost, BLOCK.maxHitCost);
@@ -222,7 +229,8 @@ export function blocksHit(scene, target, attacker, damage = 0, { minCost = BLOCK
         showBlockCue(scene, target);
     }
     if (attacker.isUsingSideSpecial) attacker.hasHitSideSpecial = true;
-    if (counters) counterLaunch(scene, target, attacker, stunMs);
+    if (counters && deferCounter) attacker.pendingCounter = { blocker: target, stunMs };
+    else if (counters) counterLaunch(scene, target, attacker, stunMs);
     else if (!ranged) attacker.freezeUntil = Math.max(attacker.freezeUntil ?? 0, now + stunMs);
     attacker.blockPenaltyUntil = Math.max(
         attacker.blockPenaltyUntil ?? 0,
@@ -230,6 +238,14 @@ export function blocksHit(scene, target, attacker, damage = 0, { minCost = BLOCK
     );
     if (target.shield <= 0) breakShield(scene, target);
     else target.onBlockedHit?.(scene, attacker, { ranged });
+    return true;
+}
+
+export function releaseCounter(scene, attacker) {
+    const pending = attacker.pendingCounter;
+    attacker.pendingCounter = null;
+    if (!pending || !attacker.active || attacker.eliminated) return false;
+    counterLaunch(scene, pending.blocker, attacker, pending.stunMs);
     return true;
 }
 

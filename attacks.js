@@ -40,7 +40,7 @@ import {
 } from './combat/grass.js';
 import { damagePlank, damagePlanksInAttack, isBlockedByWall } from './combat/planks.js';
 import { attackIsElligible, DEFAULT_BYPASS_OPTIONS } from './combat/eligibility.js';
-import { blocksHit, deflects, trackDeflectable, attackLockedByBlock } from './combat/block.js';
+import { blocksHit, deflects, releaseCounter, trackDeflectable, attackLockedByBlock } from './combat/block.js';
 import {
     hasIdleAttackSprite,
     hideAttackSprite,
@@ -333,6 +333,7 @@ const sharedAttackHelpers = {
     strike,
     blocksHit,
     deflects,
+    releaseCounter,
     trackDeflectable,
     landHit,
     STANDARD_HITS,

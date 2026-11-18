@@ -235,16 +235,24 @@ function stepSmack(scene, attacker, dt) {
     scene.time.delayedCall(recoverMs, () => {
         if (!attacker.smack && !attacker.isUsingSideSpecial) attacker.canAttack = true;
     });
-    landHit(scene, attacker, target, {
+    landHit(scene, attacker, target, smackHitSpec());
+    smackAftermath(scene, target, smack.dir, smack.groundTop);
+}
+
+export function smackHitSpec() {
+    return {
         damage: SMACK.damage,
         plankDamage: 0,
-        hitstun: victimStunMs,
+        hitstun: SMACK.totalStunMs - SMACK.grabMs - SMACK.slamMs,
         hitstunGrowth: false,
         hitFreeze: 60,
         sound: 'slamimpact',
         noDeathRay: true,
         resetCombo: false
-    });
+    };
+}
+
+export function smackAftermath(scene, target, dir, groundTop) {
     target.weaponHiddenBySmack = {
         impacted: true,
         hitAt: target.lastHitAt,
@@ -252,9 +260,9 @@ function stepSmack(scene, attacker, dt) {
         leftGround: false,
         until: scene.time.now + SMACK.arcMs + 600
     };
-    startSmackArc(scene, target, smack.dir);
+    startSmackArc(scene, target, dir);
     target.flatSquash = { startedAt: scene.time.now };
-    spawnDirtBurst(scene, target.x, smack.groundTop, 16, 6, 10, 1.5);
+    spawnDirtBurst(scene, target.x, groundTop, 16, 6, 10, 1.5);
     triggerScreenShake(scene, 6, 200);
 }
 

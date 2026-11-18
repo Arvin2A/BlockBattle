@@ -2,6 +2,7 @@
   "name": "blockbattle",
   "productName": "BLOCK BATTLE!!",
   "version": "2026.11.17",
+  "desktopShellVersion": 1,
   "description": "BLOCK BATTLE!! - a 2D platform fighter",
   "author": "Arvin Zaman",
   "homepage": "https://github.com/Arvin2A/BlockBattle",
@@ -16,7 +17,7 @@
     "add-audio": "node add-audio.js",
     "server": "node server/index.js",
     "build:legacy": "vite build --config legacy/vite.config.js && node -e \"for (const dir of ['assets', 'audio']) require('fs').cpSync(dir, 'dist-legacy/' + dir, { recursive: true })\"",
-    "build:desktop": "vite build --mode desktop && node -e \"for (const dir of ['assets', 'audio']) require('fs').cpSync(dir, (process.env.BUILD_DIR || 'dist') + '/' + dir, { recursive: true })\"",
+    "build:desktop": "vite build --mode desktop && node -e \"for (const dir of ['assets', 'audio']) require('fs').cpSync(dir, (process.env.BUILD_DIR || 'dist') + '/' + dir, { recursive: true })\" && node desktop/gameManifest.mjs",
     "desktop": "npm run build:desktop && electron .",
     "dist:desktop": "npm run build:desktop && electron-builder"
   },
@@ -45,6 +46,7 @@
     "files": [
       "dist/**/*",
       "desktop/main.cjs",
+      "desktop/updater.cjs",
       "desktop/build/icon.png",
       "LICENSE",
       "!node_modules/**/*"

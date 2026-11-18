@@ -18,7 +18,7 @@ var navBox = null;
 var layout = []
 var selectedIndex = 0;
 var previousInput = {};
-const CHANGELOG_VERSION = "2026-11-17-2";
+const CHANGELOG_VERSION = "2026-11-17-3";
 const MIN_VERSION_COLOR_BRIGHTNESS = 170;
 
 function getVersionColor(version) {
@@ -96,8 +96,16 @@ export class MenuScene extends Phaser.Scene {
                 date: "11/17/26",
                 entries: [
                     {
+                        title: "JUNGLE RAINSTORM",
+                        body: "JUNGLE ARENA finally has its own weather: a RAINSTORM.\n It doesn't hurt, but everyone gets soaked and turns a little blue. While it's pouring you move slower, your hits only deal half damage, and the ground gets slippery, so you take a moment to get going and slide before you stop.\n The flytraps love the rain. Get caught by one during a storm and it holds on twice as long and gulps you down twice as many times, so stay away from those mud pillars when the clouds open up."
+                    },
+                    {
+                        title: "DESKTOP AUTO UPDATES",
+                        body: "The desktop app updates itself now! Every time you open it, it grabs the newest version of the game, and only the parts that changed, so most updates take seconds instead of a whole new download.\n If you're offline it just starts the version you already have. Once in a while an update will need a brand new app, and it'll tell you when that happens."
+                    },
+                    {
                         title: "DEMOLITIONIST",
-                        body: "CROWBARMAN has a brand new variant: DEMOLITIONIST, a demolition worker with a tape measure that punches and a HUGE crowbar strapped to his back.\n He has no combo, just one big punch: the fist on the end of the tape shoots out up to 350px and sends the first person in its way flying. The catch is a second and a half between punches. His tilts are quick short pokes with no wind back at all.\n With the crowbar on his back he's slow and jumps low, but his punches don't push him around. Plant it in the ground with neutral special and he's quick again, but every punch shoves him backwards. Punch the planted crowbar to ZIP straight to it.\n His double-tap is CROWBAR SLAM, one REALLY slow swing that flattens whoever it hits into the ground for 20%. You can keep punching while it winds up, so herd them into it.\n And the big one: plant the crowbar right at a bottom corner of a platform and it wedges in. Downslam onto it three times (he can downslam way sooner after jumping than anyone else) and you'll hear it rip a little more each time, then the whole platform explodes out, spins up into the sky and comes crashing down on your opponent for a massive 85% and a launch that'll probably end their stock. A red column shows where it's coming. It stays where it crashes for the rest of the match, tilted, and anyone can stand on it.\n CPUs know how to pull it off too, so don't wander too far from a DEMOLITIONIST.\n And don't worry, HOOKER isn't forgotten. His rework and redesign are coming tomorrow!"
+                        body: "CROWBARMAN has a brand new variant: DEMOLITIONIST, a demolition worker with a tape measure that punches and a HUGE crowbar strapped to his back.\n He has no combo, just one big punch: the fist on the end of the tape shoots out up to 350px and sends the first person in its way flying. The catch is each punch takes a whole second to wind back in. His tilts are quick short pokes with no wind back at all.\n With the crowbar on his back he's slow and jumps low, but his punches don't push him around. Plant it in the ground with neutral special and he's quick again, but every punch shoves him backwards. Punch the planted crowbar to ZIP straight to it.\n His double-tap is CROWBAR SLAM, a big overhead swing that SMACKS DOWN whoever it hits. While it winds up he charges forward way faster than usual, but he can't turn around, and he's slowed down for a moment after it lands. You can keep punching during the charge.\n And the big one: plant the crowbar right at a bottom corner of a platform and it wedges in. The wedged crowbar is solid, so jump on top of it and downslam three times (he can downslam way sooner after jumping than anyone else). Each one tilts it a little further and you'll hear the platform rip, then the whole platform explodes out, the crowbar goes flying (you get a new one 2 seconds later), spins up into the sky and comes crashing down on your opponent for a massive 85% and a big launch. A red column shows where it's coming. It stays where it crashes for the rest of the match, tilted, and anyone can stand on it.\n CPUs know how to pull it off too, so don't wander too far from a DEMOLITIONIST.\n And don't worry, HOOKER isn't forgotten. His rework and redesign are coming tomorrow!"
                     },
                     {
                         title: "MAP DANGERS",
@@ -113,7 +121,7 @@ export class MenuScene extends Phaser.Scene {
                     },
                     {
                         title: "DESKTOP APP (ALPHA)",
-                        body: "BLOCK BATTLE!! has a desktop app now, for Windows, macOS and Linux. Grab it from the Releases page on GitHub.\n It's an early alpha, so the website is still the best way to play: it always has the newest version, and the app doesn't update itself yet."
+                        body: "BLOCK BATTLE!! has a desktop app now, for Windows, macOS and Linux. Grab it from the Releases page on GitHub.\n It's an early alpha, so the website is still the best way to play."
                     },
                     {
                         title: "SCREEN SHAKE",
@@ -488,7 +496,7 @@ export class MenuScene extends Phaser.Scene {
 
         const changelogBlurb = this.add.text(
             40, 180,
-            "A big one! Meet DEMOLITIONIST, a new CROWBARMAN who punches with a tape measure and rips platforms out of the stage. Every arena gets map dangers, and almost every fighter has a neutral special now.",
+            "A big one! Meet DEMOLITIONIST, a new CROWBARMAN who rips platforms out of the stage. Every arena gets map dangers, JUNGLE gets a slippery rainstorm, and the desktop app updates itself now.",
             {
                 fontFamily: "VCROSD",
                 fontSize: "16px",

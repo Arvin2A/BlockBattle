@@ -143,10 +143,11 @@ export function landHit(scene, attacker, target, spec = {}) {
         onHit = null,
         unblockable = false,
         ranged = false,
-        shieldCost = null
+        shieldCost = null,
+        deferCounter = false
     } = spec;
     if (target.uninterruptible || target.eliminated || isTeammate(attacker, target)) return false;
-    if (!unblockable && blocksHit(scene, target, attacker, damage, { ranged, shieldCost })) return false;
+    if (!unblockable && blocksHit(scene, target, attacker, damage, { ranged, shieldCost, deferCounter })) return false;
     const now = scene.time.now;
     const direction = spec.direction || attacker.lastDir;
     const damageScale = getAttackDamageScale(attacker);
