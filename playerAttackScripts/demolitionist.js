@@ -112,6 +112,7 @@ const SLAM = {
     swingAtMs: 2500 / SLAM_SPEED,
     impactMs: slamTime(SLAM_IMPACT_AT),
     totalMs: slamTime(4000),
+    damage: 0.25,
     reach: { front: 175, back: 10, up: 120, down: 70 },
     dirtOffset: 120,
     rushSpeedScale: 2.5,
@@ -693,7 +694,7 @@ function landSlam(api, scene, player, facing) {
         if (!inSlamReach(player, foe, facing)) continue;
         if (api.isInvincible(foe) || api.isBlockedByWall(player, foe)) continue;
         foe.flash();
-        if (!api.landHit(scene, player, foe, smackHitSpec())) continue;
+        if (!api.landHit(scene, player, foe, { ...smackHitSpec(), damage: SLAM.damage })) continue;
         smackAftermath(scene, foe, facing, foe.body.bottom);
     }
 }
