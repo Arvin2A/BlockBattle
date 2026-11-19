@@ -9,7 +9,7 @@
 // MirrorView rebuilds the same picture on each player's screen from those changes.
 // Players never run game logic, they only see the result and send inputs.
 
-import { getScreenShakeScale } from '../ui/settings.js';
+import { getScreenShakeScale, hitParticlesEnabled } from '../ui/settings.js';
 
 const ROOT = 0;
 const LATE_SOUND_MS = 250;
@@ -88,6 +88,7 @@ function serialize(obj) {
         state.fx = obj.flipX ? 1 : 0;
         state.fy = obj.flipY ? 1 : 0;
     }
+    if (obj.hitParticle) state.hp = 1;
     if ('blendMode' in obj && typeof obj.blendMode === 'number') {
         state.bm = obj.blendMode;
     }
@@ -512,7 +513,8 @@ export class MirrorView {
         if ('sx' in s) obj.scaleX = s.sx;
         if ('sy' in s) obj.scaleY = s.sy;
         if ('a' in s) obj.alpha = s.a;
-        if ('v' in s) obj.visible = Boolean(s.v);
+        if ('hp' in s) obj.hitParticle = true;
+        if ('v' in s) obj.visible = Boolean(s.v) && !(obj.hitParticle && !hitParticlesEnabled());
         if ('d' in s) obj.setDepth(s.d);
         if ('cf' in s) obj.cameraFilter = s.cf;
         if ('sfx' in s) obj.scrollFactorX = s.sfx;

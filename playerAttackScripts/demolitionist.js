@@ -34,7 +34,7 @@ const TAPE = {
     latchWindow: 70,
     cancelEndlagMs: 150,
     extendRate: 1.6,
-    ratchetVolume: 0.5,
+    ratchetVolume: 1,
     snapRate: 2.4
 };
 
@@ -47,11 +47,11 @@ const PUNCH = {
     recoil: { push: 650, lift: 200, lockMs: 250 },
     hit: {
         damage: 0.06,
-        plankDamage: 0.08,
+        plankDamage: 0.13,
         hitstun: 450,
         hitFreeze: 80,
         sound: 'light',
-        knockback: { x: 400, y: 220 },
+        knockback: { x: 560, y: 220 },
         decelerateAfter: 700
     }
 };
@@ -188,7 +188,7 @@ function distanceToSegment(point, from, to) {
 function drawTape(scene, player, d) {
     const { tapeCase, strip, fist } = d.parts;
     const tape = d.tape;
-    const dir = tape.phase === 'idle' ? { x: d.facing, y: 0 } : tape.dir;
+    const dir = tape.phase === 'idle' ? punchDirection(scene, player, d) : tape.dir;
     const flip = dir.x < 0 || (dir.x === 0 && d.facing < 0);
     const angle = Math.atan2(dir.y, dir.x);
     const turn = flip ? angle - Math.PI : angle;
@@ -249,6 +249,7 @@ function punchDirection(scene, player, d) {
     const input = scene.playerInputs?.[player.slot] ?? {};
     if (input.up && !input.down) return { x: 0, y: -1 };
     if (input.down && !input.up) return { x: 0, y: 1 };
+    if (player.lastDir.x === 0 && player.lastDir.y) return { x: 0, y: Math.sign(player.lastDir.y) };
     return { x: d.facing, y: 0 };
 }
 
@@ -283,9 +284,31 @@ function lineContact(mouth, dir, point, radius, reach) {
     return Phaser.Math.Clamp(along, 0, reach);
 }
 
+function boxContact(mouth, dir, box, reach) {
+    let near = 0;
+    let far = reach;
+    for (const [origin, step, min, max] of [[mouth.x, dir.x, box.left, box.right], [mouth.y, dir.y, box.top, box.bottom]]) {
+        if (Math.abs(step) < 1e-6) {
+            if (origin < min || origin > max) return null;
+            continue;
+        }
+        const enter = (min - origin) / step;
+        const exit = (max - origin) / step;
+        near = Math.max(near, Math.min(enter, exit));
+        far = Math.min(far, Math.max(enter, exit));
+        if (near > far) return null;
+    }
+    return near;
+}
+
 function firstContact(api, scene, player, d, mouth, reach) {
     const tape = d.tape;
     let best = null;
+    for (const plank of scene.planks?.getChildren() ?? []) {
+        if (!plank.active || !plank.body?.enable) continue;
+        const at = boxContact(mouth, tape.dir, plank.body, reach);
+        if (at !== null && (!best || at < best.at)) best = { at, plank };
+    }
     for (const foe of enemiesOf(api, scene, player)) {
         const at = lineContact(mouth, tape.dir, foe, TAPE.hitReach, reach);
         if (at === null || (best && at >= best.at)) continue;
@@ -313,6 +336,13 @@ function updatePunch(api, scene, player, d) {
     if (contact?.grip) {
         tape.length = contact.at;
         startZip(scene, player, d, contact.grip);
+        return;
+    }
+    if (contact?.plank) {
+        tape.length = contact.at;
+        api.damagePlank(scene, contact.plank, PUNCH.hit.plankDamage * api.getAttackDamageScale(player));
+        api.playHitSound(scene, player, PUNCH.hit.sound);
+        finishPunch(scene, player, d, true);
         return;
     }
     if (contact) {

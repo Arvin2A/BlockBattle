@@ -222,7 +222,7 @@ function lungePush(api, scene, attacker, target, animKey) {
         hitFreeze: 50,
         plankDamage: 0,
         sound: 'swordslash1',
-        knockback: { x: 250, y: 500, spike: { x: 275, y: -200 } },
+        knockback: { x: 250, y: 500 },
         decelerateAfter: 1000,
         //fix for lunge
         onHit: () => { attacker.hasHitSideSpecial = true; }
@@ -396,7 +396,7 @@ function quickstep(api, scene, player) {
             hitFreeze: 50,
             plankDamage: 0,
             sound: 'swordslash1',
-            knockback: { x: 125, y: 200, spike: { x: 137.5, y: -200 } },
+            knockback: { x: 125, y: 200 },
             decelerateAfter: 1000,
             singleTarget: true
         });

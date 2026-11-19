@@ -42,13 +42,13 @@ const TRAIL_EVERY_MS = 45;
 const TRAIL_FADE_MS = 260;
 
 const DAMAGE = 0.15;
-const SHIELD_COST = 1;
+const SHIELD_COST = 0.4;
 const DEFLECT_SPEED_SCALE = 3;
 const MIN_DEFLECT_BASE_SPEED = 1;
 const DEFLECT_STEP = 20;
 const OUT_OF_PLAY = { left: -300, right: 2300, top: -500, bottom: 1400 };
 const HITSTUN = 600;
-const LAUNCH = { x: 450, y: -420 };
+const LAUNCH = { x: 382.5, y: -357 };
 
 const ballSize = t => 1 / ((1 - t) / START_SIZE + t / END_SIZE);
 
@@ -209,10 +209,10 @@ function nearestOther(scene, from, x, y) {
     return nearest;
 }
 
-function deflectBall(scene, shot, deflector) {
+function deflectBall(scene, shot, deflector, from = deflector) {
     const { ball } = shot;
     const target = nearestOther(scene, deflector, ball.x, ball.y);
-    const away = Math.sign(ball.x - deflector.x) || -(deflector.lastDir?.x ?? 1);
+    const away = Math.sign(ball.x - from.x) || -(deflector.lastDir?.x ?? 1);
     const aim = target ?? { x: ball.x + away * 1000, y: ball.y };
     const dx = aim.x - ball.x;
     const dy = aim.y - ball.y;
@@ -236,7 +236,27 @@ function ballSource(shot, x, y) {
     return { x: x - dirX, y, lastDir: { x: dirX, y: 0 } };
 }
 
+function isDeflectingWall(plank) {
+    return plank.active && plank.body?.enable && plank.owner?.variant === 'SLEDGEHAMMER' && isAlive(plank.owner);
+}
+
+function deflectOffWall(scene, shot, x, y, size) {
+    const planks = scene.planks?.getChildren() ?? [];
+    shot.wallsUsed ??= new Set();
+    const circle = new Phaser.Geom.Circle(x, y, size / 2);
+    for (const plank of planks) {
+        if (!isDeflectingWall(plank) || shot.wallsUsed.has(plank) || shot.owner === plank.owner) continue;
+        if (!Phaser.Geom.Intersects.CircleToRectangle(circle, plank.body)) continue;
+        shot.wallsUsed.add(plank);
+        deflectBall(scene, shot, plank.owner, plank);
+        scene.sound.play('thicksteelplank');
+        return true;
+    }
+    return false;
+}
+
 function hitPlayersAt(scene, shot, x, y, size = END_SIZE) {
+    if (deflectOffWall(scene, shot, x, y, size)) return;
     shot.hit ??= new Set();
     for (const player of scene.gameState.players) {
         if (shot.hit.has(player) || !ballTouches(player, x, y, size)) continue;
@@ -264,12 +284,12 @@ function ricochet(shot) {
 }
 
 function updateDeflected(scene, shot, delta) {
-    const { ball, velocity } = shot;
+    const { ball } = shot;
     const ground = groundTop(scene);
-    const steps = Math.max(1, Math.ceil(Math.hypot(velocity.x, velocity.y) * delta / DEFLECT_STEP));
+    const steps = Math.max(1, Math.ceil(Math.hypot(shot.velocity.x, shot.velocity.y) * delta / DEFLECT_STEP));
     for (let i = 0; i < steps; i++) {
         const prevY = ball.y;
-        ball.setPosition(ball.x + velocity.x * delta / steps, ball.y + velocity.y * delta / steps);
+        ball.setPosition(ball.x + shot.velocity.x * delta / steps, ball.y + shot.velocity.y * delta / steps);
         const overGround = ball.x >= ground.left && ball.x <= ground.right;
         if (overGround && prevY <= ground.top && ball.y >= ground.top) {
             lodge(scene, shot, ground.top);

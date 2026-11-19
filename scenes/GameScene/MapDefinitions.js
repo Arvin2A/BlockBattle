@@ -2,6 +2,7 @@
 // Original source: https://github.com/Arvin2A/BlockBattle
 // Licensed under the GNU GPL v3 only. See LICENSE.
 
+import { encaseInIce } from './blizzardIce.js';
 
 export const INFINITE_SPAN = 268435455;
 
@@ -213,9 +214,10 @@ const SNOWY_MAP = {
             const originalSpeeds = new Map();
             Object.values(scene.gameState.players).forEach(player => {
                 originalSpeeds.set(player, player.baseMovementSpeed);
-                player.baseMovementSpeed *= 0.5;
+                player.baseMovementSpeed *= 0.75;
             });
             applyWeatherDamage(scene, 0.35);
+            Object.values(scene.gameState.players).forEach(player => encaseInIce(scene, player));
             return { ...startWeatherOverlay(scene, 'blizzard'), originalSpeeds };
         },
         end(scene, state) {

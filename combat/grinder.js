@@ -115,7 +115,7 @@ export function grindExplosion(api, scene, attacker, victim, {
         hitstun,
         hitFreeze,
         sound: 'explosion',
-        knockback: { x: force, y: force, lift: -0.25, spike: { x: force * 0.9, y: -force * 0.55 } },
+        knockback: { x: force, y: force, lift: -0.25 },
         decelerateAfter: target => hitstun * target.KBmultiplier,
         resetCombo: false,
         noDeathRay

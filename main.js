@@ -1348,6 +1348,7 @@ function cameraFollowRate(scene, baseRate, velocity, viewSize) {
 const defaultMaxZoom = 1.4;
 
 const tiltThreshold = 150;
+const DOUBLE_TAP_DOWN_MS = 300;
 
 function spawnAfterimage(scene, player) {
 
@@ -2293,15 +2294,19 @@ function updateFighterBookkeeping(scene, player) {
     if (player.activeGrab) {
         const grab = player.activeGrab;
         const target = grab.target;
-        target.setPosition(player.x + grab.offset.x, player.y + grab.offset.y);
-        target.setVelocity(0, 0);
-        target.body.allowGravity = false;
-        player.atk.x = player.x + grab.atkOffset.x;
-        player.atk.y = player.y + grab.atkOffset.y;
-        player.atk.setFlipX(grab.atkFlipX);
-        player.atk.setAngle(grab.atkAngle);
-        if (grab.aim) aimGrabbedWeapon(player.atk, grab, target);
-        player.atk.setVisible(true);
+        if (grab.follow) {
+            grab.follow();
+        } else {
+            target.setPosition(player.x + grab.offset.x, player.y + grab.offset.y);
+            target.setVelocity(0, 0);
+            target.body.allowGravity = false;
+            player.atk.x = player.x + grab.atkOffset.x;
+            player.atk.y = player.y + grab.atkOffset.y;
+            player.atk.setFlipX(grab.atkFlipX);
+            player.atk.setAngle(grab.atkAngle);
+            if (grab.aim) aimGrabbedWeapon(player.atk, grab, target);
+            player.atk.setVisible(true);
+        }
         player.playerSpeedScaling = 0.5;
     }
 
@@ -2314,6 +2319,7 @@ function updateFighterBookkeeping(scene, player) {
         }
         player.airTime = 0;
         player.fallSpeed = 0;
+        player.downslamArmed = false;
     } else {
         player.airTime += scene.game.loop.delta;
         player.fallSpeed = Math.max(0, player.body.velocity.y);
@@ -2329,6 +2335,7 @@ function updateFighterBookkeeping(scene, player) {
     restoreGroundFriction(player);
     updateImmunity(scene, player);
     if (player.isAttacking || player.hitstun || player.freeze) cancelDownslamFx(player);
+    if (player.hitstun) player.downslamArmed = false;
     updateLaunchArc(player);
     if (player.canAttack || player.hitstun || player.freeze || player.activeGrab || player.grabbedBy) {
         player.attackLockedFor = 0;
@@ -2448,12 +2455,16 @@ function handleMovementInput(scene, player, input, victim) {
         }
     }
     if (input.downPressed) {
+        if (!player.body.touching.down && now - player.lastInput.down <= DOUBLE_TAP_DOWN_MS) player.downslamArmed = true;
         player.lastInput.down = now;
         if (!consumePress(input, 'down')) markKeyboardInput(scene, slot);
     }
 
-    if (!input.up && player.body.velocity.y < 0 && !player.hasDoubleJumped) command(Commands.UP_CANCEL);
-    if (input.down && player.airTime >= getCharacterStat(player, 'downslamAirTime', 1000)) command(Commands.DOWNSLAM);
+    if (!input.up && player.body.velocity.y < 0 && !player.hasDoubleJumped && !player.ignoreJumpRelease) command(Commands.UP_CANCEL);
+    if (player.downslamArmed && player.airTime >= getCharacterStat(player, 'downslamAirTime', 1000)) {
+        player.downslamArmed = false;
+        command(Commands.DOWNSLAM);
+    }
 }
 
 function applyFreezeGravity(scene, player) {
@@ -2492,9 +2503,13 @@ function endMatchIfDecided(scene) {
 
 function releaseHoldsOn(scene, player) {
     for (const other of scene.gameState.players) {
-        if (other.activeGrab?.target === player) other.activeGrab = null;
+        if (other.activeGrab?.target === player) {
+            other.activeGrab.cleanup?.();
+            other.activeGrab = null;
+        }
     }
     if (player.activeGrab) {
+        player.activeGrab.cleanup?.();
         player.activeGrab.target.grabbedBy = null;
         player.activeGrab = null;
     }

@@ -342,6 +342,7 @@ export function preload() {
     this.load.audio('harvest', 'audio/harvest.wav');
     this.load.audio('damn', 'audio/daaaaaamn.wav');
     this.load.audio('glassbreak', 'audio/glassbreak.wav');
+    this.load.audio('icebreak', 'audio/icebreak.wav');
     this.load.audio('block', 'audio/block.wav');
     this.load.audio('longswordparry', 'audio/longswordparry.wav');
     this.load.audio('lawnmower-loop', 'audio/lawnmower-loop.wav');
@@ -358,6 +359,7 @@ export function preload() {
     // =====================================================
 
     this.load.audio('superexplosion', 'audio/superexplosion.mp3');
+    this.load.audio('spikeimpact', 'audio/spikeimpact.wav');
 
 }
 
@@ -821,8 +823,10 @@ export function preloadFighterSprites() {
             frameHeight: 200
         }
     );
+    this.load.spritesheet('grabspin', 'assets/sprites/crowbarman/grabspin.png', { frameWidth: 200, frameHeight: 200 });
     this.load.spritesheet('bigcrowbarslam', 'assets/sprites/crowbarman/bigcrowbarslam.png', { frameWidth: 200, frameHeight: 150 });
     this.load.spritesheet('tapecast', 'assets/sprites/crowbarman/tapecast.png', { frameWidth: 75, frameHeight: 60 });
+    this.load.image('lilcrowbar', 'assets/sprites/crowbarman/lilcrowbar.png');
     this.load.image('tapestrip', 'assets/sprites/crowbarman/tapestrip.png');
     this.load.image('tapefist', 'assets/sprites/crowbarman/tapefist.png');
     this.load.image('bigcrowbar', 'assets/sprites/crowbarman/bigcrowbar.png');

@@ -3,6 +3,7 @@
 // Licensed under the GNU GPL v3 only. See LICENSE.
 
 import { nearestEnemy } from './targets.js';
+import { hitParticlesEnabled } from '../ui/settings.js';
 // Visual and screen feedback shared by every attack. Nothing here changes game state.
 
 export function addSceneUpdateListener(scene, listener) {
@@ -136,8 +137,30 @@ export function triggerScreenShake(scene, intensity, duration = 250) {
 
 export const DEATH_RAY_COLOR = 0x9b30ff;
 
-export function spawnHitParticles(scene, target, vx = 0, vy = 0, heavy = false, violent = false, ultra = false) {
-    if (scene.time.now - (target.lastHitParticlesAt ?? 0) < 80) return;
+const HIT_PARTICLE = {
+    count: 5,
+    color: 0xffffff,
+    minSize: 2,
+    maxSize: 4,
+    minSpeed: 90,
+    maxSpeed: 200,
+    lift: 110,
+    drag: 1.8,
+    gravity: 380,
+    minMs: 450,
+    maxMs: 650,
+    fadeFrom: 0.8,
+    chopMs: 30,
+    power: { minLaunch: 300, maxLaunch: 1500, speedBonus: 1.5, gravityCut: 0.75, lifeCut: 0.5 }
+};
+
+function launchPower(vx, vy) {
+    const { minLaunch, maxLaunch } = HIT_PARTICLE.power;
+    return Phaser.Math.Clamp((Math.hypot(vx, vy) - minLaunch) / (maxLaunch - minLaunch), 0, 1);
+}
+
+export function spawnHitParticles(scene, target, vx = 0, vy = 0) {
+    if (!hitParticlesEnabled() || scene.time.now - (target.lastHitParticlesAt ?? 0) < 80) return;
     target.lastHitParticlesAt = scene.time.now;
 
     let dirX = -vx;
@@ -161,23 +184,32 @@ export function spawnHitParticles(scene, target, vx = 0, vy = 0, heavy = false, 
     const edgeY = center.y + dirY * reach;
     const baseAngle = Math.atan2(dirY, dirX);
 
-    const count = ultra ? 28 : violent ? 18 : 10;
-    for (let index = 0; index < count; index += 1) {
-        const size = Phaser.Math.Between(2, ultra ? 4 : 3);
-        const color = ultra
-            ? (index % 2 ? DEATH_RAY_COLOR : 0xd9b3ff)
-            : violent && index % 2 ? 0xff2020 : 0xffffff;
-        const pixel = scene.add.rectangle(edgeX, edgeY, size, size, color).setDepth(8);
+    const power = launchPower(vx, vy);
+    const { speedBonus, gravityCut, lifeCut } = HIT_PARTICLE.power;
+    const { drag, fadeFrom, chopMs } = HIT_PARTICLE;
+    const gravity = HIT_PARTICLE.gravity * (1 - gravityCut * power);
+    for (let index = 0; index < HIT_PARTICLE.count; index += 1) {
+        const size = Phaser.Math.Between(HIT_PARTICLE.minSize, HIT_PARTICLE.maxSize);
+        const pixel = scene.add.rectangle(edgeX, edgeY, size, size, HIT_PARTICLE.color).setDepth(8);
+        pixel.hitParticle = true;
         scene.objs.add(pixel);
         const angle = baseAngle + Phaser.Math.FloatBetween(-0.9, 0.9);
-        const distance = Phaser.Math.Between(10, 24) * (ultra ? 3.4 : violent ? 2.4 : heavy ? 1.6 : 1);
-        scene.tweens.add({
-            targets: pixel,
-            x: edgeX + Math.cos(angle) * distance,
-            y: edgeY + Math.sin(angle) * distance,
-            alpha: 0,
-            duration: Phaser.Math.Between(160, 280),
-            ease: 'Cubic.easeOut',
+        const speed = Phaser.Math.Between(HIT_PARTICLE.minSpeed, HIT_PARTICLE.maxSpeed) * (1 + speedBonus * power);
+        const startVx = Math.cos(angle) * speed;
+        const startVy = Math.sin(angle) * speed - HIT_PARTICLE.lift * (1 - power);
+        const duration = Phaser.Math.Between(HIT_PARTICLE.minMs, HIT_PARTICLE.maxMs) * (1 - lifeCut * power);
+        scene.tweens.addCounter({
+            from: 0,
+            to: 1,
+            duration,
+            onUpdate: tween => {
+                const elapsed = Math.floor(tween.getValue() * duration / chopMs) * chopMs;
+                const progress = elapsed / duration;
+                const seconds = elapsed / 1000;
+                const glide = (1 - Math.exp(-drag * seconds)) / drag;
+                pixel.setPosition(edgeX + startVx * glide, edgeY + startVy * glide + 0.5 * gravity * seconds * seconds);
+                pixel.setAlpha(progress < fadeFrom ? 1 : 1 - (progress - fadeFrom) / (1 - fadeFrom));
+            },
             onComplete: () => pixel.destroy()
         });
     }

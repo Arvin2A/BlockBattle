@@ -1,5 +1,43 @@
 # Changelog
 
+## 2026-11-18
+
+### HOOKER REWORK + NEUTRAL SPECIAL
+- HOOKER's neutral special is CROWBAR VAULT. On the ground he plants a little crowbar in front of him, tips it over, and gets launched about twice as high as a normal jump with a little forward push. Letting go of jump doesn't cut the vault short, and he keeps his double jump. The crowbar flies off spinning, swings out ahead of him and curves back into his hand; he can't vault again until he catches it. Getting hit while it's planted cancels the launch. It does nothing in the air for now.
+- HOOKER's GRAB has a new spin throw. Pressing attack while holding someone swings them all the way around him on the end of the crowbar (passing behind him on the back half of the spin) before flinging them on the last frame of the spin, with a slowed-down whoosh. The spin moves in choppy steps that match its 7 frames.
+- HOOKER's GRAB fling is a real hit now: it deals 0.04 damage and its knockback grows with damage (1000 sideways and 600 up at its base, instead of a flat 1000/200 push). It goes the way you're holding, or the side they were grabbed on.
+- After pressing attack to start the spin throw, HOOKER can't attack or tilt for 2 seconds.
+
+### Added
+- HIT PARTICLES setting (ON by default) in the settings panel. Turning it off hides the white hit pixels, both offline and online; online, each player's choice only affects their own screen.
+- A new STRONG knockback level at 60%. It only adds hit freeze: a launch from a fast enough hit freezes 1.25x as long.
+- SLEDGEHAMMER dashes into QUICKSLAM: a quick 0.112s dash at 1000 speed (about the same distance as AXEMAN's side special, 1.25x faster) while holding the new rising frame, then the slam plays from there. Getting hit mid-dash cancels the slam.
+- SLEDGEHAMMER's THICK STEEL PLANK deflects SNOWY ARENA cannonballs like LONGSWORD does: the ball fires back at 3x speed at the nearest other fighter, credited to SLEDGEHAMMER. Each wall deflects a given ball once, and his own deflected balls pass through his wall.
+- The main menu checks the online server every 10 seconds, so the ONLINE count, WAITING count and SERVER OFFLINE status stay current while you sit on the menu.
+
+- SNOWY ARENA's blizzard is easier to read: when its 35% damage lands, each fighter is encased in a see-through light blue ice copy of themselves, frozen mid-stretch for 0.5s, before the ice shatters with a new ice-breaking sound. Getting hit breaks the ice early.
+
+### Changed
+- The blizzard slows fighters to 0.75x instead of 0.5x.
+- WEATHER HAZARDS is now an orange modifier instead of red.
+- Every attack that hits downward (aim more than 0.7 down) into a grounded fighter now launches them a fixed 500 sideways (away from the attacker) and 200 up, with no growth, whether the attacker is grounded or airborne. This replaces each attack's own spike values and stops weak downward hits like LAWNMOWER's PULLCORD from pinning people into the floor. Moves that deliberately pin a grounded fighter (FISHERMAN's harpoon finisher, GRUELING SLAM) still do.
+- HEAVY and VIOLENT launches freeze 1.5x as long, including their existing freeze bonuses.
+- Hit particles: half as many (5 per hit), each one lasting 0.45-0.65s and staying fully visible until the last 20% before fading, 2-4px in size, flying in a wider falling arc and moving in slightly choppy steps. Harder hits make them faster, straighter and shorter-lived. HEAVY, VIOLENT and ULTRA hits no longer spawn them at all.
+- SUPER PRY's crashing platform has 1.3x the horizontal and 1.8x the vertical knockback (877.5/742.5 instead of 675/412.5). LONGSWORD's batted platform keeps its old knockback.
+- DEMOLITIONIST's TAPE PUNCH stops at walls and deals 0.13 damage to them (one punch breaks an AXEMAN plank, four break SLEDGEHAMMER's).
+- SNOWY ARENA cannonballs cost 0.4 of a shield to block instead of a full shield, and launch at 85% of their old strength (382.5/357 instead of 450/420).
+- SLEDGEHAMMER's QUICKSLAM follow-up uses its own animation and stays facing the slam's direction instead of turning upward when you press up.
+- Downslams take a double-tap of down in the air (two presses within 0.3s) instead of holding down. Double-tapping before a fighter's minimum air time queues the downslam for when it's allowed; landing or getting hit cancels it.
+- DEMOLITIONIST's TAPE PUNCH has 1.4x the horizontal knockback (560 instead of 400).
+- SUPER PRY's crashing platform ignores knockback resistance (SLATEMAN's armor, SCYTHEMAN's grass cuts, heat).
+- The wedged SUPER PRY crowbar is a one-way platform: you can jump up through it from below and pass through its sides, and still land on top of it.
+
+### Fixed
+- DEMOLITIONIST's TAPE PUNCH went straight through walls without damaging them.
+- SLEDGEHAMMER's QUICKSLAM follow-up always dashed to the right when he was facing left.
+- A cannonball deflected a second time kept its old speed for the rest of that frame.
+- DEMOLITIONIST's tape case always pointed sideways while idle. It now points up or down when he's facing that way, and a punch with no direction held goes the way he's facing, including straight up or down.
+
 ## 2026-11-17
 
 ### Added

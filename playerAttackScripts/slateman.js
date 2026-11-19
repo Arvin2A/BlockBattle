@@ -165,7 +165,7 @@ const PLUNGE_DRAW_HIT = {
     hitstunGrowth: false,
     hitFreeze: 80,
     sound: 'swosh',
-    knockback: { x: 600, y: 500, growth: false, maxDamageScale: 2, spike: { x: 325, y: -100 } },
+    knockback: { x: 600, y: 500, growth: false, maxDamageScale: 2 },
     decelerateAfter: 600
 };
 const PLUNGE_BLADE_HIT = {
@@ -175,7 +175,7 @@ const PLUNGE_BLADE_HIT = {
     hitstun: 450,
     hitFreeze: 50,
     sound: 'plunge',
-    knockback: { x: 300, y: 500, spike: { x: 325, y: -200 } },
+    knockback: { x: 300, y: 500 },
     decelerateAfter: 600
 };
 

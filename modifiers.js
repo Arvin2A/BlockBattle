@@ -53,7 +53,7 @@ export const modifierOptions = {
     MAP_HAZARDS: {
         name: 'WEATHER HAZARDS',
         description: 'Maps now have a chance for disasters to occur!',
-        tier: 'red',
+        tier: 'orange',
         enabled: false
     },
     CUSTOM_DAMAGE_A: clickModifier('CUSTOM DAMAGE A', 'Multiplies all damage. Click the box for +1x, up to 10x.', 'red', 'damage', 1, 10),

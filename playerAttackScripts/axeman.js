@@ -711,7 +711,7 @@ const SUPER_SWING = {
     hitstunGrowth: false,
     hitFreeze: 50,
     sound: 'axecleavesfx',
-    knockback: { x: 800, y: 500, growth: false, spike: { x: 800, y: -200 } },
+    knockback: { x: 800, y: 500, growth: false },
     decelerateAfter: 800
 };
 function superSwing(api, scene, attacker, target, animKey) {

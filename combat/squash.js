@@ -77,7 +77,8 @@ export function applySquash(scene, players) {
     for (const player of players) {
         if (!player?.active) continue;
         const squash = getSquash(player);
-        if (!frozen) {
+        const held = scene.time.now < (player.squashHeldUntil ?? 0);
+        if (!frozen && !held) {
             if (scene.time.now >= squash.holdUntil) {
                 squash.speed += (-squash.value * SQUASH.stiffness - squash.speed * SQUASH.damping) * dt;
                 squash.value = Phaser.Math.Clamp(squash.value + squash.speed * dt, -SQUASH.limit, SQUASH.limit);
@@ -97,7 +98,7 @@ export function applySquash(scene, players) {
         const horizontal = squash.motionHorizontal;
         const motionX = stretching ? 1 + squash.motion * (horizontal - (1 - horizontal) * SPEED_STRETCH.thinPerStretch) : 1;
         const motionY = stretching ? 1 + squash.motion * ((1 - horizontal) - horizontal * SPEED_STRETCH.thinPerStretch) : 1;
-        if (scene.time.now >= (squash.nextChopAt ?? 0)) {
+        if ((!held || squash.shownY === undefined) && scene.time.now >= (squash.nextChopAt ?? 0)) {
             squash.shownY = (flat > 0 ? 1 - FLAT_SQUASH.height * flat : squashed ? 1 + squash.value : 1) * motionY;
             squash.shownX = (flat > 0 ? 1 + FLAT_SQUASH.width * flat : squashed ? 1 - squash.value * SQUASH.widthPerStretch : 1) * motionX;
             squash.nextChopAt = scene.time.now + SQUASH.chopMs;

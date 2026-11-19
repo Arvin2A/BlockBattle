@@ -1,7 +1,7 @@
 # BlockBattle
 
 > [!WARNING]
-> **BLOCK BATTLE!! is in alpha.** Things will break, change or disappear without warning.
+> **BLOCK BATTLE!! is in alpha.** Things will break, change or disappear within short amount of time, updates come out very fast in this stage.
 >
 > Please **don't make any public posts about the game**: no videos, short-form clips, streams, social media posts or anything similar. For now, only share it by word of mouth or private messages.
 
@@ -10,7 +10,7 @@ it says mohsina007 for the edits, but its just me, idk how to change it anymore.
 
 EDIT: This game while originally for a class project, is now developing as a passion project. 
 
-CLAUDE was only used for serious changes (like multiplayer in the span of one day) and bug fixes. Characters, maps, and assets are always made by me, hand drawn and animated.
+CLAUDE was used for serious changes under very quick succession (like multiplayer setup for what was a singleplayer game in the span of one day) bug fixes, sprite setup and making concepts. Characters, maps, and assets are always made by me, hand drawn and animated.
 I have only started using CLAUDE from october 11 2026, the game was made back in april.
 
 ## How to play

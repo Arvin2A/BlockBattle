@@ -39,7 +39,7 @@ const FLIGHT = {
     mark: { size: 120, offsetY: 150, blinkMs: 80 },
     hit: {
         damage: 0.85,
-        knockback: { x: 675, y: 412.5 }
+        knockback: { x: 877.5, y: 742.5 }
     },
     blockShieldCost: 2,
     deflect: {
@@ -50,7 +50,7 @@ const FLIGHT = {
         shake: 12,
         bounds: { left: -800, right: 2800, bottom: 2600 },
         hitbox: 0.8,
-        hit: { damage: 0.3, knockbackScale: 5 / 8 }
+        hit: { damage: 0.3, knockback: { x: 421.875, y: 257.8125 } }
     },
     landShake: 14,
     explosion: { flingScale: 2.5, crashScale: 3.5, height: 200, sinkPerScale: 30 },
@@ -211,6 +211,9 @@ export function buildBar(scene, player, pry) {
         const block = group.create(center.x, center.y, 'groundhitbox');
         block.setDisplaySize(BAR.thickness, BAR.segment).setVisible(false).setData('owner', player);
         block.refreshBody();
+        block.body.checkCollision.down = false;
+        block.body.checkCollision.left = false;
+        block.body.checkCollision.right = false;
         scene.objs.add(block);
         pry.bar.push(block);
     }
@@ -362,7 +365,7 @@ function touchesVisual(visual, fighter) {
 function hitWhileDeflected(api, scene, flight) {
     const { visual } = flight.pryable;
     const motion = flight.deflected;
-    const { damage, knockbackScale } = FLIGHT.deflect.hit;
+    const { damage, knockback } = FLIGHT.deflect.hit;
     for (const fighter of scene.gameState.players) {
         if (motion.hit.has(fighter) || !fighter.active || fighter.eliminated || api.isInvincible(fighter)) continue;
         if (!touchesVisual(visual, fighter)) continue;
@@ -376,8 +379,8 @@ function hitWhileDeflected(api, scene, flight) {
             shieldCost: FLIGHT.blockShieldCost,
             direction: { x: motion.dir, y: 0 },
             knockback: ({ kb }) => ({
-                x: motion.dir * FLIGHT.hit.knockback.x * knockbackScale * kb,
-                y: -FLIGHT.hit.knockback.y * knockbackScale * kb
+                x: motion.dir * knockback.x * kb,
+                y: -knockback.y * kb
             }),
             decelerateAfter: 900
         });
@@ -430,6 +433,7 @@ function hitUnderneath(api, scene, player, flight, contactY) {
             hitFreeze: 140,
             sound: 'slamimpact',
             ranged: true,
+            ignoreResistance: true,
             direction: { x: side, y: 0 },
             knockback: ({ kb }) => ({ x: side * FLIGHT.hit.knockback.x * kb, y: -FLIGHT.hit.knockback.y * kb }),
             decelerateAfter: 900

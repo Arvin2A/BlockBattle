@@ -11,12 +11,15 @@ import {
 import { getKnockbackResistance } from './characterStats.js';
 import { getFighters as getAllFighters } from './targets.js';
 
+export const STRONG_KB_PERCENT = 60;
 export const HEAVY_KB_PERCENT = 100;
 export const VIOLENT_KB_PERCENT = 150;
 export const ULTRA_KB_PERCENT = 200;
 const ULTRA_FREEZE_BONUS = 300;
 const VIOLENT_FREEZE_BONUS = 150;
 const HEAVY_FREEZE_BONUS = 80;
+const STRONG_FREEZE_SCALE = 1.25;
+const HEAVY_FREEZE_SCALE = 1.5;
 // Attacks stay locked through the death ray freeze and this long after it.
 const DEATH_RAY_ATTACK_LOCK_MS = 150;
 const DEATH_RAY_MIN_VX = 1000;
@@ -72,9 +75,12 @@ export function hitFreeze(scene, ms = 50) {
     const now = scene.time.now;
     scene.lastHitFreeze = { at: now, ms };
     // A 200%+ launch earlier this frame stretches this attack's freeze.
-    const bonus = scene.ultraHitAt === now ? ULTRA_FREEZE_BONUS
-        : scene.launchFreeze?.at === now ? scene.launchFreeze.ms : 0;
-    freezeUntil(scene, now + ms + bonus);
+    if (scene.ultraHitAt === now) {
+        freezeUntil(scene, now + ms + ULTRA_FREEZE_BONUS);
+        return;
+    }
+    const launch = scene.launchFreeze?.at === now ? scene.launchFreeze : { ms: 0, scale: 1 };
+    freezeUntil(scene, now + (ms + launch.ms) * launch.scale);
 }
 
 function freezeUntil(scene, until, ultra = false) {
@@ -159,13 +165,13 @@ function launchDeathRay(scene, target, vx, vy) {
     });
 }
 
-function launchFreeze(scene, ms, speed) {
+function launchFreeze(scene, ms, scale, speed) {
     if (speed < LAUNCH_FREEZE_MIN_SPEED) return;
     const now = scene.time.now;
-    scene.launchFreeze = { at: now, ms };
+    scene.launchFreeze = { at: now, ms, scale };
     const last = scene.lastHitFreeze;
     const attackFreeze = last?.at === now ? last.ms : 0;
-    freezeUntil(scene, now + attackFreeze + ms);
+    freezeUntil(scene, now + (attackFreeze + ms) * scale);
 }
 
 export function deathRayAttackLocked(scene) {
@@ -205,8 +211,8 @@ function deathRayNeedsVx(vx, vy) {
     return DEATH_RAY_MIN_VX * (1 + Math.max(0, lift - DEATH_RAY_FREE_LIFT) * DEATH_RAY_LIFT_PENALTY);
 }
 
-export function applyKnockback(scene, target, vx, vy, { noDeathRay = false } = {}) {
-    const resistance = getKnockbackResistance(target);
+export function applyKnockback(scene, target, vx, vy, { noDeathRay = false, ignoreResistance = false } = {}) {
+    const resistance = ignoreResistance ? 1 : getKnockbackResistance(target);
     const resistantVx = vx / resistance;
     const resistantVy = vy / resistance;
     target.setVelocity(resistantVx, startLaunchArc(scene, target, resistantVx, resistantVy));
@@ -214,11 +220,12 @@ export function applyKnockback(scene, target, vx, vy, { noDeathRay = false } = {
     const speed = Math.hypot(resistantVx, resistantVy);
     if (isFighter(scene, target)) {
         const kbPercent = (target.KBmultiplier * 100) - 100;
+        const strong = kbPercent >= STRONG_KB_PERCENT;
         const heavy = kbPercent >= HEAVY_KB_PERCENT;
         const violent = kbPercent >= VIOLENT_KB_PERCENT;
         const ultra = !noDeathRay && kbPercent >= ULTRA_KB_PERCENT &&
             Math.abs(resistantVx) >= deathRayNeedsVx(resistantVx, resistantVy);
-        spawnHitParticles(scene, target, resistantVx, resistantVy, heavy, violent, ultra);
+        if (!heavy) spawnHitParticles(scene, target, resistantVx, resistantVy);
         if (heavy) {
             target.heavyLaunch = true;
             target.violentLaunch = violent;
@@ -230,13 +237,15 @@ export function applyKnockback(scene, target, vx, vy, { noDeathRay = false } = {
                 launchDeathRay(scene, target, resistantVx, resistantVy);
             } else if (violent) {
                 shakeVictim(target, VICTIM_SHAKE.violent);
-                launchFreeze(scene, VIOLENT_FREEZE_BONUS, speed);
+                launchFreeze(scene, VIOLENT_FREEZE_BONUS, HEAVY_FREEZE_SCALE, speed);
             } else {
                 shakeVictim(target, Phaser.Math.Clamp(
                     VICTIM_SHAKE.heavyMin + (kbPercent - HEAVY_KB_PERCENT) / VICTIM_SHAKE.heavyRamp,
                     VICTIM_SHAKE.heavyMin, VICTIM_SHAKE.heavyMax));
-                launchFreeze(scene, HEAVY_FREEZE_BONUS, speed);
+                launchFreeze(scene, HEAVY_FREEZE_BONUS, HEAVY_FREEZE_SCALE, speed);
             }
+        } else if (strong) {
+            launchFreeze(scene, 0, STRONG_FREEZE_SCALE, speed);
         }
     }
 

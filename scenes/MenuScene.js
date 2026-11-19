@@ -18,7 +18,8 @@ var navBox = null;
 var layout = []
 var selectedIndex = 0;
 var previousInput = {};
-const CHANGELOG_VERSION = "2026-11-17-4";
+const CHANGELOG_VERSION = "2026-11-18-3";
+const ONLINE_STATUS_REFRESH_MS = 10000;
 const MIN_VERSION_COLOR_BRIGHTNESS = 170;
 
 function getVersionColor(version) {
@@ -91,6 +92,36 @@ export class MenuScene extends Phaser.Scene {
         this.input.topOnly = false;
 
         const changelogUpdates = [
+            {
+                name: "MAPS & MORE 2ND PATCH",
+                date: "11/18/26",
+                entries: [
+                    {
+                        title: "HOOKER REWORK + NEUTRAL SPECIAL",
+                        body: "HOOKER finally has a neutral special! On the ground he plants a little crowbar, tips it over and vaults WAY up into the air, about twice as high as a normal jump, and he still has his double jump after. The crowbar spins out ahead of him and curves back into his hand, and he can vault again as soon as he catches it. Get hit while it's planted and the vault's cancelled.\n His GRAB finally throws people properly too. Press attack while you're holding someone and you'll swing them all the way around you on your crowbar before flinging them. The throw gets stronger the more damage they have, but you can't attack for 2 seconds after."
+                    },
+                    {
+                        title: "BLIZZARD ICE",
+                        body: "SNOWY's blizzard freezes everyone in a block of ice for a moment when it hits, so you can actually tell it got you, and it doesn't slow you down as much anymore."
+                    },
+                    {
+                        title: "NO MORE FLOOR PINS",
+                        body: "Hitting someone downward while they're standing on something always pops them out the same way now, a little up and away from you, no matter who's attacking or how much damage they have. That means no more getting stuck in the floor by weak hits like LAWNMOWER's PULLCORD while your damage climbs. Hit them from the air and you can bring them right back up into a combo. Real pins like FISHERMAN's harpoon and GRUELING SLAM still pin.\n SNOWY's cannonballs are a lot less brutal too: blocking one only takes a chunk of your shield instead of breaking it, and they launch a bit less."
+                    },
+                    {
+                        title: "SLEDGEHAMMER DASH",
+                        body: "SLEDGEHAMMER's QUICKSLAM starts with a quick dash now, so it actually reaches people. The follow-up has its own swing and stays facing the right way when you jump up into it.\n His THICK STEEL PLANK bats SNOWY cannonballs right back at your opponent, just like LONGSWORD."
+                    },
+                    {
+                        title: "HITS FEEL HEAVIER",
+                        body: "There's a new STRONG knockback level at 60%, and launches at STRONG, HEAVY and VIOLENT freeze the screen longer. Hit particles got a makeover too: fewer of them, a bit choppy, flying out in an arc, and they skip the really heavy hits. Don't like them? Turn them off with the new HIT PARTICLES setting.\n SUPER PRY's falling platform launches a lot higher now, DEMOLITIONIST's TAPE PUNCH can break walls, and the main menu keeps the online count up to date."
+                    },
+                    {
+                        title: "DOUBLE-TAP DOWNSLAM",
+                        body: "Downslams are a double-tap of down in the air now instead of holding it, so no more slamming by accident. Tap it early and the slam goes off as soon as you're allowed to.\n DEMOLITIONIST's TAPE PUNCH sends people further sideways, and his tape points up or down when he's facing that way, so a punch goes where it's aimed. You can jump up through his SUPER PRY crowbar from underneath now, and the falling platform launches tanky fighters just as far as everyone else."
+                    }
+                ]
+            },
             {
                 name: "MAPS & MORE 1ST PATCH",
                 date: "11/17/26",
@@ -514,7 +545,7 @@ export class MenuScene extends Phaser.Scene {
 
         const changelogBlurb = this.add.text(
             40, 180,
-            "The first MAPS & MORE patch! JUNGLE gets its own slippery rainstorm, the desktop app updates itself, and DEMOLITIONIST gets a big tune-up with a brand new CROWBAR SLAM.",
+            "The second MAPS & MORE patch! HOOKER gets a CROWBAR VAULT and a SPIN THROW, SLEDGEHAMMER dashes into QUICKSLAM, and downward hits can't pin you into the floor anymore.",
             {
                 fontFamily: "VCROSD",
                 fontSize: "16px",
@@ -1081,16 +1112,24 @@ export class MenuScene extends Phaser.Scene {
         } else {
             setOnlineState(false, 'CHECKING...', '#bbbbbb');
             const menuVisit = this.menuVisit = (this.menuVisit ?? 0) + 1;
-            fetchServerStatus().then(status => {
-                if (menuVisit !== this.menuVisit || !this.sys.isActive()) return;
-                if (!status) {
-                    setOnlineState(false, 'SERVER OFFLINE', '#ff6b6b');
-                    return;
-                }
-                // Older servers don't send waiting yet.
-                setOnlineState(true, `${getServerName()} - ${status.waiting ?? status.online} WAITING`, '#7dff8a');
-                onlineCount.setText(`${status.online} ONLINE`);
-            });
+            let checking = false;
+            const refreshStatus = () => {
+                if (checking) return;
+                checking = true;
+                fetchServerStatus().then(status => {
+                    checking = false;
+                    if (menuVisit !== this.menuVisit || !this.sys.isActive()) return;
+                    if (!status) {
+                        setOnlineState(false, 'SERVER OFFLINE', '#ff6b6b');
+                        onlineCount.setText('');
+                        return;
+                    }
+                    setOnlineState(true, `${getServerName()} - ${status.waiting ?? status.online} WAITING`, '#7dff8a');
+                    onlineCount.setText(`${status.online} ONLINE`);
+                });
+            };
+            refreshStatus();
+            this.time.addEvent({ delay: ONLINE_STATUS_REFRESH_MS, loop: true, callback: refreshStatus });
         }
         layout.push({button: modeArrowBox, action: toggleBotMode});
         layout.push({button: botBox, action: startBotMatch});

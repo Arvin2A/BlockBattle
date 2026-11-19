@@ -82,14 +82,25 @@ export function playHitSound(scene, attacker, sound) {
     if (key) scene.sound.play(key);
 }
 
+const GROUNDED_DOWN_LAUNCH = { x: 500, y: 200, minDown: 0.7 };
+
 function resolveLaunch(attacker, target, knockback, direction, damageScale) {
     const kb = target.KBmultiplier;
     const grounded = target.body.touching.down;
     const side = Math.random() < 0.5 ? -1 : 1;
-    if (typeof knockback === 'function') {
-        return knockback({ attacker, target, direction, kb, damageScale, grounded, side });
+    const custom = typeof knockback === 'function';
+    const launch = custom
+        ? knockback({ attacker, target, direction, kb, damageScale, grounded, side })
+        : objectLaunch(attacker, target, knockback, direction, damageScale, kb);
+    if (custom && (!launch || (!launch.x && !launch.y))) return launch;
+    if (grounded && direction.y > GROUNDED_DOWN_LAUNCH.minDown) {
+        const away = Math.sign(target.x - attacker.x) || side;
+        return { x: away * GROUNDED_DOWN_LAUNCH.x, y: -GROUNDED_DOWN_LAUNCH.y };
     }
+    return launch;
+}
 
+function objectLaunch(attacker, target, knockback, direction, damageScale, kb) {
     const {
         x = 0,
         y = 0,
@@ -97,8 +108,7 @@ function resolveLaunch(attacker, target, knockback, direction, damageScale) {
         scaleWithDamage = true,
         maxDamageScale = Infinity,
         lift = -0.5,
-        onDown = 'straight',
-        spike = null
+        onDown = 'straight'
     } = knockback;
     const growthScale = growth ? kb : 1;
     const plungeBonus = target.plunged ? PLUNGE_KNOCKBACK_BONUS : 0;
@@ -111,10 +121,6 @@ function resolveLaunch(attacker, target, knockback, direction, damageScale) {
     } else if (dirY === 1 && onDown === 'popUp') {
         dirX = attacker.x <= target.x ? 0.75 : -0.75;
         dirY = -1;
-    }
-
-    if (spike && dirY > 0.7 && grounded) {
-        return { x: spike.x * growthScale * xScale * side, y: spike.y * growthScale };
     }
     return { x: x * growthScale * xScale * dirX, y: y * growthScale * dirY };
 }
@@ -140,6 +146,7 @@ export function landHit(scene, attacker, target, spec = {}) {
         decelerateAfter = null,
         resetCombo = true,
         noDeathRay = false,
+        ignoreResistance = false,
         onHit = null,
         unblockable = false,
         ranged = false,
@@ -185,12 +192,12 @@ export function landHit(scene, attacker, target, spec = {}) {
     if (launch) {
         const launchDelay = typeof knockback === 'object' ? knockback.delay ?? 0 : 0;
         if (launchDelay > 0) {
-            applyKnockback(scene, target, 0, 0, { noDeathRay });
+            applyKnockback(scene, target, 0, 0, { noDeathRay, ignoreResistance });
             scene.time.delayedCall(launchDelay, () => {
-                applyKnockback(scene, target, launch.x, launch.y, { noDeathRay });
+                applyKnockback(scene, target, launch.x, launch.y, { noDeathRay, ignoreResistance });
             });
         } else {
-            applyKnockback(scene, target, launch.x, launch.y, { noDeathRay });
+            applyKnockback(scene, target, launch.x, launch.y, { noDeathRay, ignoreResistance });
         }
     }
 

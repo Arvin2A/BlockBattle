@@ -168,7 +168,7 @@ export const STANDARD_HITS = Object.freeze({
         hitstunGrowth: false,
         hitFreeze: 50,
         sound: 'light',
-        knockback: { x: 400, y: 500, spike: { x: 325, y: -200 } },
+        knockback: { x: 400, y: 500 },
         decelerateAfter: 600,
         noDeathRay: true
     },
@@ -270,8 +270,7 @@ export function tiltAttack(scene, attacker, target, {
             x: 1000 * xMul,
             y: 500 * yMul,
             growth: false,
-            maxDamageScale: 2,
-            spike: { x: 325, y: -100 }
+            maxDamageScale: 2
         },
         decelerateAfter: kbTime,
         missSound: 'miss'
@@ -385,8 +384,12 @@ const sharedAttackHelpers = {
     )
 };
 
+function attackLocked(scene, attacker) {
+    return scene.time.now < (attacker.attackLockedUntil ?? 0);
+}
+
 export function handleAttack(scene, attacker, victim) {
-    if (deathRayAttackLocked(scene) || attackLockedByBlock(scene, attacker)) return;
+    if (deathRayAttackLocked(scene) || attackLockedByBlock(scene, attacker) || attackLocked(scene, attacker)) return;
     return getCharacterScript(attacker)?.handleAttack(sharedAttackHelpers, scene, attacker, victim);
 }
 
@@ -464,18 +467,18 @@ export function handleDirSpecialAttack(scene, attacker, victim) {
 }
 
 export function handleHorizantalTilt(scene, attacker, victim, direction) {
-    if (deathRayAttackLocked(scene) || attackLockedByBlock(scene, attacker)) return;
+    if (deathRayAttackLocked(scene) || attackLockedByBlock(scene, attacker) || attackLocked(scene, attacker)) return;
     return getCharacterScript(attacker)?.handleHorizantalTilt(
         sharedAttackHelpers, scene, attacker, victim, direction
     );
 }
 
 export function handleDownTilt(scene, attacker, victim) {
-    if (deathRayAttackLocked(scene) || attackLockedByBlock(scene, attacker)) return;
+    if (deathRayAttackLocked(scene) || attackLockedByBlock(scene, attacker) || attackLocked(scene, attacker)) return;
     return getCharacterScript(attacker)?.handleDownTilt(sharedAttackHelpers, scene, attacker, victim);
 }
 
 export function handleUpTilt(scene, attacker, victim) {
-    if (deathRayAttackLocked(scene) || attackLockedByBlock(scene, attacker)) return;
+    if (deathRayAttackLocked(scene) || attackLockedByBlock(scene, attacker) || attackLocked(scene, attacker)) return;
     return getCharacterScript(attacker)?.handleUpTilt(sharedAttackHelpers, scene, attacker, victim);
 }

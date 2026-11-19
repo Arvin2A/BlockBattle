@@ -49,7 +49,7 @@ export const CHARACTER_ROSTER = [
             {
                 name: 'ANGLER',
                 desc: 'Using a fishing rod as a whip??',
-                abilities: 'DIR SPECIAL: GRAPPLE \n\n Throw your hook far for the chance to reel your opponent in. \n\nNEUTRAL SPECIAL: FISH THROW \n\n Wind up and fling a fish! It flies a short way and smacks whoever it hits for 6%. There\'s always another fish.',
+                abilities: 'DIR SPECIAL: GRAPPLE \n\n Throw your hook far for the chance to reel your opponent in. \n\nNEUTRAL SPECIAL: FISH THROW \n\n Wind up and fling a fish! It flies a short way and smacks whoever it hits for 6%. You carry 5 fish on your back, and you get one back every 3 seconds.',
                 color: '#00318d'
             },
             {
@@ -115,7 +115,7 @@ export const CHARACTER_ROSTER = [
         variants: [{
             name: 'HOOKER',
             desc: 'Not for cutting weeds bro.',
-            abilities: 'DIR SPECIAL: GRAB \n\n Grab your opponent and hold them in place for 3 seconds. Press attack again to fling them away. Has a stupidly long range.',
+            abilities: 'DIR SPECIAL: GRAB \n\n Grab your opponent and hold them in place for 3 seconds. Press attack again to fling them away. Has a stupidly long range. \n\nNEUTRAL SPECIAL: CROWBAR VAULT \n\n On the ground, plant a crowbar and vault way up into the air. You can vault again once it spins back to you.',
             color: '#68b96b'
         },
         {

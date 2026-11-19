@@ -13,7 +13,7 @@ export const TOUCH_LAYOUTS = ['DPAD', 'THUMBSTICK'];
 const SCREEN_SHAKE = { DEFAULT: 1, REDUCED: 0.4, NONE: 0 };
 const SCREEN_SHAKE_OPTIONS = Object.keys(SCREEN_SHAKE);
 
-const DEFAULTS = { masterVolume: 1, gameVolume: 1, touchControls: null, screenShake: 'DEFAULT' };
+const DEFAULTS = { masterVolume: 1, gameVolume: 1, touchControls: null, screenShake: 'DEFAULT', hitParticles: true };
 
 function loadSettings() {
     try {
@@ -45,6 +45,10 @@ function getScreenShakeOption() {
 
 export function getScreenShakeScale() {
     return SCREEN_SHAKE[getScreenShakeOption()];
+}
+
+export function hitParticlesEnabled() {
+    return settings.hitParticles !== false;
 }
 
 export function usesThumbstick() {
@@ -131,8 +135,8 @@ export function openSettings(scene, { container = null, onClose } = {}) {
     };
     const touch = scene.sys.game.device.input.touch;
     const showInfo = !MATCH_SCENES.includes(scene.sys.settings.key) || Boolean(scene.openCharacterInfo);
-    const touchRow = 3;
-    const infoRow = touch ? 4 : 3;
+    const touchRow = 4;
+    const infoRow = touch ? 5 : 4;
     const rows = infoRow + (showInfo ? 1 : 0);
     const rowGap = 70;
     const height = 170 + rows * rowGap;
@@ -177,6 +181,14 @@ export function openSettings(scene, { container = null, onClose } = {}) {
         shake.text.setText(next);
     }, 20);
     add(shake.box, shake.text);
+
+    label(3, 'HIT PARTICLES');
+    const particles = makeButton(scene, 690, rowY(3), 194, 40, hitParticlesEnabled() ? 'ON' : 'OFF', () => {
+        settings.hitParticles = !hitParticlesEnabled();
+        saveSettings();
+        particles.text.setText(hitParticlesEnabled() ? 'ON' : 'OFF');
+    }, 20);
+    add(particles.box, particles.text);
 
     if (touch) {
         label(touchRow, 'TOUCH CONTROLS');

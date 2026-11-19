@@ -186,13 +186,13 @@ export function createGameAnimations(scene) {
     });
     create({
         key: 'sledgehammerquickslam1',
-        frames: frames('sledgehammerquickslam1', { start: 0, end: 4 }),
+        frames: frames('sledgehammerquickslam1', { start: 0, end: 5 }),
         frameRate: 24,
         repeat: 0
     });
     create({
         key: 'sledgehammerquickslam2',
-        frames: frames('sledgehammerquickslam1', { start: 0, end: 4 }),
+        frames: frames('sledgehammerquickslam2', { start: 5, end: 9 }),
         frameRate: 24,
         repeat: 0
     });
@@ -236,6 +236,12 @@ export function createGameAnimations(scene) {
         key: 'crowbargrab',
         frames: frames('crowbargrab', { start: 0, end: 6 }),
         frameRate: 28,
+        repeat: 0
+    });
+    create({
+        key: 'crowbargrabspin',
+        frames: frames('grabspin', { start: 0, end: 6 }),
+        frameRate: 20,
         repeat: 0
     });
     create({

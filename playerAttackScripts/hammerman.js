@@ -131,7 +131,7 @@ const MALLET_SWING = {
     hitstun: 800,
     hitFreeze: 100,
     sound: 'hammerhit',
-    knockback: { x: 450, y: 300, spike: { x: 375, y: -200 } },
+    knockback: { x: 450, y: 300 },
     decelerateAfter: 1000,
     missSound: 'miss'
 };
@@ -142,7 +142,7 @@ const SLEDGEHAMMER_SWING = {
     hitstun: 400,
     hitFreeze: 100,
     sound: 'sledgehammerhit',
-    knockback: { x: 1050, y: 500, spike: { x: 850, y: -200 } },
+    knockback: { x: 1050, y: 500 },
     decelerateAfter: 1000
 };
 
@@ -253,10 +253,36 @@ function quickslamSpikeDown({ attacker, kb, damageScale, grounded }) {
     return { x: 500 * kb * damageScale * dirX, y: 1000 };
 }
 
-function quickslam1(api, scene, attacker, target, animKey = 'sledgehammerquickslam1') {
+const QUICKSLAM_DASH = { speed: 1000, ms: 112, endSlowdown: 5, riseFrame: 1 };
+
+function quickslamDash(api, scene, attacker, target, animKey = 'sledgehammerquickslam1') {
+    const dirX = attacker.quickslamDirX;
+    const sequence = (attacker.attackSequence ?? 0) + 1;
     attacker.quickslamJumpUntil = 0;
     attacker.quickslamJumpTarget = null;
     api.setAttackSprite(attacker, animKey);
+    attacker.atk.anims.pause(attacker.atk.anims.currentAnim.frames[QUICKSLAM_DASH.riseFrame]);
+    attacker.isUsingSideSpecial = true;
+    attacker.afterimage = true;
+    attacker.lastDir = { x: dirX, y: 0 };
+    attacker.setVelocityX(dirX * QUICKSLAM_DASH.speed);
+    scene.time.delayedCall(QUICKSLAM_DASH.ms, () => {
+        if (!attacker.active) return;
+        attacker.isUsingSideSpecial = false;
+        attacker.afterimage = false;
+        if (attacker.attackSequence !== sequence) return;
+        if (attacker.hitstun) {
+            attacker.isAttacking = false;
+            api.hideAttackSprite(attacker);
+            return;
+        }
+        attacker.setVelocityX(attacker.body.velocity.x / QUICKSLAM_DASH.endSlowdown);
+        attacker.atk.anims.resume();
+        quickslam1(api, scene, attacker, target);
+    });
+}
+
+function quickslam1(api, scene, attacker, target) {
     //quickslam is a special attack that does less knockback and damage then the normal attack.
     //This is only for sledgehammer.
     //Used as a quick move that contrast's sledgehammer's slow, telegraphed, and easily punishable attacks.
@@ -316,7 +342,9 @@ function tryQuickslamJump(api, scene, attacker, currentTime) {
 
     const startX = attacker.x;
     const startY = attacker.y;
-    const sideX = attacker.lastDir.x || 1;
+    const sideX = attacker.quickslamDirX || attacker.lastDir.x || 1;
+    attacker.moveDirLock = sideX;
+    attacker.lastDir = { x: sideX, y: 0 };
     const endX = () => target.x - sideX * 100;
     const endY = () => target.y - 200;
     const movement = { progress: 0 };
@@ -343,7 +371,10 @@ function tryQuickslamJump(api, scene, attacker, currentTime) {
             );
         },
         onComplete: () => {
-            if (!attacker.active) return;
+            if (!attacker.active) {
+                attacker.moveDirLock = null;
+                return;
+            }
             attacker.setPosition(endX(), endY());
             attacker.setVelocity(0, 0);
             attacker.body.allowGravity = originalGravity;
@@ -356,8 +387,14 @@ function tryQuickslamJump(api, scene, attacker, currentTime) {
 
     return true;
 }
+const QUICKSLAM2_LOCK_MS = 250;
+
 function quickslam2(api, scene, attacker, target, animKey = 'sledgehammerquickslam2') {
+    const sideX = attacker.moveDirLock;
     api.setAttackSprite(attacker, animKey);
+    scene.time.delayedCall(QUICKSLAM2_LOCK_MS, () => {
+        if (attacker.moveDirLock === sideX) attacker.moveDirLock = null;
+    });
     //The second quickslam is the aerial version, instead of sending the target flying up, it sends them flying down.
     scene.time.delayedCall(50, () => {
         const hit = api.strike(scene, attacker, target, {
@@ -386,7 +423,7 @@ function tryQuickslam(api, scene, attacker, target, direction, currentTime) {
 
     if (currentTime - attacker.lastTap[direction] < dtapDelay || attacker.isBot) {
         attacker.quickslamDirX = direction === 'left' ? -1 : 1;
-        quickslam1(api, scene, attacker, target);
+        quickslamDash(api, scene, attacker, target);
         api.startSideSpecialCooldown(attacker, currentTime, slamCD);
     }
     attacker.lastTap[direction] = currentTime;

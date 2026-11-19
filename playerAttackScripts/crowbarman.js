@@ -3,6 +3,7 @@
 // Licensed under the GNU GPL v3 only. See LICENSE.
 
 import demolitionist from './demolitionist.js';
+import { kickSquash, SQUASH } from '../combat/squash.js';
 
 function tilt(api, scene, attacker, victim, xMul, yMul, kbTime) {
     api.tiltAttack(scene, attacker, victim, {
@@ -11,7 +12,250 @@ function tilt(api, scene, attacker, victim, xMul, yMul, kbTime) {
     });
 }
 
-const neutralSpecial = () => {};
+const VAULT = {
+    plantMs: 140,
+    tipMs: 160,
+    plantAhead: 30,
+    sink: 4,
+    scale: 1.3,
+    originY: 12.5 / 18,
+    plantAngle: Math.PI / 3,
+    tipAngle: 0.62 * Math.PI,
+    launch: 680,
+    forward: 160,
+    returnOut: { x: 650, y: 300 },
+    curveMs: 400,
+    homing: 6,
+    returnSpeed: 1500,
+    returnSpin: 0.03,
+    catchDistance: 30,
+    catchAfterMs: 250,
+    depthOffset: 1
+};
+const SPIKE = {
+    recoil: { push: 200, lift: 300 },
+    aim: { x: 0.35, y: 1 },
+    speed: 1400,
+    spawn: 20,
+    scale: 1.3,
+    spriteAngle: 0,
+    returnAfterMs: 1000,
+    returnSpeed: 900,
+    returnAccel: 3000,
+    returnMaxSpeed: 1800,
+    returnSpin: Math.PI * 6,
+    catchDistance: 45,
+    burst: { count: 10, minSize: 3, maxSize: 6, colors: [0x6b4423, 0x8b5a2b, 0xa66a35] },
+    out: { left: -200, right: 2200, bottom: 1400 },
+    hitPad: 10,
+    hit: { damage: 0.03, hitstun: 300, hitFreeze: 60, knockback: { x: 600, y: 100 } }
+}
+
+function isGrounded(player) {
+    return player.body.touching.down || player.body.blocked.down;
+}
+function crowbarOut(player) {
+    return player.vault || player.spike;
+}
+function cancelSpike(player) {
+    if (player.spike?.sprite.active) player.spike.sprite.destroy();
+    player.spike = null;
+}
+function spikeCrowbar(api, scene, player) {
+    if (crowbarOut(player)) return;
+    if (player.hitstun || player.freeze || player.activeGrab || player.grabbedBy || player.isUsingSideSpecial) return;
+    const facing = player.lastDir.x || (player.flipX ? -1 : 1);
+    const length = Math.hypot(SPIKE.aim.x, SPIKE.aim.y);
+    const dir  = { x: facing * SPIKE.aim.x / length, y: SPIKE.aim.y / length };
+    const sprite = scene.add.image(player.x + dir.x * SPIKE.spawn, player.y + dir.y * SPIKE.spawn, 'lilcrowbar') .setScale(SPIKE.scale).setRotation(Math.atan2(dir.y, dir.x) + SPIKE.spriteAngle);
+    scene.objs.add(sprite);
+    player.spike = { 
+        sprite,
+        phase: 'flying',
+        vx: dir.x * SPIKE.speed,
+        vy: dir.y * SPIKE.speed,
+        speed: 0,
+        outFor: 0,
+        hasHit: false,
+        facing
+    };
+    
+    player.setVelocityX(-dir.x * SPIKE.recoil.push);
+    player.setVelocityY(Math.min(player.body.velocity.y, -dir.y * SPIKE.recoil.lift));
+    player.ignoreJumpRelease = true;
+    scene.sound.play('swosh');
+}
+function recallSpike(scene, spike) {
+    spike.phase = 'returning';
+    spike.speed = SPIKE.returnSpeed;
+    scene.sound.play('whoosh');
+}
+function updateFlyingCrowbar(api, scene, player, spike, seconds) {
+    const sprite = spike.sprite;
+    const from = { x: sprite.x, y: sprite.y };
+    const to = { x: from.x + spike.vx * seconds, y: from.y + spike.vy * seconds };
+    if (!spike.hasHit) {
+        const path = new Phaser.Geom.Line(from.x, from.y, to.x, to.y);
+        for (const foe of api.getEnemies(scene, player)) {
+            const body = foe.body;
+            if (!body?.enable || api.isInvincible(foe)) continue;
+            const pad = SPIKE.hitPad;
+            const reach = new Phaser.Geom.Rectangle(body.x - pad, body.y - pad, body.width + pad * 2, body.height + pad * 2);
+            if (!Phaser.Geom.Intersects.LineToRectangle(path, reach)) continue;
+            spike.hasHit = true;
+            if (api.deflects(scene, foe, player, SPIKE.hit.damage)) {
+                recallSpike(scene, spike);
+                return;
+            }
+            foe.flash?.();
+            api.landHit(scene, player, foe, { ...SPIKE.hit, direction: { x: spike.facing, y: 1 } });
+            break;
+        }
+    }
+    for (const platform of api.getMapPlatforms(scene)) {
+        const body = platform.body;
+        const overX = to.x >= body.left && to.x <= body.right;
+        if (overX && from.y <= body.top && to.y >= body.top) {
+            sprite.setPosition(to.x, body.top);
+            spike.phase = 'stuck';
+            const burst = SPIKE.burst;
+            api.spawnDirtBurst(scene, to.x, body.top, burst.count, burst.minSize, burst.maxSize, 1, burst.colors);
+            scene.sound.play('spikeimpact');
+            return;
+        }
+    }
+    sprite.setPosition(to.x, to.y);
+    const out = SPIKE.out;
+    if (to.x < out.left || to.x > out.right || to.y > out.bottom) recallSpike(scene, spike);
+}
+function updateReturningCrowbar(player, spike, seconds) {
+    const sprite = spike.sprite;
+    const dx = player.x - sprite.x;
+    const dy = player.y - sprite.y;
+    const distance = Math.hypot(dx, dy) || 1;
+    spike.speed = Math.min(SPIKE.returnMaxSpeed, spike.speed + SPIKE.returnAccel * seconds);
+    const step = spike.speed * seconds;
+    if (distance <= Math.max(SPIKE.catchDistance, step)) {
+        cancelSpike(player);
+        return;
+    }
+    sprite.setPosition(sprite.x + dx / distance * step, sprite.y + dy / distance * step);
+    sprite.rotation += SPIKE.returnSpin * seconds;
+}
+function updateSpike(api, scene, player) {
+    const spike = player.spike;
+    if (!spike) return;
+    if (!spike.sprite.active || player.respawnFalling) {
+        cancelSpike(player);
+        return;
+    }
+    const change = scene.hitFreezeUntil > scene.time.now ? 0 : scene.game.loop.delta;
+    const seconds = change / 1000;
+    spike.outFor += change;
+    if (spike.phase !== 'returning' && spike.outFor >= SPIKE.returnAfterMs) recallSpike(scene, spike);
+    if (spike.phase === 'flying') {
+        updateFlyingCrowbar(api, scene, player, spike, seconds);
+    } else if (spike.phase === 'stuck') {
+        const distance = Math.hypot(player.x - spike.sprite.x, player.y - spike.sprite.y);
+        if (distance <= SPIKE.catchDistance) cancelSpike(player);
+    } else if (spike.phase === 'returning') {
+        updateReturningCrowbar(player, spike, seconds);
+    }
+}    
+function neutralSpecial(api, scene, player) {
+    
+    if (player.hitstun || player.freeze || player.activeGrab || player.grabbedBy || player.isUsingSideSpecial) return;
+    if (!isGrounded(player)) {
+        spikeCrowbar(api, scene, player);
+        return;
+    }
+    if (crowbarOut(player)) return;
+    const facing = player.lastDir.x || (player.flipX ? -1 : 1);
+    const base = { x: player.x + facing * VAULT.plantAhead, y: player.body.bottom + VAULT.sink };
+    const pole = scene.add.image(base.x, base.y, 'lilcrowbar')
+        .setScale(VAULT.scale)
+        .setFlipX(facing < 0)
+        .setOrigin(facing > 0 ? 1 : 0, VAULT.originY)
+        .setRotation(facing * VAULT.plantAngle)
+        .setDepth((player.depth ?? 5) + VAULT.depthOffset);
+    scene.objs.add(pole);
+    player.vault = { phase: 'plant', start: scene.time.now, facing, pole };
+    player.moveSpeedScale = 0;
+    player.canAttack = false;
+    player.setVelocityX(0);
+    scene.sound.play('swosh');
+    api.spawnDirtBurst(scene, base.x, player.body.bottom, 8, 3, 6, 1);
+}
+
+function freeVaulter(player) {
+    player.moveSpeedScale = 1;
+    player.canAttack = true;
+}
+
+function releasePole(vault) {
+    const { pole } = vault;
+    const center = pole.getCenter();
+    pole.setOrigin(0.5).setPosition(center.x, center.y);
+    vault.phase = 'return';
+    vault.releasedAt = pole.scene.time.now;
+    vault.velocity = { x: vault.facing * VAULT.returnOut.x, y: -VAULT.returnOut.y };
+}
+
+function launchVault(scene, player, vault) {
+    freeVaulter(player);
+    player.setVelocity(vault.facing * VAULT.forward, -VAULT.launch);
+    player.ignoreJumpRelease = true;
+    kickSquash(player, SQUASH.jump);
+    scene.sound.play('swosh');
+    releasePole(vault);
+}
+
+function endVault(player) {
+    player.vault?.pole.destroy();
+    player.vault = null;
+}
+
+function updateVault(scene, player) {
+    if (player.ignoreJumpRelease && (player.body.velocity.y >= 0 || player.hitstun)) player.ignoreJumpRelease = false;
+    const vault = player.vault;
+    if (!vault) return;
+    if (!player.active || player.eliminated) {
+        endVault(player);
+        return;
+    }
+    const elapsed = scene.time.now - vault.start;
+    if (vault.phase !== 'return') {
+        if (player.hitstun || player.grabbedBy) {
+            freeVaulter(player);
+            releasePole(vault);
+            return;
+        }
+        player.setVelocityX(0);
+        if (elapsed >= VAULT.plantMs) {
+            const t = Math.min(1, (elapsed - VAULT.plantMs) / VAULT.tipMs);
+            const angle = VAULT.plantAngle + (VAULT.tipAngle - VAULT.plantAngle) * t * t;
+            vault.pole.setRotation(vault.facing * angle);
+            vault.phase = 'tip';
+            if (t >= 1) launchVault(scene, player, vault);
+        }
+        return;
+    }
+    const dt = scene.game.loop.delta / 1000;
+    const pole = vault.pole;
+    const dx = player.x - pole.x;
+    const dy = player.y - pole.y;
+    const distance = Math.hypot(dx, dy) || 1;
+    if (distance <= VAULT.catchDistance && scene.time.now - vault.releasedAt >= VAULT.catchAfterMs) {
+        endVault(player);
+        return;
+    }
+    const steer = Math.min(1, (scene.time.now - vault.releasedAt) / VAULT.curveMs);
+    const pull = Math.min(1, VAULT.homing * steer * steer * dt);
+    vault.velocity.x += (dx / distance * VAULT.returnSpeed - vault.velocity.x) * pull;
+    vault.velocity.y += (dy / distance * VAULT.returnSpeed - vault.velocity.y) * pull;
+    pole.setPosition(pole.x + vault.velocity.x * dt, pole.y + vault.velocity.y * dt);
+    pole.setRotation(pole.rotation - vault.facing * VAULT.returnSpin * scene.game.loop.delta);
+}
 const GRAB_WINDUP_MS = 250;
 const GRAB_AIM = { originX: 62 / 200, originY: 98 / 200, tip: { x: -42, y: -3 } };
 function tryGrab(api, scene, attacker, target, direction, currentTime, animKey = 'crowbargrab') {
@@ -119,34 +363,109 @@ function tryGrab(api, scene, attacker, target, direction, currentTime, animKey =
     attacker.lastTap[direction] = currentTime;
 
 }
-function releaseGrab(api, scene, attacker, currentTime, fling = true) {
-    const grab = attacker.activeGrab;
-    if (!grab) return false;
+const GRAB_SPIN = {
+    hooks: [[13, 98], [64, 143], [157, 135], [190, 98], [141, 65], [52, 61], [13, 98]],
+    behindFrames: [4, 5],
+    launchFrame: 6,
+    maxMs: 800,
+    hit: {
+        damage: 0.04,
+        hitstun: 500,
+        hitFreeze: 60,
+        knockback: { x: 1000, y: 600 },
+        unblockable: true
+    },
+    whoosh: { key: 'whoosh', rate: 0.6 },
+    attackLockMs: 2000
+};
 
+function dropGrab(api, scene, attacker, currentTime, hide = true) {
+    const grab = attacker.activeGrab;
     const target = grab.target;
     if (grab.releaseEvent) grab.releaseEvent.remove(false);
+    grab.cleanup?.();
     attacker.activeGrab = null;
     target.grabbedBy = null;
     target.body.allowGravity = true;
     target.hitstunUntil = 0;
     target.freezeUntil = 0;
     target.willDecelerate = true;
-    api.hideAttackSprite(attacker);
-
+    if (hide) api.hideAttackSprite(attacker);
     api.startSideSpecialCooldown(attacker, currentTime, attacker.dirSpecialCooldown);
+    return target;
+}
 
-
-
+function releaseGrab(api, scene, attacker, currentTime, fling = true) {
+    const grab = attacker.activeGrab;
+    if (!grab || grab.spin) return false;
     if (fling) {
-        const flingDirection = attacker.lastDir.x || (Math.random() < 0.5 ? -1 : 1);
-        target.hitstunUntil = 500 * target.KBmultiplier + scene.time.now;
-        api.applyKnockback(scene, target, 1000 * flingDirection, -200);
-    } else {
-        target.setVelocity(0, 0);
+        startGrabSpin(api, scene, attacker);
+        return true;
     }
+    dropGrab(api, scene, attacker, currentTime).setVelocity(0, 0);
     return true;
+}
 
+function startGrabSpin(api, scene, attacker) {
+    const grab = attacker.activeGrab;
+    const target = grab.target;
+    if (grab.releaseEvent) grab.releaseEvent.remove(false);
+    grab.releaseEvent = null;
+    const flip = target.x > attacker.x;
+    const depth = target.depth;
+    grab.spin = { flip, startedAt: scene.time.now, lastHitAt: attacker.lastHitAt };
+    target.hitstunUntil = scene.time.now + GRAB_SPIN.maxMs + 100;
+    attacker.attackLockedUntil = scene.time.now + GRAB_SPIN.attackLockMs;
+    attacker.isAttacking = true;
+    attacker.canAttack = false;
+    grab.cleanup = () => {
+        target.setDepth(depth);
+        attacker.isAttacking = false;
+        attacker.canAttack = true;
+    };
+    attacker.atk.setOrigin(0.5).setAngle(0).setScale(1).setFlipX(flip).setVisible(true);
+    attacker.atk.play('crowbargrabspin', true);
+    grab.follow = () => followGrabSpin(api, scene, attacker);
+    grab.follow();
+}
 
+function followGrabSpin(api, scene, attacker) {
+    const grab = attacker.activeGrab;
+    const { target, spin } = grab;
+    const now = scene.time.now;
+    if (attacker.lastHitAt !== spin.lastHitAt) {
+        dropGrab(api, scene, attacker, now);
+        return;
+    }
+    const atk = attacker.atk;
+    atk.setPosition(attacker.x, attacker.y);
+    const frame = Phaser.Math.Clamp(Number(atk.frame.name) || 0, 0, GRAB_SPIN.hooks.length - 1);
+    const [hookX, hookY] = GRAB_SPIN.hooks[frame];
+    const offsetX = (spin.flip ? 200 - hookX : hookX) - 100;
+    target.setPosition(attacker.x + offsetX, attacker.y + hookY - 100);
+    target.setVelocity(0, 0);
+    target.body.allowGravity = false;
+    target.setDepth(attacker.depth + (GRAB_SPIN.behindFrames.includes(frame) ? -0.01 : 0.01));
+    if (frame >= GRAB_SPIN.launchFrame || now - spin.startedAt > GRAB_SPIN.maxMs) launchFromSpin(api, scene, attacker);
+}
+
+function launchFromSpin(api, scene, attacker) {
+    const grab = attacker.activeGrab;
+    const side = grab.spin.flip ? 1 : -1;
+    const target = dropGrab(api, scene, attacker, scene.time.now, false);
+    attacker.atk.once('animationcomplete-crowbargrabspin', () => api.hideAttackSprite(attacker));
+    const holdAtPivot = () => {
+        if (!attacker.active || attacker.atk.anims.currentAnim?.key !== 'crowbargrabspin' || !attacker.atk.anims.isPlaying) {
+            scene.events.off('postupdate', holdAtPivot);
+            return;
+        }
+        attacker.atk.setPosition(attacker.x, attacker.y);
+    };
+    scene.events.on('postupdate', holdAtPivot);
+    scene.events.once('shutdown', () => scene.events.off('postupdate', holdAtPivot));
+    scene.sound.play(GRAB_SPIN.whoosh.key, { rate: GRAB_SPIN.whoosh.rate });
+    const flingDirection = attacker.lastDir.x || side;
+    api.landHit(scene, attacker, target, { ...GRAB_SPIN.hit, direction: { x: flingDirection, y: 0 } });
 }
 
 const isDemolitionist = player => player.variant === 'DEMOLITIONIST';
@@ -183,12 +502,21 @@ export default {
     variantNeutralSpecials: { HOOKER: neutralSpecial, DEMOLITIONIST: demolitionist.neutral },
     update: (api, scene, player) => {
         if (isDemolitionist(player)) demolitionist.update(api, scene, player);
+        else {
+            updateVault(scene, player);
+            updateSpike(api, scene, player);
+        }
     },
     onDownslam: (api, scene, player) => {
         if (isDemolitionist(player)) demolitionist.onDownslam(api, scene, player);
     },
     onMatchEnd: (scene, player) => {
         if (isDemolitionist(player)) demolitionist.onMatchEnd(scene, player);
+        else {
+            endVault(player);
+            cancelSpike(player);
+            player.ignoreJumpRelease = false;
+        }
     },
     handleHorizantalTilt: byVariant((api, scene, attacker, victim) =>
         tilt(api, scene, attacker, victim, 0.6, 1, 600), demolitionist.sideTilt),

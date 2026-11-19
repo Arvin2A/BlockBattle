@@ -26,6 +26,7 @@ const FISH_THROW = {
     durationMs: 450,
     frameSize: 300,
     releaseFrame: 12,
+    windupSpeed: 1.5,
     hands: [
         [138, 157], [139, 155], [140, 150], [146, 142], [136, 138], [132, 130],
         [120, 133], [112, 132], [105, 136], [102, 137], [110, 131], [128, 129],
@@ -62,6 +63,58 @@ const FISH_HIT = {
     resetCombo: false
 };
 
+const FISH_AMMO = {
+    max: 5,
+    regenMs: 3000,
+    scale: 0.8,
+    inset: 3,
+    top: -16,
+    gap: 8,
+    outAngle: 180,
+    fan: 15,
+    tail: { x: 26 / 30, y: 4 / 30 }
+};
+
+function fishLeft(player) {
+    return player.fish ?? FISH_AMMO.max;
+}
+
+function createFishRack(scene, player) {
+    const behindPlayer = scene.objs.getIndex(player);
+    player.fishRack = [];
+    for (let i = 0; i < FISH_AMMO.max; i++) {
+        const fish = scene.add.image(player.x, player.y, 'fish1').setScale(FISH_AMMO.scale);
+        scene.objs.addAt(fish, behindPlayer);
+        player.fishRack.push(fish);
+    }
+}
+
+function updateFishRack(scene, player) {
+    if (!player.fishRack) createFishRack(scene, player);
+    const now = scene.time.now;
+    if (player.nextFishAt && now >= player.nextFishAt) {
+        player.fish = Math.min(FISH_AMMO.max, fishLeft(player) + 1);
+        player.nextFishAt = player.fish < FISH_AMMO.max ? now + FISH_AMMO.regenMs : 0;
+    }
+    const count = fishLeft(player);
+    const facing = player.fishFacing ?? 1;
+    const flip = facing < 0;
+    const middle = (FISH_AMMO.max - 1) / 2;
+    const backX = player.x - facing * (player.displayWidth / 2 - FISH_AMMO.inset);
+    player.fishRack.forEach((fish, i) => {
+        fish.setVisible(i < count && player.visible);
+        if (i >= count) return;
+        const upcoming = count - 1 - i;
+        fish.setTexture(`fish${((player.fishType ?? 0) + upcoming) % FISH_THROW.types + 1}`);
+        const out = FISH_AMMO.outAngle + (middle - i) * FISH_AMMO.fan;
+        const angle = flip ? 180 - out : out;
+        fish.setFlipX(flip);
+        fish.setOrigin(flip ? 1 - FISH_AMMO.tail.x : FISH_AMMO.tail.x, FISH_AMMO.tail.y);
+        fish.setRotation(Phaser.Math.DegToRad(angle - (flip ? 45 : 135)));
+        fish.setPosition(backX, player.y + FISH_AMMO.top + i * FISH_AMMO.gap);
+    });
+}
+
 function nextFishTexture(player) {
     player.fishType = (player.fishType ?? 0) % FISH_THROW.types + 1;
     return `fish${player.fishType}`;
@@ -95,15 +148,18 @@ function poseFish(fish, pose, facing) {
 function fishThrow(api, scene, attacker) {
     const now = scene.time.now;
     if (attacker.hitstun || attacker.freeze || attacker.heldFish) return;
-    if (now < (attacker.fishThrowReadyAt ?? 0)) return;
+    if (now < (attacker.fishThrowReadyAt ?? 0) || fishLeft(attacker) <= 0) return;
     if (attacker.isAttacking && attacker.atk.anims.isPlaying && attacker.atk.texture.key !== 'fishslap') return;
     attacker.fishThrowReadyAt = now + FISH_THROW.durationMs;
+    attacker.fish = fishLeft(attacker) - 1;
+    attacker.nextFishAt ||= now + FISH_AMMO.regenMs;
     const facing = attacker.lastDir.x || attacker.fishFacing || 1;
     attacker.lastDir = { x: facing, y: 0 };
     const fish = scene.add.image(attacker.x, attacker.y, nextFishTexture(attacker));
     scene.objs.add(fish);
     attacker.heldFish = { sprite: fish, facing };
     api.setAttackSprite(attacker, 'fishslap');
+    attacker.atk.anims.timeScale = FISH_THROW.windupSpeed;
     scene.sound.play('swosh');
 }
 
@@ -244,6 +300,8 @@ function updateAngler(api, scene, player) {
             else poseFish(held.sprite, pose, held.facing);
         }
     }
+    if (!player.heldFish && player.atk.anims.timeScale !== 1) player.atk.anims.timeScale = 1;
+    updateFishRack(scene, player);
     if (!player.thrownFish?.length) return;
     const delta = scene.hitFreezeUntil > now ? 0 : scene.game.loop.delta;
     for (const fish of player.thrownFish) {
