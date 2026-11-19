@@ -2,7 +2,6 @@
 // Original source: https://github.com/Arvin2A/BlockBattle
 // Licensed under the GNU GPL v3 only. See LICENSE.
 
-import Phaser from 'phaser';
 import { addSceneUpdateListener, spawnDirtBurst } from '../../combat/effects.js';
 
 const ICE = {
