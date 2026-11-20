@@ -1,5 +1,22 @@
 # Changelog
 
+## 2026-11-20
+
+### Added
+- AIR DODGE: pressing block in the air does an upward dodge instead of blocking. It pushes at 450 speed, straight up or diagonally up toward the direction held (or the way the fighter is already moving), and gives 0.25s of invincibility. One per time in the air; it recharges on landing or grabbing a ledge. It doesn't need or use shield, can't be used in hitstun, and normal movement can't cancel the push for 0.2s. Bots use it when they'd block in the air.
+
+### Changed
+- Blocking only works on the ground. Leaving the ground while blocking drops the shield.
+- SLEDGEHAMMER's big swing and QUICKSLAM's second hit cost 1.2 of a shield when blocked, so they break any shield in one hit (LONGSWORD's included).
+- SLEDGEHAMMER's attacks go through his own THICK STEEL PLANK again, and his bot waits behind its wall and attacks through it like MALLET's.
+- CROWBARMAN's GRAB (HOOKER included) can't be blocked.
+- CROWBARMAN moves at half speed while holding someone with his GRAB.
+- The name filter catches more kinds of bad names.
+
+### Fixed
+- CROWBARMAN could spam his air neutral special to fly while falling back in after a KO.
+- Players whose connection silently died stayed connected to the server and counted as online. The server now drops them.
+
 ## 2026-11-18
 
 ### HOOKER REWORK + NEUTRAL SPECIAL

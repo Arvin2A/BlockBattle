@@ -16,7 +16,7 @@ export function isBlockedByWall(attacker, target) {
     if (!planks) return false;
     const line = new Phaser.Geom.Line(attacker.x, attacker.y, target.x, target.y);
     return planks.getChildren().some(plank =>
-        plank.active && plank.body?.enable && (plank.owner !== attacker || plank.blocksOwner) &&
+        plank.active && plank.body?.enable && plank.owner !== attacker &&
         Phaser.Geom.Intersects.LineToRectangle(line, plank.body)
     );
 }

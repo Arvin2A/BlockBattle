@@ -145,7 +145,7 @@ function updateReturningCrowbar(player, spike, seconds) {
 function updateSpike(api, scene, player) {
     const spike = player.spike;
     if (!spike) return;
-    if (!spike.sprite.active || player.respawnFalling) {
+    if (!spike.sprite.active) {
         cancelSpike(player);
         return;
     }
@@ -257,6 +257,7 @@ function updateVault(scene, player) {
     pole.setRotation(pole.rotation - vault.facing * VAULT.returnSpin * scene.game.loop.delta);
 }
 const GRAB_WINDUP_MS = 250;
+const GRAB_MOVE_SPEED_SCALE = 0.5;
 const GRAB_AIM = { originX: 62 / 200, originY: 98 / 200, tip: { x: -42, y: -3 } };
 function tryGrab(api, scene, attacker, target, direction, currentTime, animKey = 'crowbargrab') {
     //Exclusive to the crowbarman, this attack initiates a grab on the target
@@ -295,7 +296,7 @@ function tryGrab(api, scene, attacker, target, direction, currentTime, animKey =
             const grabLands = api.attackIsElligible(attacker, target, 200, { ignoreCanAttack: true });
             attacker.attackBypassesHitstun = false;
             api.damagePlanksInAttack(attacker, 0.03 * api.getAttackDamageScale(attacker));
-            if (grabLands && !api.blocksHit(scene, target, attacker, 0.03)) {
+            if (grabLands) {
                 const grabOffset = {
                     x: Math.sign(target.x - attacker.x) * 150,
                     y: Math.min(target.y - attacker.y, 0)
@@ -503,6 +504,9 @@ export default {
     update: (api, scene, player) => {
         if (isDemolitionist(player)) demolitionist.update(api, scene, player);
         else {
+            if (player.respawnFalling && !player.spikeRespawnSeen) cancelSpike(player);
+            player.spikeRespawnSeen = player.respawnFalling;
+            if (!player.vault) player.moveSpeedScale = player.activeGrab ? GRAB_MOVE_SPEED_SCALE : 1;
             updateVault(scene, player);
             updateSpike(api, scene, player);
         }

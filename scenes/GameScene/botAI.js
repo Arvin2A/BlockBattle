@@ -86,7 +86,6 @@ const WALL_RANGE = { min: 110, max: 320 };
 const WALL_BREAK_HEALTH = 0.15;
 const OWN_WALL_HOLD_RANGE = 300;
 const WALL_JUMP_GAP = 90;
-const OWN_WALL_SETTLE_MS = 1500;
 const HAMMER_SWINGS = {
     MALLET: { range: 110, windupMs: 150 },
     SLEDGEHAMMER: { range: 150, windupMs: 800 }
@@ -1128,7 +1127,6 @@ function tryPlaceWall(scene, bot, target, surfaces, dx, dy, grounded, targetOffS
     bot.lastDir = { x: side, y: 0 };
     handleNeutralSpecial(scene, bot, target);
     bot.botNextWallAt = now + (sledge ? 6000 : 2500) + Math.random() * 2000;
-    bot.botWallPlacedAt = now;
     send(scene, bot, Commands.NONE);
     return true;
 }
@@ -1152,8 +1150,7 @@ function handleWallInWay(scene, bot, target, surfaces, grounded, now) {
     const gap = toWall > 0 ? wall.body.left - bot.body.right : bot.body.left - wall.body.right;
 
     const ownWall = wall.owner === bot;
-    const holdBehind = ownWall && Math.abs(target.x - bot.x) < OWN_WALL_HOLD_RANGE &&
-        (!wall.blocksOwner || now - (bot.botWallPlacedAt ?? 0) < OWN_WALL_SETTLE_MS);
+    const holdBehind = ownWall && Math.abs(target.x - bot.x) < OWN_WALL_HOLD_RANGE;
     if (holdBehind) {
         bot.lastDir = { x: toWall, y: 0 };
         send(scene, bot, Commands.NONE);

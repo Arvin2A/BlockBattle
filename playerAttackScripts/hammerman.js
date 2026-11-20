@@ -100,7 +100,6 @@ function steelPlank(
     plank.maxHealth = plank.health;
 
     plank.owner = attacker;
-    plank.blocksOwner = attacker.variant === 'SLEDGEHAMMER';
     scene.objs.add(plank);
     scene.planks.add(plank);
     attacker.steelPlanks.push(plank);
@@ -135,8 +134,10 @@ const MALLET_SWING = {
     decelerateAfter: 1000,
     missSound: 'miss'
 };
+const SHIELD_BREAK_COST = 1.2;
 const SLEDGEHAMMER_SWING = {
     range: 150,
+    shieldCost: SHIELD_BREAK_COST,
     damage: 0.30,
     plankDamage: 0.30,
     hitstun: 400,
@@ -403,6 +404,7 @@ function quickslam2(api, scene, attacker, target, animKey = 'sledgehammerquicksl
             damage: 0.25,
             hitstun: 400,
             hitstunGrowth: false,
+            shieldCost: SHIELD_BREAK_COST,
             hitFreeze: 100,
             sound: 'sledgehammerquickslam',
             knockback: quickslamSpikeDown,

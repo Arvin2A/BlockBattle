@@ -36,6 +36,13 @@ export const BLOCK = {
     counterHop: { away: 80, height: 45 }
 };
 
+export const AIR_DODGE = {
+    speed: 850,
+    invincibleMs: 350,
+    driftMs: 200,
+    sound: 'whoosh'
+};
+
 const DEFAULT_STYLE = {
     stunStartMs: BLOCK.blockStunStartMs,
     stunFloorMs: BLOCK.blockStunFloorMs,
@@ -55,15 +62,45 @@ function isFrozen(scene) {
     return scene.gamePaused || scene.hitFreezeUntil > scene.time.now;
 }
 
-function canStartBlock(player) {
+function canDefend(player) {
     return player.active && !player.hitstun && !player.freeze && !player.ledge &&
         !player.smack && !player.smackedBy && !player.activeGrab && !player.grabbedBy &&
-        !player.isAttacking && !player.isUsingSideSpecial &&
-        (player.shield ?? 1) >= BLOCK.minStart;
+        !player.isAttacking && !player.isUsingSideSpecial;
+}
+
+function canStartBlock(player) {
+    return canDefend(player) && (player.shield ?? 1) >= BLOCK.minStart;
 }
 
 function canHoldBlock(player) {
-    return player.active && !player.hitstun && !player.ledge && !player.smackedBy && !player.grabbedBy;
+    return player.active && isGrounded(player) && !player.hitstun && !player.ledge && !player.smackedBy && !player.grabbedBy;
+}
+
+function isGrounded(player) {
+    return Boolean(player.body?.blocked.down || player.body?.touching.down);
+}
+
+function airDodgeDirection(player, input) {
+    const held = (input?.right ? 1 : 0) - (input?.left ? 1 : 0);
+    const vx = player.body.velocity.x;
+    const x = held || (Math.abs(vx) > 10 ? Math.sign(vx) : 0);
+    return { x, y: -1 };
+}
+
+function airDodge(scene, player, input) {
+    const now = scene.time.now;
+    const dir = airDodgeDirection(player, input);
+    const length = Math.hypot(dir.x, dir.y) || 1;
+    player.airDodgeUsed = true;
+    player.airDodgeUntil = now + AIR_DODGE.driftMs;
+    player.invincibleUntil = Math.max(player.invincibleUntil ?? 0, now + AIR_DODGE.invincibleMs);
+    player.setVelocity(dir.x / length * AIR_DODGE.speed, dir.y / length * AIR_DODGE.speed);
+    player.flash?.();
+    scene.sound.play(AIR_DODGE.sound, { rate: 2});
+}
+
+export function isAirDodging(player) {
+    return player.scene.time.now < (player.airDodgeUntil ?? 0);
 }
 
 function startBlock(scene, player) {
@@ -174,15 +211,20 @@ export function raiseBlock(scene, player) {
     player.blocking = true;
 }
 
-export function updateBlock(scene, player, wantsBlock) {
+export function updateBlock(scene, player, wantsBlock, input = null) {
     player.shield ??= 1;
+    const pressed = wantsBlock && !player.wantsBlock;
     player.wantsBlock = wantsBlock;
+    if (isGrounded(player) || player.ledge) player.airDodgeUsed = false;
     if (!isFrozen(scene)) {
         const dt = Math.min(scene.game.loop.delta, 50) / 1000;
+        const grounded = isGrounded(player);
         if (player.blocking && (!wantsBlock || !canHoldBlock(player))) {
             stopBlock(scene, player);
-        } else if (!player.blocking && wantsBlock && canStartBlock(player)) {
+        } else if (!player.blocking && wantsBlock && grounded && canStartBlock(player)) {
             startBlock(scene, player);
+        } else if (pressed && !grounded && !player.airDodgeUsed && canDefend(player)) {
+            airDodge(scene, player, input);
         }
         if (player.blocking) {
             player.shield -= BLOCK.drainPerSec * blockStyle(player, 'costScale') * (player.blockDrainScale ?? 1) * dt;

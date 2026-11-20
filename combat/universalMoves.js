@@ -563,6 +563,6 @@ export function updateUniversalMoves(scene, player, opponent, input) {
     if (player.ledge) stepLedge(scene, player, opponent, input, dt);
     if (player.ledgeSlide) stepLedgeSlide(scene, player, opponent, dt);
 
-    updateBlock(scene, player, input ? Boolean(input.block) : Boolean(player.botWantsBlock));
+    updateBlock(scene, player, input ? Boolean(input.block) : Boolean(player.botWantsBlock), input);
     syncArm(player);
 }

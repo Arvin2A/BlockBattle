@@ -4,6 +4,7 @@
 
 import { spawnDirtBurst } from './attacks.js';
 import { SQUASH, kickSquash } from './combat/squash.js';
+import { isAirDodging } from './combat/block.js';
 export const Commands = {
     LEFT: 0,
     RIGHT: 1,
@@ -51,7 +52,7 @@ function move(player, direction) {
         return;
     }
     player.horizontalMovementActive = true;
-    if (!player.isUsingSideSpecial) steer(player, direction);
+    if (!player.isUsingSideSpecial && !isAirDodging(player)) steer(player, direction);
 }
 
 function steer(player, direction) {

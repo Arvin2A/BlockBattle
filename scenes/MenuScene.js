@@ -18,7 +18,7 @@ var navBox = null;
 var layout = []
 var selectedIndex = 0;
 var previousInput = {};
-const CHANGELOG_VERSION = "2026-11-18-3";
+const CHANGELOG_VERSION = "2026-11-20-1";
 const ONLINE_STATUS_REFRESH_MS = 10000;
 const MIN_VERSION_COLOR_BRIGHTNESS = 170;
 
@@ -92,6 +92,28 @@ export class MenuScene extends Phaser.Scene {
         this.input.topOnly = false;
 
         const changelogUpdates = [
+            {
+                name: "MAPS & MORE 3RD PATCH",
+                date: "11/20/26",
+                entries: [
+                    {
+                        title: "AIR DODGE",
+                        body: "You can't block in the air anymore. Pressing block in the air does an AIR DODGE instead: a quick hop upward, angled whichever way you're moving, and you can't be hit for a split second. You get one per trip through the air, and it comes back when you land or grab a ledge. It doesn't use your shield, but you can't dodge while you're getting comboed.\n Walking or getting knocked off a ledge while you're blocking drops your shield too."
+                    },
+                    {
+                        title: "SLEDGEHAMMER SHATTERS SHIELDS",
+                        body: "SLEDGEHAMMER's big swing and the second hit of QUICKSLAM break any shield in one hit, LONGSWORD's included, so blocking him is a bad idea. He can swing straight through his own THICK STEEL PLANK again too, so he can hide behind it and hit you through it."
+                    },
+                    {
+                        title: "CROWBARMAN GRAB",
+                        body: "CROWBARMAN's GRAB can't be blocked anymore, but he moves half as fast while he's holding someone.\n Fixed CROWBARMAN being able to spam his neutral special and fly while falling back in after getting KO'd."
+                    },
+                    {
+                        title: "FIXES",
+                        body: "The name filter catches more bad names. Players whose connection silently died get dropped from the server, so they stop showing up in the online count."
+                    }
+                ]
+            },
             {
                 name: "MAPS & MORE 2ND PATCH",
                 date: "11/18/26",
@@ -545,7 +567,7 @@ export class MenuScene extends Phaser.Scene {
 
         const changelogBlurb = this.add.text(
             40, 180,
-            "The second MAPS & MORE patch! HOOKER gets a CROWBAR VAULT and a SPIN THROW, SLEDGEHAMMER dashes into QUICKSLAM, and downward hits can't pin you into the floor anymore.",
+            "The third MAPS & MORE patch! Blocking in the air is now an AIR DODGE, SLEDGEHAMMER shatters shields and swings through his own walls, and CROWBARMAN's GRAB can't be blocked.",
             {
                 fontFamily: "VCROSD",
                 fontSize: "16px",
