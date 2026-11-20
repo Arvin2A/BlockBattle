@@ -29,6 +29,9 @@ const MODES_WITH_BOTS = new Set(Object.keys(MATCH_MODES).filter(mode => mode !==
 const MAX_RTC_SIGNALS_PER_MATCH = 64;
 const MAX_RTC_SIGNAL_BYTES = 16384;
 const BUSY_ARENAS_MESSAGE = 'All arenas on this server are busy, try again in a moment.';
+const SILENT_LIMIT_MS = 15000;
+const SILENT_AWAY_LIMIT_MS = 90000;
+const SILENCE_CHECK_MS = 5000;
 const SAME_DEVICE_MESSAGE = 'You are already hosting or playing in another tab. Only one match per device at a time.';
 
 function loadNameFilter() {
@@ -76,6 +79,7 @@ export class Lobby {
         this.lobbies = new Map();
         this.matches = new Map();
         this.statusTimer = setInterval(() => this.broadcastStatus(), 2000);
+        this.silenceTimer = setInterval(() => this.dropSilentClients(), SILENCE_CHECK_MS);
     }
 
     // ---- players ----
@@ -100,11 +104,13 @@ export class Lobby {
             invitesSent: new Map(),
             messageCount: 0,
             messageWindow: Date.now(),
+            lastSeen: Date.now(),
             chatLimiter: new QuickChatLimiter(CHAT_LATENCY_SLACK_MS)
         };
         this.clients.set(client.id, client);
 
         ws.on('message', (data, isBinary) => {
+            client.lastSeen = Date.now();
             if (isBinary || data.length > MAX_PLAYER_MESSAGE_BYTES) return;
             if (!this.withinRateLimit(client)) return;
             let message;
@@ -117,6 +123,17 @@ export class Lobby {
         });
         ws.on('close', () => this.removeClient(client));
         ws.on('error', () => {});
+    }
+
+    dropSilentClients() {
+        const now = Date.now();
+        for (const client of this.clients.values()) {
+            const limit = client.away ? SILENT_AWAY_LIMIT_MS : SILENT_LIMIT_MS;
+            if (client.dropped || now - client.lastSeen < limit) continue;
+            client.dropped = true;
+            this.log(`Dropping ${client.name ?? client.tag} (${client.address}): silent for ${Math.round((now - client.lastSeen) / 1000)}s`);
+            client.ws.terminate();
+        }
     }
 
     uniqueTag() {
@@ -823,6 +840,7 @@ export class Lobby {
 
     shutdown() {
         clearInterval(this.statusTimer);
+        clearInterval(this.silenceTimer);
         for (const match of this.matches.values()) {
             this.endMatch(match, null, END_REASONS.SERVER_ERROR);
         }

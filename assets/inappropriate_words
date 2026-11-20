@@ -109,7 +109,7 @@ deepthroat
 dendrophilia
 *d{i|y}{ck|q}
 d{i|y}k
-dih
+-dih
 dildo
 dingleberry
 dingleberries
@@ -236,8 +236,8 @@ nambla
 nawashi
 negro
 neonazi
-*n{i|y}gg{a|u}
-n{i|y}gg{e|a|u|i|o}r
+^*n{i|y}gg{a|u}
+^n{i|y}gg{e|a|u|i|o}r
 nig nog
 nimphomania
 nipple
@@ -464,12 +464,15 @@ kukluxklan
 =isis
 taliban
 alqaeda
-*h{i|y}gg{a|u}
-*h{i|y}gg{e|a|u|i|o}r
+~^*h{i|y}gg{a|u}
+~^*h{i|y}gg{e|a|u|i|o}r
 =n{i|y}g{a|u}
-*n{i|y}gh{a|u}
-*n{i|y}bb{a|u}
-*n{ee}g{e|a|u}r
+^*n{i|y}gh{a|u}
+^*n{i|y}bb{a|u}
+^*n{ee}g{e|a|u}r
+^*nehg{e|a|u}r
+^*nehg{a|u}
+^*n{i|y}ggr
 *kn{ee|ea}gr{o|ow|oe}
 *h{i|y}tlr
 *htl{e|a}r

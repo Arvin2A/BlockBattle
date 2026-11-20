@@ -11,6 +11,7 @@
 // Shorter ones only count as a whole word, so names like "glass" or "classic"
 // aren't caught by a short word hiding inside them.
 const MIN_HIDDEN_WORD_LENGTH = 6;
+const MIN_GLUED_PART_LENGTH = 3;
 
 // Ordinary words that happen to contain a listed word ("therapist").
 // They're removed from a name before looking for hidden words.
@@ -22,7 +23,7 @@ const SAFE_WORDS = [
     'cocktail', 'cockatoo', 'cockatiel', 'cockpit', 'cockroach', 'cockney', 'cockle', 'cockerel',
     'cockade', 'cockamamie', 'cocky', 'cockier', 'cockiest', 'cockily', 'cockiness', 'cocksure', 'cockeyed',
     'peacock', 'hancock', 'hitchcock', 'woodcock', 'shuttlecock', 'gamecock', 'babcock', 'stopcock',
-    'haycock', 'poppycock', 'weathercock'
+    'haycock', 'poppycock', 'weathercock', 'wadih'
 ];
 
 // Letters from other alphabets that look like English ones (an iota for an i).
@@ -129,13 +130,32 @@ function phraseText(name, iOrL) {
     return normalize(spaced, iOrL).replace(/[^a-z]+/g, ' ').trim();
 }
 
+function firstLetters(line) {
+    const body = line.replace(/^[\^*=\-&]+/, '');
+    const alts = body.startsWith('{') ? body.slice(1, body.indexOf('}')).split('|') : [body];
+    return alts.map(alt => alt.trim()[0]?.toLowerCase()).filter(letter => /[a-z]/.test(letter ?? ''));
+}
+
+function createLowercaseFilter(lines) {
+    if (!lines.length) return () => false;
+    const isBlocked = createNameFilter(lines.join('\n'));
+    const capitals = new Set(lines.flatMap(firstLetters).map(letter => letter.toUpperCase()));
+    return name => isBlocked(toAsciiName(name).replace(/[A-Z]/g, letter => capitals.has(letter) ? '_' : letter));
+}
+
 export function createNameFilter(wordListText) {
+    const allLines = String(wordListText ?? '').split(/\r?\n/);
+    const lowercaseOnly = createLowercaseFilter(allLines.filter(line => line.startsWith('~')).map(line => line.slice(1)));
     const wholeWords = [];
     const hiddenWords = [];
     const wildWholeWords = [];
     const wildHiddenWords = [];
+    const endWords = [];
+    const severeStartWords = [];
     const phrases = { i: [], l: [] };
-    for (const line of String(wordListText ?? '').split(/\r?\n/)) {
+    for (const rawLine of allLines.filter(line => !line.startsWith('~'))) {
+        const severe = rawLine.startsWith('^');
+        const line = severe ? rawLine.slice(1) : rawLine;
         if (line.startsWith('&')) {
             for (const iOrL of ['i', 'l']) {
                 const pattern = phrasePattern(line.slice(1).trim(), iOrL);
@@ -145,13 +165,16 @@ export function createNameFilter(wordListText) {
         }
         const anywhere = line.startsWith('*');
         const wholeOnly = line.startsWith('=');
-        const pieces = parseEntry(anywhere || wholeOnly ? line.slice(1) : line);
+        const atEnd = line.startsWith('-');
+        const pieces = parseEntry(anywhere || wholeOnly || atEnd ? line.slice(1) : line);
         const word = pieces.map(alts => alts[0]).join('');
         if (!word) continue;
-        const hidden = !wholeOnly && (anywhere || word.length >= MIN_HIDDEN_WORD_LENGTH);
+        const hidden = !wholeOnly && !atEnd && (anywhere || word.length >= MIN_HIDDEN_WORD_LENGTH);
         const pattern = entryPattern(pieces, false);
         // A plural s on the end still counts as the whole word.
         wholeWords.push(new RegExp(`^${pattern}s*$`));
+        if (atEnd) endWords.push(new RegExp(`${pattern}s*$`));
+        if (severe) severeStartWords.push(new RegExp(`^${pattern}`));
         if (hidden) hiddenWords.push(new RegExp(pattern));
         if (!pieces.some(alts => alts.some(alt => /[aeiou]/.test(alt)))) continue;
         const wild = entryPattern(pieces, true);
@@ -190,10 +213,31 @@ export function createNameFilter(wordListText) {
         });
     }
 
+    function hasEndWord(name) {
+        if (!endWords.length) return false;
+        const spaced = toAsciiName(name).replace(/([a-z])([A-Z])/g, '$1 $2');
+        const lettersOnly = spaced.toLowerCase().split(/[^a-z]+/);
+        return ['i', 'l'].some(iOrL => {
+            const normalized = normalize(spaced, iOrL);
+            const parts = [squash(normalized), ...normalized.split(/[^a-z0-9]+/), ...lettersOnly].filter(Boolean);
+            return parts.some(part => {
+                const unsafe = SAFE_WORDS.reduce((text, safe) => text.replaceAll(safe.replace(I_OR_L, iOrL), ' '), part);
+                return endWords.some(word => word.test(unsafe));
+            });
+        });
+    }
+
     function isWholeWord(text) {
         return ['i', 'l'].some(iOrL => {
             const whole = squash(normalize(text, iOrL));
             return Boolean(whole) && wholeWords.some(word => word.test(whole));
+        });
+    }
+
+    function startsWithSevereWord(text) {
+        return ['i', 'l'].some(iOrL => {
+            const whole = squash(normalize(text, iOrL));
+            return Boolean(whole) && severeStartWords.some(word => word.test(whole));
         });
     }
 
@@ -205,8 +249,10 @@ export function createNameFilter(wordListText) {
     }
 
     return function isNameBlocked(name) {
-        if (checkName(name) || hasPhrase(name)) return true;
-        return swappedStarts(name).some(([a, b]) => isWholeWord(a) || isWholeWord(b) || isWholeWord(`${a} ${b}`));
+        if (checkName(name) || hasEndWord(name) || hasPhrase(name) || lowercaseOnly(name)) return true;
+        const { separate, glued } = swappedStarts(name);
+        if (separate.some(([a, b]) => isWholeWord(a) || isWholeWord(b) || isWholeWord(`${a} ${b}`))) return true;
+        return [...separate, ...glued].some(([a, b]) => startsWithSevereWord(a) || startsWithSevereWord(b));
     };
 }
 
@@ -225,15 +271,22 @@ function startLength(word) {
     return -1;
 }
 
+function swapStarts(a, b) {
+    const [startA, startB] = [startLength(a), startLength(b)];
+    if (startA < 1 || startB < 1) return null;
+    const [newA, newB] = [b.slice(0, startB) + a.slice(startA), a.slice(0, startA) + b.slice(startB)];
+    return newA.toLowerCase() === a.toLowerCase() ? null : [newA, newB];
+}
+
 function swappedStarts(name) {
     const words = splitWords(name);
-    const pairs = [];
-    for (let i = 0; i + 1 < words.length; i++) {
-        const [a, b] = [words[i], words[i + 1]];
-        const [startA, startB] = [startLength(a), startLength(b)];
-        if (startA < 1 || startB < 1) continue;
-        const [newA, newB] = [b.slice(0, startB) + a.slice(startA), a.slice(0, startA) + b.slice(startB)];
-        if (newA.toLowerCase() !== a.toLowerCase()) pairs.push([newA, newB]);
+    const separate = [];
+    for (let i = 0; i + 1 < words.length; i++) separate.push(swapStarts(words[i], words[i + 1]));
+    const glued = [];
+    for (const word of words.length > 1 ? [...words, words.join('')] : words) {
+        for (let cut = MIN_GLUED_PART_LENGTH; cut <= word.length - MIN_GLUED_PART_LENGTH; cut++) {
+            glued.push(swapStarts(word.slice(0, cut), word.slice(cut)));
+        }
     }
-    return pairs;
+    return { separate: separate.filter(Boolean), glued: glued.filter(Boolean) };
 }
