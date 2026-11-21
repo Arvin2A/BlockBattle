@@ -6,7 +6,7 @@ import Phaser from 'phaser';
 import './assetVersions.js';
 import {handleAttack, handleMatchEnd, tryExtraJump, handleDirSpecial, handleNeutralSpecial, handleDirSpecialAttack, handleHorizantalTilt, handleDownTilt, handleUpTilt, downslamAttack, updateScythemanGrass, updateChainsawWood, updateCharacter, handleMisc, hasMiscButton, usesToggleAttack, getSpecialMeter, tryQuickslamJump, positionAttackSprite, hasIdleAttackSprite, getAttackSpriteOffset, getAttackSpriteAngle, getAttackSpriteFlipX, getAttackSpriteScale, triggerScreenShake, spawnDirtBurst, spawnExplosion} from './attacks.js';
 import { COLORS, FONTS, HEX, makePanel, textStyle } from './ui/theme.js';
-import { MATCH_LIVES, PLAYER_COLORS, buildRoster, isTeamMode } from './matchModes.js';
+import { PLAYER_COLORS, buildRoster, isTeamMode } from './matchModes.js';
 import { isAlive, nearestEnemy } from './combat/targets.js';
 import { addTouchAssist } from './ui/touchAssist.js';
 import { addSettingsButton, applyVolume, getScreenShakeScale, openSettings, useMatchVolume, usesThumbstick } from './ui/settings.js';
@@ -15,6 +15,7 @@ import { openAdvancedInfo } from './ui/advancedInfo.js';
 import { CHARACTER_ROSTER } from './characterRoster.js';
 import { addThumbstick } from './ui/touchJoystick.js';
 import { createSpeedometers, updateSpeedometers } from './ui/speedometer.js';
+import { createOffscreenPointers, updateOffscreenPointers } from './ui/offscreen.js';
 import { playModifierIntro } from './ui/modifierIntro.js';
 import { getActiveModifierCards } from './modifiers.js';
 import { createPerspectiveSwitch, updatePerspective } from './ui/perspective.js';
@@ -1000,6 +1001,7 @@ function create() {
     } else {
         this.physics.world.setBounds(0, 0, 2000, 1200);
     }
+    this.offscreenPointers = createOffscreenPointers(this, this.gameState.players);
     const { horizontal, vertical } = this.killZones;
     this.cameras.main.setBounds(
         horizontal ? 0 : -INFINITE_SPAN,
@@ -2608,6 +2610,7 @@ function update() {
 
     this.gameState.map.update();
     if (this.speedometers) updateSpeedometers(this, this.speedometers);
+    updateOffscreenPointers(this, this.offscreenPointers);
     if (this.gameEnded) {
         for (const player of fighters) player.setVelocity(0, 0);
         return;
@@ -2630,7 +2633,8 @@ function update() {
 
     for (const player of living) {
         const input = inputOf(player);
-        player.horizontalMovementActive = !player.isBot && !busy.has(player) && (input.left || input.right);
+        const steering = player.isBot ? player.horizontalMovementActive : (input.left || input.right);
+        player.horizontalMovementActive = !busy.has(player) && steering;
     }
 
     for (const player of living) handleAttackInput(this, player, inputOf(player), victimOf(player));

@@ -29,25 +29,25 @@ const DIFFICULTY = {
         thinkMs: 320, attackDelayMs: 450, hesitateChance: 0.55, hesitateMs: 500,
         edgeguard: false, dodgeSpecials: false, downslam: false,
         smack: false, ledge: true, blockChance: 0, dodgeMinigun: false,
-        deflectChance: 0, respectCounter: false
+        deflectChance: 0, respectCounter: false, blockReactMs: 0, counterNoticeMs: 0
     },
     NORMAL: {
         thinkMs: 140, attackDelayMs: 150, hesitateChance: 0.25, hesitateMs: 300,
         edgeguard: true, dodgeSpecials: false, downslam: true,
-        smack: true, ledge: true, blockChance: 0.25, dodgeMinigun: false,
-        deflectChance: 0.3, respectCounter: false
+        smack: true, ledge: true, blockChance: 0.15, dodgeMinigun: false,
+        deflectChance: 0.3, respectCounter: false, blockReactMs: 200, counterNoticeMs: 0
     },
     HARD: {
         thinkMs: 0, attackDelayMs: 0, hesitateChance: 0, hesitateMs: 0,
         edgeguard: false, dodgeSpecials: true, downslam: true,
         smack: false, ledge: false, blockChance: 0.5, dodgeMinigun: true, predictBlock: false,
-        deflectChance: 0.6, respectCounter: true
+        deflectChance: 0.6, respectCounter: true, blockReactMs: 90, counterNoticeMs: 450
     },
     'VERY HARD': {
         thinkMs: 0, attackDelayMs: 0, hesitateChance: 0, hesitateMs: 0,
         edgeguard: true, dodgeSpecials: true, downslam: true,
         smack: true, ledge: true, blockChance: 0.5, dodgeMinigun: true, predictBlock: true,
-        deflectChance: 0.85, respectCounter: true
+        deflectChance: 0.85, respectCounter: true, blockReactMs: 0, counterNoticeMs: 0
     }
 };
 
@@ -72,6 +72,7 @@ const FINISHER_GUARD_RANGE = 130;
 const FINISHER_GUARD_MS = 300;
 const AFTER_SMACK_BLOCK_MS = 600;
 const SPECIAL_DODGE_MS = 450;
+const GRAB_DODGE_RANGE = 260;
 
 const MINI_LANE_HALF = 45;
 const MINI_ESCAPE_MS = 900;
@@ -108,7 +109,13 @@ const BOT_BLOCK_RANGE = 160;
 const BOT_BLOCK_MIN_SHIELD = 0.35;
 
 function dodgesInsteadOfBlocking(target) {
-    return target.name === 'FISHERMAN' || (target.name === 'GUNMAN' && target.gunmanSpecialActive);
+    return target.name === 'FISHERMAN' || (target.name === 'GUNMAN' && target.gunmanSpecialActive) ||
+        target.grabWindingUp;
+}
+
+function grabComingAt(bot, target, distance) {
+    return target.grabWindingUp && distance < GRAB_DODGE_RANGE &&
+        Math.sign(bot.x - target.x) === Math.sign(target.lastDir.x);
 }
 
 function specialJustStarted(bot, target) {
@@ -205,6 +212,15 @@ function counterBlockUp(bot, target) {
     return target.blocking && blockStyle(target, 'counter') && !isTeammate(bot, target);
 }
 
+function noticesCounterBlock(bot, target, difficulty, now) {
+    if (!difficulty.respectCounter || !counterBlockUp(bot, target)) {
+        bot.botCounterSeenAt = null;
+        return false;
+    }
+    bot.botCounterSeenAt ??= now;
+    return now - bot.botCounterSeenAt >= difficulty.counterNoticeMs;
+}
+
 function keepAwayFromCounter(scene, bot, target, side, distance, surfaces) {
     if (distance < COUNTER_KEEP_AWAY && walk(scene, bot, -side, surfaces)) return;
     send(scene, bot, Commands.NONE);
@@ -223,9 +239,14 @@ function updateBotBlock(scene, bot, target, distance, difficulty, now) {
     const blockChance = difficulty.blockChance * (blockStyle(bot, 'counter') ? COUNTER_BLOCK_CHANCE_SCALE : 1);
     if (threat && !bot.botThreatSeen) {
         bot.botThreatSeen = true;
-        if (Math.random() < blockChance) blockFor(bot, now, BOT_BLOCK_MS);
+        if (Math.random() < blockChance) bot.botBlockReactAt = now + difficulty.blockReactMs;
     } else if (!threat) {
         bot.botThreatSeen = false;
+        bot.botBlockReactAt = null;
+    }
+    if (bot.botBlockReactAt != null && now >= bot.botBlockReactAt) {
+        bot.botBlockReactAt = null;
+        blockFor(bot, now, BOT_BLOCK_MS);
     }
     updateDeflects(scene, bot, target, difficulty, now);
     if (counterLanded(bot, target)) bot.botBlockUntil = 0;
@@ -510,6 +531,11 @@ export function runBotAI(scene, bot, target, fiveframecount) {
         return;
     }
 
+    if (bot.isPlunging) {
+        steerSlide(scene, bot, target, surfaces);
+        return;
+    }
+
     if (bot.quickslamJumpTarget && now < bot.quickslamJumpUntil &&
         now >= bot.quickslamJumpUntil - QUICKSLAM_JUMP_WINDOW + QUICKSLAM_FOLLOW_DELAY &&
         tryQuickslamJump(scene, bot, now)) {
@@ -573,7 +599,7 @@ export function runBotAI(scene, bot, target, fiveframecount) {
     }
     bot.botNextThinkAt = now + difficulty.thinkMs;
 
-    if (difficulty.respectCounter && counterBlockUp(bot, target)) {
+    if (noticesCounterBlock(bot, target, difficulty, now)) {
         keepAwayFromCounter(scene, bot, target, side, distance, surfaces);
         return;
     }
@@ -596,7 +622,8 @@ export function runBotAI(scene, bot, target, fiveframecount) {
     }
 
     // Back off from a dir special that's already coming at us.
-    if (difficulty.dodgeSpecials && target.isUsingSideSpecial && distance < 200 && !targetOffStage) {
+    const specialComing = (target.isUsingSideSpecial && distance < 200) || grabComingAt(bot, target, distance);
+    if (difficulty.dodgeSpecials && specialComing && !targetOffStage) {
         if (!walk(scene, bot, -side, surfaces) && grounded &&
             now - bot.lastJump > 500) {
             bot.lastJump = now;
@@ -990,13 +1017,40 @@ function specialFits(bot, dx, dy, grounded) {
             if (bot.variant === 'SLEDGEHAMMER') return false;
             return adx < 80 && ady < 100;
         case 'SLATEMAN':
-            return adx < 130 && ady < 50;
+            return adx < SLIDE_TRIGGER.maxDx && ady < SLIDE_TRIGGER.maxDy;
         case 'CROWBARMAN':
             if (bot.variant === 'DEMOLITIONIST') return grounded && adx < 220 && ady < 80;
             return grounded && adx > 90 && adx < 200 && ady < 50;
         default:
             return false;
     }
+}
+
+const SLIDE_HOLD_RANGE = 40;
+const SLIDE_TRIGGER = { maxDx: 1000, maxDy: 150 };
+const SLIDE_LOOKAHEAD_S = 0.35;
+const SLIDE_BRAKE_MIN_SPEED = 20;
+
+function slideFloorAhead(bot, surfaces, dirX) {
+    const lookahead = Math.max(LEDGE_MARGIN, Math.abs(bot.body.velocity.x) * SLIDE_LOOKAHEAD_S);
+    return Boolean(surfaceBelow(surfaces, bot.x + dirX * lookahead, bot.body.bottom));
+}
+
+function steerSlide(scene, bot, target, surfaces) {
+    const vx = bot.body.velocity.x;
+    const moving = Math.sign(vx);
+    if (Math.abs(vx) > SLIDE_BRAKE_MIN_SPEED && !slideFloorAhead(bot, surfaces, moving)) {
+        send(scene, bot, moving > 0 ? Commands.LEFT : Commands.RIGHT);
+        return;
+    }
+    const dx = target.x - bot.x;
+    const dirX = Math.sign(dx);
+    if (!target.active || Math.abs(dx) <= SLIDE_HOLD_RANGE || !slideFloorAhead(bot, surfaces, dirX)) {
+        send(scene, bot, Commands.NONE);
+        return;
+    }
+    bot.lastDir = { x: dirX, y: 0 };
+    send(scene, bot, dirX < 0 ? Commands.LEFT : Commands.RIGHT);
 }
 
 function ensureSawRunning(scene, bot, target) {

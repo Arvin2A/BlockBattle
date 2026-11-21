@@ -256,8 +256,11 @@ function updateVault(scene, player) {
     pole.setPosition(pole.x + vault.velocity.x * dt, pole.y + vault.velocity.y * dt);
     pole.setRotation(pole.rotation - vault.facing * VAULT.returnSpin * scene.game.loop.delta);
 }
-const GRAB_WINDUP_MS = 250;
+const GRAB_WINDUP_MS = 375;
+const GRAB_ATTACK_LOCK_MS = GRAB_WINDUP_MS + 600;
+const GRAB_RETRACT_MS = 120;
 const GRAB_MOVE_SPEED_SCALE = 0.5;
+const GRAB_WINDUP_SPEED_SCALE = 0.15;
 const GRAB_AIM = { originX: 62 / 200, originY: 98 / 200, tip: { x: -42, y: -3 } };
 function tryGrab(api, scene, attacker, target, direction, currentTime, animKey = 'crowbargrab') {
     //Exclusive to the crowbarman, this attack initiates a grab on the target
@@ -276,15 +279,18 @@ function tryGrab(api, scene, attacker, target, direction, currentTime, animKey =
         attacker.isUsingSideSpecial = false;
         api.startSideSpecialCooldown(attacker, currentTime, grabCD);
         attacker.canAttack = false;
+        attacker.grabWindingUp = true;
+        if (isGrounded(attacker)) attacker.setVelocityX(attacker.body.velocity.x * GRAB_WINDUP_SPEED_SCALE);
 
         let interrupted = false;
         const removeInterruptCheck = api.addSceneUpdateListener(scene, () => {
             if (attacker.hitstun) interrupted = true;
         });
-        scene.time.delayedCall(GRAB_WINDUP_MS + 400, () => {
+        scene.time.delayedCall(GRAB_ATTACK_LOCK_MS, () => {
             attacker.canAttack = true;
         });
         scene.time.delayedCall(GRAB_WINDUP_MS, () => {
+            attacker.grabWindingUp = false;
             removeInterruptCheck();
             if (interrupted) {
                 api.hideAttackSprite(attacker);
@@ -341,11 +347,14 @@ function tryGrab(api, scene, attacker, target, direction, currentTime, animKey =
                 attacker.combo = 0;
                 attacker.comboTimer = 0;
             } else {
+                const sequence = attacker.attackSequence;
                 const missGrab = () => {
                     scene.sound.play('miss');
-                    scene.time.delayedCall(300, () => {
-                        api.hideAttackSprite(attacker);
+                    if (attacker.attackSequence !== sequence) return;
+                    attacker.atk.once(`animationcomplete-${animKey}`, () => {
+                        if (attacker.attackSequence === sequence) api.hideAttackSprite(attacker);
                     });
+                    attacker.atk.playReverse({ key: animKey, duration: GRAB_RETRACT_MS });
                 };
                 if (grabAnimPlaying) {
                     attacker.atk.once(`animationcomplete-${animKey}`, missGrab);
@@ -506,7 +515,10 @@ export default {
         else {
             if (player.respawnFalling && !player.spikeRespawnSeen) cancelSpike(player);
             player.spikeRespawnSeen = player.respawnFalling;
-            if (!player.vault) player.moveSpeedScale = player.activeGrab ? GRAB_MOVE_SPEED_SCALE : 1;
+            if (!player.vault) {
+                player.moveSpeedScale = player.grabWindingUp ? GRAB_WINDUP_SPEED_SCALE
+                    : player.activeGrab ? GRAB_MOVE_SPEED_SCALE : 1;
+            }
             updateVault(scene, player);
             updateSpike(api, scene, player);
         }

@@ -14,6 +14,7 @@ export const DEFAULT_BYPASS_OPTIONS = Object.freeze({
     // run on their own timers. A fighter in hitstun never lands a hit, so getting
     // hit mid-special (PLUNGE's blade, a QUICKSLAM follow-up) cancels its hit.
     ignoreCanAttack: false,
+    ignoreAttackerStun: false,
     // Hit a target more than 25px below, whichever way the attacker faces.
     allowTargetBelow: false,
     // Hit through spawn and dash invincibility.
@@ -51,6 +52,7 @@ export function attackIsElligible(attacker, target, range = 100, bypassOptions =
     }
     const {
         ignoreCanAttack,
+        ignoreAttackerStun,
         allowTargetBelow,
         ignoreInvincibility,
         ignoreFacing,
@@ -61,7 +63,7 @@ export function attackIsElligible(attacker, target, range = 100, bypassOptions =
         verticalReach
     } = { ...DEFAULT_BYPASS_OPTIONS, ...bypassOptions };
 
-    if (attacker.hitstun || target.eliminated || isTeammate(attacker, target)) return false;
+    if ((attacker.hitstun && !ignoreAttackerStun) || target.eliminated || isTeammate(attacker, target)) return false;
     if (!ignoreCanAttack && !attacker.canAttack) return false;
     if (!ignoreInvincibility && isInvincible(target)) return false;
     const dx = target.x - attacker.x;

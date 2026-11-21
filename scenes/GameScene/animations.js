@@ -235,7 +235,7 @@ export function createGameAnimations(scene) {
     create({
         key: 'crowbargrab',
         frames: frames('crowbargrab', { start: 0, end: 6 }),
-        frameRate: 28,
+        duration: 375,
         repeat: 0
     });
     create({

@@ -116,7 +116,7 @@ function landGruelingSlam(api, scene, player, target, scythe, facing) {
     const targetGrounded = isGrounded(target);
     const hit = api.strike(scene, player, target, {
         range: SLAM.range,
-        bypass: { ignoreCanAttack: true, allowTargetBelow: true },
+        bypass: { ignoreCanAttack: true, ignoreAttackerStun: true, allowTargetBelow: true },
         damage: SLAM.damage,
         plankDamage: 0.15,
         hitstun: targetGrounded ? SLAM.groundPinMs : SLAM.airPinMs + SLAM.crashTimeoutMs,

@@ -169,7 +169,7 @@ const SNOWY_MAP = {
         x: 1000,
         y: 835,
         texture: 'thickgroundhitbox',
-        width: 1750,
+        width: 1350,
         height: 55,
         visible: false
     },
