@@ -1271,19 +1271,19 @@ function runCountdown(scene) {
     const fighters = scene.gameState.players;
     scene.time.delayedCall(50, () => {
         for (const player of fighters) {
-            player.freezeUntil = 4200 + scene.time.now;
-            player.hitstunUntil = 4200 + scene.time.now;
+            player.freezeUntil = 3500 + scene.time.now;
+            player.hitstunUntil = 3500 + scene.time.now;
         }
     });
     ['countdown1', 'countdown2', 'countdown3', 'countdown4'].forEach((texture, index) => {
-        scene.time.delayedCall(1000 * (index + 1), () => {
+        scene.time.delayedCall((1000 / 1.2) * (index + 1), () => {
             const counter = scene.add.image(500, 300, texture);
             scene.hud.add(counter);
-            if (index === 0) scene.sound.play('countdown');
+            if (index === 0) scene.sound.play('countdown', { rate: 1.2 });
             scene.tweens.add({
                 targets: counter,
                 alpha: 0,
-                duration: 500,
+                duration: 500 / 1.2,
                 onComplete: () => counter.destroy()
             });
             if (index < 3) return;

@@ -4,7 +4,8 @@
 
 ### Added
 - Off-screen pointers: when a fighter leaves the camera view, an arrow in their color (CPU color for bots) sits on the screen edge pointing at them. It shrinks the farther away they are.
-- New sound effects for the SNOWY ARENA cannon's shot and the cannonball's impact, plus reworked countdown and menu hover sounds.
+- New sound effects for the SNOWY ARENA cannon's shot and the cannonball's impact, plus a reworked hover sound on the character and map select screens.
+- The match countdown runs 1.2x faster (about 3.3s instead of 4s), sound included.
 
 ### Changed
 - MALLET's heavy swing deals 0.08 damage to walls instead of 0.5, so it no longer breaks SLEDGEHAMMER's THICK STEEL PLANK in one hit.

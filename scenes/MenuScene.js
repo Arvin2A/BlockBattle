@@ -114,7 +114,7 @@ export class MenuScene extends Phaser.Scene {
                     },
                     {
                         title: "SOUNDS + FIXES",
-                        body: "The SNOWY cannon has new firing and impact sounds, and the countdown and menu hover sounds got reworked. SNOWY's ground is narrower and got a touch-up.\n Fixed SCYTHEMAN's GRUELING SLAM missing if he got hit right as it landed."
+                        body: "The SNOWY cannon has new firing and impact sounds, the character and map select hover sound got reworked, and the match countdown is a bit faster. SNOWY's ground is narrower and got a touch-up.\n Fixed SCYTHEMAN's GRUELING SLAM missing if he got hit right as it landed."
                     }
                 ]
             },
