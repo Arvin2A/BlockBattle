@@ -24,12 +24,6 @@ export const modifierOptions = {
         onlineAllowed: false,
         enabled: false
     },
-    NO_DANGERS: {
-        name: 'NO DANGERS',
-        description: 'Turns off map dangers like the SNOWY cannon, the DESERT heat ray and the JUNGLE flytraps.',
-        tier: 'yellow',
-        enabled: false
-    },
     CUSTOM_DAMAGE_R: clickModifier('CUSTOM DAMAGE R', 'Multiplies all damage. Click the box for +0.1x, up to 1x.', 'yellow', 'damage', 0.1, 10),
     CUSTOM_SPEED_R: clickModifier('CUSTOM SPEED R', 'Adds movement speed. Click the box for +10%, up to +100%.', 'yellow', 'speed', 10, 10),
     SLUGGISH: {
@@ -47,6 +41,12 @@ export const modifierOptions = {
     DOUBLE_DAMAGE: {
         name: 'DOUBLE DAMAGE',
         description: 'Players deal 200% more damage.',
+        tier: 'orange',
+        enabled: false
+    },
+    MAP_DANGERS: {
+        name: 'MAP DANGERS',
+        description: 'Turns on map dangers like the SNOWY cannon, the DESERT heat ray and the JUNGLE flytraps.',
         tier: 'orange',
         enabled: false
     },
@@ -113,7 +113,7 @@ const NULLIFIED_WHEN = {
     NO_HORIZONTAL_KILLZONE: (_options, map) => Boolean(map?.infinite),
     MAP_HAZARDS: options => options.NO_MERCY.enabled,
     NO_MERCY: (_options, map) => Boolean(map?.infinite),
-    NO_DANGERS: (_options, map) => Boolean(map && (!map.mapEvent || map.infinite))
+    MAP_DANGERS: (options, map) => options.NO_MERCY.enabled || Boolean(map && (!map.mapEvent || map.infinite))
 };
 
 export function formatModifierValue(modifier) {

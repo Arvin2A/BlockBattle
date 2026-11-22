@@ -731,7 +731,7 @@ function create() {
     this.mobileButtons = Object.fromEntries(this.matchSettings.players.map(({ slot }) => [slot, []]));
     const mapDefinition = getMatchMapDefinition();
     this.gameState.map = new Map(this, mapDefinition);
-    this.mapEvent = modifierOptions.NO_DANGERS.enabled ? null : getMapEvent(mapDefinition.mapEvent);
+    this.mapEvent = modifierOptions.MAP_DANGERS.enabled || modifierOptions.NO_MERCY.enabled ? getMapEvent(mapDefinition.mapEvent) : null;
     if (modifierOptions.MAP_HAZARDS.enabled || modifierOptions.NO_MERCY.enabled) {
         this.mapHazard = mapDefinition.hazard ?? null;
     }
