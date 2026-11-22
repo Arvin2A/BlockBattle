@@ -23,7 +23,7 @@ const SAFE_WORDS = [
     'cocktail', 'cockatoo', 'cockatiel', 'cockpit', 'cockroach', 'cockney', 'cockle', 'cockerel',
     'cockade', 'cockamamie', 'cocky', 'cockier', 'cockiest', 'cockily', 'cockiness', 'cocksure', 'cockeyed',
     'peacock', 'hancock', 'hitchcock', 'woodcock', 'shuttlecock', 'gamecock', 'babcock', 'stopcock',
-    'haycock', 'poppycock', 'weathercock', 'wadih'
+    'haycock', 'poppycock', 'weathercock', 'wadih', 'dihedral', 'dihydr'
 ];
 
 // Letters from other alphabets that look like English ones (an iota for an i).
