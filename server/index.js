@@ -31,6 +31,7 @@ import { createStaticHandler } from './static.js';
 import { HeadlessChrome, findChrome } from './chrome.js';
 import { Lobby } from './lobby.js';
 import { createIceProvider, describeIceSetup } from './ice.js';
+import { createDiscordNotifier } from './discord.js';
 import { DEFAULT_PORT, MP_PATH } from '../mp/protocol.js';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
@@ -69,9 +70,12 @@ function authorityUrl(match) {
     return url.toString();
 }
 
+const discord = createDiscordNotifier(process.env, log);
+
 const lobby = new Lobby({
     maxMatches: MAX_MATCHES,
     log,
+    discord,
     getIce: createIceProvider(process.env, log),
     async launchAuthority(match) {
         const url = authorityUrl(match);
@@ -204,6 +208,7 @@ server.listen(PORT, HOST, () => {
     }
     if (ALLOWED_ORIGINS.length) console.log(`  Websites allowed to connect: ${ALLOWED_ORIGINS.join(', ')}`);
     console.log(`  Fast path (WebRTC): ${describeIceSetup(process.env)}`);
+    console.log(`  Discord pings: ${discord.describe()}`);
     console.log('  Press Ctrl+C to stop.');
     console.log('');
 });
@@ -217,7 +222,9 @@ function shutdown() {
     chrome?.stop();
     sockets.clients.forEach(ws => ws.terminate());
     server.close();
-    setTimeout(() => process.exit(0), 300).unref();
+    const minimumWait = new Promise(resolve => setTimeout(resolve, 300));
+    Promise.all([discord.withdrawAll(), minimumWait]).then(() => process.exit(0));
+    setTimeout(() => process.exit(0), 12000).unref();
 }
 process.on('SIGINT', shutdown);
 process.on('SIGTERM', shutdown);

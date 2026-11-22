@@ -129,6 +129,10 @@ around values.
 | `BB_TURN_API_TOKEN` | *(none)* | The API token that goes with that TURN key. Keep it secret |
 | `BB_TURN_RELAY_ONLY` | `true` | `true` = all WebRTC traffic goes through the relay, so players never see your server's real IP address (and you never see theirs) |
 | `BB_FAST_PATH` | `true` | `false` turns the WebRTC fast path off and uses only the WebSocket, like older versions |
+| `BB_DISCORD_QUEUE_WEBHOOK` | *(none)* | Discord webhook that gets a message when someone is waiting in QUICK 1V1 (see "Discord pings" below). Keep it secret |
+| `BB_DISCORD_LOBBY_WEBHOOK` | *(none)* | Discord webhook that gets a message when someone opens a public lobby. Keep it secret |
+| `BB_DISCORD_QUEUE_ROLE` / `BB_DISCORD_LOBBY_ROLE` | *(none)* | Role ID to ping with each message. Leave it out to post without pinging anyone |
+| `BB_DISCORD_GAME_LINK` | *(none)* | Link to the game added under each message |
 
 **`BB_ALLOWED_ORIGINS`** lists the websites that host your copy of the game. Write each one
 as `https://` + domain only, with **no path and no trailing slash**: browsers only report
@@ -140,6 +144,40 @@ server).
 
 The desktop app (see the README) connects from the origin `app://blockbattle`. Add it to
 the list if you set `BB_ALLOWED_ORIGINS`, or desktop players get SERVER OFFLINE.
+
+### Discord pings
+
+The server can post in your Discord server when someone is waiting for a match, so other
+players know to hop on. There are two separate feeds: one for QUICK 1V1 and one for public
+lobbies (private lobbies are never posted).
+
+- A message is only posted if the player is **still waiting after 10 seconds**, so instant
+  matches don't ping anyone.
+- Each feed posts **at most once a minute**, so queueing and leaving over and over can't spam.
+- The message is **deleted** once nobody is waiting anymore (matched, left, lobby full,
+  lobby started or closed), and when the server shuts down.
+
+To set it up:
+
+1. In Discord, make a channel for each feed (or one for both). Open the channel's
+   **Edit Channel → Integrations → Webhooks → New Webhook**, then **Copy Webhook URL**.
+   Anyone with that URL can post in the channel, so treat it like a password.
+2. If you want a ping, make a role people can opt into, turn on **Developer Mode** (User
+   Settings → Advanced), then right-click the role → **Copy Role ID**.
+3. Add them to the service with `sudo systemctl edit blockbattle`:
+
+   ```ini
+   [Service]
+   Environment=BB_DISCORD_QUEUE_WEBHOOK=https://discord.com/api/webhooks/...
+   Environment=BB_DISCORD_LOBBY_WEBHOOK=https://discord.com/api/webhooks/...
+   Environment=BB_DISCORD_QUEUE_ROLE=123456789012345678
+   Environment=BB_DISCORD_LOBBY_ROLE=123456789012345678
+   Environment=BB_DISCORD_GAME_LINK=https://arvin2a.github.io/BlockBattle/
+   ```
+
+4. `sudo systemctl restart blockbattle`, then check `journalctl -u blockbattle -n 20`. The
+   startup message should say `Discord pings: quick 1v1 + public lobbies`. If a webhook
+   fails, the log says why (for example `HTTP 404` means the webhook was deleted).
 
 ### Faster online play (WebRTC + Cloudflare TURN)
 

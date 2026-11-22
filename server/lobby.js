@@ -13,6 +13,7 @@ import { cleanName, cleanDeviceId, END_REASONS, MAP_CHOICES, MAX_LOBBY_NAME_LENG
 import { MATCH_MODES, SLOTS, buildRoster, isValidMode } from '../matchModes.js';
 import { sanitizeOnlineModifiers } from '../modifiers.js';
 import { QUICK_CHAT_PHRASES, QuickChatLimiter } from '../mp/quickChat.js';
+import { createDiscordNotifier } from './discord.js';
 
 const CHAT_LATENCY_SLACK_MS = 300;
 
@@ -45,6 +46,7 @@ function loadNameFilter() {
 const isNameBlocked = loadNameFilter();
 
 const lobbyCount = lobby => lobby.members.length + (lobby.bot ? 1 : 0);
+const lobbyIsFull = lobby => lobbyCount(lobby) >= MATCH_MODES[lobby.mode].players;
 const randomId = (bytes = 6) => crypto.randomBytes(bytes).toString('hex');
 const randomTag = () => String(crypto.randomInt(1000, 10000));
 
@@ -68,7 +70,8 @@ function resolveMap(choice) {
 }
 
 export class Lobby {
-    constructor({ launchAuthority, closeAuthority, maxMatches, log, getIce }) {
+    constructor({ launchAuthority, closeAuthority, maxMatches, log, getIce, discord }) {
+        this.discord = discord ?? createDiscordNotifier({}, log);
         this.getIce = getIce ?? (async () => null);
         this.launchAuthority = launchAuthority;
         this.closeAuthority = closeAuthority;
@@ -305,6 +308,7 @@ export class Lobby {
                 return;
             }
             this.queue.splice(this.queue.indexOf(partner), 1);
+            this.discord.queueEnded(partner, 'matched');
             this.createMatch({ mode: '1v1', clients: [partner, client], map: partner.choice.map, modifiers: [], quick: true });
             this.roomsChanged();
             return;
@@ -313,6 +317,7 @@ export class Lobby {
         this.queue.push(client);
         this.log(`${client.name} (${client.choice.character} ${client.choice.variant}) is looking for a Quick 1v1`);
         sendJson(client.ws, { t: 'queued' });
+        this.discord.queueWaiting(client, () => this.queue.includes(client));
         this.roomsChanged();
     }
 
@@ -320,6 +325,7 @@ export class Lobby {
         const index = this.queue.indexOf(client);
         if (index === -1) return;
         this.queue.splice(index, 1);
+        this.discord.queueEnded(client);
         client.state = 'idle';
         this.roomsChanged();
     }
@@ -359,6 +365,13 @@ export class Lobby {
         client.state = 'lobby';
         client.lobby = lobby;
         this.log(`${client.name} opened ${lobby.private ? 'private ' : ''}lobby "${name}" (${lobby.mode} on ${lobby.map})`);
+        if (!lobby.private) {
+            this.discord.lobbyOpened(
+                lobby,
+                () => this.lobbies.get(lobby.id) === lobby && !lobbyIsFull(lobby),
+                () => ({ host: lobby.members[0].name, players: lobbyCount(lobby), max: MATCH_MODES[lobby.mode].players })
+            );
+        }
         this.lobbyChanged(lobby);
     }
 
@@ -393,6 +406,7 @@ export class Lobby {
         lobby.members = lobby.members.filter(member => member !== client);
         if (lobby.members.length === 0) {
             this.lobbies.delete(lobby.id);
+            this.discord.lobbyEnded(lobby);
             this.roomsChanged();
             return;
         }
@@ -411,6 +425,7 @@ export class Lobby {
             return;
         }
         this.lobbies.delete(lobby.id);
+        this.discord.lobbyEnded(lobby, 'matched');
         for (const member of lobby.members) member.lobby = null;
         this.createMatch({ mode: lobby.mode, clients: lobby.members, bot: lobby.bot, map: lobby.map, modifiers: lobby.modifiers, quick: false });
         this.roomsChanged();
@@ -458,6 +473,7 @@ export class Lobby {
     }
 
     lobbyChanged(lobby) {
+        this.discord.lobbyUpdated(lobby);
         for (const member of lobby.members) {
             sendJson(member.ws, { t: 'lobby', lobby: this.describeLobby(lobby, member) });
         }
