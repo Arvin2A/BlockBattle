@@ -347,6 +347,8 @@ export function preload() {
     this.load.audio('longswordparry', 'audio/longswordparry.wav');
     this.load.audio('lawnmower-loop', 'audio/lawnmower-loop.wav');
     this.load.audio('lawnmower-end', 'audio/lawnmower-end.wav');
+    this.load.audio('cannonshot', 'audio/cannonshot.wav');
+    this.load.audio('cannonexplosion', 'audio/cannonexplosion.wav');
 
     // =====================================================
     // AUDIO - AUTOMATICALLY ADDED

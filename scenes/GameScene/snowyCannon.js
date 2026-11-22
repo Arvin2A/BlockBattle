@@ -134,7 +134,7 @@ function launchBall(scene, state, shot) {
     scene.objs.add(ball);
     trackDeflectable(scene, ball, null);
     Object.assign(shot, { ball, start, control, end, elapsed: 0, phase: 'flying' });
-    scene.sound.play('slamimpact', { volume: 0.6 });
+    scene.sound.play('cannonshot');
     triggerScreenShake(scene, 3, 120);
 }
 
@@ -181,7 +181,7 @@ function lodge(scene, shot, top) {
     shot.phase = 'done';
     spawnDirtBurst(scene, lodged.x, top, 14, 4, 8, 1.6, [0xe8f0ff, 0xb9c8e0, 0x6d7a90], 220, 380, true);
     triggerScreenShake(scene, 10, 260);
-    scene.sound.play('rockbreak');
+    scene.sound.play('cannonexplosion');
     scene.time.delayedCall(LODGED_MS, () => {
         if (!lodged.active) return;
         lodged.body.enable = false;
