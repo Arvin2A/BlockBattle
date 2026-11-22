@@ -37,7 +37,9 @@ export const BLOCK = {
 };
 
 export const AIR_DODGE = {
-    speed: 850,
+    speed: 750,
+    minSpeed: 450,
+    riseDamping: 0.75,
     invincibleMs: 350,
     driftMs: 200,
     sound: 'whoosh'
@@ -91,10 +93,12 @@ function airDodge(scene, player, input) {
     const now = scene.time.now;
     const dir = airDodgeDirection(player, input);
     const length = Math.hypot(dir.x, dir.y) || 1;
+    const rising = Math.max(0, -player.body.velocity.y);
+    const speed = Math.max(AIR_DODGE.minSpeed, AIR_DODGE.speed - rising * AIR_DODGE.riseDamping);
     player.airDodgeUsed = true;
     player.airDodgeUntil = now + AIR_DODGE.driftMs;
     player.invincibleUntil = Math.max(player.invincibleUntil ?? 0, now + AIR_DODGE.invincibleMs);
-    player.setVelocity(dir.x / length * AIR_DODGE.speed, dir.y / length * AIR_DODGE.speed);
+    player.setVelocity(dir.x / length * speed, dir.y / length * speed);
     player.flash?.();
     scene.sound.play(AIR_DODGE.sound, { rate: 2});
 }
