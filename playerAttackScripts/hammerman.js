@@ -126,7 +126,7 @@ function steelPlank(
 const MALLET_SWING = {
     range: 110,
     damage: 0.20,
-    plankDamage: 0.5,
+    plankDamage: 0.08,
     hitstun: 800,
     hitFreeze: 100,
     sound: 'hammerhit',

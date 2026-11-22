@@ -30,6 +30,10 @@ const FALL_SPEED = 1.6;
 const RICOCHET_SPEED_SCALE = 0.25;
 const RICOCHET_POP = -0.5;
 const RICOCHET_GRAVITY = 0.004;
+const WALL_BOUNCE_SCALE = 0.5;
+const WALL_BOUNCE_MIN = 0.15;
+const WALL_BOUNCE_MAX = 0.6;
+const WALL_BOUNCE_POP = -0.3;
 const LODGED_MS = 5000;
 const LODGED = { surfaceOffset: 22, radius: 32, offsetX: 8, offsetY: 13 };
 
@@ -209,10 +213,10 @@ function nearestOther(scene, from, x, y) {
     return nearest;
 }
 
-function deflectBall(scene, shot, deflector, from = deflector) {
+function deflectBall(scene, shot, deflector) {
     const { ball } = shot;
     const target = nearestOther(scene, deflector, ball.x, ball.y);
-    const away = Math.sign(ball.x - from.x) || -(deflector.lastDir?.x ?? 1);
+    const away = Math.sign(ball.x - deflector.x) || -(deflector.lastDir?.x ?? 1);
     const aim = target ?? { x: ball.x + away * 1000, y: ball.y };
     const dx = aim.x - ball.x;
     const dy = aim.y - ball.y;
@@ -240,6 +244,24 @@ function isDeflectingWall(plank) {
     return plank.active && plank.body?.enable && plank.owner?.variant === 'SLEDGEHAMMER' && isAlive(plank.owner);
 }
 
+function bounceOffWall(scene, shot, plank) {
+    const { ball } = shot;
+    const owner = plank.owner;
+    const incomingX = (ball.deflectVelocity?.x ?? 0) / 1000;
+    const away = Math.sign(ball.x - plank.x) || -Math.sign(incomingX) || -(owner.lastDir?.x ?? 1);
+    const speedX = Phaser.Math.Clamp(Math.abs(incomingX) * WALL_BOUNCE_SCALE, WALL_BOUNCE_MIN, WALL_BOUNCE_MAX);
+    ball.x = away > 0 ? Math.max(ball.x, plank.body.right + ball.radius) : Math.min(ball.x, plank.body.left - ball.radius);
+    ball.setRadius(END_SIZE / 2);
+    shot.owner = owner;
+    ball.deflectOwner = owner;
+    shot.hit ??= new Set();
+    shot.hit.add(owner);
+    shot.phase = 'falling';
+    shot.fallVelocity = { x: away * speedX, y: WALL_BOUNCE_POP };
+    fadeMark(scene, shot.mark);
+    triggerScreenShake(scene, 6, 160);
+}
+
 function deflectOffWall(scene, shot, x, y, size) {
     const planks = scene.planks?.getChildren() ?? [];
     shot.wallsUsed ??= new Set();
@@ -248,7 +270,7 @@ function deflectOffWall(scene, shot, x, y, size) {
         if (!isDeflectingWall(plank) || shot.wallsUsed.has(plank) || shot.owner === plank.owner) continue;
         if (!Phaser.Geom.Intersects.CircleToRectangle(circle, plank.body)) continue;
         shot.wallsUsed.add(plank);
-        deflectBall(scene, shot, plank.owner, plank);
+        bounceOffWall(scene, shot, plank);
         scene.sound.play('thicksteelplank');
         return true;
     }

@@ -18,7 +18,7 @@ var navBox = null;
 var layout = []
 var selectedIndex = 0;
 var previousInput = {};
-const CHANGELOG_VERSION = "2026-11-20-1";
+const CHANGELOG_VERSION = "2026-11-21-1";
 const ONLINE_STATUS_REFRESH_MS = 10000;
 const MIN_VERSION_COLOR_BRIGHTNESS = 170;
 
@@ -92,6 +92,32 @@ export class MenuScene extends Phaser.Scene {
         this.input.topOnly = false;
 
         const changelogUpdates = [
+            {
+                name: "MAPS & MORE 4TH PATCH",
+                date: "11/21/26",
+                entries: [
+                    {
+                        title: "OFF-SCREEN ARROWS",
+                        body: "Get knocked off the screen and you won't lose track of yourself anymore. An arrow in your color sits on the edge of the screen pointing right at you, and it gets smaller the farther out you are."
+                    },
+                    {
+                        title: "WALL CHANGES",
+                        body: "MALLET's heavy swing doesn't one-shot SLEDGEHAMMER's THICK STEEL PLANK anymore. It takes a bunch of swings to break it now.\n SNOWY cannonballs that hit SLEDGEHAMMER's wall just bounce back off it and fall instead of homing in on someone. They can still smack anyone who's in the way on the way down."
+                    },
+                    {
+                        title: "CROWBARMAN GRAB",
+                        body: "CROWBARMAN's GRAB takes a little longer to come out and he almost stops moving while he winds it up, so you can see it coming. If it misses, the crowbar snaps back quickly."
+                    },
+                    {
+                        title: "SMARTER BOTS",
+                        body: "NORMAL and HARD bots don't block instantly anymore, so you can actually get hits in, and HARD bots don't run from LONGSWORD's counter the moment it's up. Bots back off from a CROWBARMAN GRAB they see coming, and SLATEMAN bots actually use their slide and steer it without flying off the stage."
+                    },
+                    {
+                        title: "SOUNDS + FIXES",
+                        body: "The SNOWY cannon has new firing and impact sounds, and the countdown and menu hover sounds got reworked. SNOWY's ground is narrower and got a touch-up.\n Fixed SCYTHEMAN's GRUELING SLAM missing if he got hit right as it landed."
+                    }
+                ]
+            },
             {
                 name: "MAPS & MORE 3RD PATCH",
                 date: "11/20/26",
@@ -567,7 +593,7 @@ export class MenuScene extends Phaser.Scene {
 
         const changelogBlurb = this.add.text(
             40, 180,
-            "The third MAPS & MORE patch! Blocking in the air is now an AIR DODGE, SLEDGEHAMMER shatters shields and swings through his own walls, and CROWBARMAN's GRAB can't be blocked.",
+            "The fourth MAPS & MORE patch! Arrows point to fighters who fly off-screen, MALLET can't one-shot SLEDGEHAMMER's wall anymore, and bots got smarter about blocking.",
             {
                 fontFamily: "VCROSD",
                 fontSize: "16px",

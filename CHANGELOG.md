@@ -1,5 +1,22 @@
 # Changelog
 
+## 2026-11-21
+
+### Added
+- Off-screen pointers: when a fighter leaves the camera view, an arrow in their color (CPU color for bots) sits on the screen edge pointing at them. It shrinks the farther away they are.
+- New sound effects for the SNOWY ARENA cannon's shot and the cannonball's impact, plus reworked countdown and menu hover sounds.
+
+### Changed
+- MALLET's heavy swing deals 0.08 damage to walls instead of 0.5, so it no longer breaks SLEDGEHAMMER's THICK STEEL PLANK in one hit.
+- SLEDGEHAMMER's THICK STEEL PLANK no longer fires SNOWY ARENA cannonballs at the nearest fighter. The ball bounces back off the wall the way it came at about half its speed, keeps its normal color, and falls to the ground, still hitting anyone in its path (credited to SLEDGEHAMMER, who can't be hit by it).
+- CROWBARMAN's GRAB has a longer windup (0.375s instead of 0.25s) and he slows to 0.15x speed during it. A missed grab retracts the crowbar quickly instead of hanging there, and the attack lock after it is 0.975s.
+- SNOWY ARENA's ground is narrower (1350 wide instead of 1750) and its art got a touch-up.
+- Bots: NORMAL bots block less often (15% instead of 25%) and react to attacks after 0.2s, HARD bots after 0.09s. HARD bots take 0.45s to notice a LONGSWORD counter block before backing off. HARD and VERY HARD bots back away from a CROWBARMAN GRAB that's winding up toward them.
+- SLATEMAN bots use their slide from much farther away, steer it toward their target, and brake before sliding off ledges.
+
+### Fixed
+- SCYTHEMAN's GRUELING SLAM missed if he was hit while it was landing.
+
 ## 2026-11-20
 
 ### Added
