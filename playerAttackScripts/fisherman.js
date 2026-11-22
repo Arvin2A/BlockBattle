@@ -345,7 +345,7 @@ function isOnFloor(api, scene, player) {
     });
 }
 
-function harpoonsLeft(player) {
+export function harpoonsLeft(player) {
     return player.harpoons ?? MAX_HARPOONS;
 }
 
@@ -955,7 +955,7 @@ function tryPull(api, scene, player, target, direction, currentTime) {
             timeoutEvent?.remove(false);
             colliders.forEach(collider => collider.destroy());
             scene.events.off('shutdown', removeHook);
-            scene.physics.world.off('worldbounds', cleanupAtWorldBounds);
+            scene.physics.world?.off('worldbounds', cleanupAtWorldBounds);
             hook.destroy();
             rope.destroy();
             if (player.activeHookCleanup === removeHook) {
@@ -974,7 +974,7 @@ function tryPull(api, scene, player, target, direction, currentTime) {
             timeoutEvent?.remove(false);
             colliders.forEach(collider => collider.destroy());
             colliders.length = 0;
-            scene.physics.world.off('worldbounds', cleanupAtWorldBounds);
+            scene.physics.world?.off('worldbounds', cleanupAtWorldBounds);
             if (hook.body) {
                 hook.setVelocity(0, 0);
                 hook.body.enable = false;

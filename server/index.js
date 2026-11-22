@@ -32,6 +32,7 @@ import { HeadlessChrome, findChrome } from './chrome.js';
 import { Lobby } from './lobby.js';
 import { createIceProvider, describeIceSetup } from './ice.js';
 import { createDiscordNotifier } from './discord.js';
+import { createSaveTransfers } from './saveTransfer.js';
 import { DEFAULT_PORT, MP_PATH } from '../mp/protocol.js';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
@@ -92,7 +93,36 @@ const lobby = new Lobby({
 });
 
 const serveStatic = createStaticHandler(path.join(ROOT, 'dist'), BASE_PATH);
+const saveTransfers = createSaveTransfers(log);
+const SAVE_ROUTES = { [`${MP_PATH}/save`]: saveTransfers.save, [`${MP_PATH}/redeem`]: saveTransfers.redeem };
+
+function handleSaveTransfer(request, response, handler) {
+    const headers = { 'Content-Type': 'application/json', 'Cache-Control': 'no-store', Vary: 'Origin' };
+    const origin = request.headers.origin;
+    if (origin && originAllowed(request)) {
+        headers['Access-Control-Allow-Origin'] = origin;
+        headers['Access-Control-Allow-Methods'] = 'POST, OPTIONS';
+        headers['Access-Control-Allow-Headers'] = 'Content-Type';
+    }
+    if (request.method === 'OPTIONS') {
+        response.writeHead(204, headers).end();
+        return;
+    }
+    if (request.method !== 'POST' || (origin && !originAllowed(request))) {
+        response.writeHead(405, headers).end(JSON.stringify({ error: 'not_allowed' }));
+        return;
+    }
+    handler(request, playerAddress(request)).then(([status, body]) => {
+        response.writeHead(status, headers).end(JSON.stringify(body));
+    });
+}
+
 const server = http.createServer((request, response) => {
+    const saveRoute = SAVE_ROUTES[request.url];
+    if (saveRoute) {
+        handleSaveTransfer(request, response, saveRoute);
+        return;
+    }
     if (request.url === `${MP_PATH}/status`) {
         const headers = { 'Content-Type': 'application/json', 'Cache-Control': 'no-store', Vary: 'Origin' };
         // Lets your websites ask "is the server up?" before showing the ONLINE button.

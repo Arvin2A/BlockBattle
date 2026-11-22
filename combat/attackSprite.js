@@ -77,7 +77,7 @@ const CHAINSAW_AIM_MAX_DEGREES = 50;
 function getChainsawAim(attacker) {
     if (!attacker.chainsawActive) return 0;
     const target = attacker.scene ? nearestEnemy(attacker.scene, attacker) : null;
-    if (!target?.active || !attackIsElligible(attacker, target, CHAINSAW_AIM_RANGE,
+    if (!target?.active || !attackIsElligible(attacker, target, CHAINSAW_AIM_RANGE + (attacker.sawExtension ?? 0),
         { ignoreCanAttack: true, silent: true })) return 0;
     const facing = Math.atan2(attacker.lastDir.y, attacker.lastDir.x);
     const toTarget = Math.atan2(target.y - attacker.y, target.x - attacker.x);
@@ -104,9 +104,15 @@ export function positionAttackSprite(attacker, animKey = '') {
     const sawAim = animKey === 'activechainsaw' ? getChainsawAim(attacker) : 0;
     // The blade swings around the axeman toward the target instead of only turning.
     const reachAngle = Math.atan2(attacker.lastDir.y, attacker.lastDir.x) + Phaser.Math.DegToRad(sawAim);
+    const sawExtension = animKey === 'activechainsaw' ? (attacker.sawExtension ?? 0) : 0;
+    const reach = 50 + sawExtension;
+    if (animKey === 'activechainsaw') {
+        attacker.sawReachAngle = reachAngle;
+        attacker.sawAppliedExtension = sawExtension;
+    }
     attacker.atk.setScale(getAttackSpriteScale(attacker, textureKey));
-    attacker.atk.x = attacker.x + Math.cos(reachAngle) * 50 + offset.x;
-    attacker.atk.y = attacker.y + Math.sin(reachAngle) * 50 - 20 + offset.y;
+    attacker.atk.x = attacker.x + Math.cos(reachAngle) * reach + offset.x;
+    attacker.atk.y = attacker.y + Math.sin(reachAngle) * reach - 20 + offset.y;
     attacker.atk.setFlipX(animKey === 'scytheatktilt'
         ? attacker.lastDir.x < 0
         : getAttackSpriteFlipX(attacker, textureKey));

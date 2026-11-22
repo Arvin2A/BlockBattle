@@ -37,7 +37,7 @@ export const CHARACTER_ROSTER = [
             {
                 name: 'CHAINSAW',
                 desc: 'Whats better than brutally grinding down your opponent? Building.',
-                abilities: 'ALT: BUILD MODE \n\n Switch between build and chainsaw mode. Gain wood by digging down. \n\nNEUTRAL SPECIAL: DIG AND BUILD \n\n On the ground, rev the chainsaw into the floor to dig up wood. In the air, drop a wooden plank right under you for 15 wood. \n\nDIR SPECIAL: RAMPAGE \n\n Doubles your damage output for 1 second.',
+                abilities: 'ALT: BUILD MODE \n\n Switch between build and chainsaw mode. Gain wood by digging down. \n\nNEUTRAL SPECIAL: DIG AND BUILD \n\n On the ground, rev the chainsaw into the floor to dig up wood. In the air, drop a wooden plank right under you for 15 wood. \n\nDIR SPECIAL: RAMPAGE \n\n Doubles your damage output for 1 second, and shoots your chainsaw out on a cord for extra reach before reeling it back in.',
                 color: '#ffae00'
             }
         ]
@@ -73,7 +73,7 @@ export const CHARACTER_ROSTER = [
             {
                 name: 'LAWNMOWER',
                 desc: 'Mow them down. Push it, ride it or launch it, and cut grass to keep it running.',
-                abilities: 'ATTACK: PLOW \n\n Push your mower into them and grind until it blows up. It only hits people right in front of the mower, about level with it. Then you only have a PULL CORD for 8 seconds. \n\nALT: RIDE \n\n Hop on for a big speed boost. \n\nNEUTRAL SPECIAL: CLIPPINGS \n\n Spray the grass you cut back at them. Anyone hit is slowed way down and can\'t double jump for a moment. Hold it to keep spraying. \n\nDIR SPECIAL: EJECT \n\n Launch the mower, faster and faster, until it explodes on whatever it hits. \n\nTRIPLE JUMP \n\n Jump a third time by ditching your mower. It crashes down and explodes on whatever it lands on.',
+                abilities: 'ATTACK: PLOW \n\n Push your mower into them and grind until it blows up. It only hits people right in front of the mower, about level with it. Then you only have a PULL CORD for 13 seconds, getting shorter with every grass you cut until it\'s half that at 100 cuts. \n\nALT: RIDE \n\n Hop on for a big speed boost. \n\nNEUTRAL SPECIAL: CLIPPINGS \n\n Spray the grass you cut back at them. Anyone hit is slowed way down and can\'t double jump for a moment. Hold it to keep spraying. \n\nDIR SPECIAL: EJECT \n\n Launch the mower, faster and faster, until it explodes on whatever it hits. \n\nTRIPLE JUMP \n\n Jump a third time by ditching your mower. It crashes down and explodes on whatever it lands on.',
                 color: '#7d9474'
             }
         ]

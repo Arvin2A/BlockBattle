@@ -18,7 +18,7 @@ var navBox = null;
 var layout = []
 var selectedIndex = 0;
 var previousInput = {};
-const CHANGELOG_VERSION = "2026-11-21-1";
+const CHANGELOG_VERSION = "2026-11-22-4";
 const ONLINE_STATUS_REFRESH_MS = 10000;
 const MIN_VERSION_COLOR_BRIGHTNESS = 170;
 
@@ -92,6 +92,48 @@ export class MenuScene extends Phaser.Scene {
         this.input.topOnly = false;
 
         const changelogUpdates = [
+            {
+                name: "ACHIEVEMENTS UPDATE",
+                date: "11/22/26",
+                entries: [
+                    {
+                        title: "ACHIEVEMENTS",
+                        body: "There's a new ribbon button under settings on every menu, and in the settings while you're in a match. It opens your ACHIEVEMENTS: what each one asks for, how close you are, and what you get for it. After a match, notifications pop in from the bottom right to show what you made progress on, with a big yellow flash when you finish one.\n They only count with no modifiers, either online or against a NORMAL CPU or harder. BOT MASTER I to IV are the exception: beat every fighter and every variant as a CPU on each difficulty, EASY included. WHAT A DAMN BLOCKHEAD! wants 500 blocked hits. Online, you also have to deal at least 100% damage in the match for it to count. Your progress saves in your browser. To move it somewhere else, get a transfer code: it works once and only for 10 minutes."
+                    },
+                    {
+                        title: "VARIANT UNLOCKS",
+                        body: "Every fighter's second variant is locked now. You unlock it by doing an achievement with their first one, like winning twice as LUMBERER without getting KO'd once for CHAINSAW, or KOing someone with a GRAB fling as HOOKER for DEMOLITIONIST. They're meant to be quick, one or two matches each. Until you unlock one, you can't pick it for a CPU either."
+                    },
+                    {
+                        title: "HOOKER CHANGES",
+                        body: "HOOKER's GRAB fling launches the same distance no matter how much damage they have, so it sets up KOs instead of being one. His CROWBAR VAULT tips over 1.7x faster, so you get in the air sooner."
+                    },
+                    {
+                        title: "NO AFK ONLINE",
+                        body: "Stop pressing buttons online for 10 seconds in total (not counting time you're stunned) and you won't get achievement progress that match. Hit 20 seconds and you get kicked."
+                    },
+                    {
+                        title: "QUICK RESTART",
+                        body: "There's a restart button right under the settings button during a match now. It asks if you're sure first, so you won't restart by accident."
+                    },
+                    {
+                        title: "CHAINSAW RAMPAGE",
+                        body: "CHAINSAW's RAMPAGE fires his chainsaw out on a cord now, then reels it back in. It still cuts twice as fast, but now it can catch people way outside his normal reach."
+                    },
+                    {
+                        title: "LAWNMOWER CHANGES",
+                        body: "Lose your mower as LAWNMOWER and the PULL CORD takes 13 seconds now instead of 8. Every grass you cut in the match shaves a bit off, down to half at 100 cuts. A clock flashes over him every time he cuts grass, getting bluer the closer he gets to 100.\n His CLIPPINGS don't chip your shield anymore when you block them, and his PULL CORD swing reaches a bit further."
+                    },
+                    {
+                        title: "AIR DODGE FIX",
+                        body: "AIR DODGE can't rocket you way up anymore when you use it at the top of a jump. It gives you about one jump's worth of height now, and still pushes you sideways just as far."
+                    },
+                    {
+                        title: "SMARTER BOTS",
+                        body: "HOOKER bots on HARD and up carry you toward the edge before flinging you. HOOKER bots also VAULT up to you when you're high above them, TRAPPER bots throw harpoons from a distance, and every bot uses its AIR DODGE to get back to the stage."
+                    }
+                ]
+            },
             {
                 name: "MAPS & MORE 4TH PATCH",
                 date: "11/21/26",
@@ -593,7 +635,7 @@ export class MenuScene extends Phaser.Scene {
 
         const changelogBlurb = this.add.text(
             40, 180,
-            "The fourth MAPS & MORE patch! Arrows point to fighters who fly off-screen, MALLET can't one-shot SLEDGEHAMMER's wall anymore, and bots got smarter about blocking.",
+            "ACHIEVEMENTS are here! Second variants are now unlocked through achievements, so hit the new ribbon button to see how. Plus some HOOKER tweaks and smarter bots.",
             {
                 fontFamily: "VCROSD",
                 fontSize: "16px",

@@ -366,10 +366,10 @@ function lerpColor(from, to, t) {
     return channel(16) | channel(8) | channel(0);
 }
 
-function updateResistanceShield(scene, player) {
+function updateResistanceShield(scene, player, texture = 'resistanceshield') {
     let shield = player.resistanceShield;
     if (!shield?.active) {
-        shield = player.resistanceShield = scene.add.image(player.x, player.y, 'resistanceshield')
+        shield = player.resistanceShield = scene.add.image(player.x, player.y, texture)
             .setDepth(player.depth + 1)
             .setAlpha(0);
         scene.objs.add(shield);
@@ -404,7 +404,9 @@ const MOWER = {
     backWheel: { x: 64, y: 22 },
     body: { width: 110, height: 50, offsetX: 10, offsetY: 23 },
     engineVolume: 0.6,
-    cordMs: 8000,
+    cordMs: 13000,
+    cordFastCuts: 100,
+    cordFastScale: 0.5,
     plowTickMs: 50,
     plowExplodeMs: 2000,
     plowCutRange: 45,
@@ -461,7 +463,7 @@ const BLOCKED_PLOW_HIT = {
 };
 
 const CORD_PUSH = {
-    range: 125,
+    range: 140,
     damage: 0.04,
     plankDamage: 0.03,
     knockback: { x: 750, y: 450, growth: false, scaleWithDamage: false },
@@ -570,10 +572,17 @@ function stopEngine(player, { quiet = false } = {}) {
     if (!quiet) player.mowerEndSFX.play();
 }
 
+function cordMs(player) {
+    if (player.noAbilityCooldown) return MIN_ABILITY_COOLDOWN_MS;
+    const progress = Math.min(1, (player.grassCutCount ?? 0) / MOWER.cordFastCuts);
+    return MOWER.cordMs * (1 - (1 - MOWER.cordFastScale) * progress);
+}
+
 function startCord(scene, player, { quiet = false } = {}) {
     player.mowerState = 'cord';
     player.clippings = 0;
-    player.mowerCordUntil = scene.time.now + (player.noAbilityCooldown ? MIN_ABILITY_COOLDOWN_MS : MOWER.cordMs);
+    player.mowerCordMs = cordMs(player);
+    player.mowerCordUntil = scene.time.now + player.mowerCordMs;
     player.mower.stop().setVisible(false);
     stopEngine(player, { quiet });
 }
@@ -975,6 +984,7 @@ function throwClipping(api, scene, player, victim, dirX, dirY) {
             api.landHit(scene, player, victim, {
                 damage: CLIPPINGS.damage,
                 plankDamage: 0,
+                shieldCost: 0,
                 hitstun: CLIPPINGS.hitstun,
                 hitstunGrowth: false,
                 sound: 'anyhit',
@@ -1012,6 +1022,7 @@ function holdClippings(api, scene, player, victim) {
 
 function updateLawnmower(api, scene, player, victim) {
     if (!isMower(player)) return;
+    updateResistanceShield(scene, player, 'timeclock');
     setupMower(scene, player);
     player.mowerApi = api;
     if (player.body.touching.down || player.body.blocked.down) player.sacrificeJumpUsed = false;
@@ -1072,7 +1083,7 @@ function lawnmowerMeter(scene, player) {
     if (player.mowerState === 'cord') {
         const remaining = Math.max(0, player.mowerCordUntil - now);
         return {
-            progress: 1 - remaining / MOWER.cordMs,
+            progress: 1 - remaining / (player.mowerCordMs ?? MOWER.cordMs),
             color: 0x777777,
             text: `PULL CORD ${Math.ceil(remaining / 1000)}s  ${clips}`,
             textColor: '#bbbbbb'

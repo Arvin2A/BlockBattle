@@ -22,6 +22,8 @@ import { addSettingsButton, useMatchVolume, usesThumbstick } from '../ui/setting
 import { addThumbstick } from '../ui/touchJoystick.js';
 import { hasMiscButton } from '../attacks.js';
 import { PLAYER_COLORS, isTeamMode } from '../matchModes.js';
+import { showAchievementToasts } from '../ui/achievementsMenu.js';
+import { recordMatchResult } from '../achievements.js';
 
 const KEY_BINDINGS = {
     KeyA: 'left', ArrowLeft: 'left',
@@ -291,6 +293,7 @@ export class OnlineGameScene extends Phaser.Scene {
         this.matchOver = true;
         this.matchRunning = false;
         this.endMessage = message;
+        if (message.result) showAchievementToasts(this, recordMatchResult(message.result), { delay: 1200 });
         this.logNetStats();
         this.events.emit('online-end', message);
     }
@@ -464,6 +467,7 @@ export class OnlineOverlayScene extends Phaser.Scene {
             [END_REASONS.KO]: won ? 'VICTORY!' : 'DEFEAT',
             [END_REASONS.FORFEIT]: won ? (duel ? 'YOUR OPPONENT LEFT, YOU WIN' : 'EVERYONE ELSE LEFT, YOU WIN') : 'YOU LEFT THE MATCH',
             [END_REASONS.DISCONNECT]: duel ? 'YOUR OPPONENT DISCONNECTED, YOU WIN' : 'EVERYONE ELSE LEFT, YOU WIN',
+            [END_REASONS.AFK]: won ? (duel ? 'YOUR OPPONENT WENT AFK, YOU WIN' : 'EVERYONE ELSE LEFT, YOU WIN') : 'YOU WERE KICKED FOR BEING AFK',
             [END_REASONS.SERVER_ERROR]: 'THE MATCH CRASHED ON THE SERVER',
             lost_connection: 'LOST CONNECTION TO THE SERVER'
         };

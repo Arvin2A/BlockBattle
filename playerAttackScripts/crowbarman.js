@@ -14,7 +14,7 @@ function tilt(api, scene, attacker, victim, xMul, yMul, kbTime) {
 
 const VAULT = {
     plantMs: 140,
-    tipMs: 160,
+    tipMs: 94,
     plantAhead: 30,
     sink: 4,
     scale: 1.3,
@@ -326,6 +326,7 @@ function tryGrab(api, scene, attacker, target, direction, currentTime, animKey =
                         x: attacker.atk.x - attacker.x,
                         y: attacker.atk.y - attacker.y
                     },
+                    direction: direction === 'left' ? -1 : 1,
                     atkFlipX: attacker.atk.flipX,
                     atkAngle: attacker.atk.angle,
                     aim: GRAB_AIM,
@@ -382,7 +383,7 @@ const GRAB_SPIN = {
         damage: 0.04,
         hitstun: 500,
         hitFreeze: 60,
-        knockback: { x: 1000, y: 600 },
+        knockback: { x: 1000, y: 600, growth: false },
         unblockable: true
     },
     whoosh: { key: 'whoosh', rate: 0.6 },
@@ -475,6 +476,7 @@ function launchFromSpin(api, scene, attacker) {
     scene.events.once('shutdown', () => scene.events.off('postupdate', holdAtPivot));
     scene.sound.play(GRAB_SPIN.whoosh.key, { rate: GRAB_SPIN.whoosh.rate });
     const flingDirection = attacker.lastDir.x || side;
+    target.flungAt = scene.time.now;
     api.landHit(scene, attacker, target, { ...GRAB_SPIN.hit, direction: { x: flingDirection, y: 0 } });
 }
 

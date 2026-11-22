@@ -18,6 +18,7 @@ import { isTeammate } from "../../combat/targets.js";
 import { isTapeBusy, slamLandsWithin, TAPE_REACH, superPryState } from "../../playerAttackScripts/demolitionist.js";
 import { pryCornersAt } from "../../playerAttackScripts/superPry.js";
 import { getCharacterStat } from "../../combat/characterStats.js";
+import { harpoonsLeft } from "../../playerAttackScripts/fisherman.js";
 
 // How each difficulty holds back. VERY HARD is the bot at full strength.
 //  thinkMs:       time between decisions; movement is held in between.
@@ -27,25 +28,25 @@ import { getCharacterStat } from "../../combat/characterStats.js";
 const DIFFICULTY = {
     EASY: {
         thinkMs: 320, attackDelayMs: 450, hesitateChance: 0.55, hesitateMs: 500,
-        edgeguard: false, dodgeSpecials: false, downslam: false,
+        edgeguard: false, dodgeSpecials: false, downslam: false, edgeFling: false,
         smack: false, ledge: true, blockChance: 0, dodgeMinigun: false,
         deflectChance: 0, respectCounter: false, blockReactMs: 0, counterNoticeMs: 0
     },
     NORMAL: {
         thinkMs: 140, attackDelayMs: 150, hesitateChance: 0.25, hesitateMs: 300,
-        edgeguard: true, dodgeSpecials: false, downslam: true,
+        edgeguard: true, dodgeSpecials: false, downslam: true, edgeFling: false,
         smack: true, ledge: true, blockChance: 0.15, dodgeMinigun: false,
         deflectChance: 0.3, respectCounter: false, blockReactMs: 200, counterNoticeMs: 0
     },
     HARD: {
         thinkMs: 0, attackDelayMs: 0, hesitateChance: 0, hesitateMs: 0,
-        edgeguard: false, dodgeSpecials: true, downslam: true,
+        edgeguard: false, dodgeSpecials: true, downslam: true, edgeFling: true,
         smack: false, ledge: false, blockChance: 0.5, dodgeMinigun: true, predictBlock: false,
         deflectChance: 0.6, respectCounter: true, blockReactMs: 90, counterNoticeMs: 450
     },
     'VERY HARD': {
         thinkMs: 0, attackDelayMs: 0, hesitateChance: 0, hesitateMs: 0,
-        edgeguard: true, dodgeSpecials: true, downslam: true,
+        edgeguard: true, dodgeSpecials: true, downslam: true, edgeFling: true,
         smack: true, ledge: true, blockChance: 0.5, dodgeMinigun: true, predictBlock: true,
         deflectChance: 0.85, respectCounter: true, blockReactMs: 0, counterNoticeMs: 0
     }
@@ -95,6 +96,9 @@ const HAMMER_SPACING_MARGIN = 15;
 const SLEDGE_TOO_CLOSE = 95;
 const QUICKSLAM_REACH = 240;
 const QUICKSLAM_MAX_DY = 60;
+
+const HARPOON_THROW = { minDx: 220, maxDx: 750, maxDy: 60, reserve: 2 };
+const VAULT_TRIGGER = { minRise: 200, maxDx: 250 };
 
 const COUNTER_BLOCK_CHANCE_SCALE = 1.5;
 const DEFLECT_LOOKAHEAD_MS = 180;
@@ -273,6 +277,7 @@ const CLUTCH_WOOD_RESERVE = PLANK_WOOD_COST;
 const WALL_WOOD_NEEDED = PLANK_WOOD_COST + CLUTCH_WOOD_RESERVE;
 // CHAINSAW: the saw has the same reach as a basic attack.
 const SAW_CONTACT_RANGE = 92;
+const RAMPAGE_REACH_RANGE = { min: 100, max: 150, maxDy: 50 };
 const SAW_ENGAGE_RANGE = 320;
 const SAW_SPINUP_RANGE = 170;
 
@@ -454,6 +459,11 @@ function recover(scene, bot, target, surfaces) {
         tryExtraJump(scene, bot, target);
         return;
     }
+    if (bot.hasDoubleJumped && needsLift && bot.body.velocity.y > 40 && !bot.airDodgeUsed &&
+        bot.body.velocity.x * dirX >= -10) {
+        bot.botWantsBlock = true;
+        return;
+    }
     if (!nearLevel || goal.gap < 20) return;
 
     const recoveryTowardStage = Math.sign(aimX - bot.x);
@@ -462,6 +472,46 @@ function recover(scene, bot, target, surfaces) {
     } else if (bot.hasDoubleJumped && DASH_REACH[bot.variant]) {
         useDirSpecial(scene, bot, target, recoveryTowardStage);
     }
+}
+
+const EDGE_FLING_MAX_MS = 2600;
+
+function carryGrabTowardEdge(scene, bot, target, surfaces, stageCenter, now) {
+    const grab = bot.activeGrab;
+    if (grab.spin) {
+        send(scene, bot, Commands.NONE);
+        return;
+    }
+    if (bot.botGrab !== grab) {
+        bot.botGrab = grab;
+        bot.botGrabAt = now;
+    }
+    const outward = target.x < stageCenter ? -1 : 1;
+    const timeout = now - bot.botGrabAt > EDGE_FLING_MAX_MS;
+    if (!timeout && walk(scene, bot, bot.activeGrab?.direction || outward, surfaces)) return;
+    bot.lastDir = { x: outward, y: 0 };
+    handleAttack(scene, bot, target);
+    send(scene, bot, Commands.NONE);
+}
+
+function tryThrowHarpoon(scene, bot, target, dx, dy, side, targetOffStage, difficulty, now) {
+    if (bot.variant !== 'TRAPPER' || bot.isAttacking || now < (bot.nextHarpoonThrowTime ?? 0)) return;
+    const adx = Math.abs(dx);
+    if (adx < HARPOON_THROW.minDx || adx > HARPOON_THROW.maxDx || Math.abs(dy) > HARPOON_THROW.maxDy) return;
+    const reserve = targetOffStage ? 0 : HARPOON_THROW.reserve;
+    if (harpoonsLeft(bot) <= reserve || hesitates(bot, difficulty, now)) return;
+    bot.lastDir = { x: side, y: 0 };
+    handleNeutralSpecial(scene, bot, target);
+}
+
+function tryVault(scene, bot, target, dx, dy, grounded, difficulty, now) {
+    if (bot.variant !== 'HOOKER' || !grounded || bot.vault || bot.spike) return false;
+    if (dy > -VAULT_TRIGGER.minRise || Math.abs(dx) > VAULT_TRIGGER.maxDx) return false;
+    if (hesitates(bot, difficulty, now)) return false;
+    bot.lastDir = { x: Math.sign(dx) || 1, y: 0 };
+    send(scene, bot, Commands.NONE);
+    handleNeutralSpecial(scene, bot, target);
+    return true;
 }
 
 // The target is off-stage: wait at the ledge nearest to them and hit them as they come back.
@@ -513,6 +563,10 @@ export function runBotAI(scene, bot, target, fiveframecount) {
 
     // CROWBARMAN's grab: fling them toward the closer side of the stage right away.
     if (bot.activeGrab) {
+        if (difficulty.edgeFling) {
+            carryGrabTowardEdge(scene, bot, target, surfaces, stageCenter, now);
+            return;
+        }
         bot.lastDir = { x: target.x < stageCenter ? -1 : 1, y: 0 };
         handleAttack(scene, bot, target);
         send(scene, bot, Commands.NONE);
@@ -533,6 +587,11 @@ export function runBotAI(scene, bot, target, fiveframecount) {
 
     if (bot.isPlunging) {
         steerSlide(scene, bot, target, surfaces);
+        return;
+    }
+
+    if (bot.vault && bot.vault.phase !== 'return') {
+        send(scene, bot, Commands.NONE);
         return;
     }
 
@@ -794,6 +853,7 @@ export function runBotAI(scene, bot, target, fiveframecount) {
 
     if (tryMalletSafeHeal(scene, bot, target, distance, side, grounded, difficulty, now)) return;
     if (tryPlaceWall(scene, bot, target, surfaces, dx, dy, grounded, targetOffStage, difficulty, now)) return;
+    if (targetHittable) tryThrowHarpoon(scene, bot, target, dx, dy, side, targetOffStage, difficulty, now);
 
     // ======================
     // EDGEGUARD
@@ -828,6 +888,7 @@ export function runBotAI(scene, bot, target, fiveframecount) {
 
     // Target above: jump, and save the double jump for the top of the first one.
     if (dy < -90 && Math.abs(dx) < 300) {
+        if (tryVault(scene, bot, target, dx, dy, grounded, difficulty, now)) return;
         if (grounded && now - bot.lastJump > 400) {
             bot.lastJump = now;
             send(scene, bot, Commands.UP);
@@ -1101,6 +1162,17 @@ function fightWithSaw(scene, bot, target, surfaces, grounded) {
             handleDirSpecial(scene, bot, direction, now, target);
             handleDirSpecial(scene, bot, direction, now, target);
         }
+        return true;
+    }
+
+    if (bot.chainsawActive && Math.abs(dy) < RAMPAGE_REACH_RANGE.maxDy &&
+        Math.abs(dx) > RAMPAGE_REACH_RANGE.min && Math.abs(dx) < RAMPAGE_REACH_RANGE.max &&
+        now >= bot.nextSideSpecialTime && now >= (bot.rampageCooldownUntil ?? 0)) {
+        bot.lastDir = { x: side, y: 0 };
+        const direction = side < 0 ? 'left' : 'right';
+        handleDirSpecial(scene, bot, direction, now, target);
+        handleDirSpecial(scene, bot, direction, now, target);
+        send(scene, bot, Commands.NONE);
         return true;
     }
 

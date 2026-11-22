@@ -40,6 +40,7 @@ export const AIR_DODGE = {
     speed: 750,
     minSpeed: 450,
     riseDamping: 0.75,
+    maxRise: 400,
     invincibleMs: 350,
     driftMs: 200,
     sound: 'whoosh'
@@ -98,7 +99,7 @@ function airDodge(scene, player, input) {
     player.airDodgeUsed = true;
     player.airDodgeUntil = now + AIR_DODGE.driftMs;
     player.invincibleUntil = Math.max(player.invincibleUntil ?? 0, now + AIR_DODGE.invincibleMs);
-    player.setVelocity(dir.x / length * speed, dir.y / length * speed);
+    player.setVelocity(dir.x / length * speed, Math.max(dir.y / length * speed, -AIR_DODGE.maxRise));
     player.flash?.();
     scene.sound.play(AIR_DODGE.sound, { rate: 2});
 }
@@ -252,6 +253,7 @@ function counterLaunch(scene, blocker, attacker, stunMs) {
     const now = scene.time.now;
     const dir = Math.sign(attacker.x - blocker.x) || -(blocker.lastDir?.x ?? 1);
     attacker.lastHitAt = now;
+    if (blocker.stats) blocker.stats.counters += 1;
     attacker.freezeUntil = now - 1;
     attacker.hitstunUntil = Math.max(attacker.hitstunUntil ?? 0, now + stunMs);
     attacker.flash?.();
@@ -264,6 +266,7 @@ export function blocksHit(scene, target, attacker, damage = 0, { minCost = BLOCK
     const cost = shieldCost ?? Phaser.Math.Clamp(damage * BLOCK.hitCostScale, minCost, BLOCK.maxHitCost);
     target.shield -= cost * blockStyle(target, 'costScale');
     target.shieldHitUntil = now + 80;
+    if (target.stats) target.stats.blocks += 1;
     const stunMs = blockStunMs(target, now);
     const counters = !ranged && blockStyle(target, 'counter');
     target.freezeUntil = Math.max(target.freezeUntil ?? 0, now + (counters ? BLOCK.counterSelfFreezeMs : stunMs));

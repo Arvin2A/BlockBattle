@@ -19,6 +19,7 @@ import inappropriateWords from '../assets/inappropriate_words?raw';
 import { getOnlineServerHost, getServerName, isOnlineConfigured } from '../mp/serverConfig.js';
 import { CHAOS_TIERS, COLORS, HEX, makeButton, makePanel } from '../ui/theme.js';
 import { openAdvancedInfo } from '../ui/advancedInfo.js';
+import { isVariantUnlocked } from '../achievements.js';
 import { clipScrollablePanel } from '../ui/clipScroll.js';
 
 const SETTINGS_KEY = 'blockBattleOnline';
@@ -267,7 +268,8 @@ export class OnlineLobbyScene extends Phaser.Scene {
         const characterIndex = Math.max(0, CHARACTER_ROSTER.findIndex(c => c.key === saved.character));
         this.selection = {
             characterIndex,
-            variantIndex: Math.max(0, CHARACTER_ROSTER[characterIndex].variants.findIndex(v => v.name === saved.variant)),
+            variantIndex: Math.max(0, CHARACTER_ROSTER[characterIndex].variants.findIndex(v =>
+                v.name === saved.variant && isVariantUnlocked(CHARACTER_ROSTER[characterIndex].key, v.name))),
             mapIndex: Math.max(0, MAP_CHOICES.indexOf(saved.map)),
             name: cleanName(saved.name ?? randomPlayerName())
         };
@@ -1012,8 +1014,17 @@ export class OnlineLobbyScene extends Phaser.Scene {
 
     changeVariant(direction) {
         if (!this.selection || this.locked) return;
-        const variants = CHARACTER_ROSTER[this.selection.characterIndex].variants;
-        this.selection.variantIndex = (this.selection.variantIndex + direction + variants.length) % variants.length;
+        const character = CHARACTER_ROSTER[this.selection.characterIndex];
+        const count = character.variants.length;
+        let next = this.selection.variantIndex;
+        do {
+            next = (next + direction + count) % count;
+        } while (next !== this.selection.variantIndex && !isVariantUnlocked(character.key, character.variants[next].name));
+        if (next === this.selection.variantIndex) {
+            this.sound.play('deny');
+            return;
+        }
+        this.selection.variantIndex = next;
         this.refreshSelection();
     }
 
@@ -1310,6 +1321,9 @@ export class OnlineLobbyScene extends Phaser.Scene {
         const hasVariants = character.variants.length > 1;
         this.variantButton.box.setVisible(hasVariants);
         this.variantButton.text.setVisible(hasVariants);
+        const canSwitch = character.variants.some((each, index) =>
+            index !== this.selection.variantIndex && isVariantUnlocked(character.key, each.name));
+        this.variantButton.text.setText(canSwitch ? 'SWITCH VARIANT' : 'VARIANT LOCKED');
         this.nameButton.text.setFontSize(15).setText(`NAME: ${this.selection.name}${net.tag ? ` #${net.tag}` : ''}`);
         for (let size = 14; size >= 10 && this.nameButton.text.width > FIGHTER.width - 16; size--) {
             this.nameButton.text.setFontSize(size);

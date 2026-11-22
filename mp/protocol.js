@@ -10,7 +10,7 @@ import { MAPS } from '../scenes/GameScene/MapDefinitions.js';
 import { toAsciiName } from './nameFilter.js';
 
 // Bump this whenever messages change so old tabs get a clear "refresh" error.
-export const PROTOCOL_VERSION = 14;
+export const PROTOCOL_VERSION = 16;
 
 export const MP_PATH = '/mp';
 export const DEFAULT_PORT = 8080;
@@ -43,8 +43,33 @@ export const END_REASONS = {
     KO: 'ko',
     FORFEIT: 'forfeit',
     DISCONNECT: 'disconnect',
-    SERVER_ERROR: 'server_error'
+    SERVER_ERROR: 'server_error',
+    AFK: 'afk'
 };
+
+export const SAVE_TRANSFER = { lifetimeMs: 10 * 60 * 1000, maxSaveBytes: 8192 };
+
+export function cleanTransferCode(code) {
+    const letters = String(code ?? '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+    return /^[A-Z0-9]{6}$/.test(letters) ? `${letters.slice(0, 3)}-${letters.slice(3)}` : null;
+}
+
+const RESULT_COUNTS = ['timesKOd', 'grassCut', 'counters', 'blocks'];
+const RESULT_FLAGS = ['won', 'untouchedKO', 'flingKO', 'qualifies', 'noModifiers'];
+
+export function cleanMatchResult(raw) {
+    if (!raw || typeof raw !== 'object') return null;
+    if (typeof raw.character !== 'string' || typeof raw.variant !== 'string') return null;
+    const result = { character: raw.character.slice(0, 32), variant: raw.variant.slice(0, 32) };
+    for (const key of RESULT_COUNTS) {
+        const value = Number(raw[key]);
+        result[key] = Number.isFinite(value) ? Math.max(0, Math.min(10000, Math.floor(value))) : 0;
+    }
+    for (const key of RESULT_FLAGS) result[key] = raw[key] === true;
+    const kb = Number(raw.finalKB);
+    result.finalKB = Number.isFinite(kb) ? kb : 99;
+    return result;
+}
 
 // ws://host/mp on the same server that served the page.
 export function getServerSocketUrl(location = globalThis.location) {

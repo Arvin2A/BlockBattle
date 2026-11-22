@@ -9,7 +9,7 @@ import { WebSocket } from 'ws';
 import { createNameFilter } from '../mp/nameFilter.js';
 import { ALL_BUTTONS_MASK } from '../input.js';
 import { CHARACTER_ROSTER, isValidSelection } from '../characterRoster.js';
-import { cleanName, cleanDeviceId, END_REASONS, MAP_CHOICES, MAX_LOBBY_NAME_LENGTH, PROTOCOL_VERSION } from '../mp/protocol.js';
+import { cleanName, cleanDeviceId, cleanMatchResult, END_REASONS, MAP_CHOICES, MAX_LOBBY_NAME_LENGTH, PROTOCOL_VERSION } from '../mp/protocol.js';
 import { MATCH_MODES, SLOTS, buildRoster, isValidMode } from '../matchModes.js';
 import { sanitizeOnlineModifiers } from '../modifiers.js';
 import { QUICK_CHAT_PHRASES, QuickChatLimiter } from '../mp/quickChat.js';
@@ -695,7 +695,12 @@ export class Lobby {
                 this.tryStart(match);
             } else if (message.t === 'end' && Array.isArray(message.winners) &&
                 message.winners.length > 0 && message.winners.every(slot => match.roster.some(entry => entry.slot === slot))) {
-                this.endMatch(match, message.winners, END_REASONS.KO);
+                this.endMatch(match, message.winners, END_REASONS.KO, message.results);
+            } else if (message.t === 'afk' && typeof message.s === 'string' && match.players[message.s] && !match.left.has(message.s)) {
+                const client = match.players[message.s];
+                this.log(`Match ${match.id}: ${client.name} (${message.s}) was kicked for being AFK`);
+                if (client.match === match) sendJson(client.ws, { t: 'matchEnd', winners: null, reason: END_REASONS.AFK });
+                this.forfeit(match, message.s, END_REASONS.AFK);
             }
         });
         ws.on('close', () => {
@@ -800,7 +805,7 @@ export class Lobby {
         this.tryStart(match);
     }
 
-    endMatch(match, winners, reason) {
+    endMatch(match, winners, reason, results = null) {
         if (match.state === 'ended') return;
         match.state = 'ended';
         clearTimeout(match.bootTimer);
@@ -809,7 +814,8 @@ export class Lobby {
 
         for (const client of Object.values(match.players)) {
             if (client.match !== match) continue;
-            sendJson(client.ws, { t: 'matchEnd', winners, reason });
+            const result = results && typeof results === 'object' ? cleanMatchResult(results[client.slot]) : null;
+            sendJson(client.ws, { t: 'matchEnd', winners, reason, ...(result ? { result } : {}) });
             client.watching = reason === END_REASONS.KO ? match : null;
             client.match = null;
             client.slot = null;

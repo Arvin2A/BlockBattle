@@ -2,8 +2,20 @@
 // Original source: https://github.com/Arvin2A/BlockBattle
 // Licensed under the GNU GPL v3 only. See LICENSE.
 
+export function preloadAchievementsButton() {
+    this.load.image('achievementsButton', 'assets/ingame/achievementsButton.png');
+}
+
+export function preloadAchievementIcons() {
+    preloadAchievementsButton.call(this);
+    ['BlockHead', 'BotMasterI', 'BotMasterII', 'BotMasterIII', 'BotMasterIV']
+        .forEach(name => this.load.image(`achievement_${name}`, `assets/ingame/achievement_${name}.png`));
+    preloadCharacterIcons.call(this);
+}
+
 export function preloadMenu() {
     this.load.image('menuBackground', 'assets/menu/Homescreen.png');
+    preloadAchievementsButton.call(this);
     this.load.image('settingsBtn', 'assets/ingame/settingsBtn.png');
     this.load.image('pressedSettingsBtn', 'assets/ingame/pressedSettingsBtn.png');
     this.load.image('uifade', 'assets/menu/uifade.png');
@@ -25,11 +37,13 @@ export function preloadMapSelection() {
     this.load.audio('revolveselect', 'audio/revolveselect.wav');
     preloadCharacterIcons.call(this);
     preloadGreySettingsButton.call(this);
+    preloadAchievementsButton.call(this);
 }
 
 export function preloadGreySettingsButton() {
     this.load.image('settingsBtnGrey', 'assets/ingame/settingsBtnGrey.png');
     this.load.image('pressedSettingsBtnGrey', 'assets/ingame/pressedSettingsBtnGrey.png');
+    this.load.image('achievementsButtonGrey', 'assets/ingame/achievementsButtonGrey.png');
 }
 
 export function preloadCharacterSelection() {
@@ -40,6 +54,7 @@ export function preloadCharacterSelection() {
     this.load.image('selectedoverlay', 'assets/menu/selectedOverlay.png');
     this.load.image('ready', 'assets/menu/READY.png');
     preloadGreySettingsButton.call(this);
+    preloadAchievementsButton.call(this);
     this.load.audio('hover', 'audio/hover.wav');
     this.load.audio('buttonhover', 'audio/buttonhover.wav');
     this.load.audio('deny', 'audio/deny.wav');
@@ -148,6 +163,7 @@ export function preload() {
 
     this.load.image('resumeBtn', 'assets/ingame/resumeBtn.png');
     this.load.image('characterInfoBtn', 'assets/ingame/characterInfoBtn.png');
+    preloadAchievementsButton.call(this);
     [
         ['resumeBtnGrey', 'resumeBtnGrey'],
         ['restartBtnGrey', 'restartBtnGrey'],
@@ -634,6 +650,11 @@ export function preloadFighterSprites() {
     this.load.image(
         'resistanceshield',
         'assets/sprites/scytheman/resistanceshield.png'
+    );
+
+    this.load.image(
+        'timeclock',
+        'assets/sprites/scytheman/timeClock.png'
     );
 
     this.load.image(

@@ -5,6 +5,7 @@
 import { COLORS, HEX, makeButton, makePanel, textStyle } from './theme.js';
 import { isPhoneScreen } from './touchAssist.js';
 import { openAdvancedInfo } from './advancedInfo.js';
+import { addAchievementsButton, openAchievements, setAchievementsButtonTint } from './achievementsButton.js';
 
 const STORAGE_KEY = 'blockBattleSettings';
 const VOLUME_STEP = 0.1;
@@ -108,6 +109,10 @@ export function addSettingsButton(scene, {
     });
     scene.input.on('pointerup', lift);
     button.on('pointerout', lift);
+    if (!onPress && !MATCH_SCENES.includes(scene.sys.settings.key) && !matchRunning(scene.game)) {
+        button.achievementsButton = addAchievementsButton(scene, { x, depth, container });
+        setAchievementsButtonTint(scene, button.achievementsButton, tint);
+    }
     return button;
 }
 
@@ -119,6 +124,7 @@ export function setSettingsButtonTint(scene, button, tint) {
     button.setTexture(button.skin.texture);
     if (grey) button.setTint(tint);
     else button.clearTint();
+    if (button.achievementsButton) setAchievementsButtonTint(scene, button.achievementsButton, tint);
     return button;
 }
 
@@ -135,10 +141,12 @@ export function openSettings(scene, { container = null, onClose } = {}) {
     };
     const touch = scene.sys.game.device.input.touch;
     const showInfo = !MATCH_SCENES.includes(scene.sys.settings.key) || Boolean(scene.openCharacterInfo);
+    const showAchievements = matchRunning(scene.game);
     const touchRow = 4;
     const infoRow = touch ? 5 : 4;
-    const rows = infoRow + (showInfo ? 1 : 0);
-    const rowGap = 70;
+    const achievementsRow = infoRow + (showInfo ? 1 : 0);
+    const rows = achievementsRow + (showAchievements ? 1 : 0);
+    const rowGap = rows > 5 ? 58 : 70;
     const height = 170 + rows * rowGap;
     const top = 300 - height / 2;
 
@@ -224,6 +232,17 @@ export function openSettings(scene, { container = null, onClose } = {}) {
             else openAdvancedInfo(scene, { container, onClose: reopen });
         }, 20);
         add(view.box, view.text);
+    }
+    if (showAchievements) {
+        label(achievementsRow, 'ACHIEVEMENTS');
+        const icon = scene.add.image(690, rowY(achievementsRow), 'achievementsButton')
+            .setDisplaySize(rowGap - 16, rowGap - 16)
+            .setInteractive({ useHandCursor: true });
+        icon.on('pointerdown', () => {
+            dismiss();
+            openAchievements(scene, { onClose: () => openSettings(scene, { container, onClose }) });
+        });
+        add(icon);
     }
     const back = makeButton(scene, 500, top + height - 45, 200, 44, 'BACK', close);
     add(back.box, back.text);

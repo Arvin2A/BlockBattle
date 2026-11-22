@@ -38,6 +38,13 @@ export function getOnlineServerHost() {
     }
 }
 
+export function getOnlineHttpUrl(route) {
+    const url = new URL(getOnlineServerUrl());
+    url.protocol = url.protocol === 'wss:' ? 'https:' : 'http:';
+    url.pathname = `${url.pathname.replace(/\/$/, '')}/${route}`;
+    return url;
+}
+
 // Asks the server how it's doing (its /mp/status page).
 // Resolves { online, waiting, quick, lobbies, matches }, or null if it's off/unreachable. Never throws.
 export async function fetchServerStatus(timeoutMs = 4000) {

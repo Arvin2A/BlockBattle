@@ -45,7 +45,7 @@ let matchStarted = false;
 const INPUT_SEQ_MEMORY = 256;
 const netInputs = Object.fromEntries(SLOTS.map(slot => [
     slot,
-    { held: decodeButtons(0), pressed: decodeButtons(0), lastSeq: -1, seenSeqs: new Set() }
+    { held: decodeButtons(0), heldMask: 0, pressed: decodeButtons(0), active: false, lastSeq: -1, seenSeqs: new Set() }
 ]));
 let leftPlayers = [];
 const fastPeers = {};
@@ -102,7 +102,12 @@ function receiveInput(slot, heldMask, pressedMask, seq) {
     if (!input || !isNewInput(input, seq)) return;
     const newest = !Number.isSafeInteger(seq) || seq > input.lastSeq;
     if (Number.isSafeInteger(seq) && newest) input.lastSeq = seq;
-    if (newest) input.held = decodeButtons(heldMask);
+    if (newest) {
+        if (heldMask !== input.heldMask) input.active = true;
+        input.heldMask = heldMask;
+        input.held = decodeButtons(heldMask);
+    }
+    if (pressedMask) input.active = true;
     // Presses add up until the game reads them, so quick taps between frames still count.
     const pressed = decodeButtons(pressedMask);
     for (const button of INPUT_BUTTONS) {
@@ -114,8 +119,14 @@ function receiveInput(slot, heldMask, pressedMask, seq) {
 export function pollNetworkInput(slot) {
     const input = netInputs[slot];
     const pressed = input.pressed;
+    const active = input.active;
     input.pressed = decodeButtons(0);
-    return { held: input.held, pressed };
+    input.active = false;
+    return { held: input.held, pressed, active };
+}
+
+export function reportAfk(slot) {
+    send({ t: 'afk', s: slot });
 }
 
 export function getOnlineMatchSettings() {
@@ -221,10 +232,10 @@ export function attachAuthority(scene) {
     });
 }
 
-export function reportMatchEnd(winnerSlots) {
+export function reportMatchEnd(winnerSlots, results = {}) {
     if (endReported) return;
     endReported = true;
-    send({ t: 'end', winners: winnerSlots });
+    send({ t: 'end', winners: winnerSlots, results });
 }
 
 function useSilentSounds(Phaser) {

@@ -1,5 +1,41 @@
 # Changelog
 
+## 2026-11-22
+
+### Added
+- ACHIEVEMENTS: a scrollable overlay listing every achievement with its icon, name, requirement, reward (NONE, a variant unlock, or ??? for one that's planned) and progress. It opens from a new button under the settings button on the main menu, map/modifier select, character select and online lobby, and from an ACHIEVEMENTS row in the settings during a match. At the end of a match that counts, notifications slide in from the bottom-right corner (up to 4 stacked at a time) for every achievement that moved: a progress bar filling from the old value to the new one, or for a finished one, an ACHIEVEMENT UNLOCKED card with a yellow flash that grows and fades behind it. New sounds for the slide-in and the unlock.
+- The achievements button takes on the selected map's color on map and character select, the same way the settings button does.
+- Achievements count only with no modifiers, either online or against a NORMAL CPU or harder. BOT MASTER counts against any CPU, still with no modifiers.
+- Variant unlocks: the first variant of each fighter is free and the second is unlocked by an achievement done as the first:
+  - CHAINSAW: win 2 matches as LUMBERER without being KO'd.
+  - LAWNMOWER: win a match as LANDSCAPER after cutting 100 grass.
+  - TRAPPER: KO someone as ANGLER while still at 0% KB.
+  - DAGGER: win a match as LONGSWORD with 5 SWORD GUARD counters.
+  - SLEDGEHAMMER: win a match as MALLET while below 0% KB.
+  - DEMOLITIONIST: win a match as HOOKER with a KO from a GRAB fling.
+- Locked variants can still be previewed on character select but can't be readied, and the online lobby skips them. This goes for CPUs on character select too, so you can't fight a variant you haven't unlocked yet.
+- WHAT A DAMN BLOCKHEAD!: block 500 hits in total. Reward: NONE.
+- BOT MASTER I-IV: beat every fighter and variant (14 in all) as an EASY, NORMAL, HARD and VERY HARD CPU. Only BOT MASTER IV has a reward (??? coming soon).
+- In VS CPU, character select puts a yellow checkmark on every fighter whose variants you've all beaten at the CPU's selected difficulty, plus DEFEATED across the top of the CPU card's preview when the exact variant shown is beaten, and shows that difficulty's BOT MASTER progress under it. Both update when you change the difficulty.
+- Progress is saved in localStorage. To move it to another browser, GET TRANSFER CODE uploads the save to the online server and shows a short code (like K7F-2QX) that works once and expires after 10 minutes; ENTER TRANSFER CODE on the other browser loads it and merges it with what's already there. The server keeps codes in memory only and limits each address to 10 codes and 20 redeem attempts per 10 minutes.
+- A restart button under the settings button during offline matches. It pauses the match and asks "Are you sure?" with YES (restart) and NO (resume). Hidden in online matches and once the match is over.
+- Online matches send each player their own match result when the match ends (protocol version 16).
+- Online achievement progress also needs at least 100% damage dealt in the match and no AFK flag.
+- Online AFK check: time with no new input while not in hitstun adds up after the countdown. At 10s total the player's achievement progress for that match is denied; at 20s they're kicked ("YOU WERE KICKED FOR BEING AFK") and the match continues or ends as if they left. A win by AFK kick gives no achievement progress.
+
+### Changed
+- HOOKER's GRAB fling knockback no longer grows with the target's KB.
+- HOOKER's CROWBAR VAULT tips over 1.7x faster (0.094s instead of 0.16s).
+- LAWNMOWER's PULL CORD wait after losing his mower (PLOW explosion, EJECT or the triple-jump ditch) is 13s instead of 8s. Every grass he cuts that match shortens it a little, down to 6.5s at 100 cuts. Each grass cut flashes a clock over him (like LANDSCAPER's resistance shield), tinted from white toward blue as he gets closer to 100 cuts.
+- CHAINSAW's RAMPAGE shoots the running saw out on a black cord: it shoots out fast and slows down as it reaches its full 65px over the first 0.3s, holds, then reels back in over the last 0.35s, and the saw's grind reach and aim range grow with it. RAMPAGE's faster cutting and stronger explosion are unchanged. CHAINSAW bots use it to catch targets 100-150px away.
+- LAWNMOWER's CLIPPINGS no longer drain shields when blocked.
+- LAWNMOWER's PULL CORD swing reaches 140 instead of 125.
+- Bots: HARD and VERY HARD HOOKER bots carry a grabbed fighter toward the edge before flinging. HOOKER bots vault when the target is more than 200px above them. TRAPPER bots throw harpoons at targets 220-750px away, keeping 2 for melee unless the target is off-stage. Every bot air dodges toward the stage during recovery once its jumps are used up.
+- The name filter catches a few more words.
+
+### Fixed
+- AIR DODGE could launch a fighter about 560px up when used at the top of a jump or while falling. Its upward speed is now capped at 400 (a normal jump), so it adds at most a jump's worth of height. The sideways push is unchanged.
+
 ## 2026-11-21
 
 ### Added

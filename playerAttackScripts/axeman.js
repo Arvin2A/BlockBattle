@@ -71,6 +71,8 @@ function activateChainsaw(api, scene, attacker, victim, options = {}) {
 const RAMPAGE_EXPLOSION_DAMAGE_SCALE = 1.4;
 const RAMPAGE_EXPLOSION_KNOCKBACK_SCALE = 1.25;
 const RAMPAGE_EXPLOSION_GRACE_MS = 300;
+const RAMPAGE_MS = 1000;
+const RAMPAGE_REACH = { maxExtension: 65, outPortion: 0.3, backPortion: 0.35, ropeWidth: 3, ropeColor: 0x111111, sawBack: 0.42 };
 
 function isRampaging(scene, attacker) {
     return scene.time.now < (attacker.rampageUntil ?? 0);
@@ -86,14 +88,14 @@ function startRampage(api, scene, attacker, victim) {
     }
 
     attacker.rampageEvent?.remove(false);
-    attacker.rampageUntil = scene.time.now + 1000;
+    attacker.rampageUntil = scene.time.now + RAMPAGE_MS;
     attacker.rampageExplosionUntil = attacker.rampageUntil + RAMPAGE_EXPLOSION_GRACE_MS;
     attacker.rampageCooldownUntil = attacker.rampageUntil;
     attacker.chainsawHitInterval = 25;
     attacker.chainsawSFX.setRate(1.2);
     attacker.setTint(0xff3333);
     startChainsawHitEvent(api, scene, attacker, victim, {});
-    attacker.rampageEvent = scene.time.delayedCall(1000, () => {
+    attacker.rampageEvent = scene.time.delayedCall(RAMPAGE_MS, () => {
         attacker.rampageEvent = null;
         attacker.rampageUntil = 0;
         attacker.clearTint();
@@ -209,7 +211,7 @@ function updateChainsaw(api, scene, attacker, victim, options = {}) {
     api.positionAttackSprite(attacker, 'activechainsaw');
     breakPlanksWithChainsaw(api, scene, attacker);
     const contact = grindTick(api, scene, attacker, victim, attacker.chainsawLastContactTime, {
-        range: options.range,
+        range: (options.range ?? api.STANDARD_HITS.jab.range) + (attacker.sawExtension ?? 0),
         chipDamage: options.chipDamage,
         hitstun: options.hitstunDuration,
         freeze: options.freezeDuration
@@ -227,6 +229,36 @@ function updateChainsaw(api, scene, attacker, victim, options = {}) {
         explodeChainsaw(api, scene, attacker, victim, options);
         return;
     }
+}
+
+function rampageExtension(scene, attacker) {
+    if (!attacker.chainsawActive || !isRampaging(scene, attacker)) return 0;
+    const t = Phaser.Math.Clamp(1 - (attacker.rampageUntil - scene.time.now) / RAMPAGE_MS, 0, 1);
+    const reach = Math.min(1, t / RAMPAGE_REACH.outPortion, (1 - t) / RAMPAGE_REACH.backPortion);
+    return RAMPAGE_REACH.maxExtension * (1 - Math.pow(1 - reach, 3));
+}
+
+function drawSawRope(scene, attacker) {
+    let rope = attacker.sawRope;
+    if (!rope?.active) {
+        rope = attacker.sawRope = scene.add.graphics();
+        scene.objs.add(rope);
+    }
+    rope.clear();
+    const extension = attacker.sawAppliedExtension ?? 0;
+    if (extension < 1 || !attacker.atk.visible) return;
+    const angle = attacker.sawReachAngle ?? Math.atan2(attacker.lastDir.y, attacker.lastDir.x);
+    const back = attacker.atk.displayWidth * RAMPAGE_REACH.sawBack;
+    const endX = attacker.atk.x - Math.cos(angle) * back;
+    const endY = attacker.atk.y - Math.sin(angle) * back;
+    rope.lineStyle(RAMPAGE_REACH.ropeWidth, RAMPAGE_REACH.ropeColor, 1)
+        .lineBetween(endX - Math.cos(angle) * extension, endY - Math.sin(angle) * extension, endX, endY);
+}
+
+function updateRampageReach(scene, attacker) {
+    if (attacker.variant !== 'CHAINSAW') return;
+    attacker.sawExtension = rampageExtension(scene, attacker);
+    drawSawRope(scene, attacker);
 }
 
 function updateChainsawWood(scene, attacker, victim) {
@@ -796,6 +828,7 @@ export default {
     },
     update: (api, scene, attacker, victim) => {
         keepChainsawRunning(api, scene, attacker, victim);
+        updateRampageReach(scene, attacker);
         updateThrownAxe(api, scene, attacker);
     },
     updateChainsawWood,

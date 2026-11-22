@@ -11,6 +11,7 @@ import { isAlive, nearestEnemy } from './combat/targets.js';
 import { addTouchAssist } from './ui/touchAssist.js';
 import { addSettingsButton, applyVolume, getScreenShakeScale, openSettings, useMatchVolume, usesThumbstick } from './ui/settings.js';
 import { buttonTexture, getButtonTint, skinButton } from './ui/matchButtons.js';
+import { openConfirm } from './ui/confirmDialog.js';
 import { openAdvancedInfo } from './ui/advancedInfo.js';
 import { CHARACTER_ROSTER } from './characterRoster.js';
 import { addThumbstick } from './ui/touchJoystick.js';
@@ -43,11 +44,13 @@ import { updateBurn } from './combat/heat.js';
 import { getActiveKillZones, modifierOptions } from './scenes/MapAndModifierSelect.js';
 import UIPlugin from 'phaser4-rex-plugins/templates/ui/ui-plugin.js';
 import unmuteAudio from 'unmute-ios-audio';
-import { botMode, simulationMode, changeBotMode } from './gameSettings.js';
+import { botMode, simulationMode, changeBotMode, botDifficulty } from './gameSettings.js';
 import { createInputState, applyInputFrame, consumePress, emptyControllerInput, INPUT_BUTTONS } from './input.js';
-import { isAuthority, beginAuthorityCapture, attachAuthority, consumeLeftPlayers, createAuthorityGame, getOnlineMatchSettings, pollNetworkInput, reportMatchEnd } from './mp/authority.js';
+import { isAuthority, beginAuthorityCapture, attachAuthority, consumeLeftPlayers, createAuthorityGame, getOnlineMatchSettings, pollNetworkInput, reportAfk, reportMatchEnd } from './mp/authority.js';
 import { OnlineLobbyScene } from './scenes/OnlineLobbyScene.js';
 import { OnlineGameScene, OnlineOverlayScene } from './scenes/OnlineGameScene.js';
+import { AchievementsScene, AchievementToastScene, showAchievementToasts } from './ui/achievementsMenu.js';
+import { qualifiesForAchievements, recordMatchResult } from './achievements.js';
 import { ControllerSetupScene, controllerInputs } from './scenes/ControllerSetupScene.js';
 
 window.Phaser = Phaser;
@@ -224,7 +227,7 @@ export var config = {
         antialias: false,
         pixelArt: true
     },
-    scene: [ControllerSetupScene, MenuScene, MapAndModifierSelectScene, CharacterSelectScene, GameScene, OnlineLobbyScene, OnlineGameScene, OnlineOverlayScene]
+    scene: [ControllerSetupScene, MenuScene, MapAndModifierSelectScene, CharacterSelectScene, GameScene, OnlineLobbyScene, OnlineGameScene, OnlineOverlayScene, AchievementsScene, AchievementToastScene]
 };
 
 for (const Manager of [Phaser.Sound.WebAudioSoundManager, Phaser.Sound.HTML5AudioSoundManager]) {
@@ -582,9 +585,25 @@ function pollLocalInput(scene, slot) {
     return frame;
 }
 
+const AFK_DENY_MS = 10000;
+const AFK_KICK_MS = 20000;
+
+function trackAfk(scene, slot, active) {
+    if (active || scene.gameEnded || scene.matchStartTime === null) return;
+    const player = scene.gameState.players.find(fighter => fighter.slot === slot);
+    if (!player || player.isCpu || player.eliminated || player.hitstun) return;
+    player.afkMs = (player.afkMs ?? 0) + scene.game.loop.delta;
+    if (player.afkMs >= AFK_DENY_MS) player.stats.afk = true;
+    if (player.afkMs >= AFK_KICK_MS && !player.afkKicked) {
+        player.afkKicked = true;
+        reportAfk(slot);
+    }
+}
+
 function readPlayerInputs(scene) {
     for (const { slot } of scene.matchSettings.players) {
         const frame = scene.online ? pollNetworkInput(slot) : pollLocalInput(scene, slot);
+        if (scene.online) trackAfk(scene, slot, frame.active);
         applyInputFrame(scene.playerInputs[slot], frame);
     }
     scene.p1LeftAltPressed = false;
@@ -1020,7 +1039,7 @@ function create() {
         this.physics.add.collider(player, this.gameState.map.topPlatforms);
         this.physics.add.collider(player, this.planks);
 
-        player.stats = { kos: 0, maxKB: player.KBmultiplier, damageDealt: 0 };
+        player.stats = { kos: 0, maxKB: player.KBmultiplier, damageDealt: 0, blocks: 0, counters: 0, timesKOd: 0, untouchedKO: false, flingKO: false, afk: false };
         player.statsLastKB = player.KBmultiplier;
         player.wasGrounded = true;
         player.launchTrail = this.add.particles(player.x, player.y, '__WHITE', {
@@ -1155,6 +1174,7 @@ function create() {
         if (this.gamePaused || this.gameEnded) return false;
         this.gamePaused = true;
         this.pauseButton.setVisible(false).setTexture(buttonTexture(this, 'settingsBtn'));
+        this.restartButton?.setVisible(false);
         this.pauseOverlay.setVisible(showMenu);
         pauseMenuButtons.forEach(button => button.setVisible(showMenu));
         this.physics.world.pause();
@@ -1172,6 +1192,7 @@ function create() {
         this.settingsPanel?.close();
         pauseMenuButtons.forEach(button => button.setVisible(false));
         this.pauseButton.setVisible(true);
+        this.restartButton?.setVisible(!this.gameEnded).setTexture(buttonTexture(this, 'restartBtn'));
         this.physics.world.resume();
         this.time.paused = false;
         this.tweens.resumeAll();
@@ -1228,6 +1249,26 @@ function create() {
     if (this.online) {
         this.pauseButton.setVisible(false).disableInteractive();
         attachAuthority(this);
+    } else {
+        this.restartButton = skinButton(this, this.add.image(968, 86, 'restartBtn')
+            .setScale(0.12)
+            .setScrollFactor(0)
+            .setDepth(1999)
+            .setInteractive({ useHandCursor: true }));
+        this.hud.add(this.restartButton);
+        this.restartButton.on('pointerdown', () => {
+            if (this.settingsPanel || this.advancedInfo || !this.pauseGame(false)) return;
+            this.sound.play('hover2');
+            this.restartButton.setVisible(true).setTexture(buttonTexture(this, 'restartBtnPressed'));
+            openConfirm(this, {
+                container: this.hud,
+                onYes: () => fadeOutTo(this, () => {
+                    this.sound.stopAll();
+                    this.scene.restart();
+                }),
+                onNo: () => this.resumeGame()
+            });
+        });
     }
 }
 function getRoundScore(scene, player) {
@@ -2494,13 +2535,54 @@ function endMatchIfDecided(scene) {
     const teams = teamsStillIn(scene);
     if (teams.size > 1) return;
     scene.gameEnded = true;
+    scene.restartButton?.setVisible(false);
     const fighters = scene.gameState.players;
     const winners = teams.size === 1
         ? fighters.filter(fighter => fighter.team === [...teams][0])
         : fighters;
     scene.matchChampion = winners.find(fighter => fighter.lives > 0) ?? winners[0];
     showMatchEnd(scene, winners);
-    if (scene.online) reportMatchEnd(winners.map(fighter => fighter.slot));
+    recordAchievements(scene, winners);
+}
+
+function matchResultFor(scene, player, winners, noModifiers, cpu = null) {
+    return {
+        character: player.character,
+        variant: player.variant,
+        won: winners.includes(player),
+        timesKOd: player.stats.timesKOd,
+        grassCut: player.grassCutCount ?? 0,
+        counters: player.stats.counters,
+        blocks: player.stats.blocks,
+        finalKB: player.KBmultiplier,
+        untouchedKO: player.stats.untouchedKO,
+        flingKO: player.stats.flingKO,
+        noModifiers,
+        qualifies: qualifiesForAchievements({
+            online: scene.online, noModifiers, cpuDifficulty: cpu?.difficulty,
+            damageDealt: player.stats.damageDealt, afk: player.stats.afk
+        }),
+        cpuDifficulty: cpu?.difficulty,
+        cpuCharacter: cpu?.character,
+        cpuVariant: cpu?.variant
+    };
+}
+
+function recordAchievements(scene, winners) {
+    const noModifiers = !Object.values(modifierOptions).some(modifier => modifier.enabled);
+    const fighters = scene.gameState.players;
+    if (scene.online) {
+        const results = Object.fromEntries(fighters.filter(fighter => !fighter.isCpu)
+            .map(fighter => [fighter.slot, matchResultFor(scene, fighter, winners, noModifiers)]));
+        reportMatchEnd(winners.map(fighter => fighter.slot), results);
+        return;
+    }
+    if (!scene.botMode || scene.simulationMode) return;
+    const human = fighters.find(fighter => !fighter.isCpu);
+    const bot = fighters.find(fighter => fighter.isCpu);
+    if (!human || !bot) return;
+    const cpu = { difficulty: botDifficulty[bot.id], character: bot.character, variant: bot.variant };
+    showAchievementToasts(scene, recordMatchResult(matchResultFor(scene, human, winners, noModifiers, cpu)), { delay: 1200 });
 }
 
 function releaseHoldsOn(scene, player) {
@@ -2566,8 +2648,14 @@ function knockOut(scene, loser) {
     loser.KBmultiplier = modifierOptions.SUDDEN_DEATH.enabled ? 4.00 : 1.00;
     loser.statsLastKB = loser.KBmultiplier;
 
+    loser.stats.timesKOd += 1;
+    const flung = loser.flungAt !== undefined && loser.flungAt === loser.lastHitAt;
     const scorer = creditScorer(scene, loser);
-    if (scorer) scorer.stats.kos += 1;
+    if (scorer) {
+        scorer.stats.kos += 1;
+        if (scorer.KBmultiplier <= 1) scorer.stats.untouchedKO = true;
+        if (flung) scorer.stats.flingKO = true;
+    }
 
     const matchOver = teamsStillIn(scene).size <= 1;
     updateWins(scene, matchOver);

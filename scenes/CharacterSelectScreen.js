@@ -19,6 +19,7 @@ import { addMapBackdrop, getSelectedButtonTint, getSelectedMapPreview } from "./
 import { CHARACTER_ROSTER } from "../characterRoster.js";
 import { createFighterDemo } from "../ui/fighterDemo.js";
 import { openAdvancedInfo } from "../ui/advancedInfo.js";
+import { botTargetKey, getBotMasterAchievement, getBotWins, isAchievementDone, isVariantUnlocked } from "../achievements.js";
 import {
     getConnectedControllers,
     getMenuGamepadInput
@@ -43,6 +44,7 @@ const BANNER_HEIGHT = 36;
 const TAB = { width: 84, height: 24 };
 const PAD_BUTTON = 40;
 const PAD_SPREAD = 44;
+const LOCKED_PREVIEW_TEXTS = ['Nope.', 'Nuh uh.'];
 
 const KEYBOARD = {
     1: { up: 'W', down: 'S', left: 'A', right: 'D', lock: 'E', variant: 'Q', unlock: 'R' },
@@ -168,10 +170,11 @@ export class CharacterSelectScene extends Phaser.Scene {
             const name = this.add.text(x, y + cell / 2 - 11, character.name, textStyle('body', {
                 fontSize: `${Math.round(cell * 0.13)}px`
             })).setOrigin(0.5);
+            const check = this.drawCheck(x + cell / 2 - 16, y - cell / 2 + 18, 1);
             box.on('pointerdown', pointer => this.pickFromGrid(index, pointer.rightButtonDown()));
             box.on('pointerover', () => box.setStrokeStyle(2, 0x999999));
             box.on('pointerout', () => box.setStrokeStyle(2, 0x555555));
-            return { box, icon, name, x, y };
+            return { box, icon, name, check, x, y };
         });
 
         [1, 2].forEach(player => {
@@ -242,6 +245,16 @@ export class CharacterSelectScene extends Phaser.Scene {
         });
 
         if (slot.isCpu) this.buildDifficulty(player, columnX, top + 244);
+        const lockNote = this.add.text(columnX, top + 228, 'LOCKED - SEE ACHIEVEMENTS', textStyle('body', {
+            fontSize: '14px', fill: COLORS.error
+        })).setOrigin(0.5).setVisible(false);
+        const lockedPreview = this.add.container(previewX, previewY, [
+            this.add.rectangle(0, 0, previewWidth, previewHeight, 0x000000, 0.6),
+            this.add.text(0, 0, '', textStyle('title', { fontSize: '30px' })).setOrigin(0.5)
+        ]).setDepth(5).setVisible(false);
+        const previewCheck = this.add.text(previewX, previewY - previewHeight / 2 + 20, 'DEFEATED', textStyle('title', {
+            fontSize: '22px', fill: COLORS.accent, strokeThickness: 4
+        })).setOrigin(0.5).setDepth(6).setVisible(false);
 
         const readyY = top + height - 42;
 
@@ -256,11 +269,16 @@ export class CharacterSelectScene extends Phaser.Scene {
             fontSize: '22px', fill: slot.colors.text
         })).setOrigin(0.5);
         readyBox.on('pointerdown', () => this.toggleLock(player));
-        readyBox.on('pointerover', () => readyBox.setFillStyle(slot.locked ? 0x888888 : slot.colors.hover));
-        readyBox.on('pointerout', () => readyBox.setFillStyle(slot.locked ? HEX.cpu : slot.colors.fill));
+        const greyedOut = () => slot.locked || this.isVariantLocked(player);
+        readyBox.on('pointerover', () => {
+            if (!this.isVariantLocked(player)) readyBox.setFillStyle(slot.locked ? 0x888888 : slot.colors.hover);
+        });
+        readyBox.on('pointerout', () => readyBox.setFillStyle(greyedOut() ? HEX.cpu : slot.colors.fill));
         const refreshReady = () => {
-            readyBox.setFillStyle(slot.locked ? HEX.cpu : slot.colors.fill);
-            readyText.setText(slot.locked ? 'UNREADY' : 'READY').setColor(slot.locked ? COLORS.text : slot.colors.text);
+            const variantLocked = this.isVariantLocked(player);
+            readyBox.setFillStyle(greyedOut() ? HEX.cpu : slot.colors.fill);
+            readyText.setText(slot.locked ? 'UNREADY' : variantLocked ? 'LOCKED' : 'READY')
+                .setColor(greyedOut() ? COLORS.text : slot.colors.text);
         };
 
         const tabX = left + 22 + TAB.width / 2;
@@ -269,7 +287,7 @@ export class CharacterSelectScene extends Phaser.Scene {
             fontSize: '18px', fill: slot.colors.text, strokeThickness: 0
         })).setOrigin(0.5);
 
-        slot.card = { demo, name, variantText, variantArrows, lockShade, readyImage, refreshReady };
+        slot.card = { demo, name, variantText, variantArrows, lockShade, readyImage, refreshReady, lockNote, lockedPreview, previewCheck };
     }
 
     buildPad(player, x, y) {
@@ -296,7 +314,19 @@ export class CharacterSelectScene extends Phaser.Scene {
 
     buildDifficulty(player, x, y) {
         const label = this.add.text(x, y, '', textStyle('body', { fontSize: '18px', fill: COLORS.accent })).setOrigin(0.5);
-        const show = () => label.setText(`CPU: ${botDifficulty[player]}`);
+        const tracksBotMaster = botMode && !simulationMode;
+        const progress = this.add.text(x, y + 26, '', textStyle('body', { fontSize: '13px', fill: COLORS.muted })).setOrigin(0.5);
+        const show = () => {
+            label.setText(`CPU: ${botDifficulty[player]}`);
+            if (!tracksBotMaster) return;
+            const achievement = getBotMasterAchievement(botDifficulty[player]);
+            const beaten = getBotWins(botDifficulty[player]).length;
+            progress.setText(achievement && isAchievementDone(achievement)
+                ? `${achievement.name} COMPLETE`
+                : `${achievement?.name ?? 'BOT MASTER'}: ${beaten} / ${achievement?.goal ?? beaten} BEATEN`)
+                .setColor(achievement && isAchievementDone(achievement) ? COLORS.accent : COLORS.muted);
+            this.refreshBotWins();
+        };
         [-1, 1].forEach(direction => {
             const arrow = this.add.text(x + direction * 92, y, direction < 0 ? '<' : '>', textStyle('body', {
                 fontSize: '26px', fill: COLORS.cpu
@@ -313,6 +343,34 @@ export class CharacterSelectScene extends Phaser.Scene {
             });
         });
         show();
+    }
+
+    drawCheck(cx, cy, size) {
+        const check = this.add.graphics().setDepth(6).setVisible(false);
+        const points = [[cx - 8 * size, cy], [cx - 2 * size, cy + 6 * size], [cx + 9 * size, cy - 7 * size]];
+        [[7 * size, 0x000000], [4 * size, HEX.accent]].forEach(([width, color]) => {
+            check.lineStyle(width, color, 1).beginPath().moveTo(...points[0]);
+            check.lineTo(...points[1]).lineTo(...points[2]).strokePath();
+        });
+        return check;
+    }
+
+    beatenCharacters() {
+        return new Set(botMode && !simulationMode ? getBotWins(botDifficulty[2]) : []);
+    }
+
+    refreshBotWins() {
+        const beaten = this.beatenCharacters();
+        this.tiles.forEach((tile, index) => {
+            const character = this.characters[index];
+            tile.check.setVisible(character.variants.every(variant => beaten.has(botTargetKey(character.key, variant.name))));
+        });
+        [1, 2].forEach(player => {
+            const slot = this.slots[player];
+            const character = this.characters[slot.index];
+            const target = botTargetKey(character.key, character.variants[slot.variant].name);
+            slot.card?.previewCheck.setVisible(slot.isCpu && beaten.has(target));
+        });
     }
 
     pickFromGrid(index, wantsP2) {
@@ -368,9 +426,19 @@ export class CharacterSelectScene extends Phaser.Scene {
         this.setLocked(player, !slot.locked);
     }
 
+    isVariantLocked(player) {
+        const slot = this.slots[player];
+        const character = this.characters[slot.index];
+        return !isVariantUnlocked(character.key, character.variants[slot.variant].name);
+    }
+
     setLocked(player, locked) {
         const slot = this.slots[player];
         if (slot.locked === locked) return;
+        if (locked && this.isVariantLocked(player)) {
+            this.sound.play('deny');
+            return;
+        }
         slot.locked = locked;
         this.sound.play('hover2');
         slot.card.lockShade.setVisible(locked);
@@ -397,11 +465,19 @@ export class CharacterSelectScene extends Phaser.Scene {
         const slot = this.slots[player];
         const character = this.characters[slot.index];
         const variant = character.variants[slot.variant];
-        const { name, variantText, variantArrows, demo } = slot.card;
+        const { name, variantText, variantArrows, demo, lockNote, lockedPreview, refreshReady } = slot.card;
+        const variantLocked = this.isVariantLocked(player);
+        if (variantLocked && !lockedPreview.visible) {
+            lockedPreview.list[1].setText(Phaser.Utils.Array.GetRandom(LOCKED_PREVIEW_TEXTS));
+        }
+        lockedPreview.setVisible(variantLocked);
+        refreshReady();
+        if (this.tiles) this.refreshBotWins();
         name.setFontSize(26).setText(character.name).setColor(variant.color ?? COLORS.text);
         if (name.width > 180) name.setFontSize(Math.floor(26 * 180 / name.width));
         const multiple = character.variants.length > 1;
-        variantText.setText(variant.name).setColor(multiple ? variant.color ?? COLORS.text : COLORS.cpu);
+        variantText.setText(variant.name).setColor(multiple && !variantLocked ? variant.color ?? COLORS.text : COLORS.cpu);
+        lockNote.setVisible(variantLocked);
         variantArrows.forEach(arrow => arrow.setVisible(multiple));
         demo.show(slot.index, slot.variant);
 
