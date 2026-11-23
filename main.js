@@ -587,17 +587,25 @@ function pollLocalInput(scene, slot) {
 
 const AFK_DENY_MS = 10000;
 const AFK_KICK_MS = 20000;
+const AFK_RETURN_MS = 3000;
+const AFK_INPUT_GAP_MS = 1000;
 
 function trackAfk(scene, slot, active) {
     if (scene.gameEnded || scene.matchStartTime === null) return;
     const player = scene.gameState.players.find(fighter => fighter.slot === slot);
     if (!player || player.isCpu || player.eliminated) return;
+    const delta = scene.game.loop.delta;
     if (active) {
         player.afkMs = 0;
-        return;
+    } else if (!player.hitstun) {
+        player.afkMs = (player.afkMs ?? 0) + delta;
     }
-    if (player.hitstun) return;
-    player.afkMs = (player.afkMs ?? 0) + scene.game.loop.delta;
+    if ((player.afkMs ?? 0) < AFK_INPUT_GAP_MS) {
+        player.activeMs = (player.activeMs ?? 0) + delta;
+        if (player.activeMs >= AFK_RETURN_MS) player.stats.afk = false;
+    } else {
+        player.activeMs = 0;
+    }
     if (player.afkMs >= AFK_DENY_MS) player.stats.afk = true;
     if (player.afkMs >= AFK_KICK_MS && !player.afkKicked) {
         player.afkKicked = true;
