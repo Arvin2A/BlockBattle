@@ -2,32 +2,50 @@
 // Original source: https://github.com/Arvin2A/BlockBattle
 // Licensed under the GNU GPL v3 only. See LICENSE.
 
-// mp/serverConfig.js
-// Which online server the game talks to (browser only, Node never loads this).
-//
-// The build must be given the server address, e.g.  VITE_MP_SERVER=wss://play.example.com/mp
-// (deploy.yml reads it from the MP_SERVER_URL repository variable).
-// VITE_MP_SERVER_NAME (repo variable MP_SERVER_NAME) is the name shown to players,
-// like "NEW YORK".
-
 import { getServerSocketUrl } from './protocol.js';
+import { DEFAULT_SERVER, SERVERS } from './servers.js';
 
-const CONFIGURED_SERVER = (import.meta.env.VITE_MP_SERVER ?? '').trim();
-const CONFIGURED_NAME = (import.meta.env.VITE_MP_SERVER_NAME ?? '').trim().toUpperCase();
+const SERVER_STORAGE_KEY = 'blockBattleServer';
+const ONLINE_ENABLED = import.meta.env.VITE_MP_ONLINE === 'true' || Boolean((import.meta.env.VITE_MP_SERVER ?? '').trim());
+
+let selectedServer = readSavedServer();
+
+function readSavedServer() {
+    try {
+        const saved = localStorage.getItem(SERVER_STORAGE_KEY);
+        return SERVERS[saved] ? saved : DEFAULT_SERVER;
+    } catch {
+        return DEFAULT_SERVER;
+    }
+}
+
+export function getServers() {
+    return Object.entries(SERVERS).map(([id, server]) => ({ id, ...server }));
+}
+
+export function getSelectedServerId() {
+    return selectedServer;
+}
+
+export function selectServer(id) {
+    if (!SERVERS[id]) return false;
+    selectedServer = id;
+    try {
+        localStorage.setItem(SERVER_STORAGE_KEY, id);
+    } catch {}
+    return true;
+}
 
 export function getOnlineServerUrl() {
-    return CONFIGURED_SERVER || getServerSocketUrl();
+    return ONLINE_ENABLED ? SERVERS[selectedServer].url : getServerSocketUrl();
 }
 
-// Whether this copy of the game knows of any server to play on.
 export function isOnlineConfigured() {
-    // import.meta.env.DEV: "npm run dev", where Vite forwards /mp to a local server.
-    return Boolean(CONFIGURED_SERVER) || import.meta.env.DEV;
+    return ONLINE_ENABLED || import.meta.env.DEV;
 }
 
-// Short name shown to players, e.g. "NEW YORK".
 export function getServerName() {
-    return CONFIGURED_NAME || 'ONLINE';
+    return ONLINE_ENABLED ? SERVERS[selectedServer].name : 'ONLINE';
 }
 
 export function getOnlineServerHost() {

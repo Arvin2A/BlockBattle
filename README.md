@@ -37,7 +37,7 @@ These warnings show up because the alpha builds aren't code-signed yet. Press **
 - `npm run dist:desktop` builds the installer for the system you're on, into `release/`.
 - Game updates for the app ship with the website: every push to `main` also builds the desktop game into `desktop/` on GitHub Pages, with a `game-update.json` list of every file and its hash. When the app starts, it compares that list with what it has and downloads only the changed files. If it's offline, it starts with what it already has.
 - `desktopShellVersion` in `package.json` is the version of the app itself (`desktop/main.cjs` and `desktop/updater.cjs`). Only raise it when a game update won't work without the new app code. Then make a new release, because older apps will tell players to download it instead of updating.
-- Releases are built by GitHub Actions (`.github/workflows/release.yml`) on Windows, macOS and Linux. To make one, set `"version"` in `package.json` to the update's date (for example `2026.11.17`), push a tag with the same version (`v2026.11.17`), then publish the draft release that appears on the Releases page. The builds use the `MP_SERVER_URL` and `MP_SERVER_NAME` repository variables for the online server, same as the website.
+- Releases are built by GitHub Actions (`.github/workflows/release.yml`) on Windows, macOS and Linux. To make one, set `"version"` in `package.json` to the update's date (for example `2026.11.17`), push a tag with the same version (`v2026.11.17`), then publish the draft release that appears on the Releases page. Online servers are listed in `mp/servers.js`; the `MP_SERVER_URL` repository variable only switches online on for the build, same as the website.
 
 ## License
 

@@ -15,6 +15,39 @@ static website (GitHub Pages, etc.) ── serves the game files
                                                                           (queue + one hidden Chrome tab per match)
 ```
 
+## Why you'd run your own server
+
+BlockBattle is open source, so you're free to mod it: new fighters, variants, attacks,
+maps, balance changes. Singleplayer mods work as soon as you build them. **Modded online
+play only works on a server you run yourself.** The official server can't host your mod,
+for these reasons:
+
+- **Online matches run on the server, not in players' browsers.** Online play is
+  server-authoritative. Each match is the real game running in a hidden Chrome tab on the
+  server, built from the server's own copy of the code. Players only send button presses
+  and draw what the server sends back. So the server runs its own code for every attack,
+  hitbox and KO, never yours.
+- **The server only accepts fighters it knows.** Before a player joins a queue or lobby,
+  the server checks their pick against its own `characterRoster.js`. A modded fighter or
+  variant is refused with "That fighter does not exist on this server."
+- **The game and server must match exactly.** If a mod changes anything online play
+  depends on, the protocol version has to change too (`PROTOCOL_VERSION` in
+  `mp/protocol.js`). The server turns away any game whose version doesn't match its own.
+- **The official server only accepts the official website.** It only takes connections
+  from the websites in its `BB_ALLOWED_ORIGINS` list, so a modded copy hosted elsewhere
+  can't connect to it at all.
+
+So to play a mod online:
+
+1. Run this guide on a machine you control, using your modded copy of the repo.
+2. List your server in `mp/servers.js` in your mod (step 6), and build your website from
+   that same copy.
+3. Whenever you change the mod, redeploy the website **and** pull, rebuild and restart
+   the server, so both sides always run the same code.
+
+Please give your server and your mod their own names, so players can tell them apart from
+the official BlockBattle server.
+
 ## 0. Check the machine
 
 ```bash
@@ -289,20 +322,26 @@ or Caddy.
 
 ## 6. Connect your website to the server
 
-If your copy of the game is deployed by this repo's GitHub Actions workflow
-(`.github/workflows/deploy.yml`), go to **your repo > Settings > Secrets and variables >
-Actions > Variables > New repository variable** and add:
+The servers players can connect to are listed in `mp/servers.js`. Add yours there with a
+short id, the name players see, and the address from step 5 (must start with `wss://` and
+end with `/mp`):
 
-| Name | Value (type it plain, **no quotes**) |
-|---|---|
-| `MP_SERVER_URL` | your server address from step 5, e.g. `wss://play.<your-domain>/mp`. Must start with `wss://` and end with `/mp` |
-| `MP_SERVER_NAME` | *(optional)* name players see, e.g. `US EAST` or the city it's in |
+```js
+export const SERVERS = {
+    ny1: { name: 'NEW YORK', url: 'wss://play.<your-domain>/mp' }
+};
 
-Then re-run the workflow (Actions tab > the deploy workflow > Run workflow). The values are
-built into the site, so changing them ALWAYS needs a redeploy.
+export const DEFAULT_SERVER = 'ny1';
+```
 
-Building some other way? Set the same values as environment variables while building:
-`VITE_MP_SERVER=wss://... VITE_MP_SERVER_NAME="US EAST" npm run build`.
+Then turn online on for the build. If your copy of the game is deployed by this repo's GitHub
+Actions workflow (`.github/workflows/deploy.yml`), go to **your repo > Settings > Secrets and
+variables > Actions > Variables** and make sure `MP_SERVER_URL` is set to anything (the
+workflow passes it in, and any value turns online on; the address itself now comes from
+`mp/servers.js`). Re-run the workflow afterwards (Actions tab > the deploy workflow > Run
+workflow), since this is built into the site.
+
+Building some other way? Set `VITE_MP_ONLINE=true npm run build`.
 
 The ONLINE button on the main menu then shows:
 
@@ -310,7 +349,7 @@ The ONLINE button on the main menu then shows:
 |---|---|
 | `US EAST - 3 ONLINE` | Server is up, click to play |
 | `SERVER OFFLINE` (greyed) | Server/tunnel is down, or your site isn't in `BB_ALLOWED_ORIGINS` |
-| `NOT AVAILABLE` (greyed) | This build has no server address (`MP_SERVER_URL` not set) |
+| `NOT AVAILABLE` (greyed) | Online is off in this build (`MP_SERVER_URL` / `VITE_MP_ONLINE` not set) |
 
 **Forks:** the included workflow also uploads to InfinityFree using the `FTP_SERVER`,
 `FTP_USERNAME` and `FTP_PASSWORD` secrets. If you don't use InfinityFree, delete the
