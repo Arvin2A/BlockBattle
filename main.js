@@ -787,6 +787,7 @@ function create() {
             restartBtn.setVisible(false);
             fadeOutTo(this, () => {
                 this.sound.stopAll();
+                quickCountdownNext = true;
                 this.scene.restart();
             });
         });
@@ -1279,6 +1280,7 @@ function create() {
                 container: this.hud,
                 onYes: () => fadeOutTo(this, () => {
                     this.sound.stopAll();
+                    quickCountdownNext = true;
                     this.scene.restart();
                 }),
                 onNo: () => this.resumeGame()
@@ -1323,23 +1325,26 @@ function waitForModifierIntro(scene, onDone) {
     playModifierIntro(scene, getActiveModifierCards(scene.gameState.map.definition), onDone);
 }
 
-function runCountdown(scene) {
+const QUICK_COUNTDOWN_SPEED = 1.2;
+let quickCountdownNext = false;
+
+function runCountdown(scene, speed = 1) {
     const fighters = scene.gameState.players;
     scene.time.delayedCall(50, () => {
         for (const player of fighters) {
-            player.freezeUntil = 3500 + scene.time.now;
-            player.hitstunUntil = 3500 + scene.time.now;
+            player.freezeUntil = 4200 / speed + scene.time.now;
+            player.hitstunUntil = 4200 / speed + scene.time.now;
         }
     });
     ['countdown1', 'countdown2', 'countdown3', 'countdown4'].forEach((texture, index) => {
-        scene.time.delayedCall((1000 / 1.2) * (index + 1), () => {
+        scene.time.delayedCall((1000 / speed) * (index + 1), () => {
             const counter = scene.add.image(500, 300, texture);
             scene.hud.add(counter);
-            if (index === 0) scene.sound.play('countdown', { rate: 1.2 });
+            if (index === 0) scene.sound.play('countdown', { rate: speed });
             scene.tweens.add({
                 targets: counter,
                 alpha: 0,
-                duration: 500 / 1.2,
+                duration: 500 / speed,
                 onComplete: () => counter.destroy()
             });
             if (index < 3) return;
@@ -1358,9 +1363,11 @@ function startMatchSequence(scene) {
         player.freezeUntil = Number.MAX_SAFE_INTEGER;
         player.hitstunUntil = Number.MAX_SAFE_INTEGER;
     }
+    const speed = quickCountdownNext && !scene.online ? QUICK_COUNTDOWN_SPEED : 1;
+    quickCountdownNext = false;
     waitForModifierIntro(scene, () => {
         launchEntranceSlams(scene);
-        runCountdown(scene);
+        runCountdown(scene, speed);
     });
 }
 

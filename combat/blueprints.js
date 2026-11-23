@@ -9,7 +9,7 @@ import { addSceneUpdateListener } from './effects.js';
 import { damagePlanksInAttack } from './planks.js';
 import { cutGrassInSwing } from './grass.js';
 import { hideAttackSprite } from './attackSprite.js';
-import { getAttackDamageScale, getHitSound } from './characterStats.js';
+import { getAttackDamageScale, getHitSound, getKnockbackResistance } from './characterStats.js';
 import { blocksHit } from './block.js';
 
 const PLUNGE_KNOCKBACK_BONUS = 1.0;
@@ -167,7 +167,7 @@ export function landHit(scene, attacker, target, spec = {}) {
     if (attacker.team !== undefined) target.lastHitBy = attacker;
     if (target.nettedUntil > now) breakNet(target, now);
     attacker.lastLandedHitAt = now;
-    target.hitstunUntil = now + hitstun * (hitstunGrowth ? target.KBmultiplier : 1);
+    target.hitstunUntil = now + hitstun * (hitstunGrowth ? target.KBmultiplier : 1) / getKnockbackResistance(target);
     if (stun) {
         target.freezeUntil = now + (stun.target ?? 0);
         attacker.freezeUntil = now + (stun.attacker ?? 0);
