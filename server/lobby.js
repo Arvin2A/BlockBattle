@@ -430,7 +430,7 @@ export class Lobby {
             sendJson(client.ws, { t: 'error', msg: 'The lobby needs to be full to start.' });
             return;
         }
-        if (lobby.members.slice(1).some(member => !member.ready)) {
+        if (lobby.members.some(member => !member.ready)) {
             sendJson(client.ws, { t: 'error', msg: 'Everyone needs to be ready to start.' });
             return;
         }
@@ -447,7 +447,7 @@ export class Lobby {
 
     setReady(client, message) {
         const lobby = client.lobby;
-        if (!lobby || client.state !== 'lobby' || lobby.members[0] === client) return;
+        if (!lobby || client.state !== 'lobby') return;
         const ready = Boolean(message.r);
         if (client.ready === ready) return;
         client.ready = ready;

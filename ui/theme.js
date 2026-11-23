@@ -18,6 +18,7 @@ export const COLORS = {
     text: '#ffffff',
     muted: '#bbbbbb',
     error: '#ff6b6b',
+    ready: '#2fa100',
     stroke: '#000000'
 };
 
