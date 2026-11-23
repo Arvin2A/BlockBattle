@@ -23,7 +23,7 @@ const SAFE_WORDS = [
     'cocktail', 'cockatoo', 'cockatiel', 'cockpit', 'cockroach', 'cockney', 'cockle', 'cockerel',
     'cockade', 'cockamamie', 'cocky', 'cockier', 'cockiest', 'cockily', 'cockiness', 'cocksure', 'cockeyed',
     'peacock', 'hancock', 'hitchcock', 'woodcock', 'shuttlecock', 'gamecock', 'babcock', 'stopcock',
-    'haycock', 'poppycock', 'weathercock', 'wadih', 'dihedral', 'dihydr'
+    'haycock', 'poppycock', 'weathercock', 'wadih', 'dihedral', 'dihydr', 'assess'
 ];
 
 // Letters from other alphabets that look like English ones (an iota for an i).
@@ -172,14 +172,15 @@ export function createNameFilter(wordListText) {
         const word = pieces.map(alts => alts[0]).join('');
         if (!word) continue;
         const hidden = !wholeOnly && !atEnd && (anywhere || word.length >= MIN_HIDDEN_WORD_LENGTH);
-        const pattern = entryPattern(pieces, false, severe);
+        const beforeVowel = /ass$/.test(word) ? '(?![aeiou])' : '';
+        const pattern = entryPattern(pieces, false, severe) + beforeVowel;
         // A plural s on the end still counts as the whole word.
         wholeWords.push(new RegExp(`^${pattern}s*$`));
         if (atEnd) endWords.push(new RegExp(`${pattern}s*$`));
         if (severe) severeStartWords.push(new RegExp(`^${pattern}`));
         if (hidden) hiddenWords.push(new RegExp(pattern));
         if (!pieces.some(alts => alts.some(alt => /[aeiou]/.test(alt)))) continue;
-        const wild = entryPattern(pieces, true, severe);
+        const wild = entryPattern(pieces, true, severe) + beforeVowel;
         wildWholeWords.push(new RegExp(`^${wild}s*$`));
         if (hidden) wildHiddenWords.push(new RegExp(wild));
     }

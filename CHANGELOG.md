@@ -1,5 +1,18 @@
 # Changelog
 
+## 2026-11-23
+
+### Changed
+- CHAINSAW's unlock now takes 1 win as LUMBERER without being KO'd instead of 2. Saves already at the new goal (1/2 before) are marked done when the game loads, and the ACHIEVEMENT UNLOCKED notification shows on the main menu.
+- Online achievement progress needs 30% damage dealt in the match, whatever the player count (was 100%, 75% with 3 players, 50% with 4).
+- The online 10-second AFK check that denied achievement progress is gone. The 20-second AFK kick stays, and so does the rule that no one gets progress if a player is AFK or gone for half the match.
+- HOOKER's GRAB fling knockback scales with the target's KB again, at half rate: 1 + 0.5 x KB%, so 1.5x at 100% KB and 2x at 200%.
+- HOOKER's air crowbar throw recoil (push and lift) is halved when there's no platform under him, so it can't be used to fly.
+- NORMAL bots no longer ledge grab or SMACKDOWN, and react slower: 220ms between decisions (was 140), 300ms extra wait after each attack (was 150), 40% chance to pass on an opening for 400ms (was 25% for 300ms), 300ms block reaction (was 200).
+
+### Fixed
+- Touch controls on phones and iPads could stop responding mid-match until the player switched tabs, when the device dropped a touch without an end event (system gestures, palm touches). The on-screen buttons and thumbstick now follow the fingers actually on the screen on every touch event, release anything no longer touched, and release everything when the game loses focus.
+
 ## 2026-11-22
 
 ### Added

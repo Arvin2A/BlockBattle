@@ -20,7 +20,7 @@ var navBox = null;
 var layout = []
 var selectedIndex = 0;
 var previousInput = {};
-const CHANGELOG_VERSION = "2026-11-22-4";
+const CHANGELOG_VERSION = "2026-11-23-1";
 const ONLINE_STATUS_REFRESH_MS = 10000;
 const MIN_VERSION_COLOR_BRIGHTNESS = 170;
 
@@ -95,6 +95,32 @@ export class MenuScene extends Phaser.Scene {
         this.input.topOnly = false;
 
         const changelogUpdates = [
+            {
+                name: "ACHIEVEMENTS 1ST PATCH",
+                date: "11/23/26",
+                entries: [
+                    {
+                        title: "TOUCH CONTROLS FIX",
+                        body: "On phones and iPads, the buttons and thumbstick could suddenly stop working mid-match until you switched tabs and came back. That's fixed. Lifting your finger always lets go of the button now, even when your device swallows the touch."
+                    },
+                    {
+                        title: "EASIER CHAINSAW",
+                        body: "CHAINSAW only takes one win as LUMBERER without getting KO'd now. If you were already halfway there, it unlocks the next time you open the game and you get the notification for it."
+                    },
+                    {
+                        title: "ONLINE ACHIEVEMENTS",
+                        body: "You only need to deal 30% damage in an online match for it to count, no matter how many players are in the lobby. Going idle for 10 seconds doesn't cost you your progress anymore, but 20 seconds still gets you kicked, and if anyone is AFK or gone for half the match it still doesn't count for anybody."
+                    },
+                    {
+                        title: "HOOKER CHANGES",
+                        body: "HOOKER's GRAB fling grows with damage again, just a lot slower than a normal hit: it goes 1.5x as far on someone at 100% KB. His air crowbar throw only pushes him half as hard when there's nothing under him, so you can't keep flying with it anymore."
+                    },
+                    {
+                        title: "CHILLER NORMAL BOTS",
+                        body: "NORMAL bots react slower, wait longer between swings and pass on more openings. They don't grab ledges or use SMACKDOWN anymore either."
+                    }
+                ]
+            },
             {
                 name: "ACHIEVEMENTS UPDATE",
                 date: "11/22/26",
@@ -638,7 +664,7 @@ export class MenuScene extends Phaser.Scene {
 
         const changelogBlurb = this.add.text(
             40, 180,
-            "ACHIEVEMENTS are here! Second variants are now unlocked through achievements, so hit the new ribbon button to see how. Plus some HOOKER tweaks and smarter bots.",
+            "Touch controls on phones and iPads don't freeze up anymore! CHAINSAW takes just one flawless win, online achievements only need 30% damage, and NORMAL bots are easier.",
             {
                 fontFamily: "VCROSD",
                 fontSize: "16px",
