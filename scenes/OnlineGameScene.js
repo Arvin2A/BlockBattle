@@ -589,9 +589,6 @@ export class OnlineOverlayScene extends Phaser.Scene {
                 circle.setFillStyle(0xffffff, 0.5);
                 this.gameScene.flushInput();
             };
-            circle.on('pointerdown', press);
-            circle.on('pointerup', release);
-            circle.on('pointerupoutside', release);
             touchButtons.push({ circle, press, release });
         }
     }

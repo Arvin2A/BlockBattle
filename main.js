@@ -587,10 +587,7 @@ function pollLocalInput(scene, slot) {
     return frame;
 }
 
-const AFK_DENY_MS = 10000;
 const AFK_KICK_MS = 20000;
-const AFK_RETURN_MS = 3000;
-const AFK_INPUT_GAP_MS = 1000;
 const AFK_IDLE_MS = 2000;
 const AFK_FARM_SHARE = 0.5;
 
@@ -623,13 +620,6 @@ function trackAfk(scene, slot, active) {
     } else if (!player.hitstun) {
         player.afkMs = (player.afkMs ?? 0) + delta;
     }
-    if ((player.afkMs ?? 0) < AFK_INPUT_GAP_MS) {
-        player.activeMs = (player.activeMs ?? 0) + delta;
-        if (player.activeMs >= AFK_RETURN_MS) player.stats.afk = false;
-    } else {
-        player.activeMs = 0;
-    }
-    if (player.afkMs >= AFK_DENY_MS) player.stats.afk = true;
     if (player.afkMs >= AFK_KICK_MS && !player.afkKicked) {
         player.afkKicked = true;
         reportAfk(slot);
@@ -926,9 +916,6 @@ function create() {
                 }
             };
 
-            btn.on('pointerdown', press);
-            btn.on('pointerup', release);
-            btn.on('pointerupoutside', release);
             touchButtons.push({ circle: btn, press, release });
 
             scene.hud.add(btn);
@@ -1032,7 +1019,6 @@ function create() {
                 inputMode[player.slot] = 'touch';
                 handleMisc(this, player, nearestEnemy(this, player));
             };
-            button.on('pointerdown', toggleMode);
             touchButtons.push({ circle: button, press: toggleMode, release: () => {} });
             this.hud.add(button);
             this.hud.add(label);
@@ -1076,7 +1062,7 @@ function create() {
         this.physics.add.collider(player, this.gameState.map.topPlatforms);
         this.physics.add.collider(player, this.planks);
 
-        player.stats = { kos: 0, maxKB: player.KBmultiplier, damageDealt: 0, blocks: 0, counters: 0, timesKOd: 0, untouchedKO: false, flingKO: false, afk: false };
+        player.stats = { kos: 0, maxKB: player.KBmultiplier, damageDealt: 0, blocks: 0, counters: 0, timesKOd: 0, untouchedKO: false, flingKO: false };
         player.statsLastKB = player.KBmultiplier;
         player.wasGrounded = true;
         player.launchTrail = this.add.particles(player.x, player.y, '__WHITE', {
@@ -2603,8 +2589,7 @@ function matchResultFor(scene, player, winners, noModifiers, cpu = null) {
         noModifiers,
         qualifies: qualifiesForAchievements({
             online: scene.online, noModifiers, cpuDifficulty: cpu?.difficulty,
-            damageDealt: player.stats.damageDealt, afk: player.stats.afk,
-            playerCount: scene.gameState.players.length
+            damageDealt: player.stats.damageDealt
         }),
         cpuDifficulty: cpu?.difficulty,
         cpuCharacter: cpu?.character,

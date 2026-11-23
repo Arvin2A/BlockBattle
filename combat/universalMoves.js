@@ -78,7 +78,7 @@ function platformUnder(scene, player) {
         .sort((a, b) => Math.abs(body.bottom - a.body.top) - Math.abs(body.bottom - b.body.top))[0] ?? null;
 }
 
-function overAnyPlatform(scene, player) {
+export function overAnyPlatform(scene, player) {
     return getMapPlatforms(scene).some(platform =>
         player.x >= platform.body.left &&
         player.x <= platform.body.right &&

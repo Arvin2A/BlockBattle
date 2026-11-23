@@ -55,18 +55,8 @@ export function addThumbstick(scene, { x, y, radius = 80, onChange, container = 
     };
 
     const move = pointer => {
-        if (pointer.id === pointerId && pointer.isDown) follow(pointer);
+        if (pointer.id === pointerId) follow(pointer);
     };
 
-    base.on('pointerdown', press);
-    scene.input.on('pointermove', move);
-    scene.input.on('pointerup', release);
-    scene.input.on('pointerupoutside', release);
-    scene.events.once('shutdown', () => {
-        scene.input.off('pointermove', move);
-        scene.input.off('pointerup', release);
-        scene.input.off('pointerupoutside', release);
-    });
-
-    return { circle: base, knob, press, release, sticky: true };
+    return { circle: base, knob, press, move, release, sticky: true };
 }

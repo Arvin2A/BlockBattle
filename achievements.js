@@ -7,8 +7,7 @@ import { getCharacterTexture } from './characterTextures.js';
 
 const STORAGE_KEY = 'blockBattleAchievements';
 const QUALIFYING_CPU = ['NORMAL', 'HARD', 'VERY HARD'];
-const ONLINE_MIN_DAMAGE = 100;
-const ONLINE_MIN_DAMAGE_PER_EXTRA_PLAYER = 25;
+const ONLINE_MIN_DAMAGE = 30;
 const BOT_MASTER_LEVELS = [
     { id: 'BOT_MASTER_I', numeral: 'I', difficulty: 'EASY', reward: 'NONE' },
     { id: 'BOT_MASTER_II', numeral: 'II', difficulty: 'NORMAL', reward: 'NONE' },
@@ -57,8 +56,7 @@ export const ACHIEVEMENTS = [
         name: 'NOT A SCRATCH',
         as: ['axeman', 'LUMBERER'],
         unlocks: ['axeman', 'CHAINSAW'],
-        description: 'win 2 matches without getting KO\'d once.',
-        goal: 2,
+        description: 'win a match without getting KO\'d once.',
         counts: result => (result.won && result.timesKOd === 0 ? 1 : 0)
     }),
     variantUnlock({
@@ -121,7 +119,7 @@ export const ACHIEVEMENTS = [
     }))
 ];
 
-export const ACHIEVEMENT_RULES = 'Only counts with no modifiers, online or against a NORMAL CPU or harder. BOT MASTER counts against any CPU, still with no modifiers. Online, you also need to deal 100% damage (75% with 3 players, 50% with 4) and not go AFK. If anyone in the match is AFK or gone for half of it, it does not count for anybody.';
+export const ACHIEVEMENT_RULES = 'Only counts with no modifiers, online or against a NORMAL CPU or harder. BOT MASTER counts against any CPU, still with no modifiers. Online, you also need to deal 30% damage. If anyone in the match is AFK or gone for half of it, it does not count for anybody.';
 
 export const ACHIEVEMENT_ICONS = [
     'achievement_BlockHead',
@@ -132,13 +130,18 @@ function emptySave() {
     return { done: {}, progress: {}, botWins: {} };
 }
 
-function cleanSave(raw) {
+function cleanSave(raw, reached = []) {
     const save = emptySave();
     if (!raw || typeof raw !== 'object') return save;
     for (const achievement of ACHIEVEMENTS) {
         if (raw.done?.[achievement.id] === true) save.done[achievement.id] = true;
         const progress = Number(raw.progress?.[achievement.id]);
         if (Number.isFinite(progress) && progress > 0) save.progress[achievement.id] = Math.min(achievement.goal, Math.floor(progress));
+        if (!achievement.botDifficulty && save.progress[achievement.id] >= achievement.goal) {
+            save.done[achievement.id] = true;
+            delete save.progress[achievement.id];
+            reached.push(achievement);
+        }
     }
     for (const level of BOT_MASTER_LEVELS) {
         const wins = raw.botWins?.[level.difficulty];
@@ -148,15 +151,18 @@ function cleanSave(raw) {
     return save;
 }
 
+let reachedOnLoad = [];
+
 function loadSave() {
     try {
-        return cleanSave(JSON.parse(localStorage.getItem(STORAGE_KEY) ?? 'null'));
+        return cleanSave(JSON.parse(localStorage.getItem(STORAGE_KEY) ?? 'null'), reachedOnLoad);
     } catch {
         return emptySave();
     }
 }
 
 let save = loadSave();
+if (reachedOnLoad.length) writeSave();
 
 function writeSave() {
     try {
@@ -168,6 +174,12 @@ function writeSave() {
 export function getAchievementProgress(achievement) {
     if (achievement.botDifficulty) return save.botWins[achievement.botDifficulty]?.length ?? 0;
     return save.done[achievement.id] ? achievement.goal : save.progress[achievement.id] ?? 0;
+}
+
+export function takeUnlocksReachedOnLoad() {
+    const updates = reachedOnLoad.map(achievement => ({ achievement, before: achievement.goal, after: achievement.goal, completed: true }));
+    reachedOnLoad = [];
+    return updates;
 }
 
 export function getBotWins(difficulty) {
@@ -232,13 +244,9 @@ export function recordMatchResult(result) {
     return updates;
 }
 
-export function onlineMinDamage(playerCount = 2) {
-    return Math.max(0, ONLINE_MIN_DAMAGE - Math.max(0, playerCount - 2) * ONLINE_MIN_DAMAGE_PER_EXTRA_PLAYER);
-}
-
-export function qualifiesForAchievements({ online, noModifiers, cpuDifficulty, damageDealt = 0, afk = false, playerCount = 2 }) {
+export function qualifiesForAchievements({ online, noModifiers, cpuDifficulty, damageDealt = 0 }) {
     if (!noModifiers) return false;
-    if (online) return damageDealt >= onlineMinDamage(playerCount) && !afk;
+    if (online) return damageDealt >= ONLINE_MIN_DAMAGE;
     return QUALIFYING_CPU.includes(cpuDifficulty);
 }
 

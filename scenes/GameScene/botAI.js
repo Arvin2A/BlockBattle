@@ -33,10 +33,10 @@ const DIFFICULTY = {
         deflectChance: 0, respectCounter: false, blockReactMs: 0, counterNoticeMs: 0
     },
     NORMAL: {
-        thinkMs: 140, attackDelayMs: 150, hesitateChance: 0.25, hesitateMs: 300,
+        thinkMs: 220, attackDelayMs: 300, hesitateChance: 0.4, hesitateMs: 400,
         edgeguard: true, dodgeSpecials: false, downslam: true, edgeFling: false,
-        smack: true, ledge: true, blockChance: 0.15, dodgeMinigun: false,
-        deflectChance: 0.3, respectCounter: false, blockReactMs: 200, counterNoticeMs: 0
+        smack: false, ledge: false, blockChance: 0.15, dodgeMinigun: false,
+        deflectChance: 0.3, respectCounter: false, blockReactMs: 300, counterNoticeMs: 0
     },
     HARD: {
         thinkMs: 0, attackDelayMs: 0, hesitateChance: 0, hesitateMs: 0,

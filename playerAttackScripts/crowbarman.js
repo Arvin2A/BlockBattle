@@ -4,6 +4,7 @@
 
 import demolitionist from './demolitionist.js';
 import { kickSquash, SQUASH } from '../combat/squash.js';
+import { overAnyPlatform } from '../combat/universalMoves.js';
 
 function tilt(api, scene, attacker, victim, xMul, yMul, kbTime) {
     api.tiltAttack(scene, attacker, victim, {
@@ -34,6 +35,7 @@ const VAULT = {
 };
 const SPIKE = {
     recoil: { push: 200, lift: 300 },
+    voidRecoilScale: 0.5,
     aim: { x: 0.35, y: 1 },
     speed: 1400,
     spawn: 20,
@@ -80,8 +82,9 @@ function spikeCrowbar(api, scene, player) {
         facing
     };
     
-    player.setVelocityX(-dir.x * SPIKE.recoil.push);
-    player.setVelocityY(Math.min(player.body.velocity.y, -dir.y * SPIKE.recoil.lift));
+    const recoilScale = isGrounded(player) || overAnyPlatform(scene, player) ? 1 : SPIKE.voidRecoilScale;
+    player.setVelocityX(-dir.x * SPIKE.recoil.push * recoilScale);
+    player.setVelocityY(Math.min(player.body.velocity.y, -dir.y * SPIKE.recoil.lift * recoilScale));
     player.ignoreJumpRelease = true;
     scene.sound.play('swosh');
 }
@@ -386,6 +389,7 @@ const GRAB_SPIN = {
         knockback: { x: 1000, y: 600, growth: false },
         unblockable: true
     },
+    growthAt100: 0.5,
     whoosh: { key: 'whoosh', rate: 0.6 },
     attackLockMs: 2000
 };
@@ -477,7 +481,10 @@ function launchFromSpin(api, scene, attacker) {
     scene.sound.play(GRAB_SPIN.whoosh.key, { rate: GRAB_SPIN.whoosh.rate });
     const flingDirection = attacker.lastDir.x || side;
     target.flungAt = scene.time.now;
-    api.landHit(scene, attacker, target, { ...GRAB_SPIN.hit, direction: { x: flingDirection, y: 0 } });
+    const hit = GRAB_SPIN.hit;
+    const growth = 1 + GRAB_SPIN.growthAt100 * Math.max(0, target.KBmultiplier - 1);
+    const knockback = { ...hit.knockback, x: hit.knockback.x * growth, y: hit.knockback.y * growth };
+    api.landHit(scene, attacker, target, { ...hit, knockback, direction: { x: flingDirection, y: 0 } });
 }
 
 const isDemolitionist = player => player.variant === 'DEMOLITIONIST';

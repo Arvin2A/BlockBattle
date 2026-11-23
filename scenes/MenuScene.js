@@ -4,6 +4,8 @@
 
 import Phaser from 'phaser';
 import { addSettingsButton } from '../ui/settings.js';
+import { showAchievementToasts } from '../ui/achievementsMenu.js';
+import { takeUnlocksReachedOnLoad } from '../achievements.js';
 
 import { changeBotMode, simulationMode } from "../gameSettings.js";
 import { preloadMenu } from "./GameScene/preload.js";
@@ -76,6 +78,7 @@ export class MenuScene extends Phaser.Scene {
     create() {
         this.cameras.main.fadeIn(200, 0, 0, 0);
         addSettingsButton(this);
+        showAchievementToasts(this, takeUnlocksReachedOnLoad(), { delay: 600 });
         const bg = this.add.image(500, 300, 'menuBackground');
         bg.setDisplaySize(this.scale.width, this.scale.height);
         // Create menu UI elements here
