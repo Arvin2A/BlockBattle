@@ -589,9 +589,14 @@ const AFK_DENY_MS = 10000;
 const AFK_KICK_MS = 20000;
 
 function trackAfk(scene, slot, active) {
-    if (active || scene.gameEnded || scene.matchStartTime === null) return;
+    if (scene.gameEnded || scene.matchStartTime === null) return;
     const player = scene.gameState.players.find(fighter => fighter.slot === slot);
-    if (!player || player.isCpu || player.eliminated || player.hitstun) return;
+    if (!player || player.isCpu || player.eliminated) return;
+    if (active) {
+        player.afkMs = 0;
+        return;
+    }
+    if (player.hitstun) return;
     player.afkMs = (player.afkMs ?? 0) + scene.game.loop.delta;
     if (player.afkMs >= AFK_DENY_MS) player.stats.afk = true;
     if (player.afkMs >= AFK_KICK_MS && !player.afkKicked) {
