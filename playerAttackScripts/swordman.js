@@ -377,6 +377,10 @@ function quickstep(api, scene, player) {
         const length = Math.hypot(aim.x, aim.y) || 1;
         dashVelocity = { x: aim.x / length * QUICKSTEP.dashSpeed, y: aim.y / length * QUICKSTEP.dashSpeed };
         if (Math.abs(aim.x) > 1) player.lastDir = { x: Math.sign(aim.x), y: 0 };
+        player.hitstunUntil = 0;
+        player.freeze = false;
+        player.canAttack = true;
+        player.invincibleUntil = Math.max(player.invincibleUntil ?? 0, scene.time.now + QUICKSTEP.dashDistance / QUICKSTEP.dashSpeed * 1000);
         player.afterimage = true;
         player.hasHitSideSpecial = false;
         api.setAttackSprite(player, 'daggeratk');
