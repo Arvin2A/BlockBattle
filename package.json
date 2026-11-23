@@ -47,6 +47,8 @@
       "dist/**/*",
       "desktop/main.cjs",
       "desktop/updater.cjs",
+      "desktop/discord.cjs",
+      "desktop/preload.cjs",
       "desktop/build/icon.png",
       "LICENSE",
       "!node_modules/**/*"

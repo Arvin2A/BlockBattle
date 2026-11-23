@@ -52,6 +52,7 @@ import { OnlineGameScene, OnlineOverlayScene } from './scenes/OnlineGameScene.js
 import { AchievementsScene, AchievementToastScene, showAchievementToasts } from './ui/achievementsMenu.js';
 import { qualifiesForAchievements, recordMatchResult } from './achievements.js';
 import { ControllerSetupScene, controllerInputs } from './scenes/ControllerSetupScene.js';
+import { startDesktopPresence } from './desktopPresence.js';
 
 window.Phaser = Phaser;
 unmuteAudio();
@@ -247,6 +248,7 @@ loadFont().then(() => {
     if (!isAuthority()) game.events.once('ready', () => {
         addButtonHoverSounds(game);
         applyVolume(game, false);
+        startDesktopPresence(game);
     });
 });
 

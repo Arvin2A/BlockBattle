@@ -4,8 +4,9 @@
 
 const path = require('node:path');
 const { pathToFileURL } = require('node:url');
-const { app, BrowserWindow, dialog, Menu, net, protocol, shell } = require('electron');
+const { app, BrowserWindow, dialog, ipcMain, Menu, net, protocol, shell } = require('electron');
 const { GameFiles } = require('./updater.cjs');
+const { DiscordPresence } = require('./discord.cjs');
 
 const SCHEME = 'app';
 const HOST = 'blockbattle';
@@ -87,7 +88,8 @@ function createWindow() {
         webPreferences: {
             contextIsolation: true,
             nodeIntegration: false,
-            sandbox: true
+            sandbox: true,
+            preload: path.join(__dirname, 'preload.cjs')
         }
     });
     window.webContents.setWindowOpenHandler(({ url }) => {
@@ -119,6 +121,13 @@ if (!app.requestSingleInstanceLock()) {
     });
     app.whenReady().then(() => {
         Menu.setApplicationMenu(null);
+        const presence = new DiscordPresence();
+        presence.start();
+        ipcMain.on('discord-status', (event, status) => {
+            if (!event.senderFrame?.url?.startsWith(`${SCHEME}://${HOST}/`)) return;
+            presence.setActivity(status);
+        });
+        app.on('before-quit', () => presence.stop());
         const gameFiles = new GameFiles(GAME_ROOT);
         protocol.handle(SCHEME, request => serveGameFile(gameFiles, request));
         const window = createWindow();
