@@ -35,17 +35,19 @@ const SHEATHE = {
 const QUICK_DRAW = {
     sound: 'quickdraw',
     hitDelayMs: 70,
+    extraWindupMs: 150,
     recoveryScale: 2,
     slash: {
         range: 150,
         damage: 0.12,
         plankDamage: 0.15,
-        hitstun: 600,
+        hitstun: 525,
         hitFreeze: 120,
         sound: null,
-        knockback: { x: 650, y: 600, onDown: 'popUp' },
+        knockback: { x: 650, y: 300, yGrowth: false, onDown: 'popUp' },
         decelerateAfter: 1000,
         noDeathRay: true,
+        unblockable: true,
         bypass: { ignoreCanAttack: true }
     }
 };
@@ -124,10 +126,11 @@ function quickDraw(api, scene, player, victim) {
         });
         player.nextAttackTime = scene.time.now + api.getAttackCooldown(player) * QUICK_DRAW.recoveryScale;
     };
+    const holdWindup = () => scene.time.delayedCall(QUICK_DRAW.extraWindupMs, slash);
     stopWatching = api.addSceneUpdateListener(scene, () => {
         if (!player.drawing) return;
         if (player.hitstun || !player.active) {
-            player.atk.off('animationcomplete-sheatheatkwindup', slash);
+            player.atk.off('animationcomplete-sheatheatkwindup', holdWindup);
             player.atk.stop();
             player.isAttacking = false;
             release();
@@ -135,7 +138,7 @@ function quickDraw(api, scene, player, victim) {
         }
         player.setVelocityX(0);
     });
-    player.atk.once('animationcomplete-sheatheatkwindup', slash);
+    player.atk.once('animationcomplete-sheatheatkwindup', holdWindup);
 }
 
 function unlessSheathed(handler) {

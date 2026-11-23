@@ -110,6 +110,7 @@ function objectLaunch(attacker, target, knockback, direction, damageScale, kb) {
         x = 0,
         y = 0,
         growth = true,
+        yGrowth = true,
         scaleWithDamage = true,
         maxDamageScale = Infinity,
         lift = -0.5,
@@ -128,7 +129,7 @@ function objectLaunch(attacker, target, knockback, direction, damageScale, kb) {
         dirX = attacker.x <= target.x ? 0.75 : -0.75;
         dirY = -1;
     }
-    let launchY = y * growthScale * dirY;
+    let launchY = y * (yGrowth ? growthScale : 1) * dirY;
     if (horizontal) launchY = capHorizontalLaunchY(launchY);
     return { x: x * growthScale * xScale * dirX, y: launchY };
 }
