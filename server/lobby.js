@@ -217,6 +217,12 @@ export class Lobby {
             case 'removeBot':
                 this.removeBot(client);
                 break;
+            case 'ready':
+                this.setReady(client, message);
+                break;
+            case 'pick':
+                this.pickFighter(client, message);
+                break;
             case 'name':
                 this.setName(client, message.name);
                 break;
@@ -363,6 +369,7 @@ export class Lobby {
         };
         this.lobbies.set(lobby.id, lobby);
         client.invitesSent.clear();
+        client.ready = false;
         client.state = 'lobby';
         client.lobby = lobby;
         this.log(`${client.name} opened ${lobby.private ? 'private ' : ''}lobby "${name}" (${lobby.mode} on ${lobby.map})`);
@@ -394,6 +401,7 @@ export class Lobby {
         if (!this.readChoice(client, message)) return;
         this.dequeue(client);
         lobby.members.push(client);
+        client.ready = false;
         client.state = 'lobby';
         client.lobby = lobby;
         this.lobbyChanged(lobby);
@@ -403,6 +411,7 @@ export class Lobby {
         const lobby = client.lobby;
         if (!lobby) return;
         client.lobby = null;
+        client.ready = false;
         if (client.state === 'lobby') client.state = 'idle';
         lobby.members = lobby.members.filter(member => member !== client);
         if (lobby.members.length === 0) {
@@ -421,6 +430,10 @@ export class Lobby {
             sendJson(client.ws, { t: 'error', msg: 'The lobby needs to be full to start.' });
             return;
         }
+        if (lobby.members.slice(1).some(member => !member.ready)) {
+            sendJson(client.ws, { t: 'error', msg: 'Everyone needs to be ready to start.' });
+            return;
+        }
         if (this.matches.size >= this.maxMatches) {
             sendJson(client.ws, { t: 'error', msg: BUSY_ARENAS_MESSAGE });
             return;
@@ -430,6 +443,26 @@ export class Lobby {
         for (const member of lobby.members) member.lobby = null;
         this.createMatch({ mode: lobby.mode, clients: lobby.members, bot: lobby.bot, map: lobby.map, modifiers: lobby.modifiers, quick: false });
         this.roomsChanged();
+    }
+
+    setReady(client, message) {
+        const lobby = client.lobby;
+        if (!lobby || client.state !== 'lobby' || lobby.members[0] === client) return;
+        const ready = Boolean(message.r);
+        if (client.ready === ready) return;
+        client.ready = ready;
+        this.lobbyChanged(lobby);
+    }
+
+    pickFighter(client, message) {
+        const lobby = client.lobby;
+        if (!lobby || client.state !== 'lobby' || client.ready) return;
+        const character = String(message.character ?? '');
+        const variant = String(message.variant ?? '');
+        if (!isValidSelection(character, variant)) return;
+        if (client.choice.character === character && client.choice.variant === variant) return;
+        client.choice = { ...client.choice, character, variant };
+        this.lobbyChanged(lobby);
     }
 
     addBot(client) {
@@ -456,9 +489,10 @@ export class Lobby {
                 character: member.choice.character,
                 variant: member.choice.variant,
                 tag: member.tag,
-                you: member === viewer
+                you: member === viewer,
+                ready: Boolean(member.ready)
             })),
-            ...(lobby.bot ? [{ name: lobby.bot.name, character: lobby.bot.character, variant: lobby.bot.variant, bot: true }] : [])
+            ...(lobby.bot ? [{ name: lobby.bot.name, character: lobby.bot.character, variant: lobby.bot.variant, bot: true, ready: true }] : [])
         ]);
         return {
             id: lobby.id,

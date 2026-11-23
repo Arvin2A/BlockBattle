@@ -84,10 +84,12 @@ function normalizeWild(text) {
 
 const squashWild = text => text.replace(/ /g, '');
 
-function runPattern(text, wild) {
+const LOOSE_LETTERS = { g: '[gq]' };
+
+function runPattern(text, wild, loose = false) {
     return text.replace(/(.)\1*/g, run => {
         const count = `{${run.length},}`;
-        if (!'aeiou'.includes(run[0])) return run[0] + count;
+        if (!'aeiou'.includes(run[0])) return loose ? `(?:${LOOSE_LETTERS[run[0]] ?? run[0]}h*)${count}` : run[0] + count;
         return (wild ? `[${run[0]}${WILD}]` : run[0]) + count + 'h*';
     });
 }
@@ -98,10 +100,10 @@ function parseEntry(text) {
         : [squash(normalize(piece, '$&'))]);
 }
 
-function entryPattern(pieces, wild) {
+function entryPattern(pieces, wild, loose = false) {
     return pieces.map(alts => alts.length === 1
-        ? runPattern(alts[0], wild)
-        : `(?:${alts.map(alt => runPattern(alt, wild)).join('|')})`).join('');
+        ? runPattern(alts[0], wild, loose)
+        : `(?:${alts.map(alt => runPattern(alt, wild, loose)).join('|')})`).join('');
 }
 
 const PHRASE_FILLERS = [
@@ -170,14 +172,14 @@ export function createNameFilter(wordListText) {
         const word = pieces.map(alts => alts[0]).join('');
         if (!word) continue;
         const hidden = !wholeOnly && !atEnd && (anywhere || word.length >= MIN_HIDDEN_WORD_LENGTH);
-        const pattern = entryPattern(pieces, false);
+        const pattern = entryPattern(pieces, false, severe);
         // A plural s on the end still counts as the whole word.
         wholeWords.push(new RegExp(`^${pattern}s*$`));
         if (atEnd) endWords.push(new RegExp(`${pattern}s*$`));
         if (severe) severeStartWords.push(new RegExp(`^${pattern}`));
         if (hidden) hiddenWords.push(new RegExp(pattern));
         if (!pieces.some(alts => alts.some(alt => /[aeiou]/.test(alt)))) continue;
-        const wild = entryPattern(pieces, true);
+        const wild = entryPattern(pieces, true, severe);
         wildWholeWords.push(new RegExp(`^${wild}s*$`));
         if (hidden) wildHiddenWords.push(new RegExp(wild));
     }

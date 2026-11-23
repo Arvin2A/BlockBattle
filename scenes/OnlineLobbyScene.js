@@ -39,6 +39,9 @@ const STAGE_CARD = { width: 204, height: 108, nameOffset: 38 };
 const LOBBY_INFO = { y: 214, gap: 14, buttonWidth: 130, buttonHeight: 20 };
 const MODIFIER_LIST = { width: 520, height: 440, listHeight: 330, cardWidth: 440 };
 const SUB_SCREENS = ['create', 'stage', 'modifiers', 'browse', 'invite'];
+const SHAKE_OFFSETS = [0, -12, 10, -8, 6, -3, 0];
+const SHAKE_MS = 350;
+const START_ERROR_MS = 1500;
 const mapLabel = map => MAPS[map]?.name ?? map;
 const isNameBlocked = createNameFilter(inappropriateWords);
 const randomPlayerName = () => `Player${Math.floor(Math.random() * 900 + 100)}`;
@@ -511,7 +514,7 @@ export class OnlineLobbyScene extends Phaser.Scene {
         this.screen = name;
         const shown = new Set(this.screens[name] ?? []);
         Object.values(this.screens).flat().forEach(object => object.setVisible(shown.has(object)));
-        this.queueText.setText('');
+        this.queueText.setText('').setColor(COLORS.accent);
         const hints = {
             home: '< > FIGHTER   ^ v VARIANT   N NAME   ENTER QUICK 1V1   ESC BACK',
             quick: '< > FIGHTER   ^ v VARIANT   ENTER CANCEL   ESC BACK',
@@ -519,7 +522,7 @@ export class OnlineLobbyScene extends Phaser.Scene {
             stage: '^ v BROWSE STAGES   ENTER DONE   ESC BACK',
             modifiers: 'CLICK A CARD TO TOGGLE IT, CLICK ITS BOX TO CHANGE IT   ESC BACK',
             browse: '< > FIGHTER   ^ v VARIANT   1-4 JOIN   ESC BACK',
-            lobby: 'ENTER START (HOST)   ESC LEAVE',
+            lobby: '< > FIGHTER   ^ v VARIANT   ENTER READY / START   ESC LEAVE',
             invite: 'CLICK INVITE NEXT TO A PLAYER   ESC BACK TO LOBBY'
         };
         this.keyHint.setText(hints[name] ?? '');
@@ -714,7 +717,7 @@ export class OnlineLobbyScene extends Phaser.Scene {
         this.startButton = this.addToScreen('lobby', makeButton(this, PANEL.x - 95, 446, 170, 40, 'START', () => this.startLobby(), 22));
         this.leaveButton = makeButton(this, PANEL.x + 95, 446, 170, 40, 'LEAVE', () => this.leaveLobby(), 22);
         this.addToScreen('lobby', this.leaveButton);
-        this.lobbyWaitText = this.addToScreen('lobby', text(this, PANEL.x - 95, 446, 'WAITING FOR\nTHE HOST', { fontSize: '11px', fill: '#bbbbbb', align: 'center' }).setOrigin(0.5));
+        this.readyButton = this.addToScreen('lobby', makeButton(this, PANEL.x - 95, 446, 170, 40, 'READY', () => this.toggleReady(), 22));
     }
 
     buildInviteScreen() {
@@ -866,7 +869,10 @@ export class OnlineLobbyScene extends Phaser.Scene {
         if (this.screen === 'home' || this.screen === 'quick') this.toggleQuick();
         else if (this.screen === 'create') this.createLobby();
         else if (this.screen === 'stage' || this.screen === 'modifiers') this.showScreen('create');
-        else if (this.screen === 'lobby') this.startLobby();
+        else if (this.screen === 'lobby') {
+            if (this.lobby?.host) this.startLobby();
+            else this.toggleReady();
+        }
     }
 
     connectToServer() {
@@ -898,6 +904,7 @@ export class OnlineLobbyScene extends Phaser.Scene {
             this.queueState = 'lobby';
             this.closeInvitePopup();
             this.lobby = message.lobby;
+            this.refreshLockTint();
             const full = this.lobby.members.length >= MATCH_MODES[this.lobby.mode].players;
             const canInvite = this.lobby.private && this.lobby.host && !full;
             if (this.screen === 'invite' && canInvite) this.refreshInvite();
@@ -923,6 +930,7 @@ export class OnlineLobbyScene extends Phaser.Scene {
         listen('matchFound', message => this.startMatch(message));
         listen('error', message => {
             this.setStatus(message.msg, '#ff6b6b');
+            if (this.screen === 'lobby' && this.lobby?.host) this.rejectStart(String(message.msg ?? '').toUpperCase());
             if (this.queueState === 'queued' || this.queueState === 'joining' || this.queueState === 'creating') {
                 this.queueState = 'idle';
                 if (this.screen === 'quick') this.showScreen('home');
@@ -980,7 +988,16 @@ export class OnlineLobbyScene extends Phaser.Scene {
     }
 
     get locked() {
+        if (this.queueState === 'lobby') return this.isReady;
         return this.queueState !== 'idle';
+    }
+
+    get isReady() {
+        return Boolean(this.lobby?.members.find(member => member.you)?.ready);
+    }
+
+    get everyoneReady() {
+        return Boolean(this.lobby?.members.every((member, index) => index === 0 || member.ready));
     }
 
     get queueState() {
@@ -1274,15 +1291,70 @@ export class OnlineLobbyScene extends Phaser.Scene {
             row.name.setText(member.name).setColor(color.css);
             const tag = member.tag ? `#${member.tag}   ` : '';
             row.fighter.setText(`${tag}${character?.name ?? member.character} - ${member.variant}${mode.teams ? `   TEAM ${color.label}` : ''}`.toUpperCase());
-            row.tag.setText(member.bot ? (lobby.host ? '' : 'CPU') : [index === 0 ? 'HOST' : '', member.you ? 'YOU' : ''].filter(Boolean).join(' / '));
+            const readyLabel = index === 0 ? 'HOST' : member.ready ? 'READY' : 'NOT READY';
+            row.tag.setText(member.bot ? (lobby.host ? '' : 'CPU') : [readyLabel, member.you ? 'YOU' : ''].filter(Boolean).join(' / '))
+                .setColor(index === 0 || member.ready ? COLORS.accent : COLORS.error);
         });
         const full = lobby.members.length >= mode.players;
-        this.startButton.box.setVisible(visible && lobby.host);
-        this.startButton.text.setVisible(visible && lobby.host).setAlpha(full ? 1 : 0.4);
-        this.startButton.box.setAlpha(full ? 1 : 0.5);
-        this.lobbyWaitText.setVisible(visible && !lobby.host);
+        const canStart = full && this.everyoneReady;
+        const rejected = Boolean(this.startErrorTimer);
+        this.startButton.box.setVisible(visible && lobby.host).setAlpha(canStart || rejected ? 1 : 0.5)
+            .setStrokeStyle(3, rejected ? HEX.error : HEX.border);
+        this.startButton.text.setVisible(visible && lobby.host).setAlpha(canStart || rejected ? 1 : 0.4)
+            .setColor(rejected ? COLORS.error : COLORS.text);
+        const ready = this.isReady;
+        this.readyButton.box.setVisible(visible && !lobby.host).setStrokeStyle(3, ready ? HEX.accent : HEX.border);
+        this.readyButton.text.setVisible(visible && !lobby.host).setText(ready ? 'UNREADY' : 'READY')
+            .setColor(ready ? COLORS.accent : COLORS.text);
         const waiting = lobby.private && lobby.host ? 'INVITE PLAYERS TO FILL THE SLOTS' : 'WAITING FOR PLAYERS';
-        this.queueText.setText(full ? (lobby.host ? 'EVERYONE IS HERE. PRESS START!' : 'EVERYONE IS HERE') : `${waiting} (${lobby.members.length}/${mode.players})`);
+        let status;
+        if (!lobby.host) status = ready ? 'YOU ARE READY. WAITING FOR THE HOST' : 'PICK YOUR FIGHTER, THEN PRESS READY';
+        else if (!full) status = `${waiting} (${lobby.members.length}/${mode.players})`;
+        else status = this.everyoneReady ? 'EVERYONE IS READY. PRESS START!' : 'WAITING FOR EVERYONE TO READY UP';
+        if (rejected) this.queueText.setText(this.startError).setColor(COLORS.error);
+        else this.queueText.setText(status).setColor(COLORS.accent);
+    }
+
+    rejectStart(message) {
+        this.sound.play('deny');
+        this.startError = message;
+        this.startErrorTimer?.remove();
+        this.startErrorTimer = this.time.delayedCall(START_ERROR_MS, () => {
+            this.startErrorTimer = null;
+            this.refreshLobby();
+        });
+        this.refreshLobby();
+        const { box, text: label } = this.startButton;
+        box.baseX ??= box.x;
+        this.startShake?.stop();
+        const moveTo = x => [box, label].forEach(part => part.setX(x));
+        this.startShake = this.tweens.addCounter({
+            from: 0,
+            to: SHAKE_OFFSETS.length - 1,
+            duration: SHAKE_MS,
+            ease: 'Sine.Out',
+            onUpdate: tween => {
+                const position = tween.getValue();
+                const index = Math.min(Math.floor(position), SHAKE_OFFSETS.length - 2);
+                moveTo(box.baseX + Phaser.Math.Linear(SHAKE_OFFSETS[index], SHAKE_OFFSETS[index + 1], position - index));
+            },
+            onComplete: () => moveTo(box.baseX),
+            onStop: () => moveTo(box.baseX)
+        });
+    }
+
+    sendLobbyPick() {
+        if (this.queueState !== 'lobby' || this.isReady) return;
+        const self = this.lobby?.members.find(member => member.you);
+        const { character, variant } = this.getChoice();
+        if (self && self.character === character.key && self.variant === variant.name) return;
+        net.send({ t: 'pick', character: character.key, variant: variant.name });
+    }
+
+    toggleReady() {
+        if (this.queueState !== 'lobby' || !this.lobby || this.lobby.host) return;
+        if (!this.isReady) this.sendLobbyPick();
+        net.send({ t: 'ready', r: !this.isReady });
     }
 
     getChoice() {
@@ -1329,6 +1401,7 @@ export class OnlineLobbyScene extends Phaser.Scene {
             this.nameButton.text.setFontSize(size);
         }
         net.setName(this.selection.name);
+        this.sendLobbyPick();
         this.quickMapText.setText(mapLabel(map));
         if (this.screen === 'create') this.refreshCreate();
         this.saveAll();
@@ -1407,7 +1480,11 @@ export class OnlineLobbyScene extends Phaser.Scene {
     startLobby() {
         if (!this.lobby?.host) return;
         if (this.lobby.members.length < MATCH_MODES[this.lobby.mode].players) {
-            this.queueText.setText('THE LOBBY NEEDS TO BE FULL TO START');
+            this.rejectStart('THE LOBBY NEEDS TO BE FULL TO START');
+            return;
+        }
+        if (!this.everyoneReady) {
+            this.rejectStart('EVERYONE NEEDS TO BE READY TO START');
             return;
         }
         net.send({ t: 'startLobby' });
