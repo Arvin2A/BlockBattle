@@ -826,13 +826,19 @@ export function runBotAI(scene, bot, target, fiveframecount) {
         const isDagger = bot.name === 'SWORDMAN' && bot.variant === 'DAGGER';
         const lightRange = (isDagger ? DAGGER_RANGE : LIGHT_RANGE) - RANGE_MARGIN;
         const attackDir = chooseAttackDir(bot, target, lightRange, stageCenter);
-        if (attackDir && !hesitates(bot, difficulty, now)) {
+        const midCombo = bot.combo > 0;
+        if (attackDir && (midCombo || !hesitates(bot, difficulty, now))) {
             bot.lastDir = attackDir;
             bot.lastAttack = now;
-            bot.botNextAttackAt = now + difficulty.attackDelayMs;
             // Standing still keeps tryAttack on the combo instead of pushAttack.
             send(scene, bot, Commands.NONE);
             handleAttack(scene, bot, target);
+            if (bot.combo > 0) {
+                bot.botNextAttackAt = now;
+                bot.botNextThinkAt = Math.min(bot.botNextThinkAt, bot.nextAttackTime ?? now);
+            } else {
+                bot.botNextAttackAt = now + difficulty.attackDelayMs;
+            }
             return;
         }
 
