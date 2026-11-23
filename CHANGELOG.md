@@ -9,9 +9,17 @@
 - HOOKER's GRAB fling knockback scales with the target's KB again, at half rate: 1 + 0.5 x KB%, so 1.5x at 100% KB and 2x at 200%.
 - HOOKER's air crowbar throw recoil (push and lift) is halved when there's no platform under him, so it can't be used to fly.
 - NORMAL bots no longer ledge grab or SMACKDOWN, and react slower: 220ms between decisions (was 140), 300ms extra wait after each attack (was 150), 40% chance to pass on an opening for 400ms (was 25% for 300ms), 300ms block reaction (was 200).
+- Air dodge invincibility lasts 450ms (was 350). For that whole time the dodging fighter passes through other players instead of colliding with them.
+- Horizontal hits (same-level hits, whatever their lift) can launch upward at most 500, no matter the knockback growth. Horizontal knockback is unchanged. GUNMAN's shotgun follows the same cap; HAMMERMAN's QUICKSLAM does not.
+- The modifiers page (offline and the online host's modifiers screen) shows a red line under the title saying matches with modifiers don't count toward achievements. The first time a player turns on a modifier, or sees an online lobby with modifiers, a one-time HEADS UP popup says the same. The online lobby's modifier list shows it too.
+- The READY TO FIGHT bar on character select no longer touches the grid or the cards: the fighter cards start 22px lower (shorter preview), the bar is 34 tall with smaller text, and it darkens on hover and flashes darker when clicked.
+- In VS CPU, the BOT MASTER progress line on the CPU card moved above the fighter name, away from the READY button.
+- Online menu rework: the left panel shows only the name button, your fighter (icon, name, variant) and a big SELECT CHARACTER button. It opens a SELECT CHARACTER overlay with a grid of every fighter (a red frame slides to the selected one with the hover sound), a live preview cycling through their attacks, variant arrows that skip locked variants, the fighter's one-liner, ADVANCED INFO and DONE. Arrows/WASD, I, ENTER/SPACE/ESC and controllers work in it, and C opens it from the online menu. The old arrows, SWITCH VARIANT and ADVANCED INFO buttons in the side panel are gone.
+- Pressing I in the online menu opens ADVANCED INFO for your fighter.
+- ADVANCED INFO shows the fighter's one-liner (like "Beware of the chopping axe.") under the variant name. The icon shrinks to fit when the line runs long.
 
 ### Fixed
-- Touch controls on phones and iPads could stop responding mid-match until the player switched tabs, when the device dropped a touch without an end event (system gestures, palm touches). The on-screen buttons and thumbstick now follow the fingers actually on the screen on every touch event, release anything no longer touched, and release everything when the game loses focus.
+- Attempted fix: touch controls on phones and iPads could stop responding mid-match until the player switched tabs, when the device dropped a touch without an end event (system gestures, palm touches). The on-screen buttons and thumbstick now follow the fingers actually on the screen on every touch event, release anything no longer touched, and release everything when the game loses focus.
 
 ## 2026-11-22
 

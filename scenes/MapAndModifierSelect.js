@@ -10,6 +10,7 @@ import { fadeOutTo } from './transitions.js';
 import { clipScrollablePanel } from '../ui/clipScroll.js';
 import { CHAOS_TIERS, FONTS, COLORS, HEX, textStyle } from '../ui/theme.js';
 import { formatModifierValue, getEnabledCustomValues, modifierOptions } from '../modifiers.js';
+import { MODIFIER_ACHIEVEMENT_WARNING, warnModifiersOnce } from '../ui/modifierWarning.js';
 
 export { getEnabledCustomValues, modifierOptions };
 import { moveSelection, createNavigationBox, moveNavigationBox, getConnectedControllers, getMenuGamepadInput } from "../navigation.js"
@@ -417,10 +418,15 @@ export class MapAndModifierSelectScene extends Phaser.Scene {
 			fontSize: '38px',
 			fill: COLORS.text
 		}).setOrigin(0.5);
-		this.add.text(500, PAGE_HEIGHT + 84, 'LEAST CHAOTIC ON TOP. SOME MODIFIERS MAY OVERRIDE OTHERS.', {
+		this.add.text(500, PAGE_HEIGHT + 80, 'LEAST CHAOTIC ON TOP. SOME MODIFIERS MAY OVERRIDE OTHERS.', {
 			fontFamily: FONTS.body,
 			fontSize: '16px',
 			fill: COLORS.muted
+		}).setOrigin(0.5);
+		this.add.text(500, PAGE_HEIGHT + 100, MODIFIER_ACHIEVEMENT_WARNING, {
+			fontFamily: FONTS.body,
+			fontSize: '16px',
+			fill: COLORS.error
 		}).setOrigin(0.5);
 
 		const content = this.rexUI.add.sizer({
@@ -487,6 +493,7 @@ export class MapAndModifierSelectScene extends Phaser.Scene {
 				modifier.enabled = !modifier.enabled;
 				this.updateModifierSelection();
 				this.sound.play('hover');
+				if (modifier.enabled) warnModifiersOnce(this);
 			};
 			card.on('pointerdown', pointer => {
 				const window = panel.getElement('background').getBounds();

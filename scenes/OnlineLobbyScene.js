@@ -14,11 +14,13 @@ import { cleanName, MAP_CHOICES, MAX_LOBBY_NAME_LENGTH, MAX_NAME_LENGTH } from '
 import { MAPS } from './GameScene/MapDefinitions.js';
 import { MATCH_MODES, MODE_TOGGLE_ORDER, PLAYER_COLORS } from '../matchModes.js';
 import { formatModifierValue, modifierOptions } from '../modifiers.js';
+import { MODIFIER_ACHIEVEMENT_WARNING, warnModifiersOnce } from '../ui/modifierWarning.js';
 import { createNameFilter } from '../mp/nameFilter.js';
 import inappropriateWords from '../assets/inappropriate_words?raw';
 import { getOnlineServerHost, getServerName, isOnlineConfigured } from '../mp/serverConfig.js';
 import { CHAOS_TIERS, COLORS, HEX, makeButton, makePanel } from '../ui/theme.js';
 import { openAdvancedInfo } from '../ui/advancedInfo.js';
+import { openFighterPicker } from '../ui/fighterPicker.js';
 import { isVariantUnlocked } from '../achievements.js';
 import { clipScrollablePanel } from '../ui/clipScroll.js';
 
@@ -29,6 +31,7 @@ const PLAYERS_PER_PAGE = 5;
 const INVITE_RESEND_MS = 3000;
 const INVITE_POPUP_MS = 30000;
 const FIGHTER = { x: 145, y: 330, width: 250, height: 330 };
+const FIGHTER_ICON = 110;
 const PANEL = { x: 635, y: 330, width: 690, height: 330 };
 const PANEL_LEFT = PANEL.x - PANEL.width / 2;
 const PANEL_RIGHT = PANEL.x + PANEL.width / 2;
@@ -339,40 +342,29 @@ export class OnlineLobbyScene extends Phaser.Scene {
     buildFighterPanel() {
         this.nameButton = makeButton(this, FIGHTER.x, 146, FIGHTER.width, 30, '', () => this.editName(), 15);
         this.fighterPanel = this.add.rectangle(FIGHTER.x, FIGHTER.y, FIGHTER.width, FIGHTER.height, HEX.panel, 0.92).setStrokeStyle(3, HEX.border);
-        this.add.text(FIGHTER.x, 184, 'YOUR FIGHTER', {
+        this.add.text(FIGHTER.x, 190, 'YOUR FIGHTER', {
             fontFamily: 'GameFont',
             fontSize: '16px',
             fill: '#ffffff'
         }).setOrigin(0.5);
 
-        this.fighterIcon = this.add.image(FIGHTER.x, 248, 'axeman').setDisplaySize(96, 96);
-        this.fighterArrowLeft = makeArrow(this, FIGHTER.x - 90, 248, '<', () => this.changeCharacter(-1));
-        this.fighterArrowRight = makeArrow(this, FIGHTER.x + 90, 248, '>', () => this.changeCharacter(1));
+        this.fighterIcon = this.add.image(FIGHTER.x, 264, 'axeman').setDisplaySize(FIGHTER_ICON, FIGHTER_ICON);
 
-        this.fighterName = this.add.text(FIGHTER.x, 314, '', {
+        this.fighterName = this.add.text(FIGHTER.x, 340, '', {
             fontFamily: 'GameFont',
             fontSize: '20px',
             fill: '#ffffff'
         }).setOrigin(0.5);
-        this.variantText = this.add.text(FIGHTER.x, 338, '', {
+        this.variantText = this.add.text(FIGHTER.x, 366, '', {
             fontFamily: 'VCROSD',
             fontSize: '18px',
             fill: '#ffffff'
         }).setOrigin(0.5);
-        this.fighterDesc = this.add.text(FIGHTER.x, 378, '', {
-            fontFamily: 'VCROSD',
-            fontSize: '13px',
-            fill: COLORS.muted,
-            align: 'center',
-            wordWrap: { width: FIGHTER.width - 30 }
-        }).setOrigin(0.5);
-        this.variantButton = makeButton(this, FIGHTER.x, 428, 200, 30, 'SWITCH VARIANT', () => this.changeVariant(1), 16);
-        this.infoButton = makeButton(this, FIGHTER.x, 466, 200, 30, 'ADVANCED INFO', () => this.openInfo(), 16);
-        this.infoButton.text.setColor(COLORS.accent);
+        this.selectButton = makeButton(this, FIGHTER.x, 440, 214, 74, 'SELECT\nCHARACTER', () => this.openPicker(), 22);
     }
 
     get modalOpen() {
-        return Boolean(this.advancedInfo || this.modifierList);
+        return Boolean(this.advancedInfo || this.modifierList || this.modifierWarning || this.fighterPicker);
     }
 
     openModifierList() {
@@ -387,7 +379,8 @@ export class OnlineLobbyScene extends Phaser.Scene {
         add(this.add.rectangle(500, 300, 2000, 1200, 0x000000, 0.78).setInteractive());
         add(makePanel(this, 500, 300, MODIFIER_LIST.width, MODIFIER_LIST.height, 1), 1);
         add(text(this, 500, top + 36, 'LOBBY MODIFIERS', { fontFamily: 'VCROSD', fontSize: '28px', stroke: COLORS.stroke, strokeThickness: 5 }).setOrigin(0.5), 2);
-        add(text(this, 500, top + 68, `${modifiers.length} SELECTED BY THE HOST`, { fontSize: '11px', fill: COLORS.muted }).setOrigin(0.5), 2);
+        add(text(this, 500, top + 62, `${modifiers.length} SELECTED BY THE HOST`, { fontSize: '11px', fill: COLORS.muted }).setOrigin(0.5), 2);
+        add(text(this, 500, top + 77, MODIFIER_ACHIEVEMENT_WARNING, { fontFamily: 'VCROSD', fontSize: '14px', fill: COLORS.error }).setOrigin(0.5), 2);
         const closeX = 500 + MODIFIER_LIST.width / 2 - 34;
         const closeBox = add(this.add.rectangle(closeX, top + 34, 48, 40, 0x771c1c).setStrokeStyle(2, HEX.border)
             .setInteractive({ useHandCursor: true }), 3);
@@ -461,6 +454,16 @@ export class OnlineLobbyScene extends Phaser.Scene {
     openInfo() {
         if (!this.selection || this.modalOpen || this.invitePopup || this.closeNameBox) return;
         this.openCharacterInfo();
+    }
+
+    openPicker() {
+        if (!this.selection || this.locked || this.modalOpen || this.invitePopup || this.closeNameBox) return;
+        openFighterPicker(this, {
+            getSelection: () => this.selection,
+            changeCharacter: direction => this.changeCharacter(direction),
+            changeVariant: direction => this.changeVariant(direction),
+            openInfo: () => this.openCharacterInfo()
+        });
     }
 
     openCharacterInfo(afterClose) {
@@ -640,11 +643,12 @@ export class OnlineLobbyScene extends Phaser.Scene {
     }
 
     buildModifierScreen() {
-        this.modifierTitle = this.screenTitle('modifiers', 'MODIFIERS');
+        this.modifierTitle = this.screenTitle('modifiers', 'MODIFIERS').setY(182);
+        this.addToScreen('modifiers', text(this, PANEL.x, 204, MODIFIER_ACHIEVEMENT_WARNING, { fontFamily: 'VCROSD', fontSize: '15px', fill: COLORS.error }).setOrigin(0.5));
         this.modifierKeys = onlineModifierKeys();
         this.modifierRows = [];
         for (let index = 0; index < MODIFIERS_PER_PAGE; index++) {
-            const y = 222 + index * 38;
+            const y = 228 + index * 38;
             const row = { key: null };
             row.box = this.add.rectangle(PANEL.x, y, ROW_WIDTH, 32, HEX.panel).setStrokeStyle(2, 0xffffff)
                 .setInteractive({ useHandCursor: true })
@@ -864,6 +868,8 @@ export class OnlineLobbyScene extends Phaser.Scene {
         bind(['UP', 'W'], () => this.screen === 'stage' ? this.pickStage(this.lobbySettings.mapIndex - 1) : this.changeVariant(-1));
         bind(['DOWN', 'S'], () => this.screen === 'stage' ? this.pickStage(this.lobbySettings.mapIndex + 1) : this.changeVariant(1));
         bind(['N'], () => this.editName());
+        bind(['I'], () => this.openInfo());
+        bind(['C'], () => this.openPicker());
         bind(['ENTER', 'SPACE'], () => this.confirm());
         ['ONE', 'TWO', 'THREE', 'FOUR'].forEach((key, index) => {
             bind([key], () => {
@@ -985,6 +991,11 @@ export class OnlineLobbyScene extends Phaser.Scene {
         const pad = getConnectedControllers(this)[0];
         if (!pad) return;
         const input = getMenuGamepadInput(pad);
+        if (this.fighterPicker) {
+            this.fighterPicker.handlePad(key => input[key] && !this.previousPad[key]);
+            this.previousPad = input;
+            return;
+        }
         if (this.modalOpen) {
             this.previousPad = input;
             return;
@@ -1028,8 +1039,7 @@ export class OnlineLobbyScene extends Phaser.Scene {
         this.nameButton.box.setStrokeStyle(3, locked ? HEX.error : HEX.border);
         this.nameButton.text.setColor(locked ? COLORS.error : COLORS.text);
         this.fighterIcon.setTint(locked ? HEX.lockedTint : 0xffffff);
-        [this.fighterArrowLeft, this.fighterArrowRight, this.variantButton.box, this.variantButton.text]
-            .forEach(part => part.setAlpha(locked ? 0.4 : 1));
+        [this.selectButton.box, this.selectButton.text].forEach(part => part.setAlpha(locked ? 0.4 : 1));
     }
 
     changeCharacter(direction) {
@@ -1120,6 +1130,7 @@ export class OnlineLobbyScene extends Phaser.Scene {
         const entry = this.lobbySettings.modifiers[key];
         if (!entry) return;
         entry.enabled = !entry.enabled;
+        if (entry.enabled) warnModifiersOnce(this);
         const rival = { NO_VERTICAL_KILLZONE: 'NO_HORIZONTAL_KILLZONE', NO_HORIZONTAL_KILLZONE: 'NO_VERTICAL_KILLZONE' }[key];
         if (entry.enabled && rival) this.lobbySettings.modifiers[rival].enabled = false;
         this.sound.play('hover');
@@ -1276,6 +1287,7 @@ export class OnlineLobbyScene extends Phaser.Scene {
         const buttonX = infoLeft + this.lobbyInfo.width + LOBBY_INFO.gap + LOBBY_INFO.buttonWidth / 2;
         this.viewModifiersButton.box.setX(buttonX).setVisible(visible && hasModifiers);
         this.viewModifiersButton.text.setX(buttonX).setVisible(visible && hasModifiers);
+        if (visible && hasModifiers && !this.modalOpen) warnModifiersOnce(this);
         const mode = MATCH_MODES[lobby.mode];
         const canAddCpu = lobby.host && lobby.mode !== '1v1' && !lobby.members.some(member => member.bot);
         this.memberRows.forEach((row, index) => {
@@ -1407,19 +1419,10 @@ export class OnlineLobbyScene extends Phaser.Scene {
 
     refreshSelection() {
         const { character, variant, map } = this.getChoice();
-        this.fighterIcon.setTexture(getCharacterTexture(character.key, variant.name)).setDisplaySize(96, 96);
+        this.fighterIcon.setTexture(getCharacterTexture(character.key, variant.name)).setDisplaySize(FIGHTER_ICON, FIGHTER_ICON);
         this.fighterName.setText(character.name);
         this.variantText.setText(variant.name).setColor(variant.color ?? '#ffffff');
-        this.fighterDesc.setFontSize(13).setText(variant.desc ?? '');
-        for (let size = 12; size >= 9 && this.fighterDesc.height > 56; size--) {
-            this.fighterDesc.setFontSize(size);
-        }
-        const hasVariants = character.variants.length > 1;
-        this.variantButton.box.setVisible(hasVariants);
-        this.variantButton.text.setVisible(hasVariants);
-        const canSwitch = character.variants.some((each, index) =>
-            index !== this.selection.variantIndex && isVariantUnlocked(character.key, each.name));
-        this.variantButton.text.setText(canSwitch ? 'SWITCH VARIANT' : 'VARIANT LOCKED');
+        this.fighterPicker?.refresh();
         this.nameButton.text.setFontSize(15).setText(`NAME: ${this.selection.name}${net.tag ? ` #${net.tag}` : ''}`);
         for (let size = 14; size >= 10 && this.nameButton.text.width > FIGHTER.width - 16; size--) {
             this.nameButton.text.setFontSize(size);

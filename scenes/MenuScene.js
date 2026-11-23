@@ -20,7 +20,7 @@ var navBox = null;
 var layout = []
 var selectedIndex = 0;
 var previousInput = {};
-const CHANGELOG_VERSION = "2026-11-23-1";
+const CHANGELOG_VERSION = "2026-11-23-3";
 const ONLINE_STATUS_REFRESH_MS = 10000;
 const MIN_VERSION_COLOR_BRIGHTNESS = 170;
 
@@ -100,8 +100,28 @@ export class MenuScene extends Phaser.Scene {
                 date: "11/23/26",
                 entries: [
                     {
-                        title: "TOUCH CONTROLS FIX",
-                        body: "On phones and iPads, the buttons and thumbstick could suddenly stop working mid-match until you switched tabs and came back. That's fixed. Lifting your finger always lets go of the button now, even when your device swallows the touch."
+                        title: "ONLINE MENU REWORK",
+                        body: "Picking your fighter online isn't squeezed into a tiny side panel anymore. The panel just shows your name, your fighter and a big SELECT CHARACTER button, which opens a full character picker with every fighter, a live preview swinging their weapon, variants and their info. You can also open it with C.\n Press I in the online menu to pull up ADVANCED INFO for your fighter, and ADVANCED INFO now shows each fighter's little one-liner too."
+                    },
+                    {
+                        title: "CHARACTER SELECT TWEAKS",
+                        body: "The READY TO FIGHT bar has more room so it doesn't crowd the fighters and cards, and it reacts when you hover or click it. In VS CPU, the BOT MASTER progress sits above the CPU's fighter name so it stays clear of the READY button."
+                    },
+                    {
+                        title: "AIR DODGE BUFF",
+                        body: "Air dodge keeps you invincible a little longer, 0.45 seconds instead of 0.35. While you're invincible you also pass right through other players, so you can dodge through someone instead of bumping into them."
+                    },
+                    {
+                        title: "LOWER SIDE LAUNCHES",
+                        body: "Getting hit from the side can't pop you up very high anymore, no matter how much KB you have. You still fly sideways just as far, so side hits go for the edge instead of the top. This goes for GUNMAN's shotgun too."
+                    },
+                    {
+                        title: "MODIFIER WARNING",
+                        body: "The modifiers page now says right under the title that matches with modifiers don't count toward achievements, and the first time you turn one on you get a heads up about it. Online, hosts see it on the modifiers page and everyone sees it in the lobby's modifier list."
+                    },
+                    {
+                        title: "TOUCH CONTROLS FIX ATTEMPT",
+                        body: "On phones and iPads, the buttons and thumbstick could suddenly stop working mid-match until you switched tabs and came back. This is an attempt to fix that: lifting your finger should always let go of the button now, even when your device swallows the touch. Let us know if it still happens."
                     },
                     {
                         title: "EASIER CHAINSAW",
@@ -664,7 +684,7 @@ export class MenuScene extends Phaser.Scene {
 
         const changelogBlurb = this.add.text(
             40, 180,
-            "Touch controls on phones and iPads don't freeze up anymore! CHAINSAW takes just one flawless win, online achievements only need 30% damage, and NORMAL bots are easier.",
+            "Picking your fighter online now has its own full character picker, and air dodge lasts longer and phases through players. Plus lower side launches, a touch controls fix attempt and an easier CHAINSAW.",
             {
                 fontFamily: "VCROSD",
                 fontSize: "16px",

@@ -9,7 +9,8 @@ import { COLORS, FONTS, HEX, textStyle } from './theme.js';
 const DEPTH = 3000;
 const PANEL = { x: 500, y: 300, width: 560, height: 540 };
 const TOP = PANEL.y - PANEL.height / 2;
-const ICON_SIZE = 120;
+const ICON_SIZE = 104;
+const ICON_Y = TOP + 170;
 const BODY = { y: TOP + 238, width: 470, height: 280, size: 17 };
 const BODY_LEFT = PANEL.x - PANEL.width / 2 + 30;
 const SCROLLBAR_X = PANEL.x + PANEL.width / 2 - 22;
@@ -54,14 +55,21 @@ export function openAdvancedInfo(scene, { characterIndex = 0, variantIndex = 0, 
         stroke: COLORS.stroke,
         strokeThickness: 5
     }).setOrigin(0.5), 2);
-    const subtitle = add(scene.add.text(PANEL.x, TOP + 76, '', {
+    const subtitle = add(scene.add.text(PANEL.x, TOP + 72, '', {
         fontFamily: FONTS.body,
         fontSize: '20px',
         fill: COLORS.accent,
         stroke: COLORS.stroke,
         strokeThickness: 3
     }).setOrigin(0.5), 2);
-    const icon = add(scene.add.image(PANEL.x, TOP + 160, ENTRIES[index].character.key), 2);
+    const tagline = add(scene.add.text(PANEL.x, TOP + 98, '', {
+        fontFamily: FONTS.body,
+        fontSize: '15px',
+        fill: COLORS.muted,
+        align: 'center',
+        wordWrap: { width: 420 }
+    }).setOrigin(0.5, 0), 2);
+    const icon = add(scene.add.image(PANEL.x, ICON_Y, ENTRIES[index].character.key), 2);
     const body = add(scene.add.text(BODY_LEFT, BODY.y, '', textStyle('body', {
         fontSize: `${BODY.size}px`,
         lineSpacing: 5,
@@ -106,9 +114,9 @@ export function openAdvancedInfo(scene, { characterIndex = 0, variantIndex = 0, 
     const onWheel = (_pointer, _objects, _deltaX, deltaY) => scrollBy(deltaY * WHEEL_STEP);
 
     const makeArrow = (x, label, step) => {
-        const box = add(scene.add.rectangle(x, TOP + 160, 44, 44, 0x202020).setStrokeStyle(2, 0x444444)
+        const box = add(scene.add.rectangle(x, ICON_Y, 44, 44, 0x202020).setStrokeStyle(2, 0x444444)
             .setInteractive({ useHandCursor: true }), 2);
-        const text = add(scene.add.text(x, TOP + 160, label, { fontFamily: FONTS.body, fontSize: '26px', fill: COLORS.text })
+        const text = add(scene.add.text(x, ICON_Y, label, { fontFamily: FONTS.body, fontSize: '26px', fill: COLORS.text })
             .setOrigin(0.5), 3);
         box.on('pointerover', () => box.setFillStyle(0x333333));
         box.on('pointerout', () => box.setFillStyle(0x202020));
@@ -147,12 +155,17 @@ export function openAdvancedInfo(scene, { characterIndex = 0, variantIndex = 0, 
         const name = `${variant.name} ${character.name}`;
         subtitle.setColor(variant.color ?? COLORS.accent);
         const iconKey = getCharacterTexture(character.key, variant.name);
-        icon.setVisible(scene.textures.exists(iconKey));
-        if (icon.visible) icon.setTexture(iconKey).setDisplaySize(ICON_SIZE, ICON_SIZE);
+        tagline.setText(variant.desc ?? '');
+        const iconTop = tagline.y + tagline.height + 6;
+        const iconBottom = BODY.y - 14;
+        const iconSize = Math.min(ICON_SIZE, iconBottom - iconTop);
+        icon.setVisible(scene.textures.exists(iconKey)).setY((iconTop + iconBottom) / 2);
+        if (icon.visible) icon.setTexture(iconKey).setDisplaySize(iconSize, iconSize);
         const abilities = cleanAbilities(variant.abilities) || 'Nothing extra to know about this fighter yet.';
         const targets = [
             { object: title, text: 'ADVANCED INFO' },
             { object: subtitle, text: name },
+            { object: tagline, text: variant.desc ?? '' },
             { object: body, text: layoutBody(abilities) }
         ];
         if (!animate) {

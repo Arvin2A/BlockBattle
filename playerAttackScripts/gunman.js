@@ -426,7 +426,7 @@ function shotgun(api, scene, attacker) {
             direction: aim,
             knockback: ({ kb, damageScale }) => ({
                 x: aim.x * SHOTGUN.knockback * kb * damageScale,
-                y: aim.y === 0 ? -SHOTGUN.lift * kb : aim.y * SHOTGUN.knockback * kb * damageScale
+                y: aim.y === 0 ? api.capHorizontalLaunchY(-SHOTGUN.lift * kb) : aim.y * SHOTGUN.knockback * kb * damageScale
             })
         });
     }

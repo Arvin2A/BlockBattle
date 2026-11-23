@@ -13,6 +13,11 @@ import { getAttackDamageScale, getHitSound, getKnockbackResistance } from './cha
 import { blocksHit } from './block.js';
 
 const PLUNGE_KNOCKBACK_BONUS = 1.0;
+const HORIZONTAL_MAX_UPWARD_LAUNCH = 500;
+
+export function capHorizontalLaunchY(y) {
+    return Math.max(y, -HORIZONTAL_MAX_UPWARD_LAUNCH);
+}
 const MIN_DEFAULT_DECELERATE_MS = 100;
 
 export function clearQueuedStunTimers(scene, attacker, target) {
@@ -116,13 +121,16 @@ function objectLaunch(attacker, target, knockback, direction, damageScale, kb) {
 
     let dirX = direction.x;
     let dirY = direction.y;
-    if (dirY === 0) {
+    const horizontal = dirY === 0;
+    if (horizontal) {
         dirY = lift;
     } else if (dirY === 1 && onDown === 'popUp') {
         dirX = attacker.x <= target.x ? 0.75 : -0.75;
         dirY = -1;
     }
-    return { x: x * growthScale * xScale * dirX, y: y * growthScale * dirY };
+    let launchY = y * growthScale * dirY;
+    if (horizontal) launchY = capHorizontalLaunchY(launchY);
+    return { x: x * growthScale * xScale * dirX, y: launchY };
 }
 
 export const NET_IMMUNITY_MS = 1000;

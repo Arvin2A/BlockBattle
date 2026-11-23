@@ -41,7 +41,7 @@ export const AIR_DODGE = {
     minSpeed: 450,
     riseDamping: 0.75,
     maxRise: 400,
-    invincibleMs: 350,
+    invincibleMs: 450,
     driftMs: 200,
     sound: 'whoosh'
 };
@@ -99,9 +99,14 @@ function airDodge(scene, player, input) {
     player.airDodgeUsed = true;
     player.airDodgeUntil = now + AIR_DODGE.driftMs;
     player.invincibleUntil = Math.max(player.invincibleUntil ?? 0, now + AIR_DODGE.invincibleMs);
+    player.airDodgePhaseUntil = now + AIR_DODGE.invincibleMs;
     player.setVelocity(dir.x / length * speed, Math.max(dir.y / length * speed, -AIR_DODGE.maxRise));
     player.flash?.();
     scene.sound.play(AIR_DODGE.sound, { rate: 2});
+}
+
+export function isAirDodgePhasing(player) {
+    return player.scene.time.now < (player.airDodgePhaseUntil ?? 0);
 }
 
 export function isAirDodging(player) {

@@ -39,8 +39,9 @@ export function setSelectedCharacters(p1Character, p1Variant, p2Character, p2Var
 
 const TITLE_Y = 34;
 const GRID = { columns: 8, top: 66, cell: 100, smallCell: 78, gap: 8 };
-const CARD = { width: 470, xs: [255, 745], bottom: 588, gapAbove: 54 };
-const BANNER_HEIGHT = 36;
+const CARD = { width: 470, xs: [255, 745], bottom: 588, gapAbove: 76 };
+const BANNER_HEIGHT = 34;
+const BANNER_COLORS = { normal: 0xb3261e, hover: 0x8f1e18, pressed: 0x5c1310 };
 const TAB = { width: 84, height: 24 };
 const PAD_BUTTON = 40;
 const PAD_SPREAD = 44;
@@ -192,13 +193,28 @@ export class CharacterSelectScene extends Phaser.Scene {
     buildBanner() {
         const y = (this.gridBottom + this.cardTop - TAB.height / 2) / 2;
         const hint = this.isTouch ? 'TAP TO START' : 'PRESS E / SHIFT / ENTER OR CLICK';
-        const box = this.add.rectangle(0, 0, 1000, BANNER_HEIGHT, 0xb3261e, 0.95)
+        const box = this.add.rectangle(0, 0, 1000, BANNER_HEIGHT, BANNER_COLORS.normal, 0.95)
             .setInteractive({ useHandCursor: true });
         const title = this.add.text(-150, 0, 'READY TO FIGHT!', textStyle('title', {
-            fontSize: '28px'
+            fontSize: '20px', strokeThickness: 4
         })).setOrigin(0.5);
-        const sub = this.add.text(300, 0, hint, textStyle('body', { fontSize: '16px', fill: COLORS.accent })).setOrigin(0.5);
-        box.on('pointerdown', () => this.startMatch());
+        const sub = this.add.text(300, 0, hint, textStyle('body', { fontSize: '14px', fill: COLORS.accent })).setOrigin(0.5);
+        let hovered = false;
+        box.on('pointerover', () => {
+            hovered = true;
+            box.setFillStyle(BANNER_COLORS.hover, 0.95);
+        });
+        box.on('pointerout', () => {
+            hovered = false;
+            box.setFillStyle(BANNER_COLORS.normal, 0.95);
+        });
+        box.on('pointerdown', () => {
+            box.setFillStyle(BANNER_COLORS.pressed, 0.95);
+            this.time.delayedCall(120, () => {
+                if (box.active) box.setFillStyle(hovered ? BANNER_COLORS.hover : BANNER_COLORS.normal, 0.95);
+            });
+            this.startMatch();
+        });
         this.banner = this.add.container(-1000, y, [box, title, sub]).setDepth(40);
         this.bannerShown = false;
     }
@@ -244,7 +260,7 @@ export class CharacterSelectScene extends Phaser.Scene {
             return arrow;
         });
 
-        if (slot.isCpu) this.buildDifficulty(player, columnX, top + 244);
+        if (slot.isCpu) this.buildDifficulty(player, columnX, top + 244, top + 148);
         const lockNote = this.add.text(columnX, top + 228, 'LOCKED - SEE ACHIEVEMENTS', textStyle('body', {
             fontSize: '14px', fill: COLORS.error
         })).setOrigin(0.5).setVisible(false);
@@ -312,10 +328,10 @@ export class CharacterSelectScene extends Phaser.Scene {
         button(x, y, 'OK', () => this.toggleLock(player));
     }
 
-    buildDifficulty(player, x, y) {
+    buildDifficulty(player, x, y, progressY) {
         const label = this.add.text(x, y, '', textStyle('body', { fontSize: '18px', fill: COLORS.accent })).setOrigin(0.5);
         const tracksBotMaster = botMode && !simulationMode;
-        const progress = this.add.text(x, y + 26, '', textStyle('body', { fontSize: '13px', fill: COLORS.muted })).setOrigin(0.5);
+        const progress = this.add.text(x, progressY, '', textStyle('body', { fontSize: '13px', fill: COLORS.muted })).setOrigin(0.5);
         const show = () => {
             label.setText(`CPU: ${botDifficulty[player]}`);
             if (!tracksBotMaster) return;

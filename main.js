@@ -29,6 +29,7 @@ import { KILLZONE, attachKillzoneWalls } from './combat/borders.js';
 import { INFINITE_SPAN } from './scenes/GameScene/MapDefinitions.js';
 import { updateUniversalMoves, isUniversalBusy, tryLedgeGrab, hideWeaponsForUniversalMoves, restoreHiddenWeapons } from './combat/universalMoves.js';
 import { updateLaunchArc, isInvincible, applyVictimShakes, restoreVictimShakes } from './combat/knockback.js';
+import { isAirDodgePhasing } from './combat/block.js';
 import { MenuScene } from './scenes/MenuScene.js';
 import { fadeOutTo } from './scenes/transitions.js';
 import { player1Character, player2Character, player1Variant, player2Variant, CharacterSelectScene } from './scenes/CharacterSelectScreen.js';
@@ -1111,7 +1112,7 @@ function create() {
     for (let i = 0; i < fighters.length; i++) {
         for (let j = i + 1; j < fighters.length; j++) {
             this.physics.add.collider(fighters[i], fighters[j], null,
-                (a, b) => !a.clipThroughPlayers && !b.clipThroughPlayers && a.team !== b.team);
+                (a, b) => !a.clipThroughPlayers && !b.clipThroughPlayers && !isAirDodgePhasing(a) && !isAirDodgePhasing(b) && a.team !== b.team);
         }
     }
 
