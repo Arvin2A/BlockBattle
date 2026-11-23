@@ -20,7 +20,7 @@
 - Progress is saved in localStorage. To move it to another browser, GET TRANSFER CODE uploads the save to the online server and shows a short code (like K7F-2QX) that works once and expires after 10 minutes; ENTER TRANSFER CODE on the other browser loads it and merges it with what's already there. The server keeps codes in memory only and limits each address to 10 codes and 20 redeem attempts per 10 minutes.
 - A restart button under the settings button during offline matches. It pauses the match and asks "Are you sure?" with YES (restart) and NO (resume). Hidden in online matches and once the match is over.
 - Online matches send each player their own match result when the match ends (protocol version 16).
-- Online achievement progress also needs at least 100% damage dealt in the match and no AFK flag.
+- Online achievement progress also needs at least 100% damage dealt in the match (75% with 3 players, 50% with 4) and no AFK flag. If any player spends half the match AFK or gone, no one in it gets progress. When someone leaves or gets kicked and that ends the match, everyone still in it now gets their results.
 - Online AFK check: time with no new input while not in hitstun adds up after the countdown. At 10s total the player's achievement progress for that match is denied; at 20s they're kicked ("YOU WERE KICKED FOR BEING AFK") and the match continues or ends as if they left. A win by AFK kick gives no achievement progress.
 
 ### Changed

@@ -19,6 +19,7 @@ const CHAT_LATENCY_SLACK_MS = 300;
 
 const BOOT_TIMEOUT_MS = 45000;
 const END_LINGER_MS = 4000;
+const RESULT_WAIT_MS = 3000;
 const MAX_MESSAGES_PER_SECOND = 300;
 const MAX_PLAYER_MESSAGE_BYTES = 4096;
 const MAX_LISTED_ROOMS = 50;
@@ -695,7 +696,7 @@ export class Lobby {
                 this.tryStart(match);
             } else if (message.t === 'end' && Array.isArray(message.winners) &&
                 message.winners.length > 0 && message.winners.every(slot => match.roster.some(entry => entry.slot === slot))) {
-                this.endMatch(match, message.winners, END_REASONS.KO, message.results);
+                this.endMatch(match, message.winners, match.pendingEnd?.reason ?? END_REASONS.KO, message.results);
             } else if (message.t === 'afk' && typeof message.s === 'string' && match.players[message.s] && !match.left.has(message.s)) {
                 const client = match.players[message.s];
                 this.log(`Match ${match.id}: ${client.name} (${message.s}) was kicked for being AFK`);
@@ -788,12 +789,22 @@ export class Lobby {
         }
         const staying = match.roster.filter(entry => !match.left.has(entry.slot));
         const teams = new Set(staying.map(entry => entry.team));
+        const client = match.players[leavingSlot];
         if (teams.size <= 1) {
             const winners = staying.map(entry => entry.slot);
-            this.endMatch(match, winners.length ? winners : null, reason);
-            return;
+            if (match.state !== 'running' || !match.authority) {
+                this.endMatch(match, winners.length ? winners : null, reason);
+                return;
+            }
+            if (reason === END_REASONS.FORFEIT && client.match === match) {
+                sendJson(client.ws, { t: 'matchEnd', winners, reason });
+            }
+            clearTimeout(match.pendingEnd?.timer);
+            match.pendingEnd = {
+                reason,
+                timer: setTimeout(() => this.endMatch(match, winners.length ? winners : null, reason), RESULT_WAIT_MS)
+            };
         }
-        const client = match.players[leavingSlot];
         sendJson(match.authority, { t: 'playerLeft', s: leavingSlot });
         if (client.match === match) {
             client.match = null;
@@ -801,7 +812,7 @@ export class Lobby {
             client.state = 'idle';
             this.sendRooms(client);
         }
-        this.log(`Match ${match.id}: ${client.name} (${leavingSlot}) left, the match goes on`);
+        this.log(`Match ${match.id}: ${client.name} (${leavingSlot}) left${match.pendingEnd ? ', waiting for the final results' : ', the match goes on'}`);
         this.tryStart(match);
     }
 
@@ -809,6 +820,7 @@ export class Lobby {
         if (match.state === 'ended') return;
         match.state = 'ended';
         clearTimeout(match.bootTimer);
+        clearTimeout(match.pendingEnd?.timer);
         const winnerNames = (winners ?? []).map(slot => match.roster.find(entry => entry.slot === slot)?.name).join(' + ');
         this.log(`Match ${match.id} ended: ${reason}${winnerNames ? `, ${winnerNames} won` : ''}`);
 

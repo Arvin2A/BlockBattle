@@ -8,6 +8,7 @@ import { getCharacterTexture } from './characterTextures.js';
 const STORAGE_KEY = 'blockBattleAchievements';
 const QUALIFYING_CPU = ['NORMAL', 'HARD', 'VERY HARD'];
 const ONLINE_MIN_DAMAGE = 100;
+const ONLINE_MIN_DAMAGE_PER_EXTRA_PLAYER = 25;
 const BOT_MASTER_LEVELS = [
     { id: 'BOT_MASTER_I', numeral: 'I', difficulty: 'EASY', reward: 'NONE' },
     { id: 'BOT_MASTER_II', numeral: 'II', difficulty: 'NORMAL', reward: 'NONE' },
@@ -120,7 +121,7 @@ export const ACHIEVEMENTS = [
     }))
 ];
 
-export const ACHIEVEMENT_RULES = 'Only counts with no modifiers, online or against a NORMAL CPU or harder. BOT MASTER counts against any CPU, still with no modifiers. Online, you also need to deal 100% damage and not go AFK.';
+export const ACHIEVEMENT_RULES = 'Only counts with no modifiers, online or against a NORMAL CPU or harder. BOT MASTER counts against any CPU, still with no modifiers. Online, you also need to deal 100% damage (75% with 3 players, 50% with 4) and not go AFK. If anyone in the match is AFK or gone for half of it, it does not count for anybody.';
 
 export const ACHIEVEMENT_ICONS = [
     'achievement_BlockHead',
@@ -231,9 +232,13 @@ export function recordMatchResult(result) {
     return updates;
 }
 
-export function qualifiesForAchievements({ online, noModifiers, cpuDifficulty, damageDealt = 0, afk = false }) {
+export function onlineMinDamage(playerCount = 2) {
+    return Math.max(0, ONLINE_MIN_DAMAGE - Math.max(0, playerCount - 2) * ONLINE_MIN_DAMAGE_PER_EXTRA_PLAYER);
+}
+
+export function qualifiesForAchievements({ online, noModifiers, cpuDifficulty, damageDealt = 0, afk = false, playerCount = 2 }) {
     if (!noModifiers) return false;
-    if (online) return damageDealt >= ONLINE_MIN_DAMAGE && !afk;
+    if (online) return damageDealt >= onlineMinDamage(playerCount) && !afk;
     return QUALIFYING_CPU.includes(cpuDifficulty);
 }
 

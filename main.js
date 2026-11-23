@@ -591,6 +591,27 @@ const AFK_DENY_MS = 10000;
 const AFK_KICK_MS = 20000;
 const AFK_RETURN_MS = 3000;
 const AFK_INPUT_GAP_MS = 1000;
+const AFK_IDLE_MS = 2000;
+const AFK_FARM_SHARE = 0.5;
+
+function closeAfkStreak(player) {
+    if ((player.afkMs ?? 0) >= AFK_IDLE_MS) player.afkTotalMs = (player.afkTotalMs ?? 0) + player.afkMs;
+    player.afkMs = 0;
+}
+
+function matchWasAfkFarmed(scene) {
+    if (!scene.online || scene.matchStartTime === null) return false;
+    const now = scene.time.now;
+    const duration = now - scene.matchStartTime;
+    if (duration <= 0) return false;
+    return scene.gameState.players.some(player => {
+        if (player.isCpu) return false;
+        const idle = (player.afkTotalMs ?? 0)
+            + ((player.afkMs ?? 0) >= AFK_IDLE_MS ? player.afkMs : 0)
+            + (player.leftAt != null ? now - player.leftAt : 0);
+        return idle / duration >= AFK_FARM_SHARE;
+    });
+}
 
 function trackAfk(scene, slot, active) {
     if (scene.gameEnded || scene.matchStartTime === null) return;
@@ -598,7 +619,7 @@ function trackAfk(scene, slot, active) {
     if (!player || player.isCpu || player.eliminated) return;
     const delta = scene.game.loop.delta;
     if (active) {
-        player.afkMs = 0;
+        closeAfkStreak(player);
     } else if (!player.hitstun) {
         player.afkMs = (player.afkMs ?? 0) + delta;
     }
@@ -2582,7 +2603,8 @@ function matchResultFor(scene, player, winners, noModifiers, cpu = null) {
         noModifiers,
         qualifies: qualifiesForAchievements({
             online: scene.online, noModifiers, cpuDifficulty: cpu?.difficulty,
-            damageDealt: player.stats.damageDealt, afk: player.stats.afk
+            damageDealt: player.stats.damageDealt, afk: player.stats.afk,
+            playerCount: scene.gameState.players.length
         }),
         cpuDifficulty: cpu?.difficulty,
         cpuCharacter: cpu?.character,
@@ -2594,8 +2616,13 @@ function recordAchievements(scene, winners) {
     const noModifiers = !Object.values(modifierOptions).some(modifier => modifier.enabled);
     const fighters = scene.gameState.players;
     if (scene.online) {
+        const farmed = matchWasAfkFarmed(scene);
         const results = Object.fromEntries(fighters.filter(fighter => !fighter.isCpu)
-            .map(fighter => [fighter.slot, matchResultFor(scene, fighter, winners, noModifiers)]));
+            .map(fighter => {
+                const result = matchResultFor(scene, fighter, winners, noModifiers);
+                if (farmed) result.qualifies = false;
+                return [fighter.slot, result];
+            }));
         reportMatchEnd(winners.map(fighter => fighter.slot), results);
         return;
     }
@@ -2696,6 +2723,8 @@ function removePlayersWhoLeft(scene) {
     for (const slot of consumeLeftPlayers()) {
         const fighter = scene.gameState.players.find(player => player.slot === slot);
         if (!fighter || fighter.eliminated) continue;
+        closeAfkStreak(fighter);
+        if (scene.matchStartTime !== null) fighter.leftAt = scene.time.now;
         fighter.lives = 0;
         const matchOver = teamsStillIn(scene).size <= 1;
         if (!matchOver) eliminateFighter(scene, fighter);
