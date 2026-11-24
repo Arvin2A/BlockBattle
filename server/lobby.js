@@ -9,7 +9,7 @@ import { WebSocket } from 'ws';
 import { createNameFilter } from '../mp/nameFilter.js';
 import { ALL_BUTTONS_MASK } from '../input.js';
 import { CHARACTER_ROSTER, isValidSelection } from '../characterRoster.js';
-import { cleanName, cleanDeviceId, cleanMatchResult, END_REASONS, MAP_CHOICES, MAX_LOBBY_NAME_LENGTH, PROTOCOL_VERSION } from '../mp/protocol.js';
+import { cleanName, cleanDeviceId, cleanInviteCode, cleanMatchResult, END_REASONS, INVITE_CODE_LENGTH, INVITE_CODE_LETTERS, MAP_CHOICES, MAX_LOBBY_NAME_LENGTH, PROTOCOL_VERSION, RECONNECT_GRACE_MS } from '../mp/protocol.js';
 import { MATCH_MODES, SLOTS, buildRoster, isValidMode } from '../matchModes.js';
 import { sanitizeOnlineModifiers } from '../modifiers.js';
 import { QUICK_CHAT_PHRASES, QuickChatLimiter } from '../mp/quickChat.js';
@@ -25,6 +25,8 @@ const MAX_PLAYER_MESSAGE_BYTES = 4096;
 const MAX_LISTED_ROOMS = 50;
 const MAX_LISTED_PLAYERS = 100;
 const INVITE_GAP_MS = 3000;
+const BAD_INVITE_CODE_WINDOW_MS = 60 * 1000;
+const MAX_BAD_INVITE_CODES = 10;
 const BOT_NAME = 'CPU';
 const BOT_DIFFICULTY = 'HARD';
 const MODES_WITH_BOTS = new Set(Object.keys(MATCH_MODES).filter(mode => mode !== '1v1'));
@@ -106,34 +108,128 @@ export class Lobby {
             slot: null,
             watchingPlayers: false,
             invitesSent: new Map(),
+            badInviteCodes: [],
+            resumeKey: randomId(16),
+            detached: false,
+            resumeTimer: null,
+            missedMessages: [],
             messageCount: 0,
             messageWindow: Date.now(),
             lastSeen: Date.now(),
             chatLimiter: new QuickChatLimiter(CHAT_LATENCY_SLACK_MS)
         };
         this.clients.set(client.id, client);
+        ws.owner = client;
 
         ws.on('message', (data, isBinary) => {
-            client.lastSeen = Date.now();
+            const owner = ws.owner;
+            if (!owner) return;
+            owner.lastSeen = Date.now();
             if (isBinary || data.length > MAX_PLAYER_MESSAGE_BYTES) return;
-            if (!this.withinRateLimit(client)) return;
+            if (!this.withinRateLimit(owner)) return;
             let message;
             try {
                 message = JSON.parse(data.toString());
             } catch {
                 return;
             }
-            if (message && typeof message === 'object') this.handleClientMessage(client, message);
+            if (message && typeof message === 'object') this.handleClientMessage(owner, message);
         });
-        ws.on('close', () => this.removeClient(client));
+        ws.on('close', () => this.socketClosed(ws.owner, ws));
         ws.on('error', () => {});
+    }
+
+    graceFor(client) {
+        if (!client.greeted) return 0;
+        if (client.match) return RECONNECT_GRACE_MS.match;
+        if (client.lobby) return RECONNECT_GRACE_MS.lobby;
+        return RECONNECT_GRACE_MS.menu;
+    }
+
+    socketClosed(client, ws) {
+        if (!client || client.ws !== ws) return;
+        const grace = this.graceFor(client);
+        if (!grace) {
+            this.removeClient(client);
+            return;
+        }
+        client.ws = null;
+        client.detached = true;
+        client.watchingPlayers = false;
+        client.resumeTimer = setTimeout(() => this.removeClient(client), grace);
+        const match = client.match;
+        if (match && match.state !== 'ended') {
+            sendJson(match.authority, { t: 'in', s: client.slot, h: 0, p: 0 });
+            sendJson(match.authority, { t: 'reconnecting', s: client.slot, on: true });
+        }
+        if (client.lobby) this.lobbyChanged(client.lobby);
+        this.log(`${client.name} lost connection, holding their spot for ${grace / 1000}s`);
+        this.broadcastStatus();
+    }
+
+    findResumable(client, key) {
+        if (typeof key !== 'string' || key.length !== 32) return null;
+        for (const other of this.clients.values()) {
+            if (other === client || !other.greeted || other.deviceId !== client.deviceId) continue;
+            const expected = Buffer.from(other.resumeKey);
+            const given = Buffer.from(key);
+            if (expected.length === given.length && crypto.timingSafeEqual(expected, given)) return other;
+        }
+        return null;
+    }
+
+    dropStaleSpots(client) {
+        if (!client.deviceId) return;
+        for (const other of [...this.clients.values()]) {
+            if (other !== client && other.detached && other.deviceId === client.deviceId) this.removeClient(other);
+        }
+    }
+
+    resumeClient(held, fresh) {
+        this.clients.delete(fresh.id);
+        const previous = held.ws;
+        held.ws = fresh.ws;
+        fresh.ws.owner = held;
+        if (previous && previous !== fresh.ws) {
+            previous.owner = null;
+            previous.terminate();
+        }
+        clearTimeout(held.resumeTimer);
+        held.resumeTimer = null;
+        held.detached = false;
+        held.dropped = false;
+        held.away = false;
+        held.lastSeen = Date.now();
+        sendJson(held.ws, { t: 'welcome', id: held.id, tag: held.tag, resume: held.resumeKey, resumed: true });
+        this.log(`${held.name} reconnected`);
+        if (held.state !== 'match') this.sendRooms(held);
+        if (held.lobby) this.lobbyChanged(held.lobby);
+        else if (held.state === 'queued') sendJson(held.ws, { t: 'queued' });
+        if (held.match) this.resumeInMatch(held);
+        for (const message of held.missedMessages) sendJson(held.ws, message);
+        held.missedMessages = [];
+        this.broadcastStatus();
+    }
+
+    resumeInMatch(client) {
+        const match = client.match;
+        if (!match.loaded.has(client.slot) && client.matchFound) sendJson(client.ws, client.matchFound);
+        if (match.state === 'ended') return;
+        client.rtcSignals = 0;
+        sendJson(match.authority, { t: 'reconnecting', s: client.slot, on: false });
+        if (match.state === 'running') sendJson(match.authority, { t: 'resync', s: client.slot });
+    }
+
+    sendToPlayer(client, message) {
+        if (client.detached) client.missedMessages.push(message);
+        else sendJson(client.ws, message);
     }
 
     dropSilentClients() {
         const now = Date.now();
         for (const client of this.clients.values()) {
             const limit = client.away ? SILENT_AWAY_LIMIT_MS : SILENT_LIMIT_MS;
-            if (client.dropped || now - client.lastSeen < limit) continue;
+            if (client.dropped || !client.ws || now - client.lastSeen < limit) continue;
             client.dropped = true;
             this.log(`Dropping ${client.name ?? client.tag} (${client.address}): silent for ${Math.round((now - client.lastSeen) / 1000)}s`);
             client.ws.terminate();
@@ -183,10 +279,16 @@ export class Lobby {
                 client.ws.close();
                 return;
             }
-            client.greeted = true;
             client.deviceId = cleanDeviceId(message.d);
+            const held = this.findResumable(client, message.r);
+            if (held) {
+                this.resumeClient(held, client);
+                return;
+            }
+            client.greeted = true;
+            this.dropStaleSpots(client);
             if (message.n !== undefined) this.setName(client, message.n);
-            sendJson(client.ws, { t: 'welcome', id: client.id, tag: client.tag });
+            sendJson(client.ws, { t: 'welcome', id: client.id, tag: client.tag, resume: client.resumeKey });
             this.sendRooms(client);
             this.broadcastStatus();
             return;
@@ -236,6 +338,7 @@ export class Lobby {
             case 'away':
                 if (client.away !== Boolean(message.a)) {
                     client.away = Boolean(message.a);
+                    if (client.lobby) this.lobbyChanged(client.lobby);
                     this.broadcastStatus();
                 }
                 break;
@@ -265,6 +368,9 @@ export class Lobby {
     }
 
     removeClient(client) {
+        if (this.clients.get(client.id) !== client) return;
+        clearTimeout(client.resumeTimer);
+        client.resumeTimer = null;
         this.clients.delete(client.id);
         this.dequeue(client);
         this.leaveLobby(client);
@@ -308,7 +414,7 @@ export class Lobby {
             return;
         }
         if (!this.readChoice(client, message)) return;
-        const partner = this.queue.find(waiting => !waiting.deviceId || waiting.deviceId !== client.deviceId);
+        const partner = this.queue.find(waiting => !waiting.detached && (!waiting.deviceId || waiting.deviceId !== client.deviceId));
         if (partner) {
             if (this.matches.size >= this.maxMatches) {
                 sendJson(client.ws, { t: 'error', msg: BUSY_ARENAS_MESSAGE });
@@ -358,6 +464,7 @@ export class Lobby {
         }
         const lobby = {
             id: client.id,
+            inviteCode: this.uniqueInviteCode(),
             name,
             mode: message.mode,
             map: client.choice.map,
@@ -383,14 +490,42 @@ export class Lobby {
         this.lobbyChanged(lobby);
     }
 
+    uniqueInviteCode() {
+        const taken = new Set([...this.lobbies.values()].map(lobby => lobby.inviteCode));
+        for (;;) {
+            const code = Array.from({ length: INVITE_CODE_LENGTH },
+                () => INVITE_CODE_LETTERS[crypto.randomInt(INVITE_CODE_LETTERS.length)]).join('');
+            if (!taken.has(code)) return code;
+        }
+    }
+
+    tooManyBadCodes(client) {
+        const now = Date.now();
+        client.badInviteCodes = client.badInviteCodes.filter(at => now - at < BAD_INVITE_CODE_WINDOW_MS);
+        return client.badInviteCodes.length >= MAX_BAD_INVITE_CODES;
+    }
+
+    findLobbyForJoin(client, message) {
+        if (message.code === undefined) return this.lobbies.get(message.room);
+        if (this.tooManyBadCodes(client)) return null;
+        const code = cleanInviteCode(message.code);
+        const lobby = code ? [...this.lobbies.values()].find(each => each.inviteCode === code) : null;
+        if (!lobby) client.badInviteCodes.push(Date.now());
+        return lobby;
+    }
+
     joinLobby(client, message) {
         if (client.state === 'match' || client.state === 'lobby') return;
-        const lobby = this.lobbies.get(message.room);
+        const byCode = message.code !== undefined;
+        const lobby = this.findLobbyForJoin(client, message);
         if (!lobby || lobbyCount(lobby) >= MATCH_MODES[lobby.mode].players) {
-            sendJson(client.ws, { t: 'joinFailed', msg: 'That lobby is full or no longer open.' });
+            sendJson(client.ws, {
+                t: 'joinFailed',
+                msg: byCode ? 'That invite has expired, or the lobby is full.' : 'That lobby is full or no longer open.'
+            });
             return;
         }
-        if (lobby.private && !lobby.invited.has(client.id)) {
+        if (lobby.private && !byCode && !lobby.invited.has(client.id)) {
             sendJson(client.ws, { t: 'joinFailed', msg: 'That lobby is private. You need an invite to join.' });
             return;
         }
@@ -432,6 +567,10 @@ export class Lobby {
         }
         if (lobby.members.some(member => !member.ready)) {
             sendJson(client.ws, { t: 'error', msg: 'Everyone needs to be ready to start.' });
+            return;
+        }
+        if (lobby.members.some(member => member.detached)) {
+            sendJson(client.ws, { t: 'error', msg: 'Wait for everyone to reconnect.' });
             return;
         }
         if (this.matches.size >= this.maxMatches) {
@@ -490,7 +629,8 @@ export class Lobby {
                 variant: member.choice.variant,
                 tag: member.tag,
                 you: member === viewer,
-                ready: Boolean(member.ready)
+                ready: Boolean(member.ready),
+                status: member.detached ? 'reconnecting' : member.away ? 'afk' : 'active'
             })),
             ...(lobby.bot ? [{ name: lobby.bot.name, character: lobby.bot.character, variant: lobby.bot.variant, bot: true, ready: true }] : [])
         ]);
@@ -502,6 +642,7 @@ export class Lobby {
             modifiers: lobby.modifiers,
             max: MATCH_MODES[lobby.mode].players,
             private: lobby.private,
+            inviteCode: lobby.inviteCode,
             host: lobby.members[0] === viewer,
             members: roster
         };
@@ -533,7 +674,7 @@ export class Lobby {
     }
 
     isInMenu(client) {
-        return client.greeted && client.state !== 'match';
+        return client.greeted && !client.detached && client.state !== 'match';
     }
 
     isWaiting(client) {
@@ -640,7 +781,7 @@ export class Lobby {
             client.match = match;
             client.slot = slot;
             client.rtcSignals = 0;
-            sendJson(client.ws, {
+            client.matchFound = {
                 t: 'matchFound',
                 matchId: match.id,
                 slot,
@@ -649,7 +790,8 @@ export class Lobby {
                 quick,
                 roster: publicRoster,
                 opponent
-            });
+            };
+            sendJson(client.ws, client.matchFound);
         }
         this.log(`Match ${match.id}: ${mode} ${roster.map(entry => entry.name).join(' vs ')} on ${match.map}`);
 
@@ -698,7 +840,7 @@ export class Lobby {
             if (text.startsWith('{"t":"m"')) {
                 for (const client of Object.values(match.players)) {
                     const inMatch = client.match === match || client.watching === match;
-                    if (inMatch && client.ws.readyState === WebSocket.OPEN) client.ws.send(text);
+                    if (inMatch && client.ws?.readyState === WebSocket.OPEN) client.ws.send(text);
                 }
                 return;
             }
@@ -734,7 +876,7 @@ export class Lobby {
             } else if (message.t === 'afk' && typeof message.s === 'string' && match.players[message.s] && !match.left.has(message.s)) {
                 const client = match.players[message.s];
                 this.log(`Match ${match.id}: ${client.name} (${message.s}) was kicked for being AFK`);
-                if (client.match === match) sendJson(client.ws, { t: 'matchEnd', winners: null, reason: END_REASONS.AFK });
+                if (client.match === match) this.sendToPlayer(client, { t: 'matchEnd', winners: null, reason: END_REASONS.AFK });
                 this.forfeit(match, message.s, END_REASONS.AFK);
             }
         });
@@ -765,7 +907,7 @@ export class Lobby {
         clearTimeout(match.bootTimer);
         sendJson(match.authority, { t: 'start' });
         for (const client of Object.values(match.players)) {
-            sendJson(client.ws, { t: 'matchStart' });
+            this.sendToPlayer(client, { t: 'matchStart' });
         }
         this.log(`Match ${match.id} started`);
     }
@@ -861,7 +1003,7 @@ export class Lobby {
         for (const client of Object.values(match.players)) {
             if (client.match !== match) continue;
             const result = results && typeof results === 'object' ? cleanMatchResult(results[client.slot]) : null;
-            sendJson(client.ws, { t: 'matchEnd', winners, reason, ...(result ? { result } : {}) });
+            this.sendToPlayer(client, { t: 'matchEnd', winners, reason, ...(result ? { result } : {}) });
             client.watching = reason === END_REASONS.KO ? match : null;
             client.match = null;
             client.slot = null;

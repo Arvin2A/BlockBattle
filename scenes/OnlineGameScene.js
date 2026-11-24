@@ -104,6 +104,16 @@ export class OnlineGameScene extends Phaser.Scene {
                 this.events.emit('online-start');
             }),
             net.on('matchEnd', message => this.endMatch(message)),
+            net.on('reconnecting', () => {
+                this.releaseAllKeys();
+                this.events.emit('online-reconnecting', true);
+            }),
+            net.on('resumed', () => {
+                this.mirror.expectFullFrame();
+                this.lastSentHeld = -1;
+                net.send({ t: 'loaded' });
+                this.events.emit('online-reconnecting', false);
+            }),
             net.on('disconnected', () => this.endMatch({ reason: 'lost_connection', winner: null }))
         ];
         this.frameQueue = [];
@@ -372,10 +382,12 @@ export class OnlineOverlayScene extends Phaser.Scene {
         game.events.on('online-start', this.onStart, this);
         game.events.on('online-end', this.onEnd, this);
         game.events.on('online-escape', this.onEscape, this);
+        game.events.on('online-reconnecting', this.onReconnecting, this);
         this.events.once('shutdown', () => {
             game.events.off('online-start', this.onStart, this);
             game.events.off('online-end', this.onEnd, this);
             game.events.off('online-escape', this.onEscape, this);
+            game.events.off('online-reconnecting', this.onReconnecting, this);
             this.quickChat.destroy();
         });
 
@@ -410,6 +422,12 @@ export class OnlineOverlayScene extends Phaser.Scene {
 
         if (game.matchRunning) this.onStart();
         if (game.endMessage) this.onEnd(game.endMessage);
+    }
+
+    onReconnecting(on) {
+        if (this.gameScene.matchOver) return;
+        this.waitingText.setText(on ? 'RECONNECTING...' : 'LOADING MATCH...')
+            .setVisible(on || !this.gameScene.matchRunning);
     }
 
     onStart() {

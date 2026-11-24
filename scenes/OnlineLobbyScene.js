@@ -17,7 +17,7 @@ import { formatModifierValue, modifierOptions } from '../modifiers.js';
 import { MODIFIER_ACHIEVEMENT_WARNING, warnModifiersOnce } from '../ui/modifierWarning.js';
 import { createNameFilter } from '../mp/nameFilter.js';
 import inappropriateWords from '../assets/inappropriate_words?raw';
-import { getOnlineServerHost, getServerName, isOnlineConfigured } from '../mp/serverConfig.js';
+import { getOnlineServerHost, getServerName, isOnlineConfigured, makeInviteLink } from '../mp/serverConfig.js';
 import { CHAOS_TIERS, COLORS, HEX, makeButton, makePanel } from '../ui/theme.js';
 import { openAdvancedInfo } from '../ui/advancedInfo.js';
 import { openFighterPicker } from '../ui/fighterPicker.js';
@@ -40,6 +40,13 @@ const ROW_LEFT = PANEL.x - ROW_WIDTH / 2;
 const ROW_RIGHT = PANEL.x + ROW_WIDTH / 2;
 const STAGE_CARD = { width: 204, height: 108, nameOffset: 38 };
 const LOBBY_INFO = { y: 214, gap: 14, buttonWidth: 130, buttonHeight: 20 };
+const MEMBER_STATUS = {
+    active: { label: 'ACTIVE', color: COLORS.ready },
+    afk: { label: 'AFK', color: COLORS.accent },
+    reconnecting: { label: 'RECONNECTING', color: COLORS.error }
+};
+const MEMBER_STATUS_GAP = 10;
+const COPY_LINK = { x: PANEL.x, y: 146, width: PANEL.width, height: 30, copiedMs: 1500 };
 const MODIFIER_LIST = { width: 520, height: 440, listHeight: 330, cardWidth: 440 };
 const SUB_SCREENS = ['create', 'stage', 'modifiers', 'browse', 'invite'];
 const SHAKE_OFFSETS = [0, -12, 10, -8, 6, -3, 0];
@@ -228,6 +235,9 @@ export class OnlineLobbyScene extends Phaser.Scene {
 
     init(data) {
         this.autoQueue = Boolean(data?.autoQueue);
+        this.autoJoin = data?.autoJoin ?? null;
+        this.notice = data?.notice ?? null;
+        this.joiningFromInvite = false;
         this.leavingToMenu = false;
     }
 
@@ -706,6 +716,10 @@ export class OnlineLobbyScene extends Phaser.Scene {
             'VIEW MODIFIERS', () => this.openModifierList(), 12);
         this.viewModifiersButton.text.setColor(COLORS.accent);
         this.addToScreen('lobby', this.viewModifiersButton);
+        this.copyLinkButton = makeButton(this, COPY_LINK.x, COPY_LINK.y, COPY_LINK.width, COPY_LINK.height,
+            'COPY INVITE LINK', () => this.copyInviteLink(), 17);
+        this.copyLinkButton.text.setColor(COLORS.accent);
+        this.addToScreen('lobby', this.copyLinkButton);
         this.memberRows = [];
         for (let i = 0; i < 4; i++) {
             const y = 252 + i * 42;
@@ -718,6 +732,7 @@ export class OnlineLobbyScene extends Phaser.Scene {
             row.invite = makeButton(this, ROW_RIGHT - 55, y, 90, 26, 'INVITE', () => this.showScreen('invite'), 15);
             row.addCpu = makeButton(this, ROW_RIGHT - 150, y, 90, 26, 'ADD CPU', () => net.send({ t: 'addBot' }), 15);
             row.removeCpu = makeButton(this, ROW_RIGHT - 55, y, 90, 26, 'REMOVE', () => net.send({ t: 'removeBot' }), 15);
+            row.status = text(this, ROW_LEFT + 36, y - 7, '', { fontFamily: 'VCROSD', fontSize: '13px' }).setOrigin(0, 0.5);
             row.readyShade = this.add.rectangle(PANEL.x, y, ROW_WIDTH, 36, 0x000000, 0.6);
             row.readyText = text(this, PANEL.x, y, 'READY!', {
                 fontFamily: 'VCROSD',
@@ -726,7 +741,7 @@ export class OnlineLobbyScene extends Phaser.Scene {
                 stroke: COLORS.stroke,
                 strokeThickness: 4
             }).setOrigin(0.5);
-            this.addToScreen('lobby', row.box, row.swatch, row.name, row.fighter, row.tag, row.invite, row.addCpu, row.removeCpu, row.readyShade, row.readyText);
+            this.addToScreen('lobby', row.box, row.swatch, row.name, row.fighter, row.tag, row.invite, row.addCpu, row.removeCpu, row.readyShade, row.readyText, row.status);
             this.memberRows.push(row);
         }
         this.startButton = this.addToScreen('lobby', makeButton(this, PANEL.x, LOBBY_BUTTON.y, LOBBY_BUTTON.width, LOBBY_BUTTON.height, 'START', () => this.startLobby(), 22));
@@ -795,7 +810,7 @@ export class OnlineLobbyScene extends Phaser.Scene {
             const state = this.inviteState(player);
             const usable = state === 'INVITE' || state === 'AGAIN';
             row.name.setText(player.name);
-            row.tag.setText(player.away ? `#${player.tag}   AWAY` : `#${player.tag}`);
+            row.tag.setText(player.away ? `#${player.tag}   AFK` : `#${player.tag}`);
             row.button.text.setText(state).setColor(state === 'SENT' ? COLORS.accent : COLORS.text);
             row.button.box.setAlpha(usable ? 1 : 0.5);
             row.button.text.setAlpha(usable ? 1 : 0.6);
@@ -918,6 +933,7 @@ export class OnlineLobbyScene extends Phaser.Scene {
             this.refreshRooms();
         });
         listen('lobby', message => {
+            this.joiningFromInvite = false;
             this.queueState = 'lobby';
             this.closeInvitePopup();
             this.lobby = message.lobby;
@@ -943,6 +959,11 @@ export class OnlineLobbyScene extends Phaser.Scene {
             this.setStatus(message.msg, '#ff6b6b');
             if (this.queueState === 'joining') this.queueState = 'idle';
             if (this.screen === 'home' || this.screen === 'browse') this.queueText.setText('');
+            if (this.joiningFromInvite) {
+                this.joiningFromInvite = false;
+                this.showScreen('browse');
+                this.queueText.setText(String(message.msg ?? '').toUpperCase()).setColor(COLORS.error);
+            }
         });
         listen('matchFound', message => this.startMatch(message));
         listen('error', message => {
@@ -953,15 +974,34 @@ export class OnlineLobbyScene extends Phaser.Scene {
                 if (this.screen === 'quick') this.showScreen('home');
             }
         });
-        listen('disconnected', () => {
+        listen('reconnecting', () => {
+            this.setStatus('Connection lost. Reconnecting...', COLORS.accent);
+        });
+        listen('resumed', () => {
+            this.setStatus(`Reconnected to ${getOnlineServerHost()}`, COLORS.accent);
+            this.refreshSelection();
+        });
+        listen('disconnected', message => {
+            const hadSpot = this.queueState !== 'idle' || Boolean(this.lobby);
             this.closeModifierList();
             this.queueState = 'idle';
             this.lobby = null;
             this.rooms = [];
             this.waitingPlayers = [];
             this.closeInvitePopup();
+            if (message?.reconnected && !hadSpot) {
+                this.setStatus(`Reconnected to ${getOnlineServerHost()}`, COLORS.accent);
+                this.refreshSelection();
+                if (this.screen === 'quick' || this.screen === 'lobby' || this.screen === 'invite') this.showScreen('home');
+                return;
+            }
             this.showScreen('home');
-            this.setStatus('Lost connection to the server. Is it still running?', '#ff6b6b');
+            if (message?.reconnected) {
+                this.setStatus('You were away too long and lost your spot.', COLORS.error);
+                this.refreshSelection();
+            } else {
+                this.setStatus('Lost connection to the server. Is it still running?', COLORS.error);
+            }
         });
 
         net.connect()
@@ -970,6 +1010,8 @@ export class OnlineLobbyScene extends Phaser.Scene {
                 this.setStatus(`Connected to ${getOnlineServerHost()}`);
                 this.refreshSelection();
                 if (this.autoQueue) this.startQuick();
+                else if (this.autoJoin) this.joinByCode(this.autoJoin);
+                else if (this.notice) this.showNotice();
             })
             .catch(error => {
                 this.setStatus(`${error.message} It may be down right now, try again later.`, '#ff6b6b');
@@ -1289,11 +1331,15 @@ export class OnlineLobbyScene extends Phaser.Scene {
         this.viewModifiersButton.text.setX(buttonX).setVisible(visible && hasModifiers);
         if (visible && hasModifiers && !this.modalOpen) warnModifiersOnce(this);
         const mode = MATCH_MODES[lobby.mode];
+        const canCopyLink = Boolean(lobby.inviteCode) && lobby.members.length < mode.players && (lobby.host || !lobby.private);
+        [this.copyLinkButton.box, this.copyLinkButton.text].forEach(part => part.setVisible(visible && canCopyLink));
         const canAddCpu = lobby.host && lobby.mode !== '1v1' && !lobby.members.some(member => member.bot);
         this.memberRows.forEach((row, index) => {
             const member = lobby.members[index];
             const used = index < mode.players;
             [row.box, row.swatch, row.name, row.fighter, row.tag].forEach(part => part.setVisible(visible && used));
+            const status = member && !member.bot ? MEMBER_STATUS[member.status] ?? MEMBER_STATUS.active : null;
+            row.status.setVisible(visible && used && Boolean(status));
             const canInvite = visible && used && !member && lobby.private && lobby.host;
             [row.invite.box, row.invite.text].forEach(part => part.setVisible(canInvite));
             const addCpuHere = visible && used && canAddCpu && index === lobby.members.length;
@@ -1314,6 +1360,7 @@ export class OnlineLobbyScene extends Phaser.Scene {
             }
             const character = CHARACTER_ROSTER.find(entry => entry.key === member.character);
             row.name.setText(member.name).setColor(color.css);
+            if (status) row.status.setText(status.label).setColor(status.color).setX(row.name.x + row.name.width + MEMBER_STATUS_GAP);
             const tag = member.tag ? `#${member.tag}   ` : '';
             row.fighter.setText(`${tag}${character?.name ?? member.character} - ${member.variant}${mode.teams ? `   TEAM ${color.label}` : ''}`.toUpperCase());
             const labels = [index === 0 ? 'HOST' : '', member.ready ? 'READY' : 'NOT READY', member.you ? 'YOU' : ''];
@@ -1495,6 +1542,39 @@ export class OnlineLobbyScene extends Phaser.Scene {
         this.invitesSent.clear();
         this.queueState = 'creating';
         this.queueText.setText('CREATING LOBBY...');
+    }
+
+    joinByCode(code) {
+        this.autoJoin = null;
+        if (!this.selection || !net.connected || this.queueState !== 'idle') return;
+        this.sendChoice('joinLobby', { code });
+        this.queueState = 'joining';
+        this.joiningFromInvite = true;
+        this.queueText.setText('JOINING FROM INVITE...');
+    }
+
+    showNotice() {
+        if (this.screen === 'home') this.queueText.setText(this.notice.toUpperCase()).setColor(COLORS.error);
+        this.notice = null;
+    }
+
+    copyInviteLink() {
+        const code = this.lobby?.inviteCode;
+        if (!code) return;
+        const link = makeInviteLink(code);
+        const copied = () => {
+            this.copyLinkButton.text.setText('COPIED');
+            this.time.delayedCall(COPY_LINK.copiedMs, () => {
+                if (this.copyLinkButton.text.active) this.copyLinkButton.text.setText('COPY INVITE LINK');
+            });
+            this.setStatus('Invite link copied. Send it to a friend.', COLORS.accent);
+        };
+        const failed = () => this.setStatus(`Couldn't copy the link. Invite code: ${code}`, COLORS.accent);
+        if (!navigator.clipboard?.writeText) {
+            failed();
+            return;
+        }
+        navigator.clipboard.writeText(link).then(copied, failed);
     }
 
     joinRoom(room) {

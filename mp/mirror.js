@@ -151,6 +151,7 @@ export class MirrorCapture {
         this.lastOrders = new Map();
         this.lastCamera = '';
         this.frame = 0;
+        this.fullFrameWanted = false;
         this.warnedTypes = new Set();
         this.sounds = new SoundCapture(scene.sound);
     }
@@ -164,8 +165,14 @@ export class MirrorCapture {
         return id;
     }
 
+    requestFullFrame() {
+        this.fullFrameWanted = true;
+    }
+
     // Returns this frame's changes, or null when nothing changed at all.
     capture() {
+        const full = this.fullFrameWanted;
+        this.fullFrameWanted = false;
         const created = {};
         const updated = {};
         const orders = {};
@@ -189,7 +196,7 @@ export class MirrorCapture {
                 const state = serialize(obj);
                 state.p = parentId;
                 const previous = this.lastStates.get(id);
-                if (!previous) {
+                if (!previous || full) {
                     created[id] = state;
                     hasChanges = true;
                 } else {
@@ -210,7 +217,7 @@ export class MirrorCapture {
                 if (obj.type === 'Container') walk(obj.list, id);
             }
             const orderKey = ids.join(',');
-            if (this.lastOrders.get(parentId) !== orderKey) {
+            if (full || this.lastOrders.get(parentId) !== orderKey) {
                 this.lastOrders.set(parentId, orderKey);
                 orders[parentId] = ids;
                 hasChanges = true;
@@ -230,7 +237,7 @@ export class MirrorCapture {
         const shake = this.scene.shakeOffset ?? { x: 0, y: 0 };
         const camera = [round(cam.scrollX, 2), round(cam.scrollY, 2), round(cam.zoom, 4), round(shake.x, 2), round(shake.y, 2)];
         const cameraKey = camera.join(',');
-        const cameraChanged = cameraKey !== this.lastCamera;
+        const cameraChanged = full || cameraKey !== this.lastCamera;
         this.lastCamera = cameraKey;
 
         const sounds = this.sounds.drain();
@@ -240,6 +247,7 @@ export class MirrorCapture {
         }
 
         const message = { t: 'm', f: this.frame++ };
+        if (full) message.k = 1;
         if (Object.keys(created).length) message.c = created;
         if (Object.keys(updated).length) message.u = updated;
         if (destroyed.length) message.d = destroyed;
@@ -359,6 +367,30 @@ export class MirrorView {
         this.cameraFrame = -1;
         this.soundFrames = new Map();
         this.nextSoundFrame = null;
+        this.createdFrames = new Map();
+        this.awaitingFullFrame = false;
+    }
+
+    expectFullFrame() {
+        this.awaitingFullFrame = true;
+    }
+
+    catchUpTo(message) {
+        const frame = message.f;
+        const kept = new Set(Object.keys(message.c ?? {}).map(Number));
+        for (const id of [...this.objects.keys()]) {
+            if (kept.has(id) || (this.createdFrames.get(id) ?? -1) >= frame) continue;
+            this.destroyedIds.add(id);
+            this.pendingUpdates.delete(id);
+            this.keyFrames.delete(id);
+            this.createdFrames.delete(id);
+            this.destroy(id);
+        }
+        for (const sound of this.sounds.values()) {
+            if (sound.loop) sound.stop();
+        }
+        this.soundFrames.clear();
+        this.nextSoundFrame = frame;
     }
 
     get(id) {
@@ -367,6 +399,10 @@ export class MirrorView {
 
     apply(message) {
         const frame = message.f;
+        if (message.k && this.awaitingFullFrame) {
+            this.awaitingFullFrame = false;
+            this.catchUpTo(message);
+        }
         this.lastFrame = Math.max(this.lastFrame, frame);
 
         if (message.d) {
@@ -374,6 +410,7 @@ export class MirrorView {
                 this.destroyedIds.add(id);
                 this.pendingUpdates.delete(id);
                 this.keyFrames.delete(id);
+                this.createdFrames.delete(id);
                 this.destroy(id);
             }
         }
@@ -382,10 +419,16 @@ export class MirrorView {
         if (message.c) {
             for (const [key, state] of Object.entries(message.c)) {
                 const id = Number(key);
-                if (this.objects.has(id) || this.destroyedIds.has(id)) continue;
+                const existing = this.objects.get(id);
+                if (existing) {
+                    if (message.k) this.applyNewer(id, existing, state, frame, parents);
+                    continue;
+                }
+                if (this.destroyedIds.has(id)) continue;
                 const obj = this.create(state);
                 if (!obj) continue;
                 this.objects.set(id, obj);
+                this.createdFrames.set(id, frame);
                 this.keyFrames.set(id, {});
                 this.applyNewer(id, obj, state, frame, parents);
                 this.applyPending(id, obj, parents);

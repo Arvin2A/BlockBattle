@@ -45,25 +45,44 @@ let matchStarted = false;
 const INPUT_SEQ_MEMORY = 256;
 const netInputs = Object.fromEntries(SLOTS.map(slot => [
     slot,
-    { held: decodeButtons(0), heldMask: 0, pressed: decodeButtons(0), active: false, lastSeq: -1, seenSeqs: new Set() }
+    { held: decodeButtons(0), heldMask: 0, pressed: decodeButtons(0), active: false, lastSeq: -1, seenSeqs: new Set(), reconnecting: false, resumed: false }
 ]));
 let leftPlayers = [];
 const fastPeers = {};
+let fastPeerIce = null;
 
 function send(message) {
     if (socket?.readyState === WebSocket.OPEN) socket.send(JSON.stringify(message));
 }
 
+function startFastPeer(slot) {
+    fastPeers[slot]?.close();
+    delete fastPeers[slot];
+    if (!fastPeerIce) return;
+    fastPeers[slot] = new AuthorityFastPeer(
+        fastPeerIce,
+        data => send({ t: 'rtc', s: slot, d: data }),
+        text => receiveFastInput(slot, text)
+    );
+}
+
 function startFastPeers(ice) {
     closeFastPeers();
-    if (!ice) return;
-    for (const { slot } of matchConfig.roster) {
-        fastPeers[slot] = new AuthorityFastPeer(
-            ice,
-            data => send({ t: 'rtc', s: slot, d: data }),
-            text => receiveFastInput(slot, text)
-        );
-    }
+    fastPeerIce = ice ?? null;
+    for (const { slot } of matchConfig.roster) startFastPeer(slot);
+}
+
+function setReconnecting(slot, on) {
+    const input = netInputs[slot];
+    if (!input) return;
+    input.reconnecting = on;
+    if (!on) input.resumed = true;
+}
+
+function resyncPlayer(slot) {
+    if (!netInputs[slot]) return;
+    startFastPeer(slot);
+    capture?.requestFullFrame();
 }
 
 function closeFastPeers() {
@@ -120,9 +139,11 @@ export function pollNetworkInput(slot) {
     const input = netInputs[slot];
     const pressed = input.pressed;
     const active = input.active;
+    const resumed = input.resumed;
     input.pressed = decodeButtons(0);
     input.active = false;
-    return { held: input.held, pressed, active };
+    input.resumed = false;
+    return { held: input.held, pressed, active, reconnecting: input.reconnecting, resumed };
 }
 
 export function reportAfk(slot) {
@@ -181,6 +202,12 @@ function createAuthorityBootScene(preload) {
                         startFastPeers(message.ice);
                         send({ t: 'ready' });
                         break;
+                    case 'reconnecting':
+                        setReconnecting(message.s, Boolean(message.on));
+                        break;
+                    case 'resync':
+                        resyncPlayer(message.s);
+                        break;
                     case 'playerLeft':
                         if (typeof message.s === 'string') leftPlayers.push(message.s);
                         break;
@@ -220,7 +247,7 @@ export function attachAuthority(scene) {
         const message = capture.capture();
         if (!message) return;
         message.ts = Math.round(performance.now() * 10) / 10;
-        if (message.f === 0) {
+        if (message.f === 0 || message.k) {
             message.meta = {
                 players: Object.fromEntries(players.map(player => [player.slot, capture.idOf(player)]))
             };

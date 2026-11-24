@@ -6,7 +6,9 @@
 // The player's connection to the online server. One connection is shared by the
 // lobby and the online game scenes, so it lives here instead of in a scene.
 
-import { PROTOCOL_VERSION, DEVICE_ID_STORAGE_KEY, cleanDeviceId } from './protocol.js';
+import { PROTOCOL_VERSION, DEVICE_ID_STORAGE_KEY, RECONNECT_GRACE_MS, cleanDeviceId } from './protocol.js';
+
+const RECONNECT_RETRY_MS = 2000;
 
 function getDeviceId() {
     try {
@@ -34,6 +36,14 @@ class NetClient {
         this.connectPromise = null;
         this.ping = null;
         this.pingTimer = null;
+        this.resumeKey = null;
+        this.reconnecting = false;
+        this.reconnectUntil = 0;
+        this.reconnectTimer = null;
+        this.matchId = null;
+        this.retryNow = () => {
+            if (this.reconnecting && !document.hidden) this.scheduleReconnect(0);
+        };
         // Mirror frames that arrive while the game scene is still loading.
         // Frames are only accepted between matchFound and leaving that match.
         this.acceptFrames = false;
@@ -83,7 +93,13 @@ class NetClient {
             }, 5000);
 
             socket.addEventListener('open', () => {
-                this.sendNow({ t: 'hello', v: PROTOCOL_VERSION, d: getDeviceId(), n: this.name ?? undefined });
+                this.sendNow({
+                    t: 'hello',
+                    v: PROTOCOL_VERSION,
+                    d: getDeviceId(),
+                    n: this.name ?? undefined,
+                    r: this.reconnecting ? this.resumeKey ?? undefined : undefined
+                });
             });
 
             socket.addEventListener('message', event => {
@@ -102,9 +118,10 @@ class NetClient {
                     if (this.acceptFrames) this.fastPeer.signal(message.d);
                     return;
                 }
-                if (message.t === 'matchFound') {
+                if (message.t === 'matchFound' && !(this.acceptFrames && message.matchId === this.matchId)) {
                     this.clearFrames();
                     this.acceptFrames = true;
+                    this.matchId = message.matchId;
                 }
                 if (message.t === 'welcome') {
                     welcomed = true;
@@ -112,9 +129,19 @@ class NetClient {
                     this.connected = true;
                     this.clientId = message.id;
                     this.tag = message.tag ?? null;
+                    this.resumeKey = message.resume ?? null;
                     this.startPing();
                     this.watchAway();
                     resolve();
+                    if (this.reconnecting) {
+                        this.stopReconnecting();
+                        if (message.resumed) {
+                            this.emit('resumed', {});
+                        } else {
+                            this.clearFrames();
+                            this.emit('disconnected', { reconnected: true });
+                        }
+                    }
                 } else if (message.t === 'pong') {
                     this.ping = Math.round(performance.now() - message.c);
                 } else if (message.t === 'error' && !welcomed) {
@@ -136,13 +163,57 @@ class NetClient {
                 this.stopPing();
                 this.unwatchAway();
                 this.fastPeer.close();
-                if (wasConnected) this.emit('disconnected', {});
+                if (!wasConnected) return;
+                if (this.resumeKey) this.startReconnecting();
+                else this.emit('disconnected', {});
             });
         });
         return this.connectPromise;
     }
 
+    startReconnecting() {
+        this.reconnecting = true;
+        this.reconnectUntil = Date.now() + RECONNECT_GRACE_MS.lobby;
+        document.addEventListener('visibilitychange', this.retryNow);
+        window.addEventListener('pageshow', this.retryNow);
+        window.addEventListener('online', this.retryNow);
+        this.emit('reconnecting', {});
+        this.scheduleReconnect(0);
+    }
+
+    stopReconnecting() {
+        this.reconnecting = false;
+        clearTimeout(this.reconnectTimer);
+        this.reconnectTimer = null;
+        document.removeEventListener('visibilitychange', this.retryNow);
+        window.removeEventListener('pageshow', this.retryNow);
+        window.removeEventListener('online', this.retryNow);
+    }
+
+    scheduleReconnect(delay) {
+        clearTimeout(this.reconnectTimer);
+        this.reconnectTimer = setTimeout(() => this.tryReconnect(), delay);
+    }
+
+    tryReconnect() {
+        if (!this.reconnecting || this.connectPromise) return;
+        if (Date.now() > this.reconnectUntil) {
+            this.stopReconnecting();
+            this.resumeKey = null;
+            this.clearFrames();
+            this.emit('disconnected', {});
+            return;
+        }
+        if (document.hidden) {
+            this.scheduleReconnect(RECONNECT_RETRY_MS);
+            return;
+        }
+        this.connect().catch(() => this.scheduleReconnect(RECONNECT_RETRY_MS));
+    }
+
     disconnect() {
+        this.stopReconnecting();
+        this.resumeKey = null;
         const socket = this.socket;
         if (!socket) return;
         this.socket = null;
@@ -242,6 +313,7 @@ class NetClient {
 
     clearFrames() {
         this.acceptFrames = false;
+        this.matchId = null;
         this.frameBuffer = [];
         this.frameHandler = null;
         this.fastPeer.close();

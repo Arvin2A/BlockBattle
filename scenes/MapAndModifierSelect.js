@@ -11,7 +11,7 @@ import { clipScrollablePanel } from '../ui/clipScroll.js';
 import { CHAOS_TIERS, FONTS, COLORS, HEX, textStyle } from '../ui/theme.js';
 import { formatModifierValue, getEnabledCustomValues, modifierOptions } from '../modifiers.js';
 import { MODIFIER_ACHIEVEMENT_WARNING, warnModifiersOnce } from '../ui/modifierWarning.js';
-import { botMode } from '../gameSettings.js';
+import { botMode, simulationMode } from '../gameSettings.js';
 
 export { getEnabledCustomValues, modifierOptions };
 import { moveSelection, createNavigationBox, moveNavigationBox, getConnectedControllers, getMenuGamepadInput } from "../navigation.js"
@@ -424,7 +424,7 @@ export class MapAndModifierSelectScene extends Phaser.Scene {
 			fontSize: '16px',
 			fill: COLORS.muted
 		}).setOrigin(0.5);
-		if (botMode) this.add.text(500, PAGE_HEIGHT + 100, MODIFIER_ACHIEVEMENT_WARNING, {
+		if (botMode && !simulationMode) this.add.text(500, PAGE_HEIGHT + 100, MODIFIER_ACHIEVEMENT_WARNING, {
 			fontFamily: FONTS.body,
 			fontSize: '16px',
 			fill: COLORS.error
@@ -494,7 +494,7 @@ export class MapAndModifierSelectScene extends Phaser.Scene {
 				modifier.enabled = !modifier.enabled;
 				this.updateModifierSelection();
 				this.sound.play('hover');
-				if (modifier.enabled && botMode) warnModifiersOnce(this);
+				if (modifier.enabled && botMode && !simulationMode) warnModifiersOnce(this);
 			};
 			card.on('pointerdown', pointer => {
 				const window = panel.getElement('background').getBounds();

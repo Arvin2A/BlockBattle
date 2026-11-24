@@ -591,6 +591,7 @@ function pollLocalInput(scene, slot) {
 const AFK_KICK_MS = 20000;
 const AFK_IDLE_MS = 2000;
 const AFK_FARM_SHARE = 0.5;
+const RECONNECT_LABEL_OFFSET_Y = 75;
 
 function closeAfkStreak(player) {
     if ((player.afkMs ?? 0) >= AFK_IDLE_MS) player.afkTotalMs = (player.afkTotalMs ?? 0) + player.afkMs;
@@ -611,26 +612,46 @@ function matchWasAfkFarmed(scene) {
     });
 }
 
-function trackAfk(scene, slot, active) {
+function trackAfk(scene, slot, { active, reconnecting, resumed }) {
     if (scene.gameEnded || scene.matchStartTime === null) return;
     const player = scene.gameState.players.find(fighter => fighter.slot === slot);
     if (!player || player.isCpu || player.eliminated) return;
     const delta = scene.game.loop.delta;
-    if (active) {
+    if (active || resumed) {
         closeAfkStreak(player);
     } else if (!player.hitstun) {
         player.afkMs = (player.afkMs ?? 0) + delta;
     }
-    if (player.afkMs >= AFK_KICK_MS && !player.afkKicked) {
+    if (player.afkMs >= AFK_KICK_MS && !player.afkKicked && !reconnecting) {
         player.afkKicked = true;
         reportAfk(slot);
     }
 }
 
+function showReconnecting(scene, slot, reconnecting) {
+    const player = scene.gameState.players.find(fighter => fighter.slot === slot);
+    if (!player) return;
+    const show = reconnecting && player.active && !player.eliminated;
+    if (!show && !player.reconnectLabel) return;
+    if (!player.reconnectLabel?.active) {
+        player.reconnectLabel = scene.add.text(0, 0, 'RECONNECTING', textStyle('body', {
+            fontSize: '18px',
+            fill: COLORS.error,
+            stroke: COLORS.stroke,
+            strokeThickness: 4
+        })).setOrigin(0.5);
+        scene.objs.add(player.reconnectLabel);
+    }
+    player.reconnectLabel.setVisible(show).setPosition(player.x, player.y - RECONNECT_LABEL_OFFSET_Y);
+}
+
 function readPlayerInputs(scene) {
     for (const { slot } of scene.matchSettings.players) {
         const frame = scene.online ? pollNetworkInput(slot) : pollLocalInput(scene, slot);
-        if (scene.online) trackAfk(scene, slot, frame.active);
+        if (scene.online) {
+            trackAfk(scene, slot, frame);
+            showReconnecting(scene, slot, frame.reconnecting);
+        }
         applyInputFrame(scene.playerInputs[slot], frame);
     }
     scene.p1LeftAltPressed = false;

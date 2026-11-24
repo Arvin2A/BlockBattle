@@ -2,10 +2,11 @@
 // Original source: https://github.com/Arvin2A/BlockBattle
 // Licensed under the GNU GPL v3 only. See LICENSE.
 
-import { getServerSocketUrl } from './protocol.js';
+import { cleanInviteCode, getServerSocketUrl } from './protocol.js';
 import { DEFAULT_SERVER, SERVERS } from './servers.js';
 
 const SERVER_STORAGE_KEY = 'blockBattleServer';
+const PUBLIC_GAME_URL = 'https://arvin2a.github.io/BlockBattle/';
 const ONLINE_ENABLED = import.meta.env.VITE_MP_ONLINE === 'true' || Boolean((import.meta.env.VITE_MP_SERVER ?? '').trim());
 
 let selectedServer = readSavedServer();
@@ -46,6 +47,27 @@ export function isOnlineConfigured() {
 
 export function getServerName() {
     return ONLINE_ENABLED ? SERVERS[selectedServer].name : 'ONLINE';
+}
+
+export function takeInviteFromUrl() {
+    const params = new URLSearchParams(location.search);
+    if (!params.has('join')) return null;
+    const code = cleanInviteCode(params.get('join'));
+    const server = params.get('server');
+    params.delete('join');
+    params.delete('server');
+    const rest = params.toString();
+    history.replaceState(null, '', `${location.pathname}${rest ? `?${rest}` : ''}${location.hash}`);
+    if (!code || (server && !SERVERS[server])) return { error: 'That invite link is broken or out of date.' };
+    if (server) selectServer(server);
+    return { code };
+}
+
+export function makeInviteLink(code) {
+    const url = new URL(import.meta.env.DEV ? `${location.origin}${location.pathname}` : PUBLIC_GAME_URL);
+    url.searchParams.set('server', selectedServer);
+    url.searchParams.set('join', code);
+    return url.toString();
 }
 
 export function getOnlineServerHost() {

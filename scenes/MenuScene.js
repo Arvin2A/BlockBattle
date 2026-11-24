@@ -10,7 +10,7 @@ import { takeUnlocksReachedOnLoad } from '../achievements.js';
 import { changeBotMode, simulationMode } from "../gameSettings.js";
 import { preloadMenu } from "./GameScene/preload.js";
 import { fadeOutTo, slideInFromSides } from "./transitions.js";
-import { fetchServerStatus, getServerName, isOnlineConfigured } from "../mp/serverConfig.js";
+import { fetchServerStatus, getServerName, isOnlineConfigured, takeInviteFromUrl } from "../mp/serverConfig.js";
 import { FONTS, COLORS } from "../ui/theme.js";
 import { clipScrollablePanel } from "../ui/clipScroll.js";
 import { getNavigationBounds, wrapIndex, moveSelection, createNavigationBox, moveNavigationBox, getConnectedControllers, getMenuGamepadInput} from "../navigation.js"
@@ -76,6 +76,12 @@ export class MenuScene extends Phaser.Scene {
     }
 
     create() {
+        const invite = isOnlineConfigured() ? takeInviteFromUrl() : null;
+        if (invite) {
+            changeBotMode(false);
+            this.scene.start('OnlineLobbyScene', invite.code ? { autoJoin: invite.code } : { notice: invite.error });
+            return;
+        }
         this.cameras.main.fadeIn(200, 0, 0, 0);
         addSettingsButton(this);
         showAchievementToasts(this, takeUnlocksReachedOnLoad(), { delay: 600 });

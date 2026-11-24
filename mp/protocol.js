@@ -10,7 +10,9 @@ import { MAPS } from '../scenes/GameScene/MapDefinitions.js';
 import { toAsciiName } from './nameFilter.js';
 
 // Bump this whenever messages change so old tabs get a clear "refresh" error.
-export const PROTOCOL_VERSION = 17;
+export const PROTOCOL_VERSION = 19;
+
+export const RECONNECT_GRACE_MS = { lobby: 60000, match: 20000, menu: 15000 };
 
 export const MP_PATH = '/mp';
 export const DEFAULT_PORT = 8080;
@@ -52,6 +54,14 @@ export const SAVE_TRANSFER = { lifetimeMs: 10 * 60 * 1000, maxSaveBytes: 8192 };
 export function cleanTransferCode(code) {
     const letters = String(code ?? '').toUpperCase().replace(/[^A-Z0-9]/g, '');
     return /^[A-Z0-9]{6}$/.test(letters) ? `${letters.slice(0, 3)}-${letters.slice(3)}` : null;
+}
+
+export const INVITE_CODE_LETTERS = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+export const INVITE_CODE_LENGTH = 6;
+
+export function cleanInviteCode(code) {
+    const letters = String(code ?? '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+    return letters.length === INVITE_CODE_LENGTH && [...letters].every(letter => INVITE_CODE_LETTERS.includes(letter)) ? letters : null;
 }
 
 const RESULT_COUNTS = ['timesKOd', 'grassCut', 'counters', 'blocks'];
