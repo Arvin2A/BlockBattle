@@ -8,6 +8,9 @@ import { MIN_ABILITY_COOLDOWN_MS } from '../gameSettings.js';
 
 export const MAX_WOOD_COUNT = 225;
 const WOOD_PER_TICK = 10;
+export const CHAINSAW_COOLDOWN_MS = 4000;
+const CHAINSAW_CHIP_DAMAGE = 0.005;
+const CHAINSAW_EXPLOSION_SCALE = 0.75;
 
 function tilt(api, scene, attacker, victim, xMul, yMul, kbTime) {
     api.tiltAttack(scene, attacker, victim, {
@@ -72,7 +75,7 @@ const RAMPAGE_EXPLOSION_DAMAGE_SCALE = 1.4;
 const RAMPAGE_EXPLOSION_KNOCKBACK_SCALE = 1.25;
 const RAMPAGE_EXPLOSION_GRACE_MS = 300;
 const RAMPAGE_MS = 1000;
-const RAMPAGE_REACH = { maxExtension: 65, outPortion: 0.3, backPortion: 0.35, ropeWidth: 3, ropeColor: 0x111111, sawBack: 0.42 };
+const RAMPAGE_REACH = { maxExtension: 50, outPortion: 0.3, backPortion: 0.35, ropeWidth: 3, ropeColor: 0x111111, sawBack: 0.42 };
 
 function isRampaging(scene, attacker) {
     return scene.time.now < (attacker.rampageUntil ?? 0);
@@ -115,13 +118,13 @@ function explodeChainsaw(api, scene, attacker, victim, options = {}) {
     if (attacker.chainsawHasExploded || !victim.active || api.isInvincible(victim)) return;
 
     attacker.chainsawHasExploded = true;
-    attacker.chainsawCooldownUntil = scene.time.now + (attacker.noAbilityCooldown ? MIN_ABILITY_COOLDOWN_MS : 5000);
+    attacker.chainsawCooldownUntil = scene.time.now + (attacker.noAbilityCooldown ? MIN_ABILITY_COOLDOWN_MS : CHAINSAW_COOLDOWN_MS);
     const rampaging = scene.time.now < (attacker.rampageExplosionUntil ?? 0);
     attacker.rampageExplosionUntil = 0;
-    const force = (options.explosionKnockback ?? 450) *
+    const force = (options.explosionKnockback ?? 450) * CHAINSAW_EXPLOSION_SCALE *
         (rampaging ? RAMPAGE_EXPLOSION_KNOCKBACK_SCALE : 1);
     grindExplosion(api, scene, attacker, victim, {
-        damage: (options.explosionDamage ?? 0.25) * (rampaging ? RAMPAGE_EXPLOSION_DAMAGE_SCALE : 1),
+        damage: (options.explosionDamage ?? 0.25) * CHAINSAW_EXPLOSION_SCALE * (rampaging ? RAMPAGE_EXPLOSION_DAMAGE_SCALE : 1),
         force,
         hitstun: options.explosionHitstun ?? 400,
         hitFreeze: options.hitFreezeDuration ?? 60,
@@ -212,7 +215,7 @@ function updateChainsaw(api, scene, attacker, victim, options = {}) {
     breakPlanksWithChainsaw(api, scene, attacker);
     const contact = grindTick(api, scene, attacker, victim, attacker.chainsawLastContactTime, {
         range: (options.range ?? api.STANDARD_HITS.jab.range) + (attacker.sawExtension ?? 0),
-        chipDamage: options.chipDamage,
+        chipDamage: options.chipDamage ?? CHAINSAW_CHIP_DAMAGE,
         hitstun: options.hitstunDuration,
         freeze: options.freezeDuration
     });

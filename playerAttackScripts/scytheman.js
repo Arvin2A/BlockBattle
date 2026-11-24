@@ -404,7 +404,7 @@ const MOWER = {
     backWheel: { x: 64, y: 22 },
     body: { width: 110, height: 50, offsetX: 10, offsetY: 23 },
     engineVolume: 0.6,
-    cordMs: 13000,
+    cordMs: 8000,
     cordFastCuts: 100,
     cordFastScale: 0.5,
     plowTickMs: 50,
@@ -413,7 +413,7 @@ const MOWER = {
     plowGrindRange: 150,
     plowMinDot: 0.8,
     plowVerticalReach: { up: 30, down: 35 },
-    plowChipDamage: 0.002,
+    plowChipDamage: 0.001,
     plowBlockCost: 0.004,
     steelPlankDamage: 0.01,
     rideLift: 14,
@@ -447,7 +447,7 @@ const EJECT = {
 };
 
 const PLOW_EXPLOSION = { damage: 0.25, force: 450, hitstun: 400, hitFreeze: 60, explosionScale: 0.7 };
-const PLOW_HIT = { ...PLOW_EXPLOSION, damage: 0.6, force: 550, hitstun: 500 };
+const PLOW_HIT = { ...PLOW_EXPLOSION, damage: 0.45, force: 412.5, hitstun: 500 };
 const BLOCKED_PLOW_HIT = {
     unblockable: true,
     damage: 0,

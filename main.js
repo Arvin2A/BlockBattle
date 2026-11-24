@@ -20,7 +20,7 @@ import { createOffscreenPointers, updateOffscreenPointers } from './ui/offscreen
 import { playModifierIntro } from './ui/modifierIntro.js';
 import { getActiveModifierCards } from './modifiers.js';
 import { createPerspectiveSwitch, updatePerspective } from './ui/perspective.js';
-import { MAX_WOOD_COUNT } from './playerAttackScripts/axeman.js';
+import { MAX_WOOD_COUNT, CHAINSAW_COOLDOWN_MS } from './playerAttackScripts/axeman.js';
 import { initiatePlayers, updateCombo } from './players.js';
 import { Commands, executeStateCommand} from './commands.js';
 import { applySquash, cancelDownslamFx, restoreSquash, squashOnLanding } from './combat/squash.js';
@@ -486,7 +486,7 @@ function updateSpecialMeters(scene) {
                 ? Math.max(0, (player.chainsawCooldownUntil ?? 0) - scene.time.now)
                 : 0;
         if (chainsawCooldownRemaining > 0) {
-            const cooldownDuration = 5000;
+            const cooldownDuration = CHAINSAW_COOLDOWN_MS;
             const progress = Phaser.Math.Clamp(
                 1 - chainsawCooldownRemaining / cooldownDuration,
                 0,
