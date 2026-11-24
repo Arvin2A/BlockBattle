@@ -254,18 +254,18 @@ function blockStunMs(target, now) {
     return Math.max(blockStyle(target, 'stunFloorMs'), decayed);
 }
 
-function counterLaunch(scene, blocker, attacker, stunMs) {
+function counterLaunch(scene, blocker, attacker, stunMs, countsAsCounter = true) {
     const now = scene.time.now;
     const dir = Math.sign(attacker.x - blocker.x) || -(blocker.lastDir?.x ?? 1);
     attacker.lastHitAt = now;
-    if (blocker.stats) blocker.stats.counters += 1;
+    if (countsAsCounter && blocker.stats) blocker.stats.counters += 1;
     attacker.freezeUntil = now - 1;
     attacker.hitstunUntil = Math.max(attacker.hitstunUntil ?? 0, now + stunMs);
     attacker.flash?.();
     if (attacker.body) startSmackArc(scene, attacker, dir, BLOCK.counterHop);
 }
 
-export function blocksHit(scene, target, attacker, damage = 0, { minCost = BLOCK.minHitCost, ranged = false, shieldCost = null, deferCounter = false } = {}) {
+export function blocksHit(scene, target, attacker, damage = 0, { minCost = BLOCK.minHitCost, ranged = false, shieldCost = null, deferCounter = false, rebound = false } = {}) {
     if (!target?.blocking) return false;
     const now = scene.time.now;
     const cost = shieldCost ?? Phaser.Math.Clamp(damage * BLOCK.hitCostScale, minCost, BLOCK.maxHitCost);
@@ -273,7 +273,8 @@ export function blocksHit(scene, target, attacker, damage = 0, { minCost = BLOCK
     target.shieldHitUntil = now + 80;
     if (target.stats) target.stats.blocks += 1;
     const stunMs = blockStunMs(target, now);
-    const counters = !ranged && blockStyle(target, 'counter');
+    const realCounter = !ranged && blockStyle(target, 'counter');
+    const counters = realCounter || (!ranged && rebound);
     target.freezeUntil = Math.max(target.freezeUntil ?? 0, now + (counters ? BLOCK.counterSelfFreezeMs : stunMs));
     const away = Math.sign(target.x - attacker.x) || (attacker.lastDir?.x ?? 1);
     target.setVelocityX(away * BLOCK.pushback);
@@ -284,7 +285,7 @@ export function blocksHit(scene, target, attacker, damage = 0, { minCost = BLOCK
     }
     if (attacker.isUsingSideSpecial) attacker.hasHitSideSpecial = true;
     if (counters && deferCounter) attacker.pendingCounter = { blocker: target, stunMs };
-    else if (counters) counterLaunch(scene, target, attacker, stunMs);
+    else if (counters) counterLaunch(scene, target, attacker, stunMs, realCounter);
     else if (!ranged) attacker.freezeUntil = Math.max(attacker.freezeUntil ?? 0, now + stunMs);
     attacker.blockPenaltyUntil = Math.max(
         attacker.blockPenaltyUntil ?? 0,

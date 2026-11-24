@@ -213,17 +213,25 @@ function updateChainsaw(api, scene, attacker, victim, options = {}) {
     }
     api.positionAttackSprite(attacker, 'activechainsaw');
     breakPlanksWithChainsaw(api, scene, attacker);
+    const rampaging = isRampaging(scene, attacker);
+    const victimBlocking = Boolean(victim.blocking);
     const contact = grindTick(api, scene, attacker, victim, attacker.chainsawLastContactTime, {
         range: (options.range ?? api.STANDARD_HITS.jab.range) + (attacker.sawExtension ?? 0),
         chipDamage: options.chipDamage ?? CHAINSAW_CHIP_DAMAGE,
         hitstun: options.hitstunDuration,
-        freeze: options.freezeDuration
+        freeze: options.freezeDuration,
+        reboundOnBlock: rampaging
     });
     if (contact === null) {
         attacker.chainsawLastContactTime = 0;
         return;
     }
-    const contactRate = isRampaging(scene, attacker) ? 2 : 1;
+    if (rampaging && victimBlocking) {
+        deactivateChainsaw(scene, attacker);
+        interruptGrinder(scene, attacker);
+        return;
+    }
+    const contactRate = rampaging ? 2 : 1;
     attacker.chainsawContactDuration += contact * contactRate;
     attacker.chainsawLastContactTime = scene.time.now;
 

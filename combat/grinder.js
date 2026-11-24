@@ -64,6 +64,7 @@ export function grindTick(api, scene, attacker, victim, lastContactAt, {
     freeze = 60,
     blockCost = 0.02,
     blockedBuildsContact = true,
+    reboundOnBlock = false,
     float = {},
     eligibility = {}
 } = {}) {
@@ -77,7 +78,7 @@ export function grindTick(api, scene, attacker, victim, lastContactAt, {
     setGrindFloat(scene, attacker, true, float);
 
     const now = scene.time.now;
-    if (blocksHit(scene, victim, attacker, chipDamage, { minCost: blockCost })) {
+    if (blocksHit(scene, victim, attacker, chipDamage, { minCost: blockCost, rebound: reboundOnBlock })) {
         if (!blockedBuildsContact) return 0;
         return lastContactAt > 0 ? now - lastContactAt : 0;
     }

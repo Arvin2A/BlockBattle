@@ -19,11 +19,14 @@ export function removeGrass(scene, grass, cutter) {
 }
 
 export function cutNearbyGrass(scene, x, y, range, cutter) {
-    for (const grass of [...scene.scytheGrass]) {
+    let cut = 0;
+    for (const grass of [...(scene.scytheGrass ?? [])]) {
         if (Phaser.Math.Distance.Between(x, y, grass.x, grass.y) <= range) {
             removeGrass(scene, grass, cutter);
+            cut += 1;
         }
     }
+    return cut;
 }
 
 export function cutGrassInSwing(attacker, range = 100, cutter = attacker) {

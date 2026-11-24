@@ -404,8 +404,8 @@ const MOWER = {
     backWheel: { x: 64, y: 22 },
     body: { width: 110, height: 50, offsetX: 10, offsetY: 23 },
     engineVolume: 0.6,
-    cordMs: 8000,
-    cordFastCuts: 100,
+    cordMs: 10000,
+    cordFastCuts: 150,
     cordFastScale: 0.5,
     plowTickMs: 50,
     plowExplodeMs: 2000,
@@ -443,7 +443,10 @@ const EJECT = {
     minRate: 0.6,
     maxRate: 1.5,
     rateCurve: 0.5,
-    rateStep: 0.05
+    rateStep: 0.05,
+    cutRange: 50,
+    grassSpeedScale: 1.5,
+    grassBoostMs: 200
 };
 
 const PLOW_EXPLOSION = { damage: 0.25, force: 450, hitstun: 400, hitFreeze: 60, explosionScale: 0.7 };
@@ -797,6 +800,7 @@ function eject(api, scene, player, victim, direction) {
     let speed = EJECT.startSpeed;
     let owner = player;
     let damageScale = 1;
+    let grassBoostUntil = 0;
     mower.setVelocity(direction * speed, 0);
     api.trackDeflectable(scene, mower, player);
     const engine = scene.sound.add('lawnmower-loop', { volume: MOWER.engineVolume, loop: true });
@@ -877,7 +881,11 @@ function eject(api, scene, player, victim, direction) {
         const frozen = scene.gamePaused || scene.hitFreezeUntil > scene.time.now;
         const dt = frozen ? 0 : Math.min(scene.game.loop.delta, 50) / 1000;
         speed = Math.min(EJECT.maxSpeed, speed * Math.pow(EJECT.growthPerSec, dt) + EJECT.pushPerSec * dt);
-        mower.setVelocity(direction * speed, 0);
+        if (api.cutNearbyGrass(scene, mower.x, mower.body.bottom - 15, EJECT.cutRange, player) > 0) {
+            grassBoostUntil = scene.time.now + EJECT.grassBoostMs;
+        }
+        const grassBoost = scene.time.now < grassBoostUntil ? EJECT.grassSpeedScale : 1;
+        mower.setVelocity(direction * speed * grassBoost, 0);
         const progress = (speed - EJECT.startSpeed) / (EJECT.maxSpeed - EJECT.startSpeed);
         const nextRate = EJECT.minRate + (EJECT.maxRate - EJECT.minRate) * Math.pow(progress, EJECT.rateCurve);
         if (Math.abs(nextRate - rate) >= EJECT.rateStep) {
