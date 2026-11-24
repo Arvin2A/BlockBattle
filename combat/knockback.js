@@ -29,7 +29,7 @@ const LAUNCH_FREEZE_MIN_SPEED = 400;
 const LAUNCH_ARC_HEIGHT = 0.08;
 const VICTIM_SHAKE = { heavyMin: 3, heavyMax: 6, heavyRamp: 16, violent: 8, ultra: 12 };
 
-function shakeVictim(target, intensity) {
+export function shakeVictim(target, intensity) {
     target.victimShake = Math.max(target.victimShake ?? 0, intensity);
 }
 

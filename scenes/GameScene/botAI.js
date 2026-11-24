@@ -29,25 +29,25 @@ const DIFFICULTY = {
     EASY: {
         thinkMs: 320, attackDelayMs: 450, hesitateChance: 0.55, hesitateMs: 500,
         edgeguard: false, dodgeSpecials: false, downslam: false, edgeFling: false,
-        smack: false, ledge: true, blockChance: 0, dodgeMinigun: false,
+        smack: false, ledge: false, blockChance: 0, dodgeMinigun: false,
         deflectChance: 0, respectCounter: false, blockReactMs: 0, counterNoticeMs: 0
     },
     NORMAL: {
         thinkMs: 220, attackDelayMs: 300, hesitateChance: 0.4, hesitateMs: 400,
-        edgeguard: true, dodgeSpecials: false, downslam: true, edgeFling: false,
-        smack: false, ledge: false, blockChance: 0.15, dodgeMinigun: false,
+        edgeguard: false, dodgeSpecials: false, downslam: true, edgeFling: false,
+        smack: false, ledge: false, blockChance: 0.3, dodgeMinigun: true,
         deflectChance: 0.3, respectCounter: false, blockReactMs: 300, counterNoticeMs: 0
     },
     HARD: {
         thinkMs: 0, attackDelayMs: 0, hesitateChance: 0, hesitateMs: 0,
-        edgeguard: false, dodgeSpecials: true, downslam: true, edgeFling: true,
-        smack: false, ledge: false, blockChance: 0.5, dodgeMinigun: true, predictBlock: false,
+        edgeguard: true, dodgeSpecials: true, downslam: true, edgeFling: true,
+        smack: false, ledge: true, blockChance: 0.5, dodgeMinigun: true, predictBlock: false,
         deflectChance: 0.6, respectCounter: true, blockReactMs: 90, counterNoticeMs: 450
     },
     'VERY HARD': {
         thinkMs: 0, attackDelayMs: 0, hesitateChance: 0, hesitateMs: 0,
         edgeguard: true, dodgeSpecials: true, downslam: true, edgeFling: true,
-        smack: true, ledge: true, blockChance: 0.5, dodgeMinigun: true, predictBlock: true,
+        smack: true, ledge: true, blockChance: 0.7, dodgeMinigun: true, predictBlock: true,
         deflectChance: 0.85, respectCounter: true, blockReactMs: 0, counterNoticeMs: 0
     }
 };

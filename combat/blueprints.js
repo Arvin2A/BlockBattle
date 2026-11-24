@@ -4,7 +4,7 @@
 
 import { getEnemies, isTeammate } from './targets.js';
 import { attackIsElligible } from './eligibility.js';
-import { applyKnockback, hitFreeze } from './knockback.js';
+import { applyKnockback, hitFreeze, shakeVictim } from './knockback.js';
 import { addSceneUpdateListener } from './effects.js';
 import { damagePlanksInAttack } from './planks.js';
 import { cutGrassInSwing } from './grass.js';
@@ -160,7 +160,8 @@ export function landHit(scene, attacker, target, spec = {}) {
         unblockable = false,
         ranged = false,
         shieldCost = null,
-        deferCounter = false
+        deferCounter = false,
+        victimShake = 0
     } = spec;
     if (target.uninterruptible || target.eliminated || isTeammate(attacker, target)) return false;
     if (!unblockable && blocksHit(scene, target, attacker, damage, { ranged, shieldCost, deferCounter })) return false;
@@ -196,6 +197,7 @@ export function landHit(scene, attacker, target, spec = {}) {
     const launch = knockback && resolveLaunch(attacker, target, knockback, direction, damageScale);
     onHit?.(scene);
     if (hitFreezeMs > 0) hitFreeze(scene, hitFreezeMs);
+    if (victimShake > 0) shakeVictim(target, victimShake);
     playHitSound(scene, attacker, sound);
 
     if (launch) {

@@ -180,7 +180,7 @@ export const STANDARD_HITS = Object.freeze({
         hitstun: 500,
         hitFreeze: 100,
         sound: 'finisher',
-        knockback: { x: 500, y: 500, onDown: 'popUp' },
+        knockback: { x: 600, y: 400, onDown: 'popUp' },
         decelerateAfter: 1000
     }
 });

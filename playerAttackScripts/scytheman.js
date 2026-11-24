@@ -15,7 +15,7 @@ function tilt(api, scene, attacker, victim, xMul, yMul, kbTime) {
 
 const SLAM_FINISHER = {
     hitFreeze: 0,
-    knockback: { x: 350, y: 700, onDown: 'popUp' }
+    knockback: { x: 600, y: 600, onDown: 'popUp' }
 };
 function slamThirdAttack(api, scene, attacker, target, animKey) {
     api.thirdAttack(scene, attacker, target, animKey, SLAM_FINISHER);
