@@ -361,12 +361,15 @@ export function getFlatSquash(player, now) {
 
 function findLedge(scene, player) {
     const body = player.body;
+    const map = scene.gameState.map;
+    const centerX = map.infinite ? null : map.ground?.x ?? null;
     let best = null;
     for (const platform of getMapPlatforms(scene)) {
         const top = platform.body.top;
         const dy = player.y - top;
         if (dy < -LEDGE.aboveY || dy > LEDGE.belowY) continue;
         for (const [cornerX, toward] of [[platform.body.left, 1], [platform.body.right, -1]]) {
+            if (centerX !== null && (cornerX - centerX) * toward > 0) continue;
             const outside = (cornerX - player.x) * toward;
             if (outside < -body.width / 2) continue;
             const gap = Math.abs(player.x - cornerX) - body.width / 2;

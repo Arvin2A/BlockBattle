@@ -37,8 +37,9 @@ const QUICK_DRAW = {
     hitDelayMs: 70,
     extraWindupMs: 150,
     recoveryScale: 2,
+    parryRange: 260,
     slash: {
-        range: 150,
+        range: 175,
         damage: 0.12,
         plankDamage: 0.15,
         hitstun: 675,
@@ -81,7 +82,12 @@ function parryDraw(api, scene, player, attacker) {
     scene.sound.play(QUICK_DRAW.sound);
     scene.time.delayedCall(QUICK_DRAW.hitDelayMs, () => {
         if (!player.active || !api.getEnemies(scene, player).includes(attacker)) return;
-        api.strike(scene, player, attacker, { ...QUICK_DRAW.slash, singleTarget: true });
+        api.strike(scene, player, attacker, {
+            ...QUICK_DRAW.slash,
+            range: QUICK_DRAW.parryRange,
+            singleTarget: true,
+            bypass: { ...QUICK_DRAW.slash.bypass, ignoreFacing: true }
+        });
     });
 }
 
