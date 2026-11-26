@@ -366,7 +366,7 @@ const EMPTY_HANDED_FINISHER = {
     decelerateAfter: 400
 };
 
-const HARPOON_DASH = { shove: 100, shoveMs: 110, speed: 1600, gap: 80, arriveSlop: 3, maxMs: 300, endSlowdown: 5, holdMs: 450 };
+const HARPOON_DASH = { distanceScale: 5 / 8, shove: 100, shoveMs: 110, speed: 1600, gap: 80, arriveSlop: 3, maxMs: 300, endSlowdown: 5, holdMs: 450 };
 
 function harpoonShoveDash(api, scene, attacker, foe) {
     const facing = attacker.lastDir.x || attacker.facingX || 1;
@@ -389,6 +389,7 @@ function harpoonShoveDash(api, scene, attacker, foe) {
     });
 
     const startedAt = scene.time.now;
+    const startX = attacker.x;
     let finished = false;
     const finish = () => {
         if (finished) return;
@@ -414,7 +415,8 @@ function harpoonShoveDash(api, scene, attacker, foe) {
             return;
         }
         const foeX = foe.active ? foe.x : shoveTo;
-        const stopAt = (facing > 0 ? Math.max(foeX, shoveTo) : Math.min(foeX, shoveTo)) - facing * HARPOON_DASH.gap;
+        const fullStopAt = (facing > 0 ? Math.max(foeX, shoveTo) : Math.min(foeX, shoveTo)) - facing * HARPOON_DASH.gap;
+        const stopAt = startX + (fullStopAt - startX) * HARPOON_DASH.distanceScale;
         const left = (stopAt - attacker.x) * facing;
         if (left <= HARPOON_DASH.arriveSlop) {
             attacker.setVelocity(0, 0);
@@ -912,7 +914,6 @@ function throwHarpoon(api, scene, attacker, target) {
 const NET_RELEASE_MS = 100;
 const NET_LAUNCH = { x: 420, y: -250 };
 const NET_STUN = 1500;
-const NET_HUNT_SPEED = 1.8;
 const NET_BUMP = {
     ranged: true,
     damage: 0.02,
@@ -948,6 +949,7 @@ function netFoe(api, scene, owner, target, duration, holdInPlace) {
         onHit: () => {
             target.nettedUntil = now + duration;
             target.nettedBy = owner;
+            target.netHits = 0;
             target.netImmuneUntil = now + duration + api.NET_IMMUNITY_MS;
             if (holdInPlace) target.freezeUntil = now + duration;
         }
@@ -1527,14 +1529,11 @@ function createHarpoonRack(scene, player) {
     }
 }
 
-function updateTrapper(api, scene, player, victim) {
+function updateTrapper(api, scene, player) {
     if (player.variant !== 'TRAPPER') return;
     if (!player.harpoonRack) createHarpoonRack(scene, player);
 
     const now = scene.time.now;
-    if (victim?.nettedBy === player && now < (victim.nettedUntil ?? 0)) {
-        player.movementSpeed = player.baseMovementSpeed * player.playerSpeedScaling * NET_HUNT_SPEED;
-    }
     if (player.nextHarpoonAt && now >= player.nextHarpoonAt) {
         player.harpoons = Math.min(MAX_HARPOONS, harpoonsLeft(player) + 1);
         player.nextHarpoonAt = player.harpoons < MAX_HARPOONS ? now + HARPOON_REGEN_MS : 0;
@@ -1580,7 +1579,7 @@ export default {
     },
     handleAttack: basicAttack,
     update: (api, scene, player, victim) => {
-        updateTrapper(api, scene, player, victim);
+        updateTrapper(api, scene, player);
         updateAngler(api, scene, player);
     },
     upSpecialVariants: ['ANGLER', 'TRAPPER'],

@@ -135,8 +135,10 @@ function objectLaunch(attacker, target, knockback, direction, damageScale, kb) {
 }
 
 export const NET_IMMUNITY_MS = 1000;
+const NET_BREAK_HITS = 2;
 
 function breakNet(target, now) {
+    target.netHits = 0;
     target.nettedUntil = 0;
     target.nettedBy = null;
     target.netImmuneUntil = now + NET_IMMUNITY_MS;
@@ -177,9 +179,16 @@ export function landHit(scene, attacker, target, spec = {}) {
     }
     target.lastHitAt = now;
     if (attacker.team !== undefined) target.lastHitBy = attacker;
-    if (target.nettedUntil > now) breakNet(target, now);
+    let netHeld = false;
+    if (target.nettedUntil > now) {
+        target.netHits = (target.netHits ?? 0) + 1;
+        if (target.netHits >= NET_BREAK_HITS) breakNet(target, now);
+        else netHeld = true;
+    }
+    const heldFreezeUntil = target.freezeUntil ?? 0;
     attacker.lastLandedHitAt = now;
     target.hitstunUntil = now + hitstun * (hitstunGrowth ? target.KBmultiplier : 1) / getKnockbackResistance(target);
+    if (netHeld) target.hitstunUntil = Math.max(target.hitstunUntil, target.nettedUntil);
     if (stun) {
         target.freezeUntil = now + (stun.target ?? 0);
         attacker.freezeUntil = now + (stun.attacker ?? 0);
@@ -191,6 +200,7 @@ export function landHit(scene, attacker, target, spec = {}) {
         attacker.willDecelerate = true;
         target.willDecelerate = false;
     }
+    if (netHeld) target.freezeUntil = Math.max(target.freezeUntil, heldFreezeUntil);
     attacker.comboTimer = 600;
 
     target.KBmultiplier += damage * damageScale * power;
