@@ -569,6 +569,7 @@ export class OnlineLobbyScene extends Phaser.Scene {
         if (name === 'lobby') this.refreshLobby();
         if (name === 'quick') this.refreshQueue();
         if (name === 'quick' || name === 'home') this.refreshQuickCount();
+        if (name === 'home') this.refreshBrowseCount();
         if (name === 'invite') this.refreshInvite();
         if (name === 'tournament') this.refreshTournament();
         if (name === 'viewers') this.refreshViewers();
@@ -577,11 +578,15 @@ export class OnlineLobbyScene extends Phaser.Scene {
     buildHomeScreen() {
         this.screenTitle('home', 'PLAY ONLINE');
         this.quickButton = makeButton(this, PANEL.x, 318, 360, 48, 'QUICK 1V1', () => this.startQuick(), 24);
+        this.browseButton = makeButton(this, PANEL.x, 418, 360, 48, 'BROWSE LOBBIES', () => this.showScreen('browse'), 24);
         this.addToScreen('home',
             makeButton(this, PANEL.x, 250, 360, 48, 'CREATE LOBBY', () => this.showScreen('create'), 24),
             this.quickButton,
-            makeButton(this, PANEL.x, 418, 360, 48, 'BROWSE LOBBIES', () => this.showScreen('browse'), 24)
+            this.browseButton
         );
+        this.tournamentNotice = this.addToScreen('home', text(this, PANEL.x, 456, '', {
+            fontFamily: 'VCROSD', fontSize: '14px', fill: COLORS.accent, stroke: COLORS.stroke, strokeThickness: 3
+        }).setOrigin(0.5));
         const tournament = makeButton(this, PANEL_RIGHT - TOURNAMENT_BUTTON.width / 2, COPY_LINK.y, TOURNAMENT_BUTTON.width, TOURNAMENT_BUTTON.height,
             'HOST TOURNAMENT MATCH', () => this.openTournamentCode(), 15);
         tournament.text.setColor(COLORS.accent);
@@ -1378,6 +1383,7 @@ export class OnlineLobbyScene extends Phaser.Scene {
         listen('rooms', message => {
             this.rooms = Array.isArray(message.rooms) ? message.rooms : [];
             this.refreshRooms();
+            this.refreshBrowseCount();
         });
         listen('lobby', message => {
             this.joiningFromInvite = false;
@@ -1983,6 +1989,23 @@ export class OnlineLobbyScene extends Phaser.Scene {
         this.quickMapText.setText(mapLabel(map));
         if (this.screen === 'create') this.refreshCreate();
         this.saveAll();
+    }
+
+    refreshBrowseCount() {
+        if (!this.browseButton?.text.active) return;
+        const open = this.rooms.filter(room => !room.tournament).length;
+        this.browseButton.text.setText(open > 0 ? `BROWSE LOBBIES (${open} OPEN)` : 'BROWSE LOBBIES');
+        const tournaments = this.rooms.filter(room => room.tournament);
+        const [only] = tournaments;
+        let notice = '';
+        if (tournaments.length === 1) {
+            const versus = only.fighters?.length === 2 ? `${only.fighters[0]} VS ${only.fighters[1]}` : only.name;
+            notice = `${only.inMatch ? 'TOURNAMENT MATCH LIVE' : 'TOURNAMENT MATCH ON'}: ${versus}. WATCH IT IN BROWSE LOBBIES`;
+        } else if (tournaments.length > 1) {
+            const live = tournaments.filter(room => room.inMatch).length;
+            notice = `${tournaments.length} TOURNAMENT MATCHES ON${live ? ` (${live} LIVE)` : ''}. WATCH THEM IN BROWSE LOBBIES`;
+        }
+        this.tournamentNotice.setText(notice.toUpperCase()).setVisible(this.screen === 'home' && Boolean(notice));
     }
 
     refreshQuickCount() {
