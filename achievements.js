@@ -28,8 +28,8 @@ const MASTERIES = [
     { character: 'crowbarman', name: 'CROWBARMASTER', icon: 'crowbarmaster' },
     { character: 'gunman', name: 'GUNMASTER', icon: 'gunmaster' }
 ];
-const MASTERY_HARD = 'HARD';
-const MASTERY_FLAWLESS = 'VERY HARD';
+const MASTERY_DIFFICULTIES = ['HARD', 'VERY HARD'];
+const MASTERY_TARGETS = CHARACTER_ROSTER.map(character => character.key);
 
 export function botTargetKey(characterKey, variantName) {
     return `${characterKey}:${variantName}`;
@@ -54,6 +54,8 @@ const fighterName = (characterKey, variantName) => {
     return `${variantName} ${character?.name ?? characterKey.toUpperCase()}`;
 };
 
+const QUALIFY_NOTE = 'Online or vs a NORMAL CPU or HARDER, no modifiers.';
+
 const playingAs = (result, characterKey, variantName) =>
     result.character === characterKey && result.variant === variantName;
 
@@ -62,7 +64,7 @@ function variantUnlock({ id, name, as, unlocks, description, goal = 1, counts })
         id,
         name,
         icon: getCharacterTexture(unlocks[0], unlocks[1]),
-        description: `As ${fighterName(...as)}, ${description}`,
+        description: `As ${fighterName(...as)}, ${description} ${QUALIFY_NOTE}`,
         reward: `UNLOCKS ${fighterName(...unlocks)}`,
         unlocks: { character: unlocks[0], variant: unlocks[1] },
         goal,
@@ -123,7 +125,7 @@ export const ACHIEVEMENTS = [
         id: 'BLOCK_HEAD',
         name: 'WHAT A DAMN BLOCKHEAD!',
         icon: 'achievement_BlockHead',
-        description: 'Block 500 hits in total.',
+        description: `Block 500 hits in total. ${QUALIFY_NOTE}`,
         reward: 'NONE',
         goal: 500,
         counts: result => (result.qualifies ? result.blocks : 0)
@@ -132,7 +134,7 @@ export const ACHIEVEMENTS = [
         id: level.id,
         name: `BOT MASTER ${level.numeral}`,
         icon: `achievement_BotMaster${level.numeral}`,
-        description: `Beat every fighter and every variant as a ${level.difficulty} CPU, one by one. Any fighter of yours works.`,
+        description: `Beat every fighter and every variant as a ${level.difficulty} CPU, one by one. Any fighter of yours works. No modifiers.`,
         reward: level.reward,
         goal: BOT_TARGETS.length,
         botDifficulty: level.difficulty
@@ -143,16 +145,14 @@ export const ACHIEVEMENTS = [
             id: `MASTERY_${mastery.character.toUpperCase()}`,
             name: mastery.name,
             icon: `achievement_${mastery.icon}`,
-            description: `As ${character.name} (any variant), beat every fighter and every variant as a HARD CPU, and win once against a VERY HARD CPU without losing a life.`,
+            description: `As ${character.name} (any variant), get a flawless win (no lives lost) against all ${MASTERY_TARGETS.length} fighters as a HARD or VERY HARD CPU. Any variant of theirs works. No modifiers.`,
             reward: `UNLOCKS GOLD ${character.name}`,
             goldReward: true,
             masteryOf: mastery.character,
-            goal: BOT_TARGETS.length + 1
+            goal: MASTERY_TARGETS.length
         };
     })
 ];
-
-export const ACHIEVEMENT_RULES = 'Only counts with no modifiers, online or against a NORMAL CPU or harder. BOT MASTER counts against any CPU, still with no modifiers. Fighter masteries need that fighter\'s other variant unlocked first. Online, you also need to deal 30% damage. If anyone in the match is AFK or gone for half of it, it does not count for anybody.';
 
 export const ACHIEVEMENT_ICONS = [
     'achievement_BlockHead',
@@ -165,7 +165,7 @@ export const MASTERY_ICON_FILES = MASTERIES.map(mastery => ({
 }));
 
 function emptySave() {
-    return { done: {}, progress: {}, botWins: {}, masteryWins: {}, masteryFlawless: {} };
+    return { done: {}, progress: {}, botWins: {}, masteryFlawlessWins: {} };
 }
 
 function cleanSave(raw, reached = []) {
@@ -188,11 +188,16 @@ function cleanSave(raw, reached = []) {
         save.botWins[level.difficulty] = [...new Set(wins.map(cleanBotTarget).filter(Boolean))];
     }
     for (const mastery of MASTERIES) {
-        const wins = raw.masteryWins?.[mastery.character];
-        if (Array.isArray(wins)) save.masteryWins[mastery.character] = [...new Set(wins.map(cleanBotTarget).filter(Boolean))];
-        if (raw.masteryFlawless?.[mastery.character] === true) save.masteryFlawless[mastery.character] = true;
+        const wins = raw.masteryFlawlessWins?.[mastery.character];
+        if (Array.isArray(wins)) save.masteryFlawlessWins[mastery.character] = [...new Set(wins.map(cleanMasteryTarget).filter(Boolean))];
     }
     return save;
+}
+
+function cleanMasteryTarget(raw) {
+    if (typeof raw !== 'string') return null;
+    const entry = raw === 'slateman' ? 'rockman' : raw;
+    return MASTERY_TARGETS.includes(entry) ? entry : null;
 }
 
 let reachedOnLoad = [];
@@ -216,24 +221,19 @@ function writeSave() {
 }
 
 export function getMasteryProgress(achievement) {
-    const character = achievement.masteryOf;
     return {
-        wins: save.masteryWins[character]?.length ?? 0,
-        targets: BOT_TARGETS.length,
-        flawless: Boolean(save.masteryFlawless[character])
+        wins: save.masteryFlawlessWins[achievement.masteryOf]?.length ?? 0,
+        targets: MASTERY_TARGETS.length
     };
 }
 
 export function getMasteryWins(characterKey) {
-    return [...(save.masteryWins[characterKey] ?? [])];
+    return [...(save.masteryFlawlessWins[characterKey] ?? [])];
 }
 
 export function getAchievementProgress(achievement) {
     if (achievement.botDifficulty) return save.botWins[achievement.botDifficulty]?.length ?? 0;
-    if (achievement.masteryOf) {
-        const { wins, flawless } = getMasteryProgress(achievement);
-        return wins + (flawless ? 1 : 0);
-    }
+    if (achievement.masteryOf) return getMasteryProgress(achievement).wins;
     return save.done[achievement.id] ? achievement.goal : save.progress[achievement.id] ?? 0;
 }
 
@@ -306,13 +306,11 @@ export function recordMatchResult(result) {
         if (achievement.masteryOf) {
             if (isAchievementLocked(achievement)) continue;
             const character = achievement.masteryOf;
-            if (result.won && result.noModifiers && result.character === character) {
-                const target = result.cpuCharacter && result.cpuVariant ? botTargetKey(result.cpuCharacter, result.cpuVariant) : null;
-                if (result.cpuDifficulty === MASTERY_HARD && target && BOT_TARGETS.includes(target)) {
-                    const wins = save.masteryWins[character] ??= [];
-                    if (!wins.includes(target)) wins.push(target);
-                }
-                if (result.cpuDifficulty === MASTERY_FLAWLESS && result.timesKOd === 0) save.masteryFlawless[character] = true;
+            const target = result.cpuCharacter;
+            if (result.won && result.noModifiers && result.character === character && result.timesKOd === 0
+                && MASTERY_DIFFICULTIES.includes(result.cpuDifficulty) && MASTERY_TARGETS.includes(target)) {
+                const wins = save.masteryFlawlessWins[character] ??= [];
+                if (!wins.includes(target)) wins.push(target);
             }
         } else if (achievement.botDifficulty) {
             if (isAchievementLocked(achievement)) continue;
@@ -366,9 +364,8 @@ export function mergeSaveData(text) {
     }
     for (const mastery of MASTERIES) {
         const character = mastery.character;
-        const wins = new Set([...(save.masteryWins[character] ?? []), ...(incoming.masteryWins[character] ?? [])]);
-        if (wins.size) merged.masteryWins[character] = [...wins];
-        if (save.masteryFlawless[character] || incoming.masteryFlawless[character]) merged.masteryFlawless[character] = true;
+        const wins = new Set([...(save.masteryFlawlessWins[character] ?? []), ...(incoming.masteryFlawlessWins[character] ?? [])]);
+        if (wins.size) merged.masteryFlawlessWins[character] = [...wins];
     }
     save = merged;
     writeSave();

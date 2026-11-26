@@ -5,7 +5,6 @@
 import Phaser from 'phaser';
 import {
     ACHIEVEMENTS,
-    ACHIEVEMENT_RULES,
     countDoneAchievements,
     getAchievementProgress,
     getMasteryProgress,
@@ -23,7 +22,7 @@ import { getConnectedControllers, getMenuGamepadInput } from '../navigation.js';
 
 const PANEL = { x: 500, y: 300, width: 780, height: 564 };
 const TOP = PANEL.y - PANEL.height / 2;
-const LIST = { x: 500, y: 330, width: 740, height: 356, cardWidth: 690, cardHeight: 96 };
+const LIST = { x: 500, y: 311, width: 740, height: 394, cardWidth: 690, cardHeight: 96 };
 const ICON_SIZE = 72;
 const LOCKED_ALPHA = 0.25;
 const DESCRIPTION_WIDTH = 360;
@@ -60,13 +59,13 @@ function progressLabel(achievement) {
 }
 
 function masteryToastLabel(achievement) {
-    const { wins, targets, flawless } = getMasteryProgress(achievement);
-    return `${wins}/${targets}  ${flawless ? 1 : 0}/1`;
+    const { wins, targets } = getMasteryProgress(achievement);
+    return `${wins}/${targets}`;
 }
 
 function masteryLabel(achievement) {
-    const { wins, targets, flawless } = getMasteryProgress(achievement);
-    return `${wins} / ${targets} HARD CPUS\n${flawless ? 1 : 0} / 1 FLAWLESS WIN`;
+    const { wins, targets } = getMasteryProgress(achievement);
+    return `${wins} / ${targets} FLAWLESS WINS`;
 }
 
 export class AchievementsScene extends Phaser.Scene {
@@ -94,9 +93,6 @@ export class AchievementsScene extends Phaser.Scene {
         this.add.text(PANEL.x, TOP + 36, 'ACHIEVEMENTS', textStyle('title')).setOrigin(0.5);
         this.add.text(PANEL.x, TOP + 72, `${countDoneAchievements()} / ${ACHIEVEMENTS.length} COMPLETE`,
             textStyle('body', { fontSize: '18px', fill: COLORS.accent })).setOrigin(0.5);
-        this.add.text(PANEL.x, TOP + 104, ACHIEVEMENT_RULES, textStyle('body', {
-            fontSize: '13px', fill: COLORS.muted, align: 'center', wordWrap: { width: PANEL.width - 120 }
-        })).setOrigin(0.5);
 
         const closeX = PANEL.x + PANEL.width / 2 - 34;
         const closeBox = this.add.rectangle(closeX, TOP + 34, 48, 40, 0x771c1c).setStrokeStyle(2, HEX.border)

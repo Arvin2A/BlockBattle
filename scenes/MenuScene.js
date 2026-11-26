@@ -111,7 +111,7 @@ export class MenuScene extends Phaser.Scene {
                     },
                     {
                         title: "FIGHTER MASTERIES",
-                        body: "Every fighter has a mastery achievement now. As that fighter, beat every fighter and variant on HARD, then win one match against VERY HARD without losing a life. You need the fighter's other variant unlocked before it starts counting.\n Master a fighter and you unlock its gold skin for every variant. Gold bodies, gold weapons, gold everything they throw. You can turn it on or off with the GOLD button in character select."
+                        body: "Every fighter has a mastery achievement now. As that fighter, beat all 8 fighters on HARD or VERY HARD without losing a life. Any of their variants counts. You need the fighter's other variant unlocked before it starts counting.\n Master a fighter and you unlock its gold skin for every variant. Gold bodies, gold weapons, gold everything they throw. You can turn it on or off with the GOLD button in character select."
                     },
                     {
                         title: "FIGHTER INFO HIGHLIGHTS",

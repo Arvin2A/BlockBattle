@@ -3,7 +3,7 @@
 ## 2026-11-26
 
 ### Added
-- 8 fighter mastery achievements: SWORDMASTER, AXEMASTER, REELMASTER (FISHERMAN), SCYTHEMASTER, HAMMERMASTER, ROCKMASTER, CROWBARMASTER and GUNMASTER, each with its own icon. Playing as that fighter (any variant), beat every fighter and every variant as a HARD CPU, and win once against a VERY HARD CPU without losing a life, with no modifiers. Progress shows in two parts (n/14 HARD CPUS and n/1 FLAWLESS WIN). Each one stays locked until that fighter's other variant is unlocked (ROCKMAN and GUNMAN start unlocked), and save codes carry mastery progress.
+- 8 fighter mastery achievements: SWORDMASTER, AXEMASTER, REELMASTER (FISHERMAN), SCYTHEMASTER, HAMMERMASTER, ROCKMASTER, CROWBARMASTER and GUNMASTER, each with its own icon. Playing as that fighter (any variant), get a flawless win (no lives lost) against all 8 fighters (any variant) as a HARD or VERY HARD CPU, with no modifiers. Progress shows as n/8 FLAWLESS WINS. Each one stays locked until that fighter's other variant is unlocked (ROCKMAN and GUNMAN start unlocked), and save codes carry mastery progress.
 - Gold skins: mastering a fighter unlocks a gold version of every one of its variants. The body, life icons, arms, held weapons and swing sheets go gold, plus ANGLER's hook and fish, LUMBERER's thrown axe, TRAPPER's harpoons, LAWNMOWER's mower, HOOKER's and DEMOLITIONIST's crowbars, CHAINSAW's planks and MALLET/SLEDGEHAMMER's steel walls. Nets and CRAZER's shots stay normal. A GOLD: ON / OFF button on the character select card turns it on or off per fighter (on by default once unlocked), and the preview shows it. Gold skins are offline only for now.
 
 ## 2026-11-25
