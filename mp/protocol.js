@@ -10,7 +10,7 @@ import { MAPS } from '../scenes/GameScene/MapDefinitions.js';
 import { toAsciiName } from './nameFilter.js';
 
 // Bump this whenever messages change so old tabs get a clear "refresh" error.
-export const PROTOCOL_VERSION = 19;
+export const PROTOCOL_VERSION = 21;
 
 export const RECONNECT_GRACE_MS = { lobby: 60000, match: 20000, menu: 15000 };
 
@@ -79,6 +79,22 @@ export function cleanMatchResult(raw) {
     const kb = Number(raw.finalKB);
     result.finalKB = Number.isFinite(kb) ? kb : 99;
     return result;
+}
+
+const STAT_LIMITS = { kos: 999, maxKB: 1000, damage: 1000000 };
+
+export function cleanMatchStats(raw, slots) {
+    if (!raw || typeof raw !== 'object') return null;
+    const stats = {};
+    for (const slot of slots) {
+        const entry = raw[slot];
+        if (!entry || typeof entry !== 'object') continue;
+        stats[slot] = Object.fromEntries(Object.entries(STAT_LIMITS).map(([key, limit]) => {
+            const value = Number(entry[key]);
+            return [key, Number.isFinite(value) ? Math.max(0, Math.min(limit, value)) : 0];
+        }));
+    }
+    return Object.keys(stats).length ? stats : null;
 }
 
 // ws://host/mp on the same server that served the page.

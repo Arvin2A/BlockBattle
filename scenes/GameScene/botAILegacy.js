@@ -243,16 +243,15 @@ export function runBotAI(scene, bot, target, fiveframecount) {
         const verticalLane = Math.abs(dx) <= target.body.width / 2 + 1;
         const canShootHorizontally = horizontalLane && Math.abs(dx) > 50;
         const canShootVertically = verticalLane && (dy <= -35 || dy >= 15);
-        const specialHorizontal = canShootHorizontally && Math.abs(dx) <= 1000;
-        const specialVertical = canShootVertically && Math.abs(dy) <= 1000;
+        const behind = Math.abs(dy) <= 40 && Math.abs(dx) >= 50 && Math.abs(dx) <= 700;
+        const level = canShootHorizontally && Math.abs(dx) <= 1000;
+        const ready = bot.recoilJammed ? level : behind;
 
-        if ((specialHorizontal || specialVertical) && !bot.gunmanSpecialActive &&
+        if (ready && !bot.gunmanSpecialActive &&
             scene.time.now >= bot.nextSideSpecialTime) {
-            bot.lastDir = specialHorizontal
-                ? { x: Math.sign(dx), y: 0 }
-                : { x: 0, y: Math.sign(dy) };
-            const specialDirection = bot.lastDir.x < 0 ? 'left' : 'right';
-            handleDirSpecial(scene, bot, specialDirection, scene.time.now, target);
+            const toward = dx < 0 ? 'left' : 'right';
+            const away = dx < 0 ? 'right' : 'left';
+            handleDirSpecial(scene, bot, bot.recoilJammed ? toward : away, scene.time.now, target);
         }
 
         if (canShootHorizontally || canShootVertically) {
@@ -567,7 +566,7 @@ export function runBotAI(scene, bot, target, fiveframecount) {
 
             return;
         }
-    } else if (bot.name === "SLATEMAN") {
+    } else if (bot.name === "ROCKMAN") {
         const attackRange = 130;
 
         if (Math.abs(dx) < attackRange) {

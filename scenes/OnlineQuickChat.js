@@ -5,6 +5,7 @@
 import { net } from '../mp/client.js';
 import { QUICK_CHAT_CATEGORIES, QUICK_CHAT_PHRASES, QuickChatLimiter } from '../mp/quickChat.js';
 import { COLORS } from '../ui/theme.js';
+import { BUBBLE, bubbleAlpha, createBubbleText } from '../ui/speechBubble.js';
 
 const KEYBINDS_STORAGE_KEY = 'blockBattleChatKeybinds';
 const DIGIT_KEY = /^(?:Digit|Numpad)([0-9])$/;
@@ -16,12 +17,6 @@ const MENU_LEFT = 12;
 const MENU_BOTTOM = 588;
 const MENU_TOP = 8;
 const MENU_DEPTH = 1000;
-const BUBBLE_DEPTH = 900;
-const BUBBLE_MS = 3000;
-const BUBBLE_FADE_MS = 400;
-const BUBBLE_HEIGHT_ABOVE_PLAYER = 95;
-const MAX_BUBBLES = 3;
-const BUBBLE_GAP = 4;
 
 const ROW_COLOR = 0x171717;
 const ROW_HOVER_COLOR = 0x444444;
@@ -55,7 +50,7 @@ function saveKeybinds(keybinds) {
 }
 
 export class QuickChat {
-    constructor(scene, { slotColors, getPlayerObject, worldToScreen }) {
+    constructor(scene, { slotColors, getPlayerObject, worldToScreen, readOnly = false }) {
         this.scene = scene;
         this.slotColors = slotColors;
         this.getPlayerObject = getPlayerObject;
@@ -82,9 +77,13 @@ export class QuickChat {
             if (this.isOpen && !over.length) this.close();
         };
         this.onKeyDown = event => this.handleDigit(event);
-        scene.input.keyboard.on('keydown-T', this.onToggleKey);
-        scene.input.keyboard.on('keydown', this.onKeyDown);
-        scene.input.on('pointerdown', this.onScenePointerDown);
+        if (readOnly) {
+            this.setRowsVisible([this.toggleRow], false);
+        } else {
+            scene.input.keyboard.on('keydown-T', this.onToggleKey);
+            scene.input.keyboard.on('keydown', this.onKeyDown);
+            scene.input.on('pointerdown', this.onScenePointerDown);
+        }
         this.removeChatListener = net.on('chat', message => this.showBubble(message.s, message.m));
     }
 
@@ -218,15 +217,9 @@ export class QuickChat {
     showBubble(slot, phrase) {
         if (!this.slotColors[slot]) return;
         const stack = this.bubbles.get(slot) ?? [];
-        while (stack.length >= MAX_BUBBLES) stack.shift().text.destroy();
-        const text = this.scene.add.text(0, 0, phrase, {
-            ...TEXT_STYLE,
-            fontSize: '15px',
-            backgroundColor: 'rgba(0, 0, 0, 0.75)',
-            fill: this.slotColors[slot],
-            padding: { x: 8, y: 5 }
-        }).setOrigin(0.5, 1).setDepth(BUBBLE_DEPTH).setVisible(false);
-        stack.push({ text, expiresAt: this.scene.time.now + BUBBLE_MS });
+        while (stack.length >= BUBBLE.max) stack.shift().text.destroy();
+        const text = createBubbleText(this.scene, phrase, this.slotColors[slot]).setVisible(false);
+        stack.push({ text, expiresAt: this.scene.time.now + BUBBLE.ms });
         this.bubbles.set(slot, stack);
     }
 
@@ -251,15 +244,15 @@ export class QuickChat {
                 for (const bubble of stack) bubble.text.setVisible(false);
                 continue;
             }
-            const point = this.worldToScreen(player.x, player.y - BUBBLE_HEIGHT_ABOVE_PLAYER);
+            const point = this.worldToScreen(player.x, player.y - BUBBLE.heightAbovePlayer);
             let bottom = point.y;
             for (let index = stack.length - 1; index >= 0; index--) {
                 const bubble = stack[index];
                 bubble.text
                     .setPosition(point.x, bottom)
-                    .setAlpha(Math.min(1, (bubble.expiresAt - now) / BUBBLE_FADE_MS))
+                    .setAlpha(bubbleAlpha(bubble.expiresAt, now))
                     .setVisible(true);
-                bottom -= bubble.text.height + BUBBLE_GAP;
+                bottom -= bubble.text.height + BUBBLE.gap;
             }
         }
     }

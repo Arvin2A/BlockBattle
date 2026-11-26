@@ -208,6 +208,9 @@ function createAuthorityBootScene(preload) {
                     case 'resync':
                         resyncPlayer(message.s);
                         break;
+                    case 'fullFrame':
+                        capture?.requestFullFrame();
+                        break;
                     case 'playerLeft':
                         if (typeof message.s === 'string') leftPlayers.push(message.s);
                         break;
@@ -259,10 +262,10 @@ export function attachAuthority(scene) {
     });
 }
 
-export function reportMatchEnd(winnerSlots, results = {}) {
+export function reportMatchEnd(winnerSlots, results = {}, stats = {}) {
     if (endReported) return;
     endReported = true;
-    send({ t: 'end', winners: winnerSlots, results });
+    send({ t: 'end', winners: winnerSlots, results, stats });
 }
 
 function useSilentSounds(Phaser) {

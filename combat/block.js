@@ -33,6 +33,7 @@ export const BLOCK = {
     cueAlpha: 0.9,
     cueMs: 220,
     counterSelfFreezeMs: 120,
+    specialCostScale: 0.85,
     counterHop: { away: 80, height: 45 }
 };
 
@@ -43,7 +44,8 @@ export const AIR_DODGE = {
     maxRise: 400,
     invincibleMs: 450,
     driftMs: 200,
-    sound: 'whoosh'
+    sound: 'whoosh',
+    volume: 2.5
 };
 
 const DEFAULT_STYLE = {
@@ -102,7 +104,7 @@ function airDodge(scene, player, input) {
     player.airDodgePhaseUntil = now + AIR_DODGE.invincibleMs;
     player.setVelocity(dir.x / length * speed, Math.max(dir.y / length * speed, -AIR_DODGE.maxRise));
     player.flash?.();
-    scene.sound.play(AIR_DODGE.sound, { rate: 2});
+    scene.sound.play(AIR_DODGE.sound, { rate: 2, volume: AIR_DODGE.volume });
 }
 
 export function isAirDodgePhasing(player) {
@@ -265,10 +267,11 @@ function counterLaunch(scene, blocker, attacker, stunMs, countsAsCounter = true)
     if (attacker.body) startSmackArc(scene, attacker, dir, BLOCK.counterHop);
 }
 
-export function blocksHit(scene, target, attacker, damage = 0, { minCost = BLOCK.minHitCost, ranged = false, shieldCost = null, deferCounter = false, rebound = false } = {}) {
+export function blocksHit(scene, target, attacker, damage = 0, { minCost = BLOCK.minHitCost, ranged = false, shieldCost = null, deferCounter = false, rebound = false, special = false } = {}) {
     if (!target?.blocking) return false;
     const now = scene.time.now;
-    const cost = shieldCost ?? Phaser.Math.Clamp(damage * BLOCK.hitCostScale, minCost, BLOCK.maxHitCost);
+    const baseCost = shieldCost ?? Phaser.Math.Clamp(damage * BLOCK.hitCostScale, minCost, BLOCK.maxHitCost);
+    const cost = special && baseCost < 1 ? baseCost * BLOCK.specialCostScale : baseCost;
     target.shield -= cost * blockStyle(target, 'costScale');
     target.shieldHitUntil = now + 80;
     if (target.stats) target.stats.blocks += 1;

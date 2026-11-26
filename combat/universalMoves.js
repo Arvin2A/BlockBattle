@@ -2,6 +2,7 @@
 // Original source: https://github.com/Arvin2A/BlockBattle
 // Licensed under the GNU GPL v3 only. See LICENSE.
 
+import { GOLD_ARM_COLOR } from './skins.js';
 import { getMapPlatforms } from '../attacks.js';
 import { landHit, strike } from './blueprints.js';
 import { getCharacterStat } from './characterStats.js';
@@ -95,7 +96,7 @@ function ensureArm(scene, player) {
     const arm = scene.add.sprite(player.x, player.y, 'uni-slam', 11)
         .setDepth((player.depth ?? 5) + 1)
         .setVisible(false);
-    arm.setTint(getCharacterStat(player, 'armColor', 0xffffff));
+    arm.setTint(player.skin === 'gold' ? GOLD_ARM_COLOR : getCharacterStat(player, 'armColor', 0xffffff));
     scene.objs?.add(arm);
     player.once('destroy', () => arm.destroy());
     player.armFx = arm;
@@ -310,11 +311,21 @@ export function restoreHiddenWeapons(players) {
     }
 }
 
-export function startSmackArc(scene, target, dir, { away = SMACK.reboundAway, height = SMACK.arcHeight } = {}) {
-    const seconds = SMACK.arcMs / 1000;
+export const UP_TILT_RANGE = 110;
+export const UP_TILT_ARC = { away: SMACK.reboundAway * 0.75, height: SMACK.arcHeight * 1.5, ms: SMACK.arcMs };
+
+export function startUpTiltArc(scene, attacker, victim) {
+    if (!victim.body) return;
+    const dir = Math.sign(victim.x - attacker.x) || attacker.lastDir?.x || 1;
+    startSmackArc(scene, victim, dir, UP_TILT_ARC);
+}
+
+export function startSmackArc(scene, target, dir, { away = SMACK.reboundAway, height = SMACK.arcHeight, ms = SMACK.arcMs } = {}) {
+    const seconds = ms / 1000;
     const arcGravity = 8 * height / (seconds * seconds);
     target.smackArc = {
         elapsed: 0,
+        ms,
         hitAt: target.lastHitAt,
         extraGravity: arcGravity - scene.physics.world.gravity.y
     };
@@ -333,7 +344,7 @@ function stepSmackArc(scene, player, dt) {
     const arc = player.smackArc;
     if (!arc) return;
     arc.elapsed += dt;
-    if (!player.active || player.lastHitAt !== arc.hitAt || arc.elapsed > SMACK.arcMs * 2.5) {
+    if (!player.active || player.lastHitAt !== arc.hitAt || arc.elapsed > arc.ms * 2.5) {
         endSmackArc(player);
         return;
     }

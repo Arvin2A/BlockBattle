@@ -3,6 +3,7 @@
 // Licensed under the GNU GPL v3 only. See LICENSE.
 
 import Phaser from 'phaser';
+import { SIDE_SPECIAL_POWER } from '../gameSettings.js';
 
 function tilt(api, scene, attacker, victim, xMul, yMul, kbTime) {
     api.tiltAttack(scene, attacker, victim, {
@@ -83,6 +84,7 @@ function parryDraw(api, scene, player, attacker) {
     scene.time.delayedCall(QUICK_DRAW.hitDelayMs, () => {
         if (!player.active || !api.getEnemies(scene, player).includes(attacker)) return;
         api.strike(scene, player, attacker, {
+            special: true,
             ...QUICK_DRAW.slash,
             range: QUICK_DRAW.parryRange,
             singleTarget: true,
@@ -129,7 +131,7 @@ function quickDraw(api, scene, player, victim) {
         scene.sound.play(QUICK_DRAW.sound);
         scene.time.delayedCall(QUICK_DRAW.hitDelayMs, () => {
             if (!player.active || player.hitstun) return;
-            api.strike(scene, player, victim, QUICK_DRAW.slash);
+            api.strike(scene, player, victim, { ...QUICK_DRAW.slash, special: true });
         });
         player.nextAttackTime = scene.time.now + api.getAttackCooldown(player) * QUICK_DRAW.recoveryScale;
     };
@@ -225,6 +227,8 @@ function tryDaggerAttack(api, scene, attacker, target, animKey, thirdAnimKey) {
 function lungePush(api, scene, attacker, target, animKey) {
     api.setAttackSprite(attacker, animKey);
     api.strike(scene, attacker, target, {
+        special: true,
+        power: SIDE_SPECIAL_POWER,
         range: 155,
         bypass: { ignoreCanAttack: true },
         damage: 0.30,
@@ -402,6 +406,7 @@ function quickstep(api, scene, player) {
         player.hasHitSideSpecial = true;
         const direction = { x: Math.sign(dashVelocity.x) || player.lastDir.x || 1, y: 0 };
         api.strike(scene, player, target, {
+            special: true,
             range: QUICKSTEP.hitRange,
             bypass: { ignoreCanAttack: true, ignoreFacing: true },
             direction,
@@ -440,11 +445,78 @@ function plungeStop(api, scene, player, victim, dir, stop) {
     player.atk.setAngle(0);
     const spec = last ? PLUNGE.finalHit : PLUNGE.hit;
     api.strike(scene, player, victim, {
+        special: true,
         ...spec,
+        power: SIDE_SPECIAL_POWER,
         range: PLUNGE.range,
         bypass: { ignoreCanAttack: true },
         direction: { x: dir, y: 0 }
     });
+}
+
+const DAGGER_DASH = { speed: 900, ms: 130, angle: Math.PI / 4, endSlowdown: 3, range: 120, minDot: 0.3 };
+const DAGGER_DASH_HIT = {
+    damage: 0.20,
+    plankDamage: 0,
+    hitstun: 300,
+    hitFreeze: 50,
+    sound: 'swordslash1',
+    knockback: { x: 250, y: 500 },
+    decelerateAfter: 1000,
+    resetCombo: false
+};
+
+function tryDaggerDash(api, scene, player, victim, direction, currentTime) {
+    if (player.hitstun || player.freeze || player.daggerDashing) return;
+    if (currentTime < player.nextSideSpecialTime) return;
+    api.startSideSpecialCooldown(player, currentTime, player.dirSpecialCooldown);
+    const dirX = player.lastDir.x || player.facingX || 1;
+    const dirY = direction === 'up' ? -1 : 1;
+    const aim = { x: dirX * Math.cos(DAGGER_DASH.angle), y: dirY * Math.sin(DAGGER_DASH.angle) };
+    player.daggerDashing = true;
+    player.isUsingSideSpecial = true;
+    player.afterimage = true;
+    api.startDashTrail(player, DAGGER_DASH.ms);
+    player.lastDir = { x: dirX, y: 0 };
+    player.body.setAllowGravity(false);
+    api.setAttackSprite(player, 'daggeratk');
+    player.atkAngleOverride = dirX * dirY * DAGGER_DASH.angle * 180 / Math.PI;
+    player.atk.setAngle(player.atkAngleOverride);
+    scene.sound.play('lunge');
+
+    let landed = false;
+    const update = () => {
+        if (!player.active || player.hitstun) {
+            finish();
+            return;
+        }
+        player.setVelocity(aim.x * DAGGER_DASH.speed, aim.y * DAGGER_DASH.speed);
+        if (landed) return;
+        const bypass = { ignoreCanAttack: true, allowTargetBelow: true, direction: aim, minDot: DAGGER_DASH.minDot };
+        const foe = api.getEnemies(scene, player).find(enemy =>
+            api.attackIsElligible(player, enemy, DAGGER_DASH.range, { ...bypass, silent: true }));
+        if (!foe) return;
+        landed = api.strike(scene, player, foe, { special: true, ...DAGGER_DASH_HIT, range: DAGGER_DASH.range, bypass, direction: aim, singleTarget: true });
+        if (landed) api.clearQueuedStunTimers(scene, player, foe);
+    };
+    const removeUpdate = api.addSceneUpdateListener(scene, update);
+
+    let finished = false;
+    const finish = () => {
+        if (finished) return;
+        finished = true;
+        removeUpdate();
+        player.body.setAllowGravity(true);
+        player.daggerDashing = false;
+        player.atkAngleOverride = null;
+        player.isUsingSideSpecial = false;
+        player.afterimage = false;
+        if (!player.hitstun) {
+            player.setVelocity(player.body.velocity.x / DAGGER_DASH.endSlowdown, player.body.velocity.y / DAGGER_DASH.endSlowdown);
+        }
+        api.hideAttackSprite(player);
+    };
+    scene.time.delayedCall(DAGGER_DASH.ms, finish);
 }
 
 function wantsDiagonalQuickstep(scene, player) {
@@ -504,6 +576,164 @@ function tryPlunge(api, scene, player, direction, victim, currentTime) {
     };
     dash(0);
 }
+const LUNGE_COMBO = {
+    speed: 650,
+    dashMs: 150,
+    pauseMs: 90,
+    angle: Math.PI / 4,
+    endSlowdown: 3,
+    range: 140,
+    minDot: 0.3,
+    carryDistance: 70,
+    carryHoldMs: 150,
+    first: {
+        damage: 0.12,
+        plankDamage: 0,
+        hitstun: 350,
+        hitstunGrowth: false,
+        stun: { target: 300, attacker: 0 },
+        hitFreeze: 40,
+        sound: 'swordslash1',
+        knockback: { x: 150, y: 120, growth: false, scaleWithDamage: false },
+        resetCombo: false,
+        noDeathRay: true
+    },
+    second: {
+        damage: 0.18,
+        plankDamage: 0,
+        hitstun: 300,
+        hitFreeze: 50,
+        sound: 'swordslash1',
+        knockback: { x: 250, y: 500 },
+        decelerateAfter: 1000,
+        resetCombo: false
+    }
+};
+
+function heldSide(scene, player, fallback) {
+    const input = scene.playerInputs?.[player.slot] ?? {};
+    const x = (input.right ? 1 : 0) - (input.left ? 1 : 0);
+    return { x: x || Math.sign(fallback.x) || player.facingX || 1, y: 0 };
+}
+
+function carryInFront(scene, player, foe, aim) {
+    foe.body.setAllowGravity(false);
+    foe.setVelocity(0, 0);
+    foe.setPosition(player.x + aim.x * LUNGE_COMBO.carryDistance, player.y + aim.y * LUNGE_COMBO.carryDistance);
+    foe.hitstunUntil = Math.max(foe.hitstunUntil ?? 0, scene.time.now + LUNGE_COMBO.carryHoldMs);
+    foe.willDecelerate = false;
+}
+
+function releaseCarried(foe) {
+    if (foe?.body) foe.body.setAllowGravity(true);
+}
+
+function tryLungeCombo(api, scene, player, direction, currentTime) {
+    if (player.hitstun || player.freeze || player.lungeCombo) return;
+    if (currentTime < player.nextSideSpecialTime) return;
+    api.startSideSpecialCooldown(player, currentTime, player.dirSpecialCooldown);
+    const dirX = player.lastDir.x || player.facingX || 1;
+    const dirY = direction === 'up' ? -1 : 1;
+    const combo = { aim: { x: dirX * Math.cos(LUNGE_COMBO.angle), y: dirY * Math.sin(LUNGE_COMBO.angle) }, dash: 0, landed: false, moving: true };
+    player.lungeCombo = combo;
+    player.isUsingSideSpecial = true;
+    player.hasHitSideSpecial = true;
+    player.afterimage = true;
+    api.startDashTrail(player, LUNGE_COMBO.dashMs * 2 + LUNGE_COMBO.pauseMs);
+    player.body.setAllowGravity(false);
+    scene.sound.play('lunge');
+
+    const pose = () => {
+        player.lastDir = { ...combo.aim };
+        player.aimLock = { ...combo.aim };
+        api.setAttackSprite(player, 'swordatk');
+        const facing = Math.sign(combo.aim.x) || player.facingX || 1;
+        const angle = Math.atan2(combo.aim.y, Math.abs(combo.aim.x)) * 180 / Math.PI;
+        player.atkAngleOverride = facing * angle;
+        player.atk.setAngle(player.atkAngleOverride);
+    };
+    pose();
+
+    const update = () => {
+        if (!player.active || player.hitstun) {
+            finish();
+            return;
+        }
+        player.atk.setVisible(true);
+        if (!combo.moving) {
+            player.setVelocity(0, 0);
+            if (combo.carried?.active) carryInFront(scene, player, combo.carried, combo.aim);
+            return;
+        }
+        player.setVelocity(combo.aim.x * LUNGE_COMBO.speed, combo.aim.y * LUNGE_COMBO.speed);
+        if (combo.carried) {
+            if (!combo.carried.active || combo.carried.eliminated) {
+                releaseCarried(combo.carried);
+                combo.carried = null;
+            } else {
+                carryInFront(scene, player, combo.carried, combo.aim);
+            }
+        }
+        if (combo.landed) return;
+        const bypass = { ignoreCanAttack: true, allowTargetBelow: true, direction: combo.aim, minDot: LUNGE_COMBO.minDot };
+        const foe = api.getEnemies(scene, player).find(enemy =>
+            api.attackIsElligible(player, enemy, LUNGE_COMBO.range, { ...bypass, silent: true }));
+        if (!foe) return;
+        const spec = combo.dash === 0 ? LUNGE_COMBO.first : LUNGE_COMBO.second;
+        combo.landed = api.strike(scene, player, foe, { special: true, ...spec, range: LUNGE_COMBO.range, bypass, direction: combo.aim, singleTarget: true });
+        if (combo.landed) api.clearQueuedStunTimers(scene, player, foe);
+        if (combo.landed && combo.dash === 0) {
+            combo.carried = foe;
+            carryInFront(scene, player, foe, combo.aim);
+        }
+    };
+    const removeUpdate = api.addSceneUpdateListener(scene, update);
+
+    let finished = false;
+    const finish = () => {
+        if (finished) return;
+        finished = true;
+        removeUpdate();
+        player.body.setAllowGravity(true);
+        releaseCarried(combo.carried);
+        combo.carried = null;
+        if (player.lungeCombo === combo) player.lungeCombo = null;
+        player.atkAngleOverride = null;
+        player.aimLock = null;
+        player.lastDir = { x: Math.sign(combo.aim.x) || player.facingX || 1, y: 0 };
+        player.isUsingSideSpecial = false;
+        player.afterimage = false;
+        if (!player.hitstun) {
+            player.setVelocity(player.body.velocity.x / LUNGE_COMBO.endSlowdown, player.body.velocity.y / LUNGE_COMBO.endSlowdown);
+        }
+        api.hideAttackSprite(player);
+    };
+
+    scene.time.delayedCall(LUNGE_COMBO.dashMs, () => {
+        if (finished) return;
+        combo.moving = false;
+        scene.time.delayedCall(LUNGE_COMBO.pauseMs, () => {
+            if (finished) return;
+            combo.aim = heldSide(scene, player, combo.aim);
+            combo.dash = 1;
+            combo.landed = false;
+            combo.moving = true;
+            pose();
+            const carried = combo.carried;
+            if (carried?.active && !carried.eliminated) {
+                carryInFront(scene, player, carried, combo.aim);
+                releaseCarried(carried);
+                combo.carried = null;
+                combo.landed = true;
+                api.landHit(scene, player, carried, { special: true, ...LUNGE_COMBO.second, direction: combo.aim });
+                api.clearQueuedStunTimers(scene, player, carried);
+            }
+            scene.sound.play('lunge');
+            scene.time.delayedCall(LUNGE_COMBO.dashMs, finish);
+        });
+    });
+}
+
 function tryLunge(api, scene, player, direction, currentTime, animKey = 'swordatk') {
     //LUNGE: exclusive for the swordsman, this is performed by double tapping left or right
     // It launches the player forward in the direction they are lunging in
@@ -583,14 +813,18 @@ export default {
     update: updateSheathe,
     handleAttack: unlessSheathed((api, scene, attacker, victim) =>
         attack(api, scene, attacker, victim)),
+    upSpecialVariants: ['DAGGER', 'LONGSWORD'],
+    downSpecialVariants: ['DAGGER', 'LONGSWORD'],
     handleDirSpecial: (api, scene, attacker, direction, currentTime, victim) => {
         if (attacker.variant === 'DAGGER') {
-            tryPlunge(api, scene, attacker, direction, victim, currentTime);
+            if (direction === 'up' || direction === 'down') tryDaggerDash(api, scene, attacker, victim, direction, currentTime);
+            else tryPlunge(api, scene, attacker, direction, victim, currentTime);
             return;
         }
         if (attacker.drawing) return;
         const sequence = attacker.attackSequence;
-        tryLunge(api, scene, attacker, direction, currentTime);
+        if (direction === 'up' || direction === 'down') tryLungeCombo(api, scene, attacker, direction, currentTime);
+        else tryLunge(api, scene, attacker, direction, currentTime);
         if (attacker.sheathed && attacker.attackSequence !== sequence) setSheathed(attacker, false);
     },
     handleNeutralSpecial: neutralSpecial,

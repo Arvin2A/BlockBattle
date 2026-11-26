@@ -3,8 +3,11 @@
 // Licensed under the GNU GPL v3 only. See LICENSE.
 
 import { grindExplosion, grindTick, setGrindFloat, ALWAYS_ON_GRINDERS, interruptGrinder, grinderCanResume, holdGrinderInPlace } from '../combat/grinder.js';
-import { MIN_ABILITY_COOLDOWN_MS } from '../gameSettings.js';
+import { MIN_ABILITY_COOLDOWN_MS, SIDE_SPECIAL_POWER } from '../gameSettings.js';
 import { isGrounded, pinTarget, slamImpact } from '../combat/pin.js';
+import { addSceneUpdateListener } from '../combat/effects.js';
+import { applySkin } from '../combat/skins.js';
+import { jitterVictim } from '../combat/knockback.js';
 
 function tilt(api, scene, attacker, victim, xMul, yMul, kbTime) {
     api.tiltAttack(scene, attacker, victim, {
@@ -44,11 +47,12 @@ const SLAM = {
     scale: 2.5,
     range: 150,
     damage: 0.20,
-    groundPinMs: 1000,
-    airPinMs: 2000,
+    groundPinMs: 500,
+    airPinMs: 1000,
     crashSpeed: 2200,
     crashTimeoutMs: 1500,
-    recoveryMs: 350
+    recoveryMs: 350,
+    hop: { x: 350, y: 380 }
 };
 
 function placeScythe(scythe, player, angle, facing) {
@@ -59,13 +63,19 @@ function placeScythe(scythe, player, angle, facing) {
     scythe.setRotation(angle * facing);
 }
 
-function fadeScythe(scene, scythe) {
+function fadeScythe(scene, scythe, follow = null) {
     if (!scythe.active) return;
+    const removeFollow = follow ? addSceneUpdateListener(scene, () => {
+        if (scythe.active) follow();
+    }) : () => {};
     scene.tweens.add({
         targets: scythe,
         alpha: 0,
         duration: 250,
-        onComplete: () => scythe.destroy()
+        onComplete: () => {
+            removeFollow();
+            scythe.destroy();
+        }
     });
 }
 
@@ -85,39 +95,57 @@ function tryGruelingSlam(api, scene, player, target, direction, currentTime) {
             .setScale(SLAM.scale)
             .setFlipX(facing > 0)
             .setDepth(player.depth + 1);
+
+        api.applySkin(scythe, player.skin);
         scene.objs.add(scythe);
         placeScythe(scythe, player, 0, facing);
         scene.sound.play('scytheslam');
 
-        const swing = { t: 0 };
+        const swing = { angle: 0 };
+        let cancelled = false;
+        const tweens = [];
         const removeFollow = api.addSceneUpdateListener(scene, () => {
-            if (scythe.active) placeScythe(scythe, player, swing.t * SLAM.sweep, facing);
+            if (!scythe.active || cancelled) return;
+            if (player.hitstun || !player.active) {
+                cancelled = true;
+                tweens.forEach(tween => tween.remove());
+                removeFollow();
+                fadeScythe(scene, scythe, () => placeScythe(scythe, player, swing.angle, facing));
+                player.canAttack = true;
+                player.isUsingSideSpecial = false;
+                return;
+            }
+            placeScythe(scythe, player, swing.angle, facing);
         });
-        scene.tweens.add({
+        tweens.push(scene.tweens.add({
             targets: swing,
-            t: 1,
+            angle: SLAM.sweep,
             duration: SLAM.swingMs,
             ease: 'Cubic.easeIn',
             onComplete: () => {
+                if (cancelled) return;
                 removeFollow();
                 placeScythe(scythe, player, SLAM.sweep, facing);
                 landGruelingSlam(api, scene, player, target, scythe, facing);
+                if (player.active && !player.hitstun) player.setVelocity(facing * SLAM.hop.x, -SLAM.hop.y);
                 scene.time.delayedCall(SLAM.recoveryMs, () => {
                     player.canAttack = true;
                     player.isUsingSideSpecial = false;
                 });
             }
-        });
+        }));
     }
     player.lastTap[direction] = currentTime;
 }
 
-function landGruelingSlam(api, scene, player, target, scythe, facing) {
+function landGruelingSlam(api, scene, player, target, scythe, facing, options = {}) {
     const targetGrounded = isGrounded(target);
     const hit = api.strike(scene, player, target, {
-        range: SLAM.range,
-        bypass: { ignoreCanAttack: true, ignoreAttackerStun: true, allowTargetBelow: true },
-        damage: SLAM.damage,
+        special: true,
+        range: options.range ?? SLAM.range,
+        bypass: { ignoreCanAttack: true, ignoreAttackerStun: true, allowTargetBelow: true, ...options.bypass },
+        ...(options.direction ? { direction: options.direction } : {}),
+        damage: options.damage ?? SLAM.damage * SIDE_SPECIAL_POWER,
         plankDamage: 0.15,
         hitstun: targetGrounded ? SLAM.groundPinMs : SLAM.airPinMs + SLAM.crashTimeoutMs,
         hitstunGrowth: false,
@@ -131,7 +159,7 @@ function landGruelingSlam(api, scene, player, target, scythe, facing) {
         missSound: 'miss'
     });
     if (!hit) {
-        fadeScythe(scene, scythe);
+        fadeScythe(scene, scythe, () => placeScythe(scythe, player, SLAM.sweep, facing));
         return;
     }
     if (targetGrounded) slamImpact(scene, target);
@@ -142,6 +170,194 @@ function landGruelingSlam(api, scene, player, target, scythe, facing) {
             if (scythe.active) scythe.setPosition(target.x - facing * 15, target.y - 20);
         },
         onEnd: () => fadeScythe(scene, scythe)
+    });
+}
+
+const UP_REAP = {
+    windupMs: 380,
+    windupFrom: -150 * Math.PI / 180,
+    windupTo: -105 * Math.PI / 180,
+    swingTo: 70 * Math.PI / 180,
+    swingMs: 130,
+    range: 180,
+    minDot: 0.2,
+    damage: 0.15,
+    recoveryMs: 350
+};
+
+function tryUpReap(api, scene, player, target, currentTime) {
+    if (player.hitstun || player.freeze || currentTime < player.nextSideSpecialTime) return;
+    const facing = player.lastDir.x || player.facingX || 1;
+    player.lastDir = { x: facing, y: 0 };
+    player.isUsingSideSpecial = true;
+    player.canAttack = false;
+    api.startSideSpecialCooldown(player, currentTime, player.dirSpecialCooldown);
+
+    const scythe = scene.add.image(player.x, player.y, 'whitescythe')
+        .setScale(SLAM.scale)
+        .setFlipX(facing > 0)
+        .setDepth(player.depth + 1);
+
+    api.applySkin(scythe, player.skin);
+    scene.objs.add(scythe);
+    const swing = { angle: UP_REAP.windupFrom };
+    placeScythe(scythe, player, swing.angle, facing);
+    scene.sound.play('slice');
+
+    let cancelled = false;
+    const tweens = [];
+    const release = () => {
+        player.canAttack = true;
+        player.isUsingSideSpecial = false;
+    };
+    const removeFollow = api.addSceneUpdateListener(scene, () => {
+        if (!scythe.active || cancelled) return;
+        if (player.hitstun || !player.active) {
+            cancelled = true;
+            tweens.forEach(tween => tween.remove());
+            removeFollow();
+            fadeScythe(scene, scythe, () => placeScythe(scythe, player, swing.angle, facing));
+            release();
+            return;
+        }
+        placeScythe(scythe, player, swing.angle, facing);
+    });
+    tweens.push(scene.tweens.chain({
+        targets: swing,
+        tweens: [
+            { angle: UP_REAP.windupTo, duration: UP_REAP.windupMs, ease: 'Sine.easeOut' },
+            {
+                angle: UP_REAP.swingTo,
+                duration: UP_REAP.swingMs,
+                ease: 'Cubic.easeIn',
+                onStart: () => scene.sound.play('scytheslam'),
+                onComplete: () => {
+                    if (cancelled) return;
+                    removeFollow();
+                    placeScythe(scythe, player, UP_REAP.swingTo, facing);
+                    landGruelingSlam(api, scene, player, target, scythe, facing, {
+                        range: UP_REAP.range,
+                        damage: UP_REAP.damage,
+                        direction: { x: 0, y: -1 },
+                        bypass: { allowTargetBelow: false, direction: { x: 0, y: -1 }, minDot: UP_REAP.minDot }
+                    });
+                    scene.time.delayedCall(UP_REAP.recoveryMs, release);
+                }
+            }
+        ]
+    }));
+}
+
+const WHIRL_DROP = {
+    fallSpeed: 1300,
+    keepX: 0.3,
+    spinPerMs: 1.6 * Math.PI / 100,
+    reach: { x: 90, below: 130, above: 20 },
+    damage: 0.15,
+    bounce: 380,
+    maxMs: 1500,
+    endLockMs: 200,
+    sound: 'whirlingloop',
+    soundRate: 0.75
+};
+
+function canPlaySound(scene, key) {
+    return Boolean(scene.game.config.audio?.noAudio || scene.cache.audio.exists(key));
+}
+
+function tryWhirlDrop(api, scene, player, currentTime) {
+    if (player.hitstun || player.freeze || player.whirlDropping || isGrounded(player)) return;
+    if (currentTime < player.nextSideSpecialTime) return;
+    api.startSideSpecialCooldown(player, currentTime, player.dirSpecialCooldown);
+    const facing = player.lastDir.x || player.facingX || 1;
+    player.lastDir = { x: facing, y: 0 };
+    player.whirlDropping = true;
+    player.isUsingSideSpecial = true;
+    player.canAttack = false;
+    player.afterimage = true;
+
+    const scythe = scene.add.image(player.x, player.y, 'whitescythe')
+        .setScale(SLAM.scale)
+        .setFlipX(facing > 0)
+        .setDepth(player.depth + 1);
+
+    api.applySkin(scythe, player.skin);
+    scene.objs.add(scythe);
+    const startedAt = scene.time.now;
+    const whirl = canPlaySound(scene, WHIRL_DROP.sound)
+        ? scene.sound.add(WHIRL_DROP.sound, { loop: true, rate: WHIRL_DROP.soundRate })
+        : null;
+    whirl?.play();
+    scene.sound.play('whoosh');
+
+    let ended = false;
+    const end = () => {
+        if (ended) return;
+        ended = true;
+        removeUpdate();
+        whirl?.stop();
+        whirl?.destroy();
+        player.whirlDropping = false;
+        player.afterimage = false;
+        player.isUsingSideSpecial = false;
+        scene.time.delayedCall(WHIRL_DROP.endLockMs, () => { player.canAttack = true; });
+    };
+    const landOn = foe => {
+        const foeGrounded = isGrounded(foe);
+        const hit = api.landHit(scene, player, foe, {
+            special: true,
+            damage: WHIRL_DROP.damage,
+            plankDamage: 0,
+            hitstun: foeGrounded ? SLAM.groundPinMs : SLAM.airPinMs + SLAM.crashTimeoutMs,
+            hitstunGrowth: false,
+            hitFreeze: 90,
+            sound: 'slamimpact',
+            noDeathRay: true,
+            resetCombo: false,
+            direction: { x: 0, y: 1 },
+            knockback: () => ({ x: 0, y: foeGrounded ? 0 : SLAM.crashSpeed }),
+            decelerateAfter: 50,
+            onHit: () => foe.flash()
+        });
+        if (!hit) return false;
+        if (foeGrounded) slamImpact(scene, foe);
+        placeScythe(scythe, player, Math.PI, facing);
+        pinTarget(scene, player, foe, {
+            ...SLAM,
+            grounded: foeGrounded,
+            onFrame: () => {
+                if (scythe.active) scythe.setPosition(foe.x - facing * 15, foe.y - 20);
+            },
+            onEnd: () => fadeScythe(scene, scythe)
+        });
+        player.setVelocity(player.body.velocity.x, -WHIRL_DROP.bounce);
+        return true;
+    };
+    const removeUpdate = api.addSceneUpdateListener(scene, () => {
+        const now = scene.time.now;
+        if (!player.active || player.hitstun || now - startedAt > WHIRL_DROP.maxMs) {
+            fadeScythe(scene, scythe);
+            end();
+            return;
+        }
+        player.setVelocity(player.body.velocity.x * WHIRL_DROP.keepX, WHIRL_DROP.fallSpeed);
+        placeScythe(scythe, player, (now - startedAt) * WHIRL_DROP.spinPerMs, facing);
+        for (const foe of api.getEnemies(scene, player)) {
+            if (!foe.active || api.isInvincible(foe)) continue;
+            const dx = Math.abs(foe.x - player.x);
+            const dy = foe.y - player.y;
+            if (dx > WHIRL_DROP.reach.x || dy > WHIRL_DROP.reach.below || dy < -WHIRL_DROP.reach.above) continue;
+            if (landOn(foe)) {
+                end();
+                return;
+            }
+        }
+        if (isGrounded(player)) {
+            slamImpact(scene, player);
+            scene.sound.play('slamimpact');
+            fadeScythe(scene, scythe);
+            end();
+        }
     });
 }
 
@@ -260,7 +476,7 @@ function tryMowLegacy(api, scene, player, target, direction, currentTime) {
         api.overlapEnemies(scene, fakescythe, player, target => {
             if (player.hasHitSideSpecial) return;
             if (!canhit || api.isInvincible(target)) return;
-            if (api.blocksHit(scene, target, player, 0.08, { ranged: true })) {
+            if (api.blocksHit(scene, target, player, 0.08, { ranged: true, special: true })) {
                 player.hasHitSideSpecial = true;
                 return;
             }
@@ -424,9 +640,8 @@ const MOWER = {
     rideRunSpeed: 1.2,
     boost: 1.4,
     boostMs: 400,
-    remountMs: 1500,
-    looseSpeed: 500,
-    looseMs: 600,
+    wreckRemountMs: 1000,
+    wreckSelfDamage: 0.08,
     ejectKbScale: 1.5,
     ejectDamage: 0.4,
     ejectShieldCost: 0.45,
@@ -537,6 +752,7 @@ function setupMower(scene, player) {
         .setScale(MOWER.scale)
         .setDepth(player.depth + 1)
         .setVisible(false);
+    applySkin(player.mower, player.skin);
     scene.objs.add(player.mower);
     const dirt = angle => {
         const emitter = scene.add.particles(0, 0, '__WHITE', { ...DIRT, angle });
@@ -623,7 +839,7 @@ function startPlow(api, scene, player, victim) {
     player.plowEvent = scene.time.addEvent({
         delay: MOWER.plowTickMs,
         loop: true,
-        callback: () => plowTick(api, scene, player, victim)
+        callback: () => plowTick(api, scene, player, api.nearestEnemy(scene, player) ?? victim)
     });
 }
 
@@ -718,17 +934,20 @@ function stopRide(player, nextState = 'ready', { quiet = false } = {}) {
     player.noGrassTrail = false;
     player.renderLiftY = 0;
     player.mowerBoostUntil = 0;
-    player.mower.stop().setVisible(false);
+    player.mower.stop().setVisible(false).setRotation(0);
     stopEngine(player, { quiet });
     player.mowerState = nextState;
 }
 
-function knockOffMower(api, scene, player, victim) {
-    const direction = Math.sign(player.body.velocity.x) || facingOf(player);
-    stopRide(player, 'dismounted');
+function wreckMower(api, scene, player) {
+    stopRide(player, 'dismounted', { quiet: true });
     player.clippings = 0;
-    player.mowerRemountAt = scene.time.now + (player.noAbilityCooldown ? MIN_ABILITY_COOLDOWN_MS : MOWER.remountMs);
-    spawnLooseMower(api, scene, player, victim, direction);
+    player.mowerRemountAt = scene.time.now + (player.noAbilityCooldown ? MIN_ABILITY_COOLDOWN_MS : MOWER.wreckRemountMs);
+    if (!player.active) return;
+    api.spawnExplosion(scene, { x: player.x, y: player.body.bottom - 20 }, 0.7);
+    scene.sound.play('explosion');
+    player.flash();
+    player.KBmultiplier += MOWER.wreckSelfDamage;
 }
 
 function addMowerBody(scene, player, x, texture) {
@@ -737,51 +956,9 @@ function addMowerBody(scene, player, x, texture) {
         .setScale(MOWER.scale)
         .setDepth(player.depth + 1);
     mower.body.setSize(MOWER.body.width, MOWER.body.height).setOffset(MOWER.body.offsetX, MOWER.body.offsetY);
+    applySkin(mower, player.skin);
     scene.objs.add(mower);
-    const landsFromAbove = (_mower, platform) =>
-        mower.body.velocity.y >= 0 && mower.body.prev.y + mower.body.height <= platform.body.top + 8;
-    const solid = scene.gameState.map.platforms;
-    const thin = scene.gameState.map.topPlatforms;
-    return { mower, solid, thin, landsFromAbove };
-}
-
-function spawnLooseMower(api, scene, player, victim, direction) {
-    const { mower, solid, thin, landsFromAbove } = addMowerBody(scene, player, player.x, 'lawnmower-only');
-    mower.setFlipX(direction < 0);
-    mower.setVelocity(direction * MOWER.looseSpeed, 0);
-    let hit = false;
-    const colliders = [
-        scene.physics.add.collider(mower, solid),
-        scene.physics.add.collider(mower, thin, null, landsFromAbove),
-        ...api.overlapEnemies(scene, mower, player, victim => {
-            if (hit || api.isInvincible(victim)) return;
-            hit = true;
-            victim.flash();
-            api.landHit(scene, player, victim, {
-                direction: { x: direction, y: 0 },
-                damage: 0.03,
-                plankDamage: 0,
-                hitstun: 300,
-                hitstunGrowth: false,
-                sound: 'anyhit',
-                ranged: true,
-                knockback: { x: 300, y: 200, growth: false, scaleWithDamage: false },
-                decelerateAfter: 300,
-                resetCombo: false,
-                noDeathRay: true
-            });
-        })
-    ];
-    scene.tweens.add({
-        targets: mower,
-        alpha: 0,
-        delay: MOWER.looseMs * 0.6,
-        duration: MOWER.looseMs * 0.4,
-        onComplete: () => {
-            colliders.forEach(collider => collider.destroy());
-            mower.destroy();
-        }
-    });
+    return { mower, solid: scene.gameState.map.platforms };
 }
 
 function eject(api, scene, player, victim, direction) {
@@ -828,10 +1005,11 @@ function eject(api, scene, player, victim, direction) {
         if (caught.length) {
             for (const enemy of caught) {
                 grindExplosion(api, scene, owner, enemy, {
+                    special: true,
                     ...PLOW_EXPLOSION,
-                    damage: MOWER.ejectDamage * damageScale,
+                    damage: MOWER.ejectDamage * damageScale * SIDE_SPECIAL_POWER,
                     shieldCost: MOWER.ejectShieldCost,
-                    force: PLOW_EXPLOSION.force * MOWER.ejectKbScale,
+                    force: PLOW_EXPLOSION.force * MOWER.ejectKbScale * SIDE_SPECIAL_POWER,
                     ranged: true,
                     explosionScale: 0.9,
                     direction: { x: Math.sign(enemy.x - mower.x) || direction, y: 0 }
@@ -921,6 +1099,7 @@ function lawnmowerAttack(api, scene, player, victim) {
     if (player.hitstun || player.freeze) return;
     switch (player.mowerState) {
         case 'ride':
+        case 'launch':
             return;
         case 'cord':
         case 'dismounted':
@@ -950,7 +1129,282 @@ function lawnmowerDirSpecial(api, scene, player, direction, currentTime, victim)
     player.lastTap[direction] = currentTime;
     if (!doubleTap || player.hitstun || player.freeze) return;
     if (!['ready', 'ride', 'plow'].includes(player.mowerState)) return;
+    if (direction === 'up') return tryMowerLaunch(api, scene, player, victim, currentTime);
+    if (direction === 'down') return tryCrashRide(api, scene, player, victim, currentTime);
     eject(api, scene, player, victim, direction === 'left' ? -1 : 1);
+}
+
+const MOWER_LAUNCH = {
+    chargeMs: 500,
+    tilt: Math.PI / 4,
+    rate: { from: 0.8, to: 2.4 },
+    speed: 1500,
+    fastMs: 320,
+    curveMs: 450,
+    curveFallSpeed: 180,
+    curveSpeedScale: 0.2,
+    hitRange: 100,
+    minDot: 0.3,
+    hit: {
+        damage: 0.18,
+        plankDamage: 0,
+        hitstun: 500,
+        hitFreeze: 120,
+        sound: 'slamimpact',
+        knockback: { x: 950, y: 950 },
+        decelerateAfter: target => 500 * target.KBmultiplier,
+        resetCombo: false
+    },
+    dirtFrequency: { from: 25, to: 250 },
+    sparkFrequency: { from: 120, to: 8 },
+    sparks: {
+        speed: { min: 180, max: 420 },
+        gravityY: 500,
+        scale: { start: 1.3, end: 0.2 },
+        alpha: { start: 1, end: 0 },
+        tint: [0xffd700, 0xffc400, 0xfff08a],
+        lifespan: 380,
+        quantity: 2,
+        emitting: false
+    }
+};
+
+function mowerLaunchEmitters(scene, facing) {
+    const back = facing > 0 ? { min: 170, max: 250 } : { min: 290, max: 370 };
+    const wide = facing > 0 ? { min: 130, max: 290 } : { min: 250, max: 410 };
+    const dirt = scene.add.particles(0, 0, '__WHITE', { ...DIRT, angle: back });
+    const sparks = scene.add.particles(0, 0, '__WHITE', { ...MOWER_LAUNCH.sparks, angle: wide });
+    scene.objs.add(dirt);
+    scene.objs.add(sparks);
+    return { dirt, sparks };
+}
+
+function tryMowerLaunch(api, scene, player, victim, currentTime) {
+    if (player.hitstun || player.freeze || player.mowerLaunching) return;
+    if (currentTime < player.nextSideSpecialTime) return;
+    api.startSideSpecialCooldown(player, currentTime, player.dirSpecialCooldown);
+    if (player.mowerState === 'ride') stopRide(player, 'ready', { quiet: true });
+    if (player.mowerState === 'plow') stopPlow(scene, player);
+    const facing = facingOf(player);
+    player.lastDir = { x: facing, y: 0 };
+    player.mowerState = 'launch';
+    player.mowerLaunching = true;
+    player.isUsingSideSpecial = true;
+    player.canAttack = false;
+    showHeldMower(player);
+    const engine = scene.sound.add('lawnmower-loop', { volume: MOWER.engineVolume, loop: true, rate: MOWER_LAUNCH.rate.from });
+    engine.play();
+    const { dirt, sparks } = mowerLaunchEmitters(scene, facing);
+    dirt.setFrequency(MOWER_LAUNCH.dirtFrequency.from);
+    sparks.setFrequency(MOWER_LAUNCH.sparkFrequency.from, MOWER_LAUNCH.sparks.quantity);
+    dirt.start();
+    sparks.start();
+    const aim = { x: facing * Math.cos(MOWER_LAUNCH.tilt), y: -Math.sin(MOWER_LAUNCH.tilt) };
+    const startedAt = scene.time.now;
+    let phase = 'charge';
+    let dashStartedAt = 0;
+    let landed = false;
+
+    const stopEffects = () => {
+        engine.stop();
+        engine.destroy();
+        dirt.stop();
+        sparks.stop();
+        scene.time.delayedCall(MOWER_LAUNCH.sparks.lifespan, () => {
+            dirt.destroy();
+            sparks.destroy();
+        });
+    };
+    const finish = () => {
+        removeUpdate();
+        player.mower.setRotation(0);
+        player.mowerLaunching = false;
+        player.isUsingSideSpecial = false;
+        player.afterimage = false;
+        player.canAttack = true;
+        player.body.setAllowGravity(true);
+    };
+    const abortCharge = () => {
+        stopEffects();
+        player.mowerState = 'ready';
+        finish();
+    };
+    const launch = () => {
+        phase = 'dash';
+        dashStartedAt = scene.time.now;
+        stopEffects();
+        const mowerAt = { x: player.mower.x, y: player.mower.y };
+        startCord(scene, player, { quiet: true });
+        player.mower.setRotation(0);
+        api.spawnExplosion(scene, mowerAt, 0.9);
+        api.triggerScreenShake(scene, 6, 200);
+        scene.sound.play('explosion');
+        player.afterimage = true;
+        player.body.setAllowGravity(false);
+        api.startDashTrail(player, MOWER_LAUNCH.fastMs);
+    };
+    const removeUpdate = api.addSceneUpdateListener(scene, () => {
+        const now = scene.time.now;
+        if (!player.active || player.hitstun) {
+            if (phase === 'charge') abortCharge();
+            else finish();
+            return;
+        }
+        if (phase === 'charge') {
+            const t = Math.min(1, (now - startedAt) / MOWER_LAUNCH.chargeMs);
+            player.mower.setRotation(-facing * MOWER_LAUNCH.tilt * Math.min(1, t * 2));
+            player.mower.setOrigin(facing > 0 ? MOWER.heldArm.x : 1 - MOWER.heldArm.x, MOWER.heldArm.y)
+                .setPosition(player.x + facing * MOWER.heldOffset.x, player.y + MOWER.heldOffset.y)
+                .setFlipX(facing < 0);
+            const backX = player.x - facing * 10;
+            const backY = player.body.bottom - 10;
+            dirt.setPosition(backX, backY);
+            sparks.setPosition(backX, backY);
+            const lerp = (from, to) => Math.round(from + (to - from) * t);
+            dirt.setFrequency(lerp(MOWER_LAUNCH.dirtFrequency.from, MOWER_LAUNCH.dirtFrequency.to));
+            sparks.setFrequency(lerp(MOWER_LAUNCH.sparkFrequency.from, MOWER_LAUNCH.sparkFrequency.to), MOWER_LAUNCH.sparks.quantity);
+            engine.setRate(MOWER_LAUNCH.rate.from + (MOWER_LAUNCH.rate.to - MOWER_LAUNCH.rate.from) * t);
+            player.setVelocity(0, Math.min(player.body.velocity.y, 0));
+            if (t >= 1) launch();
+            return;
+        }
+        const elapsed = now - dashStartedAt;
+        if (elapsed < MOWER_LAUNCH.fastMs && !landed) {
+            player.setVelocity(aim.x * MOWER_LAUNCH.speed, aim.y * MOWER_LAUNCH.speed);
+            const bypass = { ignoreCanAttack: true, direction: aim, minDot: MOWER_LAUNCH.minDot };
+            const foe = api.getEnemies(scene, player).find(enemy =>
+                api.attackIsElligible(player, enemy, MOWER_LAUNCH.hitRange, { ...bypass, silent: true }));
+            if (foe && api.strike(scene, player, foe, { special: true, ...MOWER_LAUNCH.hit, range: MOWER_LAUNCH.hitRange, bypass, direction: aim, singleTarget: true })) {
+                landed = true;
+                dashStartedAt = now - MOWER_LAUNCH.fastMs;
+                api.clearQueuedStunTimers(scene, player, foe);
+            }
+            return;
+        }
+        const curve = Math.min(1, (elapsed - MOWER_LAUNCH.fastMs) / MOWER_LAUNCH.curveMs);
+        const eased = 1 - (1 - curve) * (1 - curve);
+        const speedScale = 1 - (1 - MOWER_LAUNCH.curveSpeedScale) * eased;
+        const rise = 1 - eased;
+        player.setVelocity(
+            aim.x * MOWER_LAUNCH.speed * speedScale,
+            aim.y * MOWER_LAUNCH.speed * speedScale * rise + MOWER_LAUNCH.curveFallSpeed * curve * curve
+        );
+        if (curve >= 1) finish();
+    });
+}
+
+const CRASH_RIDE = {
+    fallSpeed: 1100,
+    keepX: 0.4,
+    reach: { x: 80, below: 110, above: 10 },
+    grindRange: 130,
+    grindMs: 450,
+    tickMs: 50,
+    chipDamage: 0.012,
+    jitter: 8,
+    maxFallMs: 1500,
+    bounce: 350,
+    sideOffset: 38,
+    dropY: 10,
+    rebound: { x: 320, y: 380 },
+    explosion: { ...PLOW_EXPLOSION, damage: 0.2, force: 500 }
+};
+
+function tryCrashRide(api, scene, player, victim, currentTime) {
+    if (player.hitstun || player.freeze || player.crashRiding || isGrounded(player)) return;
+    if (currentTime < player.nextSideSpecialTime) return;
+    api.startSideSpecialCooldown(player, currentTime, player.dirSpecialCooldown);
+    if (player.mowerState === 'plow') stopPlow(scene, player);
+    if (player.mowerState !== 'ride') startRide(scene, player);
+    player.crashRiding = true;
+    player.noSpeedStretch = true;
+    if (player.squash) player.squash.motion = 0;
+    player.renderLiftY = 0;
+    player.isUsingSideSpecial = true;
+    player.afterimage = true;
+    scene.sound.play('whoosh');
+    const startedAt = scene.time.now;
+    let grind = null;
+
+    const finish = () => {
+        removeUpdate();
+        setGrindFloat(scene, player, false);
+        player.body.setAllowGravity(true);
+        player.crashRiding = false;
+        player.noSpeedStretch = false;
+        player.mower.setRotation(0);
+        if (player.mowerState === 'ride') player.renderLiftY = MOWER.rideLift;
+        player.isUsingSideSpecial = false;
+        player.afterimage = false;
+    };
+    const explodeOn = foe => {
+        grindExplosion(api, scene, player, foe, {
+            special: true,
+            ...CRASH_RIDE.explosion,
+            direction: { x: Math.sign(foe.x - player.x) || facingOf(player), y: 0 }
+        });
+        stopRide(player, 'ready', { quiet: true });
+        startCord(scene, player);
+        player.setVelocity(player.body.velocity.x, -CRASH_RIDE.bounce);
+        finish();
+    };
+    const findFoeBelow = () => api.getEnemies(scene, player).find(foe => {
+        if (!foe.active || api.isInvincible(foe)) return false;
+        const dy = foe.y - player.y;
+        return Math.abs(foe.x - player.x) <= CRASH_RIDE.reach.x && dy <= CRASH_RIDE.reach.below && dy >= -CRASH_RIDE.reach.above;
+    });
+    const removeUpdate = api.addSceneUpdateListener(scene, () => {
+        const now = scene.time.now;
+        if (!player.active || player.hitstun || player.mowerState !== 'ride') {
+            finish();
+            return;
+        }
+        if (grind) {
+            player.setVelocity(0, 0);
+            if (now < grind.nextTickAt) return;
+            grind.nextTickAt = now + CRASH_RIDE.tickMs;
+            const contact = grindTick(api, scene, player, grind.foe, grind.lastContactAt, {
+                special: true,
+                range: CRASH_RIDE.grindRange,
+                chipDamage: CRASH_RIDE.chipDamage,
+                hitstun: CRASH_RIDE.tickMs * 3,
+                freeze: CRASH_RIDE.tickMs * 2,
+                eligibility: { allowTargetBelow: true, ignoreFacing: true }
+            });
+            if (contact === null) {
+                grind = null;
+                player.body.setAllowGravity(true);
+                setGrindFloat(scene, player, false);
+                return;
+            }
+            grind.lastContactAt = now;
+            jitterVictim(grind.foe, CRASH_RIDE.jitter, CRASH_RIDE.tickMs * 2);
+            if (now - grind.startedAt >= CRASH_RIDE.grindMs) explodeOn(grind.foe);
+            return;
+        }
+        const foe = findFoeBelow();
+        if (foe) {
+            grind = { foe, startedAt: now, nextTickAt: now, lastContactAt: 0 };
+            player.body.setAllowGravity(false);
+            player.setVelocity(0, 0);
+            scene.sound.play('slamimpact');
+            return;
+        }
+        if (isGrounded(player)) {
+            const facing = facingOf(player);
+            api.spawnDirtBurst(scene, player.x - facing * CRASH_RIDE.sideOffset, player.body.bottom, 10, 4, 7, 1.2);
+            scene.sound.play('swosh');
+            stopRide(player, 'ready', { quiet: true });
+            player.setVelocity(-facing * CRASH_RIDE.rebound.x, -CRASH_RIDE.rebound.y);
+            finish();
+            return;
+        }
+        if (now - startedAt > CRASH_RIDE.maxFallMs) {
+            finish();
+            return;
+        }
+        player.setVelocity(player.body.velocity.x * CRASH_RIDE.keepX, CRASH_RIDE.fallSpeed);
+    });
 }
 
 function lawnmowerClippings(api, scene, player, victim) {
@@ -990,6 +1444,7 @@ function throwClipping(api, scene, player, victim, dirX, dirY) {
             if (api.isInvincible(victim)) return;
             victim.flash();
             api.landHit(scene, player, victim, {
+                special: true,
                 damage: CLIPPINGS.damage,
                 plankDamage: 0,
                 shieldCost: 0,
@@ -1024,7 +1479,13 @@ function updateMowerDirt(player, facing, active) {
 function holdClippings(api, scene, player, victim) {
     if (player.isBot || player.blocking || player.ledge) return;
     const input = scene.playerInputs?.[player.slot];
-    if (!input?.special || input.left || input.right) return;
+    const heldDirection = input?.special ? (input.up ? 'up' : input.down ? 'down' : null) : null;
+    if (heldDirection && heldDirection !== player.mowerHeldSpecialDirection) {
+        player.lastTap[heldDirection] = scene.time.now - 1;
+        lawnmowerDirSpecial(api, scene, player, heldDirection, scene.time.now, victim);
+    }
+    player.mowerHeldSpecialDirection = heldDirection;
+    if (!input?.special || input.left || input.right || heldDirection) return;
     lawnmowerClippings(api, scene, player, victim);
 }
 
@@ -1033,7 +1494,6 @@ function updateLawnmower(api, scene, player, victim) {
     updateResistanceShield(scene, player, 'timeclock');
     setupMower(scene, player);
     player.mowerApi = api;
-    if (player.body.touching.down || player.body.blocked.down) player.sacrificeJumpUsed = false;
     holdClippings(api, scene, player, victim);
     const now = scene.time.now;
     const facing = facingOf(player);
@@ -1045,7 +1505,7 @@ function updateLawnmower(api, scene, player, victim) {
 
     if (player.mowerState === 'ride') {
         if (player.hitstun || player.freeze || !player.active) {
-            knockOffMower(api, scene, player, victim);
+            wreckMower(api, scene, player);
             updateMowerDirt(player, facing, false);
             return;
         }
@@ -1054,10 +1514,19 @@ function updateLawnmower(api, scene, player, victim) {
         const running = boost > 1 ||
             Math.abs(player.body.velocity.x) > player.baseMovementSpeed * MOWER.rideRunSpeed;
         showRideMower(player, running);
-        player.mower.setOrigin(0.5, 73 / 75)
-            .setPosition(player.x, player.body.bottom + MOWER.rideMowerDrop)
-            .setDepth(player.depth + 1)
-            .setFlipX(facing < 0);
+        if (player.crashRiding) {
+            player.mower.setOrigin(0.5, 0.5)
+                .setRotation(facing * Math.PI / 2)
+                .setPosition(player.x - facing * CRASH_RIDE.sideOffset, player.y + CRASH_RIDE.dropY)
+                .setDepth(player.depth + 1)
+                .setFlipX(facing < 0);
+        } else {
+            player.mower.setOrigin(0.5, 73 / 75)
+                .setRotation(0)
+                .setPosition(player.x, player.body.bottom + MOWER.rideMowerDrop)
+                .setDepth(player.depth + 1)
+                .setFlipX(facing < 0);
+        }
         api.cutNearbyGrass(scene, player.x, player.y, MOWER.rideCutRange, player);
         ridePush(api, scene, player, victim);
     } else if (player.mowerState === 'plow' || player.mowerState === 'ready') {
@@ -1100,13 +1569,14 @@ function lawnmowerMeter(scene, player) {
     if (player.mowerState === 'dismounted') {
         const remaining = Math.max(0, player.mowerRemountAt - now);
         return {
-            progress: 1 - remaining / MOWER.remountMs,
+            progress: 1 - remaining / MOWER.wreckRemountMs,
             color: 0x777777,
             text: `REMOUNTING  ${clips}`,
             textColor: '#bbbbbb'
         };
     }
-    const label = player.mowerState === 'ride' ? 'RIDING' : player.mowerState === 'plow' ? 'PLOWING' : 'MOWER READY';
+    const label = player.mowerState === 'ride' ? 'RIDING' : player.mowerState === 'plow' ? 'PLOWING'
+        : player.mowerState === 'launch' ? 'LAUNCHING' : 'MOWER READY';
     return { progress: 1, color: MOWER.meterColor, text: `${label}  ${clips}`, textColor: '#ffffff' };
 }
 
@@ -1118,81 +1588,6 @@ function silenceLawnmower(scene, player) {
     player.mowerEndSFX.stop();
     for (const engine of player.ejectEngines ?? []) engine.stop();
     updateMowerDirt(player, facingOf(player), false);
-}
-
-const SACRIFICE = {
-    jumpSpeed: 400,
-    dropSpeed: 250,
-    splashRange: 110,
-    lifetimeMs: 4000
-};
-
-function canSacrificeMower(player) {
-    return isMower(player) && player.mower &&
-        ['ready', 'plow', 'ride'].includes(player.mowerState) &&
-        player.hasDoubleJumped && !player.doubleJumpClipped && !player.sacrificeJumpUsed &&
-        !player.body.touching.down && !player.body.blocked.down;
-}
-
-function sacrificeJump(scene, player, victim) {
-    if (!canSacrificeMower(player)) return false;
-    if (player.mowerState === 'ride') stopRide(player, 'ready', { quiet: true });
-    if (player.mowerState === 'plow') stopPlow(scene, player);
-    startCord(scene, player, { quiet: true });
-    player.sacrificeJumpUsed = true;
-    player.setVelocityY(-SACRIFICE.jumpSpeed);
-    player.doubleJumpEffect?.setAlpha(1);
-    scene.tweens.add({ targets: player.doubleJumpEffect, alpha: 0, duration: 200, ease: 'Cubic.easeOut' });
-    scene.sound.play('whoosh');
-    dropMower(scene, player, victim);
-    return true;
-}
-
-function dropMower(scene, player, victim) {
-    const api = player.mowerApi;
-    const { mower, solid, thin, landsFromAbove } = addMowerBody(scene, player, player.x, 'lawnmower-only');
-    mower.setFlipX(facingOf(player) < 0);
-    mower.setVelocity(player.body.velocity.x * 0.3, SACRIFICE.dropSpeed);
-    let exploded = false;
-    const colliders = [];
-    const explode = () => {
-        if (exploded || !mower.active) return;
-        exploded = true;
-        colliders.forEach(collider => collider.destroy());
-        removeUpdate();
-        expire.remove(false);
-        const caught = api.getEnemies(scene, player).filter(enemy => !api.isInvincible(enemy) &&
-            Phaser.Math.Distance.Between(mower.x, mower.y, enemy.x, enemy.y) <= SACRIFICE.splashRange);
-        if (caught.length) {
-            for (const enemy of caught) {
-                grindExplosion(api, scene, player, enemy, {
-                    ...PLOW_EXPLOSION,
-                    ranged: true,
-                    direction: { x: Math.sign(enemy.x - mower.x) || facingOf(player), y: 0 }
-                });
-            }
-        } else {
-            api.spawnExplosion(scene, mower, 0.9);
-            scene.sound.play('explosion');
-        }
-        mower.destroy();
-    };
-    colliders.push(
-        scene.physics.add.collider(mower, solid, explode),
-        scene.physics.add.collider(mower, thin, explode, landsFromAbove),
-        scene.physics.add.collider(mower, scene.planks, (_mower, plank) => {
-            if (plank.health > 0) api.damagePlank(scene, plank, plank.health);
-            explode();
-        })
-    );
-    colliders.push(...api.overlapEnemies(scene, mower, player, () => explode()));
-    const removeUpdate = api.addSceneUpdateListener(scene, () => {
-        if (!mower.active) return;
-        const bounds = scene.physics.world.bounds;
-        const out = mower.x < bounds.left || mower.x > bounds.right || mower.y > bounds.bottom;
-        if (out) explode();
-    });
-    const expire = scene.time.delayedCall(SACRIFICE.lifetimeMs, explode);
 }
 
 function forVariant(lawnmower, landscaper) {
@@ -1231,12 +1626,15 @@ export default {
     handleMisc: lawnmowerMisc,
     specialMeter: lawnmowerMeter,
     onMatchEnd: silenceLawnmower,
-    tryExtraJump: (scene, player, victim) => sacrificeJump(scene, player, victim),
-    canExtraJump: canSacrificeMower,
     handleAttack: forVariant(lawnmowerAttack, (api, scene, attacker, victim) =>
         tryAttack2(api, scene, attacker, victim, 'scytheatk', 'scytheatk')),
-    handleDirSpecial: forVariant(lawnmowerDirSpecial, (api, scene, attacker, direction, currentTime, victim) =>
-        tryGruelingSlam(api, scene, attacker, victim, direction, currentTime)),
+    upSpecialVariants: ['LANDSCAPER', 'LAWNMOWER'],
+    downSpecialVariants: ['LANDSCAPER', 'LAWNMOWER'],
+    handleDirSpecial: forVariant(lawnmowerDirSpecial, (api, scene, attacker, direction, currentTime, victim) => {
+        if (direction === 'up') return tryUpReap(api, scene, attacker, victim, currentTime);
+        if (direction === 'down') return tryWhirlDrop(api, scene, attacker, currentTime);
+        return tryGruelingSlam(api, scene, attacker, victim, direction, currentTime);
+    }),
     handleNeutralSpecial: sow,
     variantNeutralSpecials: { LANDSCAPER: sow, LAWNMOWER: lawnmowerClippings },
     update: forVariant(updateLawnmower, (api, scene, player) => updateResistanceShield(scene, player)),

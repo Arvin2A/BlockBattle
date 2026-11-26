@@ -73,8 +73,14 @@ function authorityUrl(match) {
 
 const discord = createDiscordNotifier(process.env, log);
 
+const TOURNAMENT_CODES = (process.env.BB_TOURNAMENT_CODE ?? '').split(',').map(code => code.trim()).filter(Boolean);
+log(TOURNAMENT_CODES.length
+    ? `Tournament rooms are on (${TOURNAMENT_CODES.length} code${TOURNAMENT_CODES.length === 1 ? '' : 's'} in BB_TOURNAMENT_CODE)`
+    : 'Tournament rooms are off (set BB_TOURNAMENT_CODE to a comma-separated list of codes to turn them on)');
+
 const lobby = new Lobby({
     maxMatches: MAX_MATCHES,
+    tournamentCodes: TOURNAMENT_CODES,
     log,
     discord,
     getIce: createIceProvider(process.env, log),

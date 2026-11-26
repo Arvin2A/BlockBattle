@@ -185,6 +185,12 @@ export function createGameAnimations(scene) {
         repeat: 0
     });
     create({
+        key: 'whirlwind',
+        frames: frames('whirlwind', { frames: [1, 2, 3, 4, 5, 6, 7, 0] }),
+        frameRate: 1.5 * 1000 / 67.1,
+        repeat: -1
+    });
+    create({
         key: 'sledgehammerquickslam1',
         frames: frames('sledgehammerquickslam1', { start: 0, end: 5 }),
         frameRate: 24,
@@ -230,6 +236,12 @@ export function createGameAnimations(scene) {
         key: 'slateplunge',
         frames: frames('slateplunge', { start: 0, end: 42 }),
         duration: 2000,
+        repeat: 0
+    });
+    create({
+        key: 'slateplungedash',
+        frames: frames('slateplunge', { start: 15, end: 33 }),
+        duration: 196,
         repeat: 0
     });
     create({

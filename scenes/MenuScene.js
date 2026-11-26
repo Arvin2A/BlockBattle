@@ -20,7 +20,7 @@ var navBox = null;
 var layout = []
 var selectedIndex = 0;
 var previousInput = {};
-const CHANGELOG_VERSION = "2026-11-23-3";
+const CHANGELOG_VERSION = "2026-11-26-1";
 const ONLINE_STATUS_REFRESH_MS = 10000;
 const MIN_VERSION_COLOR_BRIGHTNESS = 170;
 
@@ -101,6 +101,72 @@ export class MenuScene extends Phaser.Scene {
         this.input.topOnly = false;
 
         const changelogUpdates = [
+            {
+                name: "UP & DOWN SPECIALS",
+                date: "11/27/26",
+                entries: [
+                    {
+                        title: "TOURNAMENT ON MONDAY",
+                        body: "A BLOCK BATTLE tournament starts Monday, 11/30. If you want in, email zamanarvin@sewanhakaschools.org to sign up."
+                    },
+                    {
+                        title: "FIGHTER MASTERIES",
+                        body: "Every fighter has a mastery achievement now. As that fighter, beat every fighter and variant on HARD, then win one match against VERY HARD without losing a life. You need the fighter's other variant unlocked before it starts counting.\n Master a fighter and you unlock its gold skin for every variant. Gold bodies, gold weapons, gold everything they throw. You can turn it on or off with the GOLD button in character select."
+                    },
+                    {
+                        title: "FIGHTER INFO HIGHLIGHTS",
+                        body: "Every fighter's info is caught up with the new moves. Anything new this update shows up green and anything that changed shows up yellow, so you can spot what's different at a glance. DIR SPECIAL is called SIDE SPECIAL in there now too.\n Press I anywhere in the game to open it, menus included."
+                    },
+                    {
+                        title: "SLEDGEHAMMER WHIRLWIND",
+                        body: "SLEDGEHAMMER finally has his up special. He spins the sledgehammer around himself and shoots straight up, hitting three times on the way.\n Anyone caught by the first two hits gets dragged up with him, and the third sends them flying the way he's facing."
+                    },
+                    {
+                        title: "UP & DOWN SPECIALS",
+                        body: "Every fighter's special got split three ways. Double-tap left or right for the side special like always, or hold up or down and press special for two brand new ones.\n LONGSWORD lunges twice, DAGGER darts diagonally, LUMBERER power swings up or down, and CHAINSAW grinds people above or below him. ANGLER casts his hook up to pull himself onto platforms or down to reel people in, and TRAPPER rises on a harpoon with SPEARFISH or pins people from above with HARPOON DIVE.\n LANDSCAPER reaps over his head or whirls down onto people, and LAWNMOWER rockets himself into a headbutt or crash rides his mower onto your head. MALLET does a three-swing dash, SLEDGEHAMMER slams down or spins up in a WHIRLWIND, SLATE dashes with his dagger out, HOOKER grabs above and below, and DEMOLITIONIST pogos off his tape measure or drops into a slam."
+                    },
+                    {
+                        title: "RECOIL BLAST",
+                        body: "CRAZER's side special is RECOIL BLAST now. He holds his pistol steady while a ring closes in, then fires one huge beam behind him and the kick sends him flying the other way. Up shoots down to send him up, down shoots up to send him down.\n The gun only has 10 blasts in it. Push it past that and it blows up in his hands, he says what we're all thinking, and pulls out the minigun. MINI is back for the rest of the match, firing whichever way you press and pinning down whoever's in front of it."
+                    },
+                    {
+                        title: "SIDE SPECIALS TONED DOWN",
+                        body: "With up and down specials in, side specials were doing too much. They hit 75% as hard now, except CRAZER's. MALLET's heal and SLEDGEHAMMER's QUICKSLAM got the same cut.\n LANDSCAPER's GRUELING SLAM gives him a little hop at the end of the swing, so it works like an extra jump."
+                    },
+                    {
+                        title: "LAWNMOWER CHANGES",
+                        body: "Getting hit while riding blows LAWNMOWER's mower up under him instead of letting it roll away. It hurts him a bit, but he gets it back a second later. The triple jump that ditched the mower is gone.\n EJECT speeds up when it drives through grass, the PULL CORD wait is a little shorter, and PLOW hits softer. Holding up or down while spraying clippings fires the up or down special instead."
+                    },
+                    {
+                        title: "MORE BALANCE CHANGES",
+                        body: "CHAINSAW's saw hits softer, but its cooldown is shorter, and blocking a RAMPAGE bounces him back. Combo finishers send you further sideways and a little less high. LONGSWORD's QUICK DRAW hits harder and reaches further. SLEDGEHAMMER's QUICKSLAM follow-up happens on its own now, and TRAPPER's harpoon jabs drag him in after the target so the pin always lines up.\n CPUs got shuffled around: EASY and NORMAL stop grabbing ledges and edgeguarding, HARD does both, and VERY HARD blocks a lot more."
+                    },
+                    {
+                        title: "INVITE LINKS",
+                        body: "Online lobbies have an invite link now. Hit COPY LINK, send it to a friend, and opening it drops them right into your lobby, even a private one."
+                    },
+                    {
+                        title: "BOT MASTER IN ORDER",
+                        body: "BOT MASTER levels have to be done in order now. The CPU card tells you which level you need to finish first."
+                    },
+                    {
+                        title: "GAME STAMP",
+                        body: "The GAME screen at the end of a match slams in like a stamp, shakes the screen and has its own sound. GUNMAN's SHOTGUN got its own sound too."
+                    },
+                    {
+                        title: "NO MERCY BLIZZARD",
+                        body: "With NO MERCY on, SNOWY's blizzard kept freezing everyone back to back and could lock you in ice the whole match. The freeze is half as long with NO MERCY now, so you get a chance to move between blizzards."
+                    },
+                    {
+                        title: "ONLINE MATCH RESULTS",
+                        body: "Online matches end with a full results screen instead of just VICTORY or DEFEAT. It shows the winner's player name, plus everyone's KOs, max KB and damage dealt, the same stats as an offline match. In tournament matches it also shows how many games each player has won in the current set, and the room keeps that count between games."
+                    },
+                    {
+                        title: "TOURNAMENT MATCHES",
+                        body: "Tournament matches are a new kind of online room. They're always 1v1 and modifier free, and playing in one takes an invite, and both players can pick any fighter and variant, unlocked or not. Before the match, each player bans one fighter variant in secret, and once both bans are in, they're off the table for both players.\n The host doesn't play. They run the room: kicking people, starting each match, choosing which player picks the stage and starting a NEW SET, which clears the bans and the win count. Anyone online can watch: tournament matches show up gold in BROWSE LOBBIES with a WATCH button, and you can hop in any time, even mid-match. Up to 4 viewers, and SEE VIEWERS shows who's watching. Tournament matches don't count toward achievements, and only hosts have the code for the HOST TOURNAMENT MATCH button."
+                    }
+                ]
+            },
             {
                 name: "ACHIEVEMENTS 1ST PATCH",
                 date: "11/23/26",
@@ -690,7 +756,7 @@ export class MenuScene extends Phaser.Scene {
 
         const changelogBlurb = this.add.text(
             40, 180,
-            "Picking your fighter online now has its own full character picker, and air dodge lasts longer and phases through players. Plus lower side launches, a touch controls fix attempt and an easier CHAINSAW.",
+            "A tournament starts Monday 11/30, email zamanarvin@sewanhakaschools.org to join. Every fighter gets an up and a down special, and mastering a fighter unlocks its gold skin.",
             {
                 fontFamily: "VCROSD",
                 fontSize: "16px",

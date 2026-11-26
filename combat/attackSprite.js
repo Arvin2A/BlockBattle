@@ -12,7 +12,7 @@ export function hasIdleAttackSprite(player) {
         player.variant === 'MALLET' ||
         player.variant === 'ANGLER' ||
         player.variant === 'TRAPPER' ||
-        player.variant === 'METAMORPHIC' ||
+        player.variant === 'SLATE' ||
         (player.name === 'SWORDMAN' && player.variant !== 'DAGGER') ||
         player.idleWeaponTexture === 'pullcord';
 }
@@ -93,6 +93,7 @@ function getBaseAttackAngle(attacker) {
 
 // The weapon's angle this frame: its facing, plus the lean while swinging.
 export function getAttackSpriteAngle(attacker) {
+    if (typeof attacker.atkAngleOverride === 'number') return attacker.atkAngleOverride;
     return getBaseAttackAngle(attacker) + (attacker.isAttacking ? attacker.atkAimOffset ?? 0 : 0);
 }
 

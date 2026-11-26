@@ -19,7 +19,9 @@ export const COLORS = {
     muted: '#bbbbbb',
     error: '#ff6b6b',
     ready: '#2fa100',
-    stroke: '#000000'
+    stroke: '#000000',
+    new: '#5dff6a',
+    changed: '#ffde4d'
 };
 
 export const HEX = {

@@ -33,15 +33,21 @@ export function shakeVictim(target, intensity) {
     target.victimShake = Math.max(target.victimShake ?? 0, intensity);
 }
 
+export function jitterVictim(target, intensity, ms) {
+    const until = target.scene.time.now + ms;
+    target.jitterStrength = intensity;
+    target.jitterUntil = Math.max(target.jitterUntil ?? 0, until);
+}
+
 export function applyVictimShakes(scene, fighters) {
     const frozen = scene.hitFreezeUntil > scene.time.now;
     for (const fighter of fighters) {
-        if (!fighter?.victimShake) continue;
-        if (!frozen) {
-            fighter.victimShake = 0;
-            continue;
-        }
-        const strength = fighter.victimShake;
+        if (!fighter) continue;
+        const jitter = scene.time.now < (fighter.jitterUntil ?? 0) ? fighter.jitterStrength ?? 0 : 0;
+        if (!fighter.victimShake && !jitter) continue;
+        if (!frozen) fighter.victimShake = 0;
+        const strength = Math.max(fighter.victimShake ?? 0, jitter);
+        if (!strength) continue;
         const offset = {
             x: Phaser.Math.FloatBetween(-strength, strength),
             y: Phaser.Math.FloatBetween(-strength, strength)

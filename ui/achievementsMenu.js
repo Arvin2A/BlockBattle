@@ -8,8 +8,11 @@ import {
     ACHIEVEMENT_RULES,
     countDoneAchievements,
     getAchievementProgress,
+    getMasteryProgress,
     getSaveData,
+    getRequiredAchievement,
     isAchievementDone,
+    isAchievementLocked,
     mergeSaveData
 } from '../achievements.js';
 import { createTransferCode, redeemTransferCode } from '../mp/saveTransfer.js';
@@ -22,6 +25,7 @@ const PANEL = { x: 500, y: 300, width: 780, height: 564 };
 const TOP = PANEL.y - PANEL.height / 2;
 const LIST = { x: 500, y: 330, width: 740, height: 356, cardWidth: 690, cardHeight: 96 };
 const ICON_SIZE = 72;
+const LOCKED_ALPHA = 0.25;
 const DESCRIPTION_WIDTH = 360;
 const REWARD_WIDTH = 170;
 const SAVE_BUTTON = { y: TOP + PANEL.height - 34, width: 230, height: 38, offset: 230 };
@@ -48,8 +52,21 @@ function fitIcon(image, size) {
 
 function progressLabel(achievement) {
     if (isAchievementDone(achievement)) return 'COMPLETE';
+    const required = getRequiredAchievement(achievement);
+    if (required) return `${required.name} REQUIRED`;
+    if (achievement.masteryOf) return masteryLabel(achievement);
     if (achievement.goal <= 1) return 'NOT YET';
     return `${getAchievementProgress(achievement)} / ${achievement.goal}`;
+}
+
+function masteryToastLabel(achievement) {
+    const { wins, targets, flawless } = getMasteryProgress(achievement);
+    return `${wins}/${targets}  ${flawless ? 1 : 0}/1`;
+}
+
+function masteryLabel(achievement) {
+    const { wins, targets, flawless } = getMasteryProgress(achievement);
+    return `${wins} / ${targets} HARD CPUS\n${flawless ? 1 : 0} / 1 FLAWLESS WIN`;
 }
 
 export class AchievementsScene extends Phaser.Scene {
@@ -123,6 +140,7 @@ export class AchievementsScene extends Phaser.Scene {
 
     buildCard(achievement) {
         const done = isAchievementDone(achievement);
+        const locked = isAchievementLocked(achievement);
         const card = this.rexUI.add.sizer({
             orientation: 'x',
             width: LIST.cardWidth,
@@ -132,26 +150,27 @@ export class AchievementsScene extends Phaser.Scene {
         card.addBackground(this.add.rectangle(0, 0, LIST.cardWidth, LIST.cardHeight, HEX.accent, done ? 0.12 : 0)
             .setStrokeStyle(done ? 3 : 2, done ? HEX.accent : HEX.cpu));
 
-        const icon = fitIcon(this.add.image(0, 0, achievement.icon), ICON_SIZE).setAlpha(done ? 1 : 0.45);
+        const icon = fitIcon(this.add.image(0, 0, achievement.icon), ICON_SIZE).setAlpha(done ? 1 : locked ? LOCKED_ALPHA : 0.45);
+        if (locked) icon.setTint(HEX.cpu);
         card.add(icon, { proportion: 0, align: 'center' });
 
         const details = this.rexUI.add.sizer({ orientation: 'y', space: { item: 4 } });
         details.add(this.add.text(0, 0, achievement.name, textStyle('body', {
-            fontSize: '22px', fill: done ? COLORS.accent : COLORS.text
+            fontSize: '22px', fill: done ? COLORS.accent : locked ? COLORS.cpu : COLORS.text
         })), { align: 'left' });
         details.add(this.add.text(0, 0, achievement.description, textStyle('body', {
-            fontSize: '14px', fill: COLORS.muted, wordWrap: { width: DESCRIPTION_WIDTH }, lineSpacing: 2
+            fontSize: '14px', fill: locked ? COLORS.cpu : COLORS.muted, wordWrap: { width: DESCRIPTION_WIDTH }, lineSpacing: 2
         })), { align: 'left' });
         card.add(details, { proportion: 1, align: 'center' });
 
         const reward = this.rexUI.add.sizer({ orientation: 'y', width: REWARD_WIDTH, space: { item: 3 } });
         reward.add(this.add.text(0, 0, 'REWARD', textStyle('body', { fontSize: '12px', fill: COLORS.muted })), { align: 'center' });
         reward.add(this.add.text(0, 0, achievement.reward, textStyle('body', {
-            fontSize: '15px', fill: achievement.unlocks ? COLORS.accent : COLORS.text,
+            fontSize: '15px', fill: locked ? COLORS.cpu : achievement.unlocks || achievement.goldReward ? COLORS.accent : COLORS.text,
             align: 'center', wordWrap: { width: REWARD_WIDTH }
         })), { align: 'center' });
         reward.add(this.add.text(0, 0, progressLabel(achievement), textStyle('body', {
-            fontSize: '13px', fill: done ? COLORS.accent : COLORS.muted
+            fontSize: '13px', fill: done ? COLORS.accent : locked ? COLORS.cpu : COLORS.muted, align: 'center'
         })), { align: 'center' });
         card.add(reward, { proportion: 0, align: 'center' });
         return card;
@@ -359,7 +378,7 @@ export class AchievementToastScene extends Phaser.Scene {
         } else {
             const barX = textX;
             const barY = 20;
-            const label = this.add.text(barX + TOAST.barWidth + 8, barY, `${after} / ${achievement.goal}`, textStyle('body', {
+            const label = this.add.text(barX + TOAST.barWidth + 8, barY, achievement.masteryOf ? masteryToastLabel(achievement) : `${after} / ${achievement.goal}`, textStyle('body', {
                 fontSize: '12px', fill: COLORS.text
             })).setOrigin(0, 0.5);
             const track = this.add.rectangle(barX, barY, TOAST.barWidth, TOAST.barHeight, 0x333333).setOrigin(0, 0.5);

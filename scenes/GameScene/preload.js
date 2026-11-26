@@ -2,6 +2,9 @@
 // Original source: https://github.com/Arvin2A/BlockBattle
 // Licensed under the GNU GPL v3 only. See LICENSE.
 
+import { preloadGoldTextures } from '../../combat/skins.js';
+import { MASTERY_ICON_FILES } from '../../achievements.js';
+
 export function preloadAchievementsButton() {
     this.load.image('achievementsButton', 'assets/ingame/achievementsButton.png');
 }
@@ -10,6 +13,7 @@ export function preloadAchievementIcons() {
     preloadAchievementsButton.call(this);
     ['BlockHead', 'BotMasterI', 'BotMasterII', 'BotMasterIII', 'BotMasterIV']
         .forEach(name => this.load.image(`achievement_${name}`, `assets/ingame/achievement_${name}.png`));
+    MASTERY_ICON_FILES.forEach(({ key, path }) => this.load.image(key, path));
     preloadCharacterIcons.call(this);
 }
 
@@ -250,6 +254,7 @@ export function preload() {
     this.load.audio('swosh', 'audio/swosh.wav');
 
     this.load.audio('slamimpact', 'audio/slamimpact.wav');
+    this.load.audio('gameStamp', 'audio/game.wav');
 
     this.load.audio('scytheslam', 'audio/scytheslam.wav');
 
@@ -322,7 +327,7 @@ export function preload() {
 
 
     // =====================================================
-    // AUDIO - SLATEMAN
+    // AUDIO - ROCKMAN
     // =====================================================
 
     this.load.audio('slatepunch', 'audio/slatepunch.wav');
@@ -349,6 +354,8 @@ export function preload() {
     this.load.audio('reload', 'audio/reload.mp3');
     this.load.audio('explosion', 'audio/explosion.wav');
     this.load.audio('gunspecialend', 'audio/gunspecialend.mp3')
+    this.load.audio('recoilShot', 'audio/recoilShot.wav');
+    this.load.audio('shotgun', 'audio/shotgun.wav');
 
 
     // =====================================================
@@ -363,6 +370,7 @@ export function preload() {
     this.load.audio('longswordparry', 'audio/longswordparry.wav');
     this.load.audio('lawnmower-loop', 'audio/lawnmower-loop.wav');
     this.load.audio('lawnmower-end', 'audio/lawnmower-end.wav');
+    this.load.audio('whirlingloop', 'audio/whirlingloop.wav');
     this.load.audio('cannonshot', 'audio/cannonshot.wav');
     this.load.audio('cannonexplosion', 'audio/cannonexplosion.wav');
 
@@ -738,6 +746,14 @@ export function preloadFighterSprites() {
             frameHeight: 150
         }
     );
+    this.load.spritesheet(
+        'whirlwind',
+        'assets/sprites/hammerman/whirlwind.png',
+        {
+            frameWidth: 200,
+            frameHeight: 200
+        }
+    );
     this.load.image(
         'sledge_idle',
         'assets/sprites/hammerman/sledge_idle.png'
@@ -768,33 +784,33 @@ export function preloadFighterSprites() {
     );
 
     // =====================================================
-    // SLATEMAN
+    // ROCKMAN
     // =====================================================
 
     this.load.image(
-        'slateman',
-        'assets/sprites/slateman/slateman-default-1.png'
+        'rockman',
+        'assets/sprites/rockman/rockman-default-1.png'
     );
 
     this.load.image(
-        'slatemanphase1',
-        'assets/sprites/slateman/slateman-default-2.png'
+        'rockmanphase1',
+        'assets/sprites/rockman/rockman-default-2.png'
     );
 
     this.load.image(
-        'slatemanphase2',
-        'assets/sprites/slateman/slateman-default-3.png'
+        'rockmanphase2',
+        'assets/sprites/rockman/rockman-default-3.png'
     );
 
     this.load.image(
-        'slatemanphase3',
-        'assets/sprites/slateman/slateman-default-4.png'
+        'rockmanphase3',
+        'assets/sprites/rockman/rockman-default-4.png'
     );
 
     // His arms: first punch, second punch and the third hit, one after another.
     this.load.spritesheet(
         'slateatk1',
-        'assets/sprites/slateman/slateatk1.1.png',
+        'assets/sprites/rockman/slateatk1.1.png',
         {
             frameWidth: 130,
             frameHeight: 100
@@ -803,7 +819,7 @@ export function preloadFighterSprites() {
 
     this.load.spritesheet(
         'slateatktilt',
-        'assets/sprites/slateman/slateatktilt.png',
+        'assets/sprites/rockman/slateatktilt.png',
         {
             frameWidth: 75,
             frameHeight: 75
@@ -812,7 +828,7 @@ export function preloadFighterSprites() {
 
     this.load.spritesheet(
         'slateplunge',
-        'assets/sprites/slateman/slateplunge1.1.png',
+        'assets/sprites/rockman/slateplunge1.1.png',
         {
             frameWidth: 130,
             frameHeight: 100
@@ -889,6 +905,7 @@ export function preloadFighterSprites() {
         }
     );
     this.load.spritesheet('shotgunfire', 'assets/sprites/gunman/shotgunfire.png', { frameWidth: 100, frameHeight: 100 });
+    preloadGoldTextures(this.load);
 }
 
 export function preloadCharacterIcons() {
@@ -903,7 +920,7 @@ export function preloadCharacterIcons() {
         ['lawnmowerman', 'assets/sprites/scytheman/scytheman-lawnmower.png'],
         ['hammerman', 'assets/sprites/hammerman/hammerman-default.png'],
         ['sledgehammerman', 'assets/sprites/hammerman/hammerman-sledgehammer.png'],
-        ['slateman', 'assets/sprites/slateman/slateman-default-1.png'],
+        ['rockman', 'assets/sprites/rockman/rockman-default-1.png'],
         ['crowbarman', 'assets/sprites/crowbarman/crowbarman-default.png'],
         ['demolitionistman', 'assets/sprites/crowbarman/crowbarman-demolishionist.png'],
         ['gunman', 'assets/sprites/gunman/gunman-default.png']

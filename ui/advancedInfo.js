@@ -22,6 +22,39 @@ const TYPE_MAX_MS = 1200;
 const ENTRIES = CHARACTER_ROSTER.flatMap((character, characterIndex) =>
     character.variants.map((variant, variantIndex) => ({ character, variant, characterIndex, variantIndex })));
 
+const MARKUP_COLORS = { new: COLORS.new, changed: COLORS.changed };
+const MARKUP_TAG = /\{(\/?)(new|changed)(?:@([\d-]+))?\}/g;
+const HIGHLIGHT_DAYS = 5;
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+function highlightExpired(stamp) {
+    const match = /^(\d{4})-(\d{2})-(\d{2})/.exec(stamp ?? '');
+    if (!match) return false;
+    const start = new Date(Number(match[1]), Number(match[2]) - 1, Number(match[3])).getTime();
+    return Date.now() >= start + HIGHLIGHT_DAYS * DAY_MS;
+}
+const LEGEND = '{new}GREEN{/new} IS NEW, {changed}YELLOW{/changed} CHANGED THIS UPDATE.\n\n';
+
+function parseMarkup(text) {
+    let plain = '';
+    const colors = [];
+    const stack = [];
+    let last = 0;
+    const take = chunk => {
+        plain += chunk;
+        const color = stack[stack.length - 1] ?? null;
+        for (let i = 0; i < chunk.length; i++) colors.push(color);
+    };
+    for (const match of text.matchAll(MARKUP_TAG)) {
+        take(text.slice(last, match.index));
+        if (match[1]) stack.pop();
+        else stack.push(highlightExpired(match[3]) ? null : MARKUP_COLORS[match[2]]);
+        last = match.index + match[0].length;
+    }
+    take(text.slice(last));
+    return { plain, colors };
+}
+
 const cleanAbilities = abilities => String(abilities ?? '')
     .split('\n')
     .map(line => line.trim())
@@ -33,7 +66,14 @@ export function isAdvancedInfoOpen(scene) {
     return Boolean(scene.advancedInfo);
 }
 
-export function openAdvancedInfo(scene, { characterIndex = 0, variantIndex = 0, onClose = null, container = null } = {}) {
+let lastViewed = { characterIndex: 0, variantIndex: 0 };
+
+export function openAdvancedInfo(scene, {
+    characterIndex = lastViewed.characterIndex,
+    variantIndex = lastViewed.variantIndex,
+    onClose = null,
+    container = null
+} = {}) {
     if (scene.advancedInfo) return scene.advancedInfo;
     let index = Math.max(0, ENTRIES.findIndex(entry =>
         entry.characterIndex === characterIndex && entry.variantIndex === variantIndex));
@@ -70,11 +110,13 @@ export function openAdvancedInfo(scene, { characterIndex = 0, variantIndex = 0, 
         wordWrap: { width: 420 }
     }).setOrigin(0.5, 0), 2);
     const icon = add(scene.add.image(PANEL.x, ICON_Y, ENTRIES[index].character.key), 2);
-    const body = add(scene.add.text(BODY_LEFT, BODY.y, '', textStyle('body', {
-        fontSize: `${BODY.size}px`,
-        lineSpacing: 5,
-        wordWrap: { width: BODY.width }
-    })), 2);
+    const bodyStyle = textStyle('body', { fontSize: `${BODY.size}px`, lineSpacing: 5 });
+    const measure = scene.make.text({ x: 0, y: 0, text: '', style: { ...bodyStyle, wordWrap: { width: BODY.width } } }, false);
+    measure.setText('A');
+    const singleLineHeight = measure.height;
+    measure.setText('A\nA');
+    const lineHeight = measure.height - singleLineHeight;
+    const body = { runs: [], length: 0, height: 0 };
     add(scene.add.rectangle(PANEL.x, BODY.y - 8, PANEL.width - 40, 2, 0x444444), 2);
     const track = add(scene.add.rectangle(SCROLLBAR_X, BODY.y + BODY.height / 2, 6, BODY.height, 0x2a2a2a), 2);
     const thumb = add(scene.add.rectangle(SCROLLBAR_X, BODY.y, 6, 40, 0x888888).setOrigin(0.5, 0), 3);
@@ -83,9 +125,21 @@ export function openAdvancedInfo(scene, { characterIndex = 0, variantIndex = 0, 
 
     let scroll = 0;
     const maxScroll = () => Math.max(0, body.height - BODY.height);
+    const placeRun = run => {
+        const object = run.object;
+        const screenY = BODY.y + run.y - scroll;
+        const top = Math.max(0, BODY.y - screenY);
+        const bottom = Math.min(object.height, BODY.y + BODY.height - screenY);
+        object.setY(screenY);
+        if (bottom <= top || !object.text) {
+            object.setVisible(false);
+            return;
+        }
+        object.setVisible(true).setCrop(0, top, object.width, bottom - top);
+    };
     const applyScroll = () => {
         scroll = Math.max(0, Math.min(maxScroll(), scroll));
-        body.setY(BODY.y - scroll).setCrop(0, scroll, body.width, BODY.height);
+        body.runs.forEach(placeRun);
         const max = maxScroll();
         const scrollable = max > 0;
         track.setVisible(scrollable);
@@ -133,25 +187,60 @@ export function openAdvancedInfo(scene, { characterIndex = 0, variantIndex = 0, 
 
     let typing = null;
     const stopTyping = () => {
-        if (typing) setTexts(typing.targets);
+        if (typing) setTexts(typing.targets, body.length);
         typing = null;
     };
 
-    const layoutBody = text => {
-        body.setWordWrapWidth(BODY.width).setText(text);
-        const wrapped = body.getWrappedText(text).join('\n');
-        body.setWordWrapWidth(null).setText(wrapped);
-        return wrapped;
+    const clearBody = () => {
+        body.runs.forEach(run => run.object.destroy());
+        body.runs = [];
     };
-    const setTexts = targets => {
+    const layoutBody = markup => {
+        clearBody();
+        const { plain, colors } = parseMarkup(markup);
+        const lines = measure.getWrappedText(plain);
+        const context = measure.context;
+        let cursor = 0;
+        let order = 0;
+        lines.forEach((line, lineIndex) => {
+            const found = plain.indexOf(line, cursor);
+            const lineStart = found < 0 ? cursor : found;
+            cursor = lineStart + line.length;
+            let start = 0;
+            while (start < line.length) {
+                const color = colors[lineStart + start] ?? null;
+                let end = start + 1;
+                while (end < line.length && (colors[lineStart + end] ?? null) === color) end++;
+                const text = line.slice(start, end);
+                const object = scene.add.text(BODY_LEFT + context.measureText(line.slice(0, start)).width, BODY.y, '',
+                    { ...bodyStyle, fill: color ?? bodyStyle.fill })
+                    .setDepth(DEPTH + 2).setScrollFactor(0);
+                container?.add(object);
+                body.runs.push({ object, text, y: lineIndex * lineHeight, order });
+                order += text.length;
+                start = end;
+            }
+        });
+        body.length = order;
+        body.height = lines.length ? (lines.length - 1) * lineHeight + singleLineHeight : 0;
+    };
+    const showBody = count => {
+        body.runs.forEach(run => {
+            const visible = run.text.slice(0, Math.max(0, count - run.order));
+            if (run.object.text !== visible) run.object.setText(visible);
+        });
+    };
+    const setTexts = (targets, bodyCount) => {
         targets.forEach(({ object, text }) => object.setText(text));
+        showBody(bodyCount);
         applyScroll();
     };
 
     const show = (animate = false) => {
         stopTyping();
         scroll = 0;
-        const { character, variant } = ENTRIES[index];
+        const { character, variant, characterIndex: shownCharacter, variantIndex: shownVariant } = ENTRIES[index];
+        lastViewed = { characterIndex: shownCharacter, variantIndex: shownVariant };
         const name = `${variant.name} ${character.name}`;
         subtitle.setColor(variant.color ?? COLORS.accent);
         const iconKey = getCharacterTexture(character.key, variant.name);
@@ -162,26 +251,29 @@ export function openAdvancedInfo(scene, { characterIndex = 0, variantIndex = 0, 
         icon.setVisible(scene.textures.exists(iconKey)).setY((iconTop + iconBottom) / 2);
         if (icon.visible) icon.setTexture(iconKey).setDisplaySize(iconSize, iconSize);
         const abilities = cleanAbilities(variant.abilities) || 'Nothing extra to know about this fighter yet.';
+        const highlighted = parseMarkup(abilities).colors.some(Boolean);
+        layoutBody(highlighted ? LEGEND + abilities : abilities);
         const targets = [
             { object: title, text: 'ADVANCED INFO' },
             { object: subtitle, text: name },
-            { object: tagline, text: variant.desc ?? '' },
-            { object: body, text: layoutBody(abilities) }
+            { object: tagline, text: variant.desc ?? '' }
         ];
         if (!animate) {
-            setTexts(targets);
+            setTexts(targets, body.length);
             return;
         }
-        const longest = Math.max(...targets.map(({ text }) => text.length));
+        const longest = Math.max(body.length, ...targets.map(({ text }) => text.length));
         const duration = Math.min(TYPE_MAX_MS, longest * TYPE_MS_PER_CHAR);
         targets.forEach(({ object }) => object.setText(''));
+        showBody(0);
         typing = { targets, duration, elapsed: 0 };
     };
     const onUpdate = (_time, delta) => {
         if (!typing) return;
         typing.elapsed += delta;
         const progress = Math.min(1, typing.elapsed / typing.duration);
-        setTexts(typing.targets.map(({ object, text }) => ({ object, text: text.slice(0, Math.ceil(text.length * progress)) })));
+        setTexts(typing.targets.map(({ object, text }) => ({ object, text: text.slice(0, Math.ceil(text.length * progress)) })),
+            Math.ceil(body.length * progress));
         if (progress >= 1) stopTyping();
     };
 
@@ -217,6 +309,8 @@ export function openAdvancedInfo(scene, { characterIndex = 0, variantIndex = 0, 
         Object.entries(pointerHandlers).forEach(([event, handler]) => scene.input.off(event, handler));
         scene.events.off('shutdown', teardown);
         parts.forEach(part => part.destroy());
+        clearBody();
+        measure.destroy();
         return true;
     };
     const close = () => {

@@ -64,3 +64,7 @@ export function getKnockbackResistance(target) {
     if (!grass) return heated;
     return heated * (1 + Math.min((target.grassCutCount || 0) * grass.perCut, grass.max));
 }
+
+export function isSuppressed(player) {
+    return Boolean(player?.scene) && player.scene.time.now < (player.suppressedUntil ?? 0);
+}

@@ -5,6 +5,7 @@
 import { spawnDirtBurst } from './attacks.js';
 import { SQUASH, kickSquash } from './combat/squash.js';
 import { isAirDodging } from './combat/block.js';
+import { isSuppressed } from './combat/characterStats.js';
 export const Commands = {
     LEFT: 0,
     RIGHT: 1,
@@ -88,12 +89,14 @@ export function executeStateCommand(scene, players, command) {
             break;
 
         case Commands.UP:
+            if (isSuppressed(attacker)) break;
             attacker.setVelocityY(jumpVelocity(attacker));
             kickSquash(attacker, SQUASH.jump);
             
             break;
 
         case Commands.DOUBLE_UP:
+            if (isSuppressed(attacker)) break;
             attacker.setVelocityY(jumpVelocity(attacker));
             attacker.doubleJumpEffect.setAlpha(1);
             attacker.hasDoubleJumped = true;

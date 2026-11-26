@@ -7,6 +7,7 @@ import { getCharacterTexture } from '../characterTextures.js';
 import { getCharacterScript } from '../combat/characterStats.js';
 import { getAttackSpriteFlipX, getAttackSpriteOffset } from '../combat/attackSprite.js';
 import { createGameAnimations } from '../scenes/GameScene/animations.js';
+import { applySkin } from '../combat/skins.js';
 
 const BASE_ANCHOR = { x: 45, y: -15 };
 const MAX_SCALE = 3;
@@ -118,6 +119,9 @@ export function createFighterDemo(scene, { x, y, width, height }) {
     const body = scene.add.image(0, 0, CHARACTER_ROSTER[0].key);
     const weapon = scene.add.sprite(0, 0, CHARACTER_ROSTER[0].key).setVisible(false);
     holder.add([body, weapon]);
+    let skin = null;
+    applySkin(body, skin);
+    applySkin(weapon, skin);
 
     let setup = null;
     let props = [];
@@ -190,7 +194,10 @@ export function createFighterDemo(scene, { x, y, width, height }) {
         props = setup.props.map(prop => scene.add.image(prop.x, prop.y, prop.texture)
             .setOrigin(prop.originX ?? 0.5, prop.originY ?? 0.5)
             .setScale(prop.scale ?? 1));
-        props.forEach((prop, index) => holder.addAt(prop, 1 + index));
+        props.forEach((prop, index) => {
+            applySkin(prop, skin);
+            holder.addAt(prop, 1 + index);
+        });
         const stepProps = setup.animations.filter(entry => typeof entry !== 'string').map(entry => entry.prop);
         props.forEach((prop, index) => prop.setVisible(!stepProps.includes(setup.props[index].texture)));
         const bounds = fitBounds(scene, bodyKey, setup);
@@ -210,5 +217,10 @@ export function createFighterDemo(scene, { x, y, width, height }) {
     };
     scene.events.once('shutdown', () => timer?.remove(false));
 
-    return { container: holder, show, destroy };
+    const setSkin = next => {
+        skin = next ?? null;
+        [body, weapon, ...props].forEach(part => applySkin(part, skin));
+    };
+
+    return { container: holder, show, destroy, setSkin };
 }

@@ -18,8 +18,10 @@ import { fadeOutTo } from "./transitions.js";
 import { addMapBackdrop, getSelectedButtonTint, getSelectedMapPreview } from "./MapAndModifierSelect.js";
 import { CHARACTER_ROSTER } from "../characterRoster.js";
 import { createFighterDemo } from "../ui/fighterDemo.js";
+import { chosenSkin, isGoldSkinEnabled, isGoldSkinUnlocked, setGoldSkinEnabled } from "../combat/skins.js";
 import { openAdvancedInfo } from "../ui/advancedInfo.js";
-import { botTargetKey, getBotMasterAchievement, getBotWins, isAchievementDone, isVariantUnlocked } from "../achievements.js";
+import { withCharacterInfoWarning } from "../ui/characterInfoWarning.js";
+import { botTargetKey, getBotMasterAchievement, getBotWins, getRequiredAchievement, isAchievementDone, isVariantUnlocked } from "../achievements.js";
 import {
     getConnectedControllers,
     getMenuGamepadInput
@@ -43,6 +45,7 @@ const CARD = { width: 470, xs: [255, 745], bottom: 588, gapAbove: 76 };
 const BANNER_HEIGHT = 34;
 const BANNER_COLORS = { normal: 0xb3261e, hover: 0x8f1e18, pressed: 0x5c1310 };
 const TAB = { width: 84, height: 24 };
+const GOLD_TOGGLE = { width: 150, height: 28 };
 const PAD_BUTTON = 40;
 const PAD_SPREAD = 44;
 const LOCKED_PREVIEW_TEXTS = ['Nope.', 'Nuh uh.'];
@@ -101,20 +104,18 @@ export class CharacterSelectScene extends Phaser.Scene {
         [1, 2].forEach(player => this.refreshSlot(player));
         this.refreshGrid();
 
-        const onInfoKey = () => {
-            if (this.advancedInfo) this.advancedInfo.close();
-            else if (!this.settingsPanel && !this.starting) this.openCharacterInfo();
-        };
         const onEscape = () => {
-            if (this.settingsPanel || this.advancedInfo || this.starting) return;
+            if (this.settingsPanel || this.advancedInfo || this.starting || this.characterInfoWarning) return;
             this.goBack();
         };
-        this.input.keyboard.on('keydown-I', onInfoKey);
         this.input.keyboard.on('keydown-ESC', onEscape);
         this.events.once('shutdown', () => {
-            this.input.keyboard.off('keydown-I', onInfoKey);
             this.input.keyboard.off('keydown-ESC', onEscape);
         });
+    }
+
+    canOpenCharacterInfo() {
+        return !this.settingsPanel && !this.starting && !this.characterInfoWarning;
     }
 
     openCharacterInfo(afterClose) {
@@ -261,6 +262,7 @@ export class CharacterSelectScene extends Phaser.Scene {
         });
 
         if (slot.isCpu) this.buildDifficulty(player, columnX, top + 244, top + 148);
+        const goldToggle = slot.isCpu ? null : makeButton(this, columnX, top + 254, GOLD_TOGGLE.width, GOLD_TOGGLE.height, '', () => this.toggleGold(player), 15);
         const lockNote = this.add.text(columnX, top + 228, 'LOCKED - SEE ACHIEVEMENTS', textStyle('body', {
             fontSize: '14px', fill: COLORS.error
         })).setOrigin(0.5).setVisible(false);
@@ -303,7 +305,7 @@ export class CharacterSelectScene extends Phaser.Scene {
             fontSize: '18px', fill: slot.colors.text, strokeThickness: 0
         })).setOrigin(0.5);
 
-        slot.card = { demo, name, variantText, variantArrows, lockShade, readyImage, refreshReady, lockNote, lockedPreview, previewCheck };
+        slot.card = { demo, name, variantText, variantArrows, lockShade, readyImage, refreshReady, lockNote, lockedPreview, previewCheck, goldToggle };
     }
 
     buildPad(player, x, y) {
@@ -337,6 +339,12 @@ export class CharacterSelectScene extends Phaser.Scene {
             if (!tracksBotMaster) return;
             const achievement = getBotMasterAchievement(botDifficulty[player]);
             const beaten = getBotWins(botDifficulty[player]).length;
+            const required = achievement && getRequiredAchievement(achievement);
+            if (required) {
+                progress.setText(`${required.name} REQUIRED`).setColor(COLORS.cpu);
+                this.refreshBotWins();
+                return;
+            }
             progress.setText(achievement && isAchievementDone(achievement)
                 ? `${achievement.name} COMPLETE`
                 : `${achievement?.name ?? 'BOT MASTER'}: ${beaten} / ${achievement?.goal ?? beaten} BEATEN`)
@@ -496,6 +504,7 @@ export class CharacterSelectScene extends Phaser.Scene {
         lockNote.setVisible(variantLocked);
         variantArrows.forEach(arrow => arrow.setVisible(multiple));
         demo.show(slot.index, slot.variant);
+        this.refreshGold(player);
 
         const cell = this.gridCell;
         const other = this.slots[player === 1 ? 2 : 1];
@@ -516,6 +525,28 @@ export class CharacterSelectScene extends Phaser.Scene {
         });
     }
 
+    toggleGold(player) {
+        const slot = this.slots[player];
+        const character = this.characters[slot.index];
+        if (slot.locked || slot.isCpu || !isGoldSkinUnlocked(character.key)) return;
+        setGoldSkinEnabled(character.key, !isGoldSkinEnabled(character.key));
+        this.sound.play('hover2');
+        [1, 2].forEach(each => this.refreshGold(each));
+    }
+
+    refreshGold(player) {
+        const slot = this.slots[player];
+        const character = this.characters[slot.index];
+        const { goldToggle, demo } = slot.card;
+        demo.setSkin(slot.isCpu ? null : chosenSkin(character.key));
+        if (!goldToggle) return;
+        const unlocked = isGoldSkinUnlocked(character.key) && !this.isVariantLocked(player);
+        const enabled = isGoldSkinEnabled(character.key);
+        [goldToggle.box, goldToggle.text].forEach(part => part.setVisible(unlocked));
+        goldToggle.text.setText(enabled ? 'GOLD: ON' : 'GOLD: OFF').setColor(enabled ? COLORS.accent : COLORS.muted);
+        goldToggle.box.setStrokeStyle(3, enabled ? HEX.accent : HEX.border);
+    }
+
     refreshGrid() {
         this.tiles.forEach((tile, index) => tile.icon.setTexture(this.characters[index].key));
         const order = this.lastMover === 1 ? [2, 1] : [1, 2];
@@ -533,7 +564,12 @@ export class CharacterSelectScene extends Phaser.Scene {
     }
 
     startMatch() {
-        if (!this.slots[1].locked || !this.slots[2].locked || this.starting) return;
+        if (!this.slots[1].locked || !this.slots[2].locked || this.starting || this.characterInfoWarning) return;
+        withCharacterInfoWarning(this, () => this.beginMatch(), () => this.openCharacterInfo());
+    }
+
+    beginMatch() {
+        if (this.starting) return;
         this.starting = true;
         this.sound.play('hover2');
         const p1 = this.selection(1);
@@ -595,7 +631,7 @@ export class CharacterSelectScene extends Phaser.Scene {
             });
         }
 
-        if (this.settingsPanel || this.advancedInfo || this.starting) return;
+        if (this.settingsPanel || this.advancedInfo || this.starting || this.characterInfoWarning) return;
         if (enter) this.startMatch();
         [...keyCommands, ...padCommands].forEach(([player, command]) => this.handleCommand(player, command));
     }

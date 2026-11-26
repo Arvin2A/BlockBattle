@@ -9,7 +9,7 @@ import { WebSocket } from 'ws';
 import { createNameFilter } from '../mp/nameFilter.js';
 import { ALL_BUTTONS_MASK } from '../input.js';
 import { CHARACTER_ROSTER, isValidSelection } from '../characterRoster.js';
-import { cleanName, cleanDeviceId, cleanInviteCode, cleanMatchResult, END_REASONS, INVITE_CODE_LENGTH, INVITE_CODE_LETTERS, MAP_CHOICES, MAX_LOBBY_NAME_LENGTH, PROTOCOL_VERSION, RECONNECT_GRACE_MS } from '../mp/protocol.js';
+import { cleanName, cleanDeviceId, cleanInviteCode, cleanMatchResult, cleanMatchStats, END_REASONS, INVITE_CODE_LENGTH, INVITE_CODE_LETTERS, MAP_CHOICES, MAX_LOBBY_NAME_LENGTH, PROTOCOL_VERSION, RECONNECT_GRACE_MS } from '../mp/protocol.js';
 import { MATCH_MODES, SLOTS, buildRoster, isValidMode } from '../matchModes.js';
 import { sanitizeOnlineModifiers } from '../modifiers.js';
 import { QUICK_CHAT_PHRASES, QuickChatLimiter } from '../mp/quickChat.js';
@@ -37,6 +37,8 @@ const SILENT_LIMIT_MS = 15000;
 const SILENT_AWAY_LIMIT_MS = 90000;
 const SILENCE_CHECK_MS = 5000;
 const SAME_DEVICE_MESSAGE = 'You are already hosting or playing in another tab. Only one match per device at a time.';
+const TOURNAMENT = { players: 2, spectators: 4, matchCost: 2, maxCodeLength: 64 };
+const TOURNAMENT_NAME_SUFFIX = "'s Tournament Match";
 
 function loadNameFilter() {
     try {
@@ -50,6 +52,12 @@ const isNameBlocked = loadNameFilter();
 
 const lobbyCount = lobby => lobby.members.length + (lobby.bot ? 1 : 0);
 const lobbyIsFull = lobby => lobbyCount(lobby) >= MATCH_MODES[lobby.mode].players;
+const isLobbyHost = (lobby, client) => lobby.tournament ? lobby.host === client : lobby.members[0] === client;
+const roomClients = lobby => lobby.tournament ? [lobby.host, ...lobby.members, ...lobby.spectators] : lobby.members;
+const tournamentIsFull = lobby => lobby.members.length >= TOURNAMENT.players && lobby.spectators.length >= TOURNAMENT.spectators;
+const bothBanned = lobby => lobby.members.length === TOURNAMENT.players && lobby.members.every(member => lobby.bans.has(member.id));
+const isBanned = (lobby, character, variant) => [...lobby.bans.values()].some(ban => ban.character === character && ban.variant === variant);
+const hashCode = code => crypto.createHash('sha256').update(String(code)).digest();
 const randomId = (bytes = 6) => crypto.randomBytes(bytes).toString('hex');
 const randomTag = () => String(crypto.randomInt(1000, 10000));
 
@@ -73,7 +81,8 @@ function resolveMap(choice) {
 }
 
 export class Lobby {
-    constructor({ launchAuthority, closeAuthority, maxMatches, log, getIce, discord }) {
+    constructor({ launchAuthority, closeAuthority, maxMatches, log, getIce, discord, tournamentCodes = [] }) {
+        this.tournamentCodes = [...new Set(tournamentCodes.map(code => String(code).trim()).filter(Boolean))];
         this.discord = discord ?? createDiscordNotifier({}, log);
         this.getIce = getIce ?? (async () => null);
         this.launchAuthority = launchAuthority;
@@ -350,6 +359,7 @@ export class Lobby {
                 break;
             case 'loaded':
                 if (client.match) this.markLoaded(client.match, client);
+                else if (client.spectating) this.viewerLoaded(client.spectating, client);
                 break;
             case 'in':
                 this.forwardInput(client, message);
@@ -363,6 +373,37 @@ export class Lobby {
             case 'forfeit':
                 client.watching = null;
                 if (client.match) this.forfeit(client.match, client.slot, END_REASONS.FORFEIT);
+                break;
+            case 'sync':
+                this.syncClient(client);
+                break;
+            case 'createTournament':
+                client.watching = null;
+                this.createTournament(client, message);
+                break;
+            case 'ban':
+                this.banFighter(client, message);
+                break;
+            case 'kick':
+                this.kickFromRoom(client, message);
+                break;
+            case 'swapRole':
+                this.swapRole(client, message);
+                break;
+            case 'mapPicker':
+                this.setMapPicker(client, message);
+                break;
+            case 'pickMap':
+                this.pickRoomMap(client, message);
+                break;
+            case 'resetBans':
+                this.resetBans(client);
+                break;
+            case 'watch':
+                this.watchRoomMatch(client);
+                break;
+            case 'stopWatching':
+                this.stopWatching(client);
                 break;
         }
     }
@@ -416,7 +457,7 @@ export class Lobby {
         if (!this.readChoice(client, message)) return;
         const partner = this.queue.find(waiting => !waiting.detached && (!waiting.deviceId || waiting.deviceId !== client.deviceId));
         if (partner) {
-            if (this.matches.size >= this.maxMatches) {
+            if (!this.hasRoomFor(1)) {
                 sendJson(client.ws, { t: 'error', msg: BUSY_ARENAS_MESSAGE });
                 return;
             }
@@ -518,6 +559,10 @@ export class Lobby {
         if (client.state === 'match' || client.state === 'lobby') return;
         const byCode = message.code !== undefined;
         const lobby = this.findLobbyForJoin(client, message);
+        if (lobby?.tournament) {
+            this.joinTournament(client, lobby, message, byCode);
+            return;
+        }
         if (!lobby || lobbyCount(lobby) >= MATCH_MODES[lobby.mode].players) {
             sendJson(client.ws, {
                 t: 'joinFailed',
@@ -545,6 +590,10 @@ export class Lobby {
     leaveLobby(client) {
         const lobby = client.lobby;
         if (!lobby) return;
+        if (lobby.tournament) {
+            this.leaveTournament(client, lobby);
+            return;
+        }
         client.lobby = null;
         client.ready = false;
         if (client.state === 'lobby') client.state = 'idle';
@@ -560,7 +609,11 @@ export class Lobby {
 
     startLobby(client) {
         const lobby = client.lobby;
-        if (!lobby || lobby.members[0] !== client) return;
+        if (!lobby || !isLobbyHost(lobby, client)) return;
+        if (lobby.tournament) {
+            this.startTournamentMatch(client, lobby);
+            return;
+        }
         if (lobbyCount(lobby) < MATCH_MODES[lobby.mode].players) {
             sendJson(client.ws, { t: 'error', msg: 'The lobby needs to be full to start.' });
             return;
@@ -573,7 +626,7 @@ export class Lobby {
             sendJson(client.ws, { t: 'error', msg: 'Wait for everyone to reconnect.' });
             return;
         }
-        if (this.matches.size >= this.maxMatches) {
+        if (!this.hasRoomFor(1)) {
             sendJson(client.ws, { t: 'error', msg: BUSY_ARENAS_MESSAGE });
             return;
         }
@@ -589,6 +642,17 @@ export class Lobby {
         if (!lobby || client.state !== 'lobby') return;
         const ready = Boolean(message.r);
         if (client.ready === ready) return;
+        if (lobby.tournament) {
+            if (!lobby.members.includes(client) || lobby.match) return;
+            if (ready && !bothBanned(lobby)) {
+                sendJson(client.ws, { t: 'error', msg: 'Both players need to ban a fighter first.' });
+                return;
+            }
+            if (ready && isBanned(lobby, client.choice.character, client.choice.variant)) {
+                sendJson(client.ws, { t: 'error', msg: 'That fighter is banned. Pick a different one.' });
+                return;
+            }
+        }
         client.ready = ready;
         this.lobbyChanged(lobby);
     }
@@ -600,13 +664,14 @@ export class Lobby {
         const variant = String(message.variant ?? '');
         if (!isValidSelection(character, variant)) return;
         if (client.choice.character === character && client.choice.variant === variant) return;
+        if (lobby.tournament && isBanned(lobby, character, variant)) return;
         client.choice = { ...client.choice, character, variant };
         this.lobbyChanged(lobby);
     }
 
     addBot(client) {
         const lobby = client.lobby;
-        if (!lobby || lobby.members[0] !== client || lobby.bot || !MODES_WITH_BOTS.has(lobby.mode)) return;
+        if (!lobby || lobby.tournament || lobby.members[0] !== client || lobby.bot || !MODES_WITH_BOTS.has(lobby.mode)) return;
         if (lobbyCount(lobby) >= MATCH_MODES[lobby.mode].players) return;
         const character = CHARACTER_ROSTER[crypto.randomInt(CHARACTER_ROSTER.length)];
         const variant = character.variants[crypto.randomInt(character.variants.length)];
@@ -616,12 +681,13 @@ export class Lobby {
 
     removeBot(client) {
         const lobby = client.lobby;
-        if (!lobby || lobby.members[0] !== client || !lobby.bot) return;
+        if (!lobby || lobby.tournament || lobby.members[0] !== client || !lobby.bot) return;
         lobby.bot = null;
         this.lobbyChanged(lobby);
     }
 
     describeLobby(lobby, viewer) {
+        if (lobby.tournament) return this.describeTournament(lobby, viewer);
         const roster = buildRoster(lobby.mode, [
             ...lobby.members.map(member => ({
                 name: member.name,
@@ -649,17 +715,32 @@ export class Lobby {
     }
 
     lobbyChanged(lobby) {
-        this.discord.lobbyUpdated(lobby);
-        for (const member of lobby.members) {
+        if (!lobby.tournament) this.discord.lobbyUpdated(lobby);
+        for (const member of roomClients(lobby)) {
             sendJson(member.ws, { t: 'lobby', lobby: this.describeLobby(lobby, member) });
         }
         this.roomsChanged();
     }
 
     getRooms() {
-        return [...this.lobbies.values()]
-            .filter(lobby => !lobby.private && lobbyCount(lobby) < MATCH_MODES[lobby.mode].players)
-            .slice(0, MAX_LISTED_ROOMS)
+        const tournaments = [...this.lobbies.values()]
+            .filter(lobby => lobby.tournament)
+            .map(lobby => ({
+                id: lobby.id,
+                name: lobby.name,
+                tournament: true,
+                host: lobby.host.name,
+                hostTag: lobby.host.tag,
+                mode: '1v1',
+                map: lobby.map,
+                modifiers: 0,
+                fighters: lobby.members.map(member => member.name),
+                inMatch: Boolean(lobby.match),
+                spectators: lobby.spectators.length,
+                maxSpectators: TOURNAMENT.spectators
+            }));
+        const lobbies = [...this.lobbies.values()]
+            .filter(lobby => !lobby.tournament && !lobby.private && lobbyCount(lobby) < MATCH_MODES[lobby.mode].players)
             .map(lobby => ({
                 id: lobby.id,
                 name: lobby.name,
@@ -671,10 +752,11 @@ export class Lobby {
                 players: lobbyCount(lobby),
                 max: MATCH_MODES[lobby.mode].players
             }));
+        return [...tournaments, ...lobbies].slice(0, MAX_LISTED_ROOMS);
     }
 
     isInMenu(client) {
-        return client.greeted && !client.detached && client.state !== 'match';
+        return client.greeted && !client.detached && client.state !== 'match' && !client.spectating;
     }
 
     isWaiting(client) {
@@ -701,9 +783,9 @@ export class Lobby {
 
     invite(client, message) {
         const lobby = client.lobby;
-        if (!lobby || lobby.members[0] !== client || !lobby.private) return;
+        if (!lobby || !isLobbyHost(lobby, client) || !lobby.private) return;
         const fail = msg => sendJson(client.ws, { t: 'inviteFailed', tag: String(message.tag ?? ''), msg });
-        if (lobbyCount(lobby) >= MATCH_MODES[lobby.mode].players) {
+        if (lobby.tournament ? tournamentIsFull(lobby) : lobbyCount(lobby) >= MATCH_MODES[lobby.mode].players) {
             fail('Your lobby is already full.');
             return;
         }
@@ -727,6 +809,7 @@ export class Lobby {
             mode: lobby.mode,
             map: lobby.map,
             modifiers: lobby.modifiers.length,
+            tournament: Boolean(lobby.tournament),
             host: client.name,
             hostTag: client.tag
         });
@@ -748,7 +831,7 @@ export class Lobby {
 
     // ---- matches ----
 
-    createMatch({ mode, clients, bot = null, map, modifiers, quick }) {
+    createMatch({ mode, clients, bot = null, map, modifiers, quick, room = null }) {
         const roster = buildRoster(mode, [
             ...clients.map(client => ({ name: client.name, ...client.choice })),
             ...(bot ? [bot] : [])
@@ -769,11 +852,16 @@ export class Lobby {
             tab: null,
             loaded: new Set(),
             createdAt: Date.now(),
-            bootTimer: null
+            bootTimer: null,
+            tournament: Boolean(room),
+            room,
+            viewers: new Set(),
+            publicRoster: null
         };
         this.matches.set(match.id, match);
 
         const publicRoster = roster.map(({ slot, name, character, variant, color, team, bot }) => ({ slot, name, character, variant, color, team, bot: Boolean(bot) }));
+        match.publicRoster = publicRoster;
         for (const [slot, client] of Object.entries(match.players)) {
             const opponent = publicRoster.find(entry => entry.slot !== slot);
             client.state = 'match';
@@ -788,6 +876,7 @@ export class Lobby {
                 map: match.map,
                 mode,
                 quick,
+                tournament: match.tournament,
                 roster: publicRoster,
                 opponent
             };
@@ -819,6 +908,7 @@ export class Lobby {
                 this.endMatch(match, null, END_REASONS.SERVER_ERROR);
             });
         this.broadcastStatus();
+        return match;
     }
 
     // Called for the hidden tab's connection (already checked to be local).
@@ -838,8 +928,8 @@ export class Lobby {
             const text = data.toString();
             // Mirror frames go straight through to both players without re-parsing.
             if (text.startsWith('{"t":"m"')) {
-                for (const client of Object.values(match.players)) {
-                    const inMatch = client.match === match || client.watching === match;
+                for (const client of [...Object.values(match.players), ...match.viewers]) {
+                    const inMatch = client.match === match || client.watching === match || client.spectating === match;
                     if (inMatch && client.ws?.readyState === WebSocket.OPEN) client.ws.send(text);
                 }
                 return;
@@ -872,7 +962,7 @@ export class Lobby {
                 this.tryStart(match);
             } else if (message.t === 'end' && Array.isArray(message.winners) &&
                 message.winners.length > 0 && message.winners.every(slot => match.roster.some(entry => entry.slot === slot))) {
-                this.endMatch(match, message.winners, match.pendingEnd?.reason ?? END_REASONS.KO, message.results);
+                this.endMatch(match, message.winners, match.pendingEnd?.reason ?? END_REASONS.KO, message.results, message.stats);
             } else if (message.t === 'afk' && typeof message.s === 'string' && match.players[message.s] && !match.left.has(message.s)) {
                 const client = match.players[message.s];
                 this.log(`Match ${match.id}: ${client.name} (${message.s}) was kicked for being AFK`);
@@ -908,6 +998,9 @@ export class Lobby {
         sendJson(match.authority, { t: 'start' });
         for (const client of Object.values(match.players)) {
             this.sendToPlayer(client, { t: 'matchStart' });
+        }
+        for (const viewer of match.viewers) {
+            if (viewer.spectating === match) this.sendToPlayer(viewer, { t: 'matchStart' });
         }
         this.log(`Match ${match.id} started`);
     }
@@ -949,8 +1042,8 @@ export class Lobby {
         const phrase = String(message.m ?? '');
         if (!slot || !QUICK_CHAT_PHRASES.has(phrase)) return;
         if (!client.chatLimiter.tryUse(Date.now())) return;
-        for (const player of Object.values(match.players)) {
-            if (player.match === match || player.watching === match) {
+        for (const player of [...Object.values(match.players), ...match.viewers]) {
+            if (player.match === match || player.watching === match || player.spectating === match) {
                 sendJson(player.ws, { t: 'chat', s: slot, m: phrase });
             }
         }
@@ -982,17 +1075,12 @@ export class Lobby {
             };
         }
         sendJson(match.authority, { t: 'playerLeft', s: leavingSlot });
-        if (client.match === match) {
-            client.match = null;
-            client.slot = null;
-            client.state = 'idle';
-            this.sendRooms(client);
-        }
+        if (client.match === match) this.returnFromMatch(client);
         this.log(`Match ${match.id}: ${client.name} (${leavingSlot}) left${match.pendingEnd ? ', waiting for the final results' : ', the match goes on'}`);
         this.tryStart(match);
     }
 
-    endMatch(match, winners, reason, results = null) {
+    endMatch(match, winners, reason, results = null, rawStats = null) {
         if (match.state === 'ended') return;
         match.state = 'ended';
         clearTimeout(match.bootTimer);
@@ -1000,15 +1088,33 @@ export class Lobby {
         const winnerNames = (winners ?? []).map(slot => match.roster.find(entry => entry.slot === slot)?.name).join(' + ');
         this.log(`Match ${match.id} ended: ${reason}${winnerNames ? `, ${winnerNames} won` : ''}`);
 
+        const stats = cleanMatchStats(rawStats, match.roster.map(entry => entry.slot));
+        const room = match.room;
+        let record = null;
+        if (room && room.match === match) {
+            for (const slot of winners ?? []) {
+                const winner = match.players[slot];
+                if (winner && room.members.includes(winner)) room.record.set(winner.id, (room.record.get(winner.id) ?? 0) + 1);
+            }
+            record = Object.fromEntries(Object.entries(match.players).map(([slot, client]) => [slot, room.record.get(client.id) ?? 0]));
+        }
+        const summary = { winners, reason, ...(stats ? { stats } : {}), ...(record ? { record } : {}) };
         for (const client of Object.values(match.players)) {
             if (client.match !== match) continue;
-            const result = results && typeof results === 'object' ? cleanMatchResult(results[client.slot]) : null;
-            this.sendToPlayer(client, { t: 'matchEnd', winners, reason, ...(result ? { result } : {}) });
+            const result = results && typeof results === 'object' && !match.tournament ? cleanMatchResult(results[client.slot]) : null;
+            this.sendToPlayer(client, { t: 'matchEnd', ...summary, ...(result ? { result } : {}) });
             client.watching = reason === END_REASONS.KO ? match : null;
-            client.match = null;
-            client.slot = null;
-            client.state = 'idle';
-            this.sendRooms(client);
+            this.returnFromMatch(client);
+        }
+        for (const viewer of this.matchViewers(match)) {
+            this.sendToPlayer(viewer, { t: 'matchEnd', ...summary, spectator: true });
+            viewer.watching = reason === END_REASONS.KO ? match : null;
+            viewer.spectating = null;
+        }
+        if (room && room.match === match) {
+            room.match = null;
+            for (const member of room.members) member.ready = false;
+            if (this.lobbies.get(room.id) === room) this.lobbyChanged(room);
         }
         this.broadcastStatus();
 
@@ -1020,6 +1126,383 @@ export class Lobby {
             this.closeAuthority(match);
             this.broadcastStatus();
         }, linger);
+    }
+
+    returnFromMatch(client) {
+        client.match = null;
+        client.slot = null;
+        client.ready = false;
+        client.state = client.lobby ? 'lobby' : 'idle';
+        this.sendRooms(client);
+    }
+
+    slotsUsed() {
+        let used = 0;
+        for (const match of this.matches.values()) used += match.tournament ? TOURNAMENT.matchCost : 1;
+        return used;
+    }
+
+    hasRoomFor(cost) {
+        return this.slotsUsed() + cost <= this.maxMatches;
+    }
+
+    syncClient(client) {
+        this.sendRooms(client);
+        if (client.lobby && this.lobbies.get(client.lobby.id) === client.lobby) {
+            sendJson(client.ws, { t: 'lobby', lobby: this.describeLobby(client.lobby, client) });
+        }
+    }
+
+    findTournamentCode(code) {
+        if (typeof code !== 'string' || !code || code.length > TOURNAMENT.maxCodeLength) return null;
+        const given = hashCode(code.trim());
+        let found = null;
+        for (const each of this.tournamentCodes) {
+            if (crypto.timingSafeEqual(given, hashCode(each))) found = each;
+        }
+        return found;
+    }
+
+    createTournament(client, message) {
+        if (client.state !== 'idle') return;
+        const fail = msg => sendJson(client.ws, { t: 'tournamentFailed', msg });
+        if (!this.tournamentCodes.length) {
+            fail('Tournament matches are not set up on this server.');
+            return;
+        }
+        if (this.tooManyBadCodes(client)) {
+            fail('Too many wrong codes. Wait a minute and try again.');
+            return;
+        }
+        const code = this.findTournamentCode(message.code);
+        if (!code) {
+            client.badInviteCodes.push(Date.now());
+            fail('That tournament match code is wrong.');
+            return;
+        }
+        if ([...this.lobbies.values()].some(lobby => lobby.tournament && lobby.tournamentCode === code)) {
+            fail('A tournament match is already open with that code.');
+            return;
+        }
+        if (this.deviceBusy(client)) {
+            fail(SAME_DEVICE_MESSAGE);
+            return;
+        }
+        if (message.name !== undefined && !this.setName(client, message.name)) {
+            fail('That name is not allowed. Pick a different one.');
+            return;
+        }
+        const lobby = {
+            id: client.id,
+            inviteCode: this.uniqueInviteCode(),
+            name: cleanName(`${client.name}${TOURNAMENT_NAME_SUFFIX}`, MAX_LOBBY_NAME_LENGTH + TOURNAMENT_NAME_SUFFIX.length),
+            mode: '1v1',
+            map: 'RANDOM',
+            modifiers: [],
+            members: [],
+            spectators: [],
+            host: client,
+            bot: null,
+            private: true,
+            invited: new Set(),
+            tournament: true,
+            tournamentCode: code,
+            bans: new Map(),
+            record: new Map(),
+            mapPicker: null,
+            kicked: new Set(),
+            match: null
+        };
+        this.lobbies.set(lobby.id, lobby);
+        client.invitesSent.clear();
+        client.ready = false;
+        client.state = 'lobby';
+        client.lobby = lobby;
+        this.log(`${client.name} opened tournament room "${lobby.name}"`);
+        this.lobbyChanged(lobby);
+    }
+
+    isKickedFrom(lobby, client) {
+        return lobby.kicked.has(client.id) || (client.deviceId && lobby.kicked.has(client.deviceId));
+    }
+
+    joinTournament(client, lobby, message, byCode) {
+        const watching = message.watch === true;
+        if (!watching && !byCode && !lobby.invited.has(client.id)) {
+            sendJson(client.ws, { t: 'joinFailed', msg: 'Playing in a tournament match needs an invite. You can still watch it.' });
+            return;
+        }
+        if (this.isKickedFrom(lobby, client)) {
+            sendJson(client.ws, { t: 'joinFailed', msg: 'The host removed you from that tournament match.' });
+            return;
+        }
+        const asPlayer = !watching && lobby.members.length < TOURNAMENT.players && !lobby.match;
+        if (!asPlayer && lobby.spectators.length >= TOURNAMENT.spectators) {
+            sendJson(client.ws, { t: 'joinFailed', msg: 'That tournament match already has the most viewers it can take.' });
+            return;
+        }
+        if (this.deviceBusy(client)) {
+            sendJson(client.ws, { t: 'joinFailed', msg: SAME_DEVICE_MESSAGE });
+            return;
+        }
+        if (!this.readChoice(client, message)) return;
+        this.dequeue(client);
+        client.ready = false;
+        client.state = 'lobby';
+        client.lobby = lobby;
+        if (asPlayer) {
+            lobby.members.push(client);
+            this.playersChanged(lobby);
+        } else {
+            lobby.spectators.push(client);
+        }
+        this.log(`${client.name} joined tournament room "${lobby.name}" as a ${asPlayer ? 'player' : 'spectator'}`);
+        this.lobbyChanged(lobby);
+        if (!asPlayer && lobby.match && lobby.match.state !== 'ended') this.startSpectating(client, lobby.match);
+    }
+
+    playersChanged(lobby, { keepPendingBans = true } = {}) {
+        if (keepPendingBans && !lobby.bansLocked) {
+            const stillHere = new Set(lobby.members.map(member => member.id));
+            for (const id of [...lobby.bans.keys()]) if (!stillHere.has(id)) lobby.bans.delete(id);
+        } else {
+            lobby.bans.clear();
+        }
+        lobby.bansLocked = false;
+        lobby.record.clear();
+        for (const member of lobby.members) member.ready = false;
+        if (lobby.mapPicker && !lobby.members.includes(lobby.mapPicker)) lobby.mapPicker = null;
+    }
+
+    leaveTournament(client, lobby) {
+        this.stopWatching(client, false);
+        client.lobby = null;
+        client.ready = false;
+        if (client.state === 'lobby') client.state = 'idle';
+        if (client === lobby.host) {
+            this.closeTournament(lobby);
+            return;
+        }
+        if (lobby.members.includes(client)) {
+            lobby.members = lobby.members.filter(member => member !== client);
+            if (!lobby.match) this.playersChanged(lobby);
+        }
+        lobby.spectators = lobby.spectators.filter(spectator => spectator !== client);
+        this.lobbyChanged(lobby);
+    }
+
+    closeTournament(lobby) {
+        this.lobbies.delete(lobby.id);
+        this.log(`Tournament room "${lobby.name}" closed`);
+        for (const client of [...lobby.members, ...lobby.spectators]) {
+            client.lobby = null;
+            client.ready = false;
+            if (client.state === 'lobby') client.state = 'idle';
+            if (!client.match && !client.spectating) this.sendToPlayer(client, { t: 'roomClosed', msg: 'The host closed the tournament match.' });
+        }
+        lobby.members = [];
+        lobby.spectators = [];
+        this.roomsChanged();
+    }
+
+    tournamentTarget(client, message) {
+        const lobby = client.lobby;
+        if (!lobby?.tournament || lobby.host !== client || lobby.match) return null;
+        const tag = String(message.tag ?? '');
+        const target = [...lobby.members, ...lobby.spectators].find(each => each.tag === tag);
+        return target ? { lobby, target } : null;
+    }
+
+    kickFromRoom(client, message) {
+        const found = this.tournamentTarget(client, message);
+        if (!found) return;
+        const { lobby, target } = found;
+        lobby.kicked.add(target.id);
+        if (target.deviceId) lobby.kicked.add(target.deviceId);
+        this.leaveTournament(target, lobby);
+        this.sendToPlayer(target, { t: 'kicked', msg: 'The host removed you from the tournament match.' });
+        this.log(`${client.name} kicked ${target.name} from tournament room "${lobby.name}"`);
+    }
+
+    swapRole(client, message) {
+        const found = this.tournamentTarget(client, message);
+        if (!found) return;
+        const { lobby, target } = found;
+        if (lobby.members.includes(target)) {
+            if (lobby.spectators.length >= TOURNAMENT.spectators) return;
+            lobby.members = lobby.members.filter(member => member !== target);
+            lobby.spectators.push(target);
+        } else {
+            if (lobby.members.length >= TOURNAMENT.players) return;
+            lobby.spectators = lobby.spectators.filter(spectator => spectator !== target);
+            lobby.members.push(target);
+        }
+        target.ready = false;
+        this.playersChanged(lobby);
+        this.lobbyChanged(lobby);
+    }
+
+    setMapPicker(client, message) {
+        const found = this.tournamentTarget(client, message);
+        if (!found || !found.lobby.members.includes(found.target)) return;
+        const { lobby, target } = found;
+        lobby.mapPicker = lobby.mapPicker === target ? null : target;
+        this.lobbyChanged(lobby);
+    }
+
+    pickRoomMap(client, message) {
+        const lobby = client.lobby;
+        if (!lobby?.tournament || lobby.mapPicker !== client || lobby.match) return;
+        if (!MAP_CHOICES.includes(message.map) || lobby.map === message.map) return;
+        lobby.map = message.map;
+        this.lobbyChanged(lobby);
+    }
+
+    resetBans(client) {
+        const lobby = client.lobby;
+        if (!lobby?.tournament || lobby.host !== client || lobby.match) return;
+        this.playersChanged(lobby, { keepPendingBans: false });
+        this.lobbyChanged(lobby);
+    }
+
+    banFighter(client, message) {
+        const lobby = client.lobby;
+        if (!lobby?.tournament || !lobby.members.includes(client) || lobby.match || bothBanned(lobby)) return;
+        const character = String(message.character ?? '');
+        const variant = String(message.variant ?? '');
+        if (!isValidSelection(character, variant)) return;
+        lobby.bans.set(client.id, { character, variant });
+        if (bothBanned(lobby)) {
+            lobby.bansLocked = true;
+            for (const member of lobby.members) {
+                if (isBanned(lobby, member.choice.character, member.choice.variant)) member.ready = false;
+            }
+        }
+        this.lobbyChanged(lobby);
+    }
+
+    startTournamentMatch(client, lobby) {
+        const fail = msg => sendJson(client.ws, { t: 'error', msg });
+        if (lobby.match) return;
+        if (lobby.members.length < TOURNAMENT.players) {
+            fail('The tournament match needs 2 players.');
+            return;
+        }
+        if (!bothBanned(lobby)) {
+            fail('Both players need to ban a fighter first.');
+            return;
+        }
+        if (lobby.members.some(member => !member.ready)) {
+            fail('Both players need to be ready to start.');
+            return;
+        }
+        if (lobby.members.some(member => isBanned(lobby, member.choice.character, member.choice.variant))) {
+            fail('A player picked a banned fighter.');
+            return;
+        }
+        if (lobby.members.some(member => member.detached)) {
+            fail('Wait for everyone to reconnect.');
+            return;
+        }
+        if (!this.hasRoomFor(TOURNAMENT.matchCost)) {
+            fail(BUSY_ARENAS_MESSAGE);
+            return;
+        }
+        lobby.match = this.createMatch({ mode: '1v1', clients: lobby.members, map: lobby.map, modifiers: [], quick: false, room: lobby });
+        if (lobby.match.state === 'ended') {
+            lobby.match = null;
+            return;
+        }
+        for (const viewer of [lobby.host, ...lobby.spectators]) this.startSpectating(viewer, lobby.match);
+        this.lobbyChanged(lobby);
+    }
+
+    startSpectating(client, match) {
+        if (match.state === 'ended') return;
+        client.spectating = match;
+        client.watching = null;
+        client.matchFound = {
+            t: 'matchFound',
+            matchId: match.id,
+            slot: null,
+            spectator: true,
+            host: match.room?.host === client,
+            map: match.map,
+            mode: match.mode,
+            quick: false,
+            tournament: true,
+            roster: match.publicRoster
+        };
+        this.sendToPlayer(client, client.matchFound);
+    }
+
+    viewerLoaded(match, client) {
+        if (match.state === 'ended') return;
+        match.viewers.add(client);
+        if (match.state !== 'running') return;
+        sendJson(match.authority, { t: 'fullFrame' });
+        this.sendToPlayer(client, { t: 'matchStart' });
+    }
+
+    watchRoomMatch(client) {
+        const match = client.lobby?.tournament ? client.lobby.match : null;
+        if (!match || client.match || client.spectating === match) return;
+        this.startSpectating(client, match);
+    }
+
+    stopWatching(client, resync = true) {
+        const match = client.spectating;
+        if (!match) return;
+        match.viewers.delete(client);
+        client.spectating = null;
+        if (resync) this.syncClient(client);
+    }
+
+    matchViewers(match) {
+        return [...new Set([...match.viewers, ...(match.room ? [match.room.host, ...match.room.spectators] : [])])]
+            .filter(viewer => viewer.spectating === match);
+    }
+
+    describeTournament(lobby, viewer) {
+        const revealBans = bothBanned(lobby) || viewer === lobby.host;
+        const status = client => client.detached ? 'reconnecting' : client.away ? 'afk' : 'active';
+        const roster = buildRoster('1v1', lobby.members.map(member => ({
+            name: member.name,
+            character: member.choice.character,
+            variant: member.choice.variant,
+            tag: member.tag,
+            you: member === viewer,
+            ready: Boolean(member.ready),
+            status: status(member),
+            mapPicker: lobby.mapPicker === member,
+            wins: lobby.record.get(member.id) ?? 0,
+            banned: lobby.bans.has(member.id),
+            ban: revealBans || member === viewer ? lobby.bans.get(member.id) ?? null : null
+        })));
+        const role = viewer === lobby.host ? 'host' : lobby.members.includes(viewer) ? 'player' : 'spectator';
+        return {
+            id: lobby.id,
+            name: lobby.name,
+            mode: '1v1',
+            map: lobby.map,
+            modifiers: [],
+            max: TOURNAMENT.players,
+            private: true,
+            tournament: true,
+            inviteCode: lobby.inviteCode,
+            host: viewer === lobby.host,
+            role,
+            hostName: lobby.host.name,
+            hostTag: lobby.host.tag,
+            hostStatus: status(lobby.host),
+            members: roster,
+            spectators: lobby.spectators.map(spectator => ({ name: spectator.name, tag: spectator.tag, you: spectator === viewer, status: status(spectator) })),
+            maxSpectators: TOURNAMENT.spectators,
+            bansDone: bothBanned(lobby),
+            bans: revealBans ? [...lobby.bans.values()] : [],
+            inMatch: Boolean(lobby.match),
+            watching: Boolean(lobby.match && viewer.spectating === lobby.match)
+        };
     }
 
     // ---- status ----

@@ -8,7 +8,7 @@ import fisherman from './fisherman.js';
 import hammerman from './hammerman.js';
 import gunman from './gunman.js';
 import scytheman from './scytheman.js';
-import slateman from './slateman.js';
+import rockman from './rockman.js';
 import swordman from './swordman.js';
 
 export const CHARACTER_ATTACK_SCRIPTS = {
@@ -18,6 +18,6 @@ export const CHARACTER_ATTACK_SCRIPTS = {
     GUNMAN: gunman,
     HAMMERMAN: hammerman,
     SCYTHEMAN: scytheman,
-    SLATEMAN: slateman,
+    ROCKMAN: rockman,
     SWORDMAN: swordman
 };

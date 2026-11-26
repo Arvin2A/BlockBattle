@@ -4,7 +4,9 @@
 
 import Phaser from 'phaser';
 import { isGrounded } from '../combat/pin.js';
-import { smackHitSpec, smackAftermath } from '../combat/universalMoves.js';
+import { applySkin } from '../combat/skins.js';
+import { SIDE_SPECIAL_POWER } from '../gameSettings.js';
+import { smackHitSpec, smackAftermath, startUpTiltArc, UP_TILT_RANGE } from '../combat/universalMoves.js';
 import {
     findPryCorner,
     announceWedge,
@@ -65,7 +67,7 @@ const TILT = {
     hitFreeze: 80,
     lineReach: 32,
     kinds: {
-        up: { length: 230, dir: () => ({ x: 0, y: -1 }), kbTime: 300, knockback: { x: 0, y: 440 } },
+        up: { length: UP_TILT_RANGE, dir: () => ({ x: 0, y: -1 }), kbTime: 300, arc: true },
         down: { length: 170, dir: facing => ({ x: facing, y: 0.12 }), kbTime: 300, knockback: { x: 150, y: -380 }, popUp: true },
         side: { length: 210, dir: facing => ({ x: facing, y: 0 }), kbTime: 600, knockback: { x: 600, y: 500 } }
     }
@@ -139,6 +141,7 @@ function stateOf(scene, player) {
         crowbar: add(scene.add.image(player.x, player.y, 'bigcrowbar')
             .setOrigin(CROWBAR.origin.x, CROWBAR.origin.y).setDepth(DEPTH.planted).setVisible(false))
     };
+    Object.values(parts).forEach(part => applySkin(part, player.skin));
     player.attachedWeapons = [parts.slam, parts.strip, parts.fist, parts.tapeCase];
     player.demolition = {
         parts,
@@ -494,7 +497,7 @@ function landTilt(api, scene, player, d, kind) {
         if (distanceToSegment(foe, mouth, tip) > TILT.lineReach + 20) continue;
         if (!api.attackIsElligible(player, foe, kind.length + TAPE.armLength + TILT.lineReach,
             { ignoreCanAttack: true, ignoreFacing: true })) continue;
-        const knockback = kind.popUp
+        const knockback = kind.arc ? null : kind.popUp
             ? () => ({ x: facing * kind.knockback.x, y: kind.knockback.y })
             : { x: kind.knockback.x, y: kind.knockback.y, growth: false, maxDamageScale: 2 };
         const hit = api.landHit(scene, player, foe, {
@@ -505,7 +508,8 @@ function landTilt(api, scene, player, d, kind) {
             sound: 'anyhit',
             direction: dir,
             knockback,
-            decelerateAfter: kind.kbTime
+            onHit: kind.arc ? (hitScene, victim) => startUpTiltArc(hitScene, player, victim) : null,
+            decelerateAfter: kind.arc ? null : kind.kbTime
         });
         if (hit) hitAny = true;
     }
@@ -660,6 +664,36 @@ function updateCrowbar(scene, player, d) {
     image.setRotation(image.rotation + CROWBAR.returnSpin * scene.game.loop.delta);
 }
 
+const POGO = {
+    lift: 850,
+    length: 70,
+    extendMs: 90,
+    retractMs: 200,
+    slamInMs: 420,
+    reach: { front: 175, back: 10, up: 80, down: 170 },
+    hit: {
+        damage: 0.2,
+        plankDamage: 0,
+        hitstun: 450,
+        hitFreeze: 90,
+        sound: 'slamimpact',
+        knockback: { x: 220, y: 900 },
+        decelerateAfter: 600,
+        resetCombo: false
+    }
+};
+
+const SLAM_DROP = { fallSpeed: 1300, maxMs: 900 };
+
+function startSlam(api, scene, player, d, currentTime, facing, kind) {
+    d.facing = facing;
+    player.lastDir = { x: facing, y: 0 };
+    d.slam = { start: currentTime, facing, kind, soundPlayed: false, swung: false, landed: false };
+    api.startSideSpecialCooldown(player, currentTime, SLAM.totalMs + player.dirSpecialCooldown);
+    scene.sound.play('swosh');
+    return d.slam;
+}
+
 function handleDirSpecial(api, scene, player, direction, currentTime) {
     const dtapDelay = 250;
     const d = stateOf(scene, player);
@@ -674,18 +708,55 @@ function handleDirSpecial(api, scene, player, direction, currentTime) {
         return;
     }
     if (!d.anchored || d.crowbar.state !== 'back') return;
-    const facing = direction === 'left' ? -1 : 1;
-    d.facing = facing;
-    player.lastDir = { x: facing, y: 0 };
-    d.slam = { start: currentTime, facing, soundPlayed: false, swung: false, landed: false };
-    api.startSideSpecialCooldown(player, currentTime, SLAM.totalMs + player.dirSpecialCooldown);
-    scene.sound.play('swosh');
+    if (direction === 'up') return startPogo(api, scene, player, d, currentTime);
+    if (direction === 'down') return startSlamDrop(api, scene, player, d, currentTime);
+    startSlam(api, scene, player, d, currentTime, direction === 'left' ? -1 : 1, 'side');
+}
+
+function startPogo(api, scene, player, d, currentTime) {
+    if (isTapeBusy(player)) return;
+    const slam = startSlam(api, scene, player, d, currentTime, d.facing, 'pogo');
+    slam.start = currentTime - (SLAM.impactMs - POGO.slamInMs);
+    d.tape = { ...d.tape, phase: 'pogo', dir: { x: 0, y: 1 }, length: 0, startedAt: currentTime, readyAt: currentTime + POGO.extendMs + POGO.retractMs };
+    player.setVelocityY(-POGO.lift);
+    player.afterimage = true;
+    scene.sound.play('ratchet', { rate: TAPE.extendRate, volume: TAPE.ratchetVolume });
+}
+
+function updatePogo(scene, player, d) {
+    const t = Math.min(1, (scene.time.now - d.tape.startedAt) / POGO.extendMs);
+    d.tape.length = POGO.length * t;
+    if (t >= 1) {
+        player.afterimage = false;
+        startRetract(scene, player, d, POGO.retractMs);
+    }
+}
+
+function startSlamDrop(api, scene, player, d, currentTime) {
+    if (isGrounded(player)) return;
+    const slam = startSlam(api, scene, player, d, currentTime, d.facing, 'drop');
+    slam.start = currentTime - SLAM.swingAtMs;
+    slam.dropUntil = currentTime + SLAM_DROP.maxMs;
+    player.afterimage = true;
+}
+
+function holdSlamDrop(scene, player, slam) {
+    const now = scene.time.now;
+    if (isGrounded(player) || now >= slam.dropUntil || player.hitstun) {
+        slam.dropUntil = 0;
+        slam.start = now - SLAM.impactMs;
+        player.afterimage = false;
+        return;
+    }
+    slam.start = now - SLAM.swingAtMs;
+    player.setVelocity(player.body.velocity.x * 0.5, SLAM_DROP.fallSpeed);
 }
 
 function updateSlam(api, scene, player, d) {
     const slam = d.slam;
     if (!slam) return;
     const now = scene.time.now;
+    if (slam.dropUntil) holdSlamDrop(scene, player, slam);
     const elapsed = now - slam.start;
     if (!slam.landed && player.respawnFalling) {
         d.slam = null;
@@ -702,7 +773,7 @@ function updateSlam(api, scene, player, d) {
     }
     if (!slam.landed && elapsed >= SLAM.impactMs) {
         slam.landed = true;
-        landSlam(api, scene, player, slam.facing);
+        landSlam(api, scene, player, slam.facing, slam.kind);
     }
     if (elapsed >= SLAM.totalMs) {
         d.slam = null;
@@ -710,22 +781,37 @@ function updateSlam(api, scene, player, d) {
     }
 }
 
-function inSlamReach(player, foe, facing) {
+function inSlamReach(player, foe, facing, reach = SLAM.reach) {
     const ahead = (foe.x - player.x) * facing;
     const below = foe.y - player.y;
-    return ahead >= -SLAM.reach.back && ahead <= SLAM.reach.front &&
-        below >= -SLAM.reach.up && below <= SLAM.reach.down;
+    return ahead >= -reach.back && ahead <= reach.front &&
+        below >= -reach.up && below <= reach.down;
 }
 
-function landSlam(api, scene, player, facing) {
+function landSlam(api, scene, player, facing, kind = 'side') {
+    if (kind === 'pogo') {
+        landPogoSlam(api, scene, player, facing);
+        return;
+    }
     api.spawnDirtBurst(scene, player.x + facing * SLAM.dirtOffset, player.body.bottom, 16, 6, 10, 1.5);
     api.triggerScreenShake(scene, 6, 200);
     for (const foe of enemiesOf(api, scene, player)) {
         if (!inSlamReach(player, foe, facing)) continue;
         if (api.isInvincible(foe) || api.isBlockedByWall(player, foe)) continue;
         foe.flash();
-        if (!api.landHit(scene, player, foe, { ...smackHitSpec(), damage: SLAM.damage })) continue;
+        if (!api.landHit(scene, player, foe, { special: true, ...smackHitSpec(), damage: SLAM.damage, power: kind === 'side' ? SIDE_SPECIAL_POWER : 1 })) continue;
         smackAftermath(scene, foe, facing, foe.body.bottom);
+    }
+}
+
+function landPogoSlam(api, scene, player, facing) {
+    api.spawnDirtBurst(scene, player.x + facing * SLAM.dirtOffset, player.y + POGO.reach.down / 2, 12, 5, 8, 1.3);
+    api.triggerScreenShake(scene, 5, 180);
+    for (const foe of enemiesOf(api, scene, player)) {
+        if (!inSlamReach(player, foe, facing, POGO.reach)) continue;
+        if (api.isInvincible(foe) || api.isBlockedByWall(player, foe)) continue;
+        foe.flash();
+        api.landHit(scene, player, foe, { special: true, ...POGO.hit, direction: { x: facing * 0.25, y: 1 } });
     }
 }
 
@@ -787,6 +873,7 @@ function update(api, scene, player) {
         case 'retract': updateRetract(api, scene, player, d); break;
         case 'tilt': updateTilt(api, scene, player, d); break;
         case 'zip': updateZip(scene, player, d); break;
+        case 'pogo': updatePogo(scene, player, d); break;
     }
     if (d.tape.phase === 'idle') setLooping(d.snap, false);
     updateCrowbar(scene, player, d);

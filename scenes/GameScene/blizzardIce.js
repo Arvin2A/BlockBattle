@@ -3,9 +3,11 @@
 // Licensed under the GNU GPL v3 only. See LICENSE.
 
 import { addSceneUpdateListener, spawnDirtBurst } from '../../combat/effects.js';
+import { modifierOptions } from '../../modifiers.js';
 
 const ICE = {
     holdMs: 500,
+    noMercyHoldMs: 250,
     tint: 0xaee6ff,
     alpha: 0.5,
     breakMs: 220,
@@ -33,7 +35,7 @@ function shatter(scene, player, copy) {
 export function encaseInIce(scene, player) {
     if (!player?.active || player.eliminated) return;
     const now = scene.time.now;
-    const until = now + ICE.holdMs;
+    const until = now + (modifierOptions.NO_MERCY.enabled ? ICE.noMercyHoldMs : ICE.holdMs);
     const visual = player.squash?.visual;
     const copy = scene.add.image(player.x, player.y + (visual?.offsetY ?? 0), player.texture.key, player.frame.name)
         .setScale(player.scaleX * (visual?.scaleX ?? 1), player.scaleY * (visual?.scaleY ?? 1))

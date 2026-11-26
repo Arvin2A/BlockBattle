@@ -371,6 +371,7 @@ function hitWhileDeflected(api, scene, flight) {
         if (!touchesVisual(visual, fighter)) continue;
         motion.hit.add(fighter);
         api.landHit(scene, motion.by, fighter, {
+            special: true,
             damage,
             hitstun: 700,
             hitFreeze: 100,
@@ -411,7 +412,7 @@ function blockFall(api, scene, player, flight, foe) {
         deflectFlight(api, scene, flight, foe);
         return;
     }
-    api.blocksHit(scene, foe, player, FLIGHT.hit.damage, { ...options, ranged: true });
+    api.blocksHit(scene, foe, player, FLIGHT.hit.damage, { ...options, ranged: true, special: true });
 }
 
 function hitUnderneath(api, scene, player, flight, contactY) {
@@ -428,6 +429,7 @@ function hitUnderneath(api, scene, player, flight, contactY) {
         }
         const side = Math.sign(foe.x - visual.x) || (Math.random() < 0.5 ? -1 : 1);
         const hit = api.landHit(scene, player, foe, {
+            special: true,
             damage: FLIGHT.hit.damage,
             hitstun: 700,
             hitFreeze: 140,

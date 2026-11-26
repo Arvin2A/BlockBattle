@@ -10,8 +10,8 @@
 //   characterStats.js per-character tuning read from playerAttackScripts/
 // Character-exclusive moves live in playerAttackScripts/ and get everything
 // through the `api` object at the bottom of this file.
-import { getEnemies, overlapEnemies } from './combat/targets.js';
-import { getCharacterScript, getAttackCooldown, getAttackDamageScale, getHeatStat } from './combat/characterStats.js';
+import { getEnemies, nearestEnemy, overlapEnemies } from './combat/targets.js';
+import { getCharacterScript, getAttackCooldown, getAttackDamageScale, getHeatStat, isSuppressed } from './combat/characterStats.js';
 import {
     addSceneUpdateListener,
     spawnDirtBurst,
@@ -41,6 +41,8 @@ import {
 import { damagePlank, damagePlanksInAttack, isBlockedByWall } from './combat/planks.js';
 import { attackIsElligible, DEFAULT_BYPASS_OPTIONS } from './combat/eligibility.js';
 import { blocksHit, deflects, releaseCounter, trackDeflectable, attackLockedByBlock } from './combat/block.js';
+import { startUpTiltArc, UP_TILT_RANGE } from './combat/universalMoves.js';
+import { applySkin } from './combat/skins.js';
 import {
     hasIdleAttackSprite,
     hideAttackSprite,
@@ -241,6 +243,10 @@ export function thirdAttack(scene, attacker, target, animKey, overrides = {}) {
     return hit;
 }
 
+function isUpTilt(xMul, yMul) {
+    return xMul === 0 && yMul > 0 && yMul < 1;
+}
+
 export function tiltAttack(scene, attacker, target, {
     animKey,
     kb = 0.1,
@@ -259,21 +265,27 @@ export function tiltAttack(scene, attacker, target, {
     if (onUse) {
         onUse(scene);
     }
+    const arcs = isUpTilt(xMul, yMul);
     const hit = strike(scene, attacker, target, {
-        range,
+        range: arcs ? UP_TILT_RANGE : range,
         damage: kb,
         hitstun: kbTime + 300,
         hitstunGrowth: false,
         hitFreeze: freeze,
         sound: sfx,
-        onHit,
-        knockback: {
+        onHit: arcs
+            ? (hitScene, victim) => {
+                onHit?.(hitScene);
+                startUpTiltArc(hitScene, attacker, victim);
+            }
+            : onHit,
+        knockback: arcs ? null : {
             x: 1000 * xMul,
             y: 500 * yMul,
             growth: false,
             maxDamageScale: 2
         },
-        decelerateAfter: kbTime,
+        decelerateAfter: arcs ? null : kbTime,
         missSound: 'miss'
     });
     if (!hit) attacker.combo = 0;
@@ -328,7 +340,14 @@ export function downslamAttack(scene, attacker) {
     return hit;
 }
 
+const DASH_TRAIL = { everyMs: 15, lingerMs: 150 };
+
+function startDashTrail(player, ms) {
+    player.dashTrail = { until: player.scene.time.now + ms + DASH_TRAIL.lingerMs, everyMs: DASH_TRAIL.everyMs };
+}
+
 const sharedAttackHelpers = {
+    startDashTrail,
     NET_IMMUNITY_MS,
     strike,
     blocksHit,
@@ -380,6 +399,8 @@ const sharedAttackHelpers = {
     getGrassPlatform,
     triggerScreenShake,
     getEnemies,
+    applySkin,
+    nearestEnemy,
     overlapEnemies,
     distanceBetween: (first, second) => Phaser.Math.Distance.Between(
         first.x, first.y, second.x, second.y
@@ -387,7 +408,7 @@ const sharedAttackHelpers = {
 };
 
 function attackLocked(scene, attacker) {
-    return scene.time.now < (attacker.attackLockedUntil ?? 0);
+    return scene.time.now < (attacker.attackLockedUntil ?? 0) || isSuppressed(attacker);
 }
 
 export function handleAttack(scene, attacker, victim) {
@@ -442,7 +463,7 @@ export function tryQuickslamJump(scene, attacker, currentTime) {
 }
 
 function specialLockedBySmack(scene, attacker) {
-    return scene.time.now < (attacker.smackEndlagUntil ?? 0);
+    return scene.time.now < (attacker.smackEndlagUntil ?? 0) || isSuppressed(attacker);
 }
 
 export function handleDirSpecial(scene, attacker, direction, currentTime, victim, force = false) {
@@ -452,6 +473,14 @@ export function handleDirSpecial(scene, attacker, direction, currentTime, victim
     return characterScript?.handleDirSpecial(
         sharedAttackHelpers, scene, attacker, direction, currentTime, victim
     );
+}
+
+export function hasUpSpecial(attacker) {
+    return Boolean(getCharacterScript(attacker)?.upSpecialVariants?.includes(attacker.variant));
+}
+
+export function hasDownSpecial(attacker) {
+    return Boolean(getCharacterScript(attacker)?.downSpecialVariants?.includes(attacker.variant));
 }
 
 export function handleNeutralSpecial(scene, attacker, victim) {

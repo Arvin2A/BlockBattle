@@ -3,6 +3,8 @@
 // Licensed under the GNU GPL v3 only. See LICENSE.
 
 import Phaser from 'phaser';
+import { applySkin } from '../combat/skins.js';
+import { SIDE_SPECIAL_POWER } from '../gameSettings.js';
 
 function basicAttack(api, scene, attacker, victim) {
     if (attacker.variant === 'TRAPPER') return harpoonAttack(api, scene, attacker, victim);
@@ -84,6 +86,7 @@ function createFishRack(scene, player) {
     player.fishRack = [];
     for (let i = 0; i < FISH_AMMO.max; i++) {
         const fish = scene.add.image(player.x, player.y, 'fish1').setScale(FISH_AMMO.scale);
+        applySkin(fish, player.skin);
         scene.objs.addAt(fish, behindPlayer);
         player.fishRack.push(fish);
     }
@@ -156,6 +159,7 @@ function fishThrow(api, scene, attacker) {
     const facing = attacker.lastDir.x || attacker.fishFacing || 1;
     attacker.lastDir = { x: facing, y: 0 };
     const fish = scene.add.image(attacker.x, attacker.y, nextFishTexture(attacker));
+    api.applySkin(fish, attacker.skin);
     scene.objs.add(fish);
     attacker.heldFish = { sprite: fish, facing };
     api.setAttackSprite(attacker, 'fishslap');
@@ -250,7 +254,7 @@ function updateFishFlight(api, scene, player, fish, seconds) {
             return;
         }
         foe.flash?.();
-        api.landHit(scene, owner, foe, { ...FISH_HIT, damage, direction: { x: fish.facing, y: 0 } });
+        api.landHit(scene, owner, foe, { special: true, ...FISH_HIT, damage, direction: { x: fish.facing, y: 0 } });
         flingFish(fish);
         return;
     }
@@ -362,9 +366,71 @@ const EMPTY_HANDED_FINISHER = {
     decelerateAfter: 400
 };
 
+const HARPOON_DASH = { shove: 100, shoveMs: 110, speed: 1600, gap: 80, arriveSlop: 3, maxMs: 300, endSlowdown: 5, holdMs: 450 };
+
+function harpoonShoveDash(api, scene, attacker, foe) {
+    const facing = attacker.lastDir.x || attacker.facingX || 1;
+    attacker.lastDir = { x: facing, y: 0 };
+    attacker.harpoonDashing = true;
+    foe.body.setAllowGravity(false);
+    foe.setVelocity(0, 0);
+    foe.willDecelerate = false;
+    foe.hitstunUntil = Math.max(foe.hitstunUntil ?? 0, scene.time.now + HARPOON_DASH.holdMs);
+    const shoveTo = foe.x + facing * HARPOON_DASH.shove;
+    scene.tweens.add({
+        targets: foe,
+        x: shoveTo,
+        duration: HARPOON_DASH.shoveMs,
+        ease: 'Cubic.easeOut',
+        onUpdate: () => foe.setVelocity(0, 0),
+        onComplete: () => {
+            if (foe.body) foe.body.setAllowGravity(true);
+        }
+    });
+
+    const startedAt = scene.time.now;
+    let finished = false;
+    const finish = () => {
+        if (finished) return;
+        finished = true;
+        removeUpdate();
+        attacker.body.setAllowGravity(true);
+        attacker.afterimage = false;
+        attacker.harpoonDashing = false;
+        attacker.isUsingSideSpecial = wasUsingSpecial;
+        if (!attacker.hitstun) attacker.setVelocityX(attacker.body.velocity.x / HARPOON_DASH.endSlowdown);
+    };
+    const wasUsingSpecial = attacker.isUsingSideSpecial;
+    attacker.isUsingSideSpecial = true;
+    attacker.hasHitSideSpecial = true;
+    attacker.freezeUntil = scene.time.now - 1;
+    attacker.afterimage = true;
+    api.startDashTrail(attacker, HARPOON_DASH.maxMs / 2);
+    attacker.body.setAllowGravity(false);
+    scene.sound.play('swosh');
+    const update = () => {
+        if (!attacker.active || attacker.hitstun || scene.time.now - startedAt > HARPOON_DASH.maxMs) {
+            finish();
+            return;
+        }
+        const foeX = foe.active ? foe.x : shoveTo;
+        const stopAt = (facing > 0 ? Math.max(foeX, shoveTo) : Math.min(foeX, shoveTo)) - facing * HARPOON_DASH.gap;
+        const left = (stopAt - attacker.x) * facing;
+        if (left <= HARPOON_DASH.arriveSlop) {
+            attacker.setVelocity(0, 0);
+            finish();
+            return;
+        }
+        const frameSeconds = Math.max(scene.game.loop.delta, 1) / 1000;
+        attacker.freezeUntil = scene.time.now - 1;
+        attacker.setVelocity(facing * Math.min(HARPOON_DASH.speed, left / frameSeconds), 0);
+    };
+    const removeUpdate = api.addSceneUpdateListener(scene, update);
+}
+
 function harpoonAttack(api, scene, attacker, victim) {
     if (scene.time.now < attacker.nextAttackTime) return;
-    if (!attacker.canAttack || attacker.hitstun) return;
+    if (!attacker.canAttack || attacker.hitstun || attacker.harpoonDashing || attacker.harpoonSpecial) return;
 
     const armed = harpoonsLeft(attacker) > 0;
     const sheet = armed ? 'harpoonatk' : 'harpoonlessatk';
@@ -378,7 +444,7 @@ function harpoonAttack(api, scene, attacker, victim) {
         if (pinned !== null) {
             useHarpoon(scene, attacker);
             leaveHarpoonBehind(scene, attacker, 'harpoonatkthird', () =>
-                stickHarpoon(api, scene, victim, pinnedHarpoonAngle(attacker), pinned));
+                stickHarpoon(api, scene, victim, pinnedHarpoonAngle(attacker), pinned, attacker.skin));
         }
     } else {
         const hit = attacker.horizontalMovementActive
@@ -387,7 +453,8 @@ function harpoonAttack(api, scene, attacker, victim) {
         if (armed && hit) {
             useHarpoon(scene, attacker);
             leaveHarpoonBehind(scene, attacker, 'harpoonatk', () =>
-                stickHarpoon(api, scene, victim, Math.atan2(victim.y - attacker.y, victim.x - attacker.x), false));
+                stickHarpoon(api, scene, victim, Math.atan2(victim.y - attacker.y, victim.x - attacker.x), false, attacker.skin));
+            harpoonShoveDash(api, scene, attacker, victim);
         }
     }
     attacker.nextAttackTime = scene.time.now + api.getAttackCooldown(attacker);
@@ -450,7 +517,7 @@ function leaveHarpoonBehind(scene, attacker, animKey, onLeave) {
     atk.on('animationupdate', swap);
 }
 
-function stickHarpoon(api, scene, target, angle, pinned) {
+function stickHarpoon(api, scene, target, angle, pinned, skin = null) {
     if (!target.active) return;
     const dirX = Math.cos(angle);
     const dirY = Math.sin(angle);
@@ -461,6 +528,7 @@ function stickHarpoon(api, scene, target, angle, pinned) {
     const harpoon = scene.add.image(target.x + offsetX, target.y + offsetY, 'harpoon')
         .setRotation(angle)
         .setFlipY(dirX < 0);
+    api.applySkin(harpoon, skin);
     scene.objs.add(harpoon);
 
     let removeFollow = () => {};
@@ -489,6 +557,213 @@ function stickHarpoon(api, scene, target, angle, pinned) {
     if (target.stuckHarpoons.length > MAX_STUCK_HARPOONS) target.stuckHarpoons.shift().remove();
 }
 
+const SPEARFISH = {
+    riseSpeed: 900,
+    riseMs: 225,
+    tilt: 30 * Math.PI / 180,
+    endSlowdown: 2.5,
+    holdAbove: 40,
+    carryAbove: 85,
+    reach: { along: 120, side: 45 },
+    skewer: {
+        damage: 0.06,
+        plankDamage: 0,
+        hitstunGrowth: false,
+        hitFreeze: 50,
+        sound: 'axeslash2',
+        noDeathRay: true,
+        resetCombo: false
+    },
+    fling: {
+        damage: 0.10,
+        plankDamage: 0,
+        hitstun: 450,
+        hitFreeze: 70,
+        sound: 'axeslash1',
+        knockback: { x: 750, y: 750 },
+        decelerateAfter: target => 450 * target.KBmultiplier,
+        resetCombo: false
+    }
+};
+
+const HARPOON_DIVE = {
+    fallSpeed: 1300,
+    keepX: 0.3,
+    holdBelow: 40,
+    maxMs: 1200,
+    reach: { x: 50, below: 120, above: 10 },
+    damage: 0.12,
+    bounce: 350
+};
+
+function holdHarpoonOut(scene, player, angle, distance) {
+    const harpoon = scene.add.image(player.x, player.y, 'harpoon').setRotation(angle).setDepth(player.atk.depth);
+    applySkin(harpoon, player.skin);
+    scene.objs.add(harpoon);
+    const place = () => harpoon.setPosition(player.x + Math.cos(angle) * distance, player.y + Math.sin(angle) * distance);
+    place();
+    return { harpoon, place };
+}
+
+function foeInReach(api, scene, player, reach) {
+    return api.getEnemies(scene, player).find(foe => {
+        if (!foe.active || api.isInvincible(foe)) return false;
+        const dy = foe.y - player.y;
+        return Math.abs(foe.x - player.x) <= reach.x && dy >= -(reach.above ?? 0) && dy <= (reach.below ?? 0);
+    });
+}
+
+function startHarpoonSpecial(api, scene, player, currentTime, angle, distance) {
+    if (player.hitstun || player.freeze || player.harpoonSpecial || harpoonsLeft(player) <= 0) return null;
+    if (currentTime < player.nextSideSpecialTime) return null;
+    api.startSideSpecialCooldown(player, currentTime, player.dirSpecialCooldown);
+    player.harpoonSpecial = true;
+    player.isUsingSideSpecial = true;
+    player.hasHitSideSpecial = true;
+    player.isAttacking = true;
+    player.afterimage = true;
+    player.atk.setVisible(false);
+    scene.sound.play('swosh');
+    return holdHarpoonOut(scene, player, angle, distance);
+}
+
+function endHarpoonSpecial(api, player, held) {
+    held.harpoon.destroy();
+    player.harpoonSpecial = false;
+    player.isUsingSideSpecial = false;
+    player.isAttacking = false;
+    player.afterimage = false;
+    player.body.setAllowGravity(true);
+    api.hideAttackSprite(player);
+}
+
+function foeAlongAim(api, scene, player, aim, reach) {
+    return api.getEnemies(scene, player).find(foe => {
+        if (!foe.active || api.isInvincible(foe)) return false;
+        const dx = foe.x - player.x;
+        const dy = foe.y - player.y;
+        const along = dx * aim.x + dy * aim.y;
+        const side = Math.abs(dx * aim.y - dy * aim.x);
+        return along >= -10 && along <= reach.along && side <= reach.side;
+    });
+}
+
+function spearfish(api, scene, player, currentTime) {
+    const facing = player.lastDir.x || player.facingX || 1;
+    const aim = { x: facing * Math.sin(SPEARFISH.tilt), y: -Math.cos(SPEARFISH.tilt) };
+    const angle = Math.atan2(aim.y, aim.x);
+    const held = startHarpoonSpecial(api, scene, player, currentTime, angle, SPEARFISH.holdAbove);
+    if (!held) return;
+    const startedAt = scene.time.now;
+    player.body.setAllowGravity(false);
+    api.startDashTrail(player, SPEARFISH.riseMs);
+    let skewered = null;
+    let hitAt = null;
+
+    const finish = () => {
+        removeUpdate();
+        endHarpoonSpecial(api, player, held);
+        if (!player.hitstun) player.setVelocity(player.body.velocity.x, player.body.velocity.y / SPEARFISH.endSlowdown);
+        if (!skewered) return;
+        if (skewered.body) skewered.body.setAllowGravity(true);
+        if (!skewered.active || skewered.lastHitAt !== hitAt) return;
+        api.landHit(scene, player, skewered, { ...SPEARFISH.fling, direction: aim });
+        useHarpoon(scene, player);
+        stickHarpoon(api, scene, skewered, angle, false, player.skin);
+    };
+    const removeUpdate = api.addSceneUpdateListener(scene, () => {
+        const elapsed = scene.time.now - startedAt;
+        if (!player.active || player.hitstun || elapsed >= SPEARFISH.riseMs) {
+            finish();
+            return;
+        }
+        player.atk.setVisible(false);
+        player.setVelocity(aim.x * SPEARFISH.riseSpeed, aim.y * SPEARFISH.riseSpeed);
+        held.place();
+        if (skewered) {
+            if (!skewered.active || skewered.lastHitAt !== hitAt) {
+                if (skewered.body) skewered.body.setAllowGravity(true);
+                skewered = null;
+                return;
+            }
+            skewered.setPosition(player.x + aim.x * SPEARFISH.carryAbove, player.y + aim.y * SPEARFISH.carryAbove);
+            skewered.setVelocity(0, 0);
+            return;
+        }
+        const foe = foeAlongAim(api, scene, player, aim, SPEARFISH.reach);
+        if (!foe) return;
+        const hit = api.landHit(scene, player, foe, {
+            ...SPEARFISH.skewer,
+            hitstun: SPEARFISH.riseMs - elapsed + 200,
+            direction: aim
+        });
+        if (!hit) return;
+        skewered = foe;
+        hitAt = foe.lastHitAt;
+        foe.body.setAllowGravity(false);
+        foe.willDecelerate = false;
+    });
+}
+
+function harpoonDive(api, scene, player, currentTime) {
+    if (isOnFloor(api, scene, player)) return;
+    const held = startHarpoonSpecial(api, scene, player, currentTime, Math.PI / 2, HARPOON_DIVE.holdBelow);
+    if (!held) return;
+    const startedAt = scene.time.now;
+
+    const finish = () => {
+        removeUpdate();
+        endHarpoonSpecial(api, player, held);
+    };
+    const pinFoe = foe => {
+        const now = scene.time.now;
+        const canPin = now >= (foe.pinImmuneUntil ?? 0);
+        const grounded = isOnFloor(api, scene, foe);
+        const hit = api.landHit(scene, player, foe, {
+            special: true,
+            damage: HARPOON_DIVE.damage,
+            plankDamage: 0,
+            hitstun: canPin ? PIN_MS : 300,
+            hitstunGrowth: false,
+            hitFreeze: 80,
+            sound: 'axeslash2',
+            noDeathRay: true,
+            resetCombo: false,
+            direction: { x: 0, y: 1 },
+            knockback: () => ({ x: 0, y: canPin && !grounded ? PIN_SPIKE_SPEED : 0 }),
+            onHit: () => {
+                if (!canPin) return;
+                foe.pinImmuneUntil = now + PIN_MS + PIN_IMMUNITY_MS;
+                if (grounded) foe.freezeUntil = now + PIN_MS;
+            }
+        });
+        if (!hit) return false;
+        useHarpoon(scene, player);
+        stickHarpoon(api, scene, foe, Math.PI / 2, canPin, player.skin);
+        player.setVelocity(player.body.velocity.x, -HARPOON_DIVE.bounce);
+        return true;
+    };
+    const removeUpdate = api.addSceneUpdateListener(scene, () => {
+        if (!player.active || player.hitstun || scene.time.now - startedAt > HARPOON_DIVE.maxMs) {
+            finish();
+            return;
+        }
+        player.atk.setVisible(false);
+        player.setVelocity(player.body.velocity.x * HARPOON_DIVE.keepX, HARPOON_DIVE.fallSpeed);
+        held.place();
+        const foe = foeInReach(api, scene, player, HARPOON_DIVE.reach);
+        if (foe && pinFoe(foe)) {
+            finish();
+            return;
+        }
+        if (player.body.blocked.down || player.body.touching.down) {
+            api.spawnDirtBurst(scene, player.x, player.body.bottom, 8, 3, 6, 1.1);
+            scene.sound.play('miss');
+            finish();
+        }
+    });
+}
+
 const HARPOON_THROW_COOLDOWN = 500;
 const HARPOON_THROW_SPEED = 950;
 const HARPOON_THROW_SINK = 120;
@@ -512,7 +787,7 @@ const THROWN_HARPOON_HIT = {
 
 function throwHarpoon(api, scene, attacker, target) {
     const now = scene.time.now;
-    if (attacker.hitstun || attacker.freeze) return;
+    if (attacker.hitstun || attacker.freeze || attacker.harpoonSpecial) return;
     if (now < (attacker.nextHarpoonThrowTime ?? 0) || harpoonsLeft(attacker) <= 0) return;
     attacker.nextHarpoonThrowTime = now + HARPOON_THROW_COOLDOWN;
     useHarpoon(scene, attacker);
@@ -527,6 +802,7 @@ function throwHarpoon(api, scene, attacker, target) {
         'harpoon'
     );
     harpoon.body.allowGravity = false;
+    api.applySkin(harpoon, attacker.skin);
     harpoon.setVelocity(direction.x * HARPOON_THROW_SPEED, direction.y * HARPOON_THROW_SPEED);
     harpoon.setAccelerationY(HARPOON_THROW_SINK);
     harpoon.setRotation(Math.atan2(direction.y, direction.x));
@@ -535,7 +811,6 @@ function throwHarpoon(api, scene, attacker, target) {
 
     const platforms = api.platformsWithoutStandingPlatform(scene, attacker);
     let owner = attacker;
-    let foe = target;
     let damageScale = 1;
     let plankDamage = HARPOON_PLANK_DAMAGE;
     const pierced = new Set();
@@ -597,23 +872,26 @@ function throwHarpoon(api, scene, attacker, target) {
             plankDamage = Math.max(0, +(plankDamage - HARPOON_PIERCE_FALLOFF).toFixed(2));
         }
 
-        const body = foe.body;
-        if (foe.active && body && !api.isInvincible(foe) &&
-            tipX > body.left - 6 && tipX < body.right + 6 &&
-            tipY > body.top - 6 && tipY < body.bottom + 6) {
+        const foe = api.getEnemies(scene, owner).find(enemy => {
+            const body = enemy.body;
+            return enemy.active && body && !api.isInvincible(enemy) &&
+                tipX > body.left - 6 && tipX < body.right + 6 &&
+                tipY > body.top - 6 && tipY < body.bottom + 6;
+        });
+        if (foe) {
             const deflectScale = api.deflects(scene, foe, owner, THROWN_HARPOON_HIT.damage * damageScale);
             if (deflectScale) {
                 damageScale *= deflectScale;
                 harpoon.setVelocity(-vx, -vy);
                 direction.x = -direction.x;
                 direction.y = -direction.y;
-                [owner, foe] = [foe, owner];
+                owner = foe;
                 harpoon.deflectOwner = owner;
                 lastTip = { x: harpoon.x, y: harpoon.y };
                 return;
             }
             foe.flash();
-            api.landHit(scene, owner, foe, { ...THROWN_HARPOON_HIT, damage: THROWN_HARPOON_HIT.damage * damageScale, direction });
+            api.landHit(scene, owner, foe, { special: true, ...THROWN_HARPOON_HIT, damage: THROWN_HARPOON_HIT.damage * damageScale, direction });
             harpoon.destroy();
             done = true;
             removeUpdate();
@@ -633,7 +911,7 @@ function throwHarpoon(api, scene, attacker, target) {
 
 const NET_RELEASE_MS = 100;
 const NET_LAUNCH = { x: 420, y: -250 };
-const NET_STUN = 2000;
+const NET_STUN = 1500;
 const NET_HUNT_SPEED = 1.8;
 const NET_BUMP = {
     ranged: true,
@@ -656,8 +934,9 @@ const NET_AIR_BODY = { width: 180, height: 30, offsetX: 10, offsetY: 20 };
 function netFoe(api, scene, owner, target, duration, holdInPlace) {
     const now = scene.time.now;
     api.landHit(scene, owner, target, {
+        special: true,
         ranged: true,
-        damage: 0.02,
+        damage: 0.02 * SIDE_SPECIAL_POWER,
         plankDamage: 0,
         hitstun: duration,
         hitstunGrowth: false,
@@ -760,7 +1039,7 @@ function throwNet(api, scene, player, target, direction, currentTime) {
                 ...api.overlapEnemies(scene, net, player, target => {
                     if (state !== 'air' || api.isInvincible(target)) return;
                     if (canBeNetted(scene, api, target)) netFoe(api, scene, player, target, NET_STUN, false);
-                    else api.landHit(scene, player, target, { ...NET_BUMP, direction: { x: facing, y: 0 } });
+                    else api.landHit(scene, player, target, { special: true, ...NET_BUMP, power: SIDE_SPECIAL_POWER, direction: { x: facing, y: 0 } });
                     removeNet();
                 })
             );
@@ -834,13 +1113,16 @@ function throwNet(api, scene, player, target, direction, currentTime) {
                 net.setVelocityX(0);
             } else if (state === 'ground' && support && !(support.active && support.body?.enable)) {
                 fallAgain();
-            } else if (state === 'ground' && target.active && canBeNetted(scene, api, target)) {
-                const body = target.body;
-                const steppedIn = body.right > net.x - NET_GROUND_HALF_WIDTH &&
-                    body.left < net.x + NET_GROUND_HALF_WIDTH &&
-                    body.bottom > floorY - 12 && body.bottom < floorY + 8;
-                if (steppedIn) {
-                    netFoe(api, scene, player, target, NET_STUN, true);
+            } else if (state === 'ground') {
+                const caught = api.getEnemies(scene, player).find(foe => {
+                    if (!foe.active || !canBeNetted(scene, api, foe)) return false;
+                    const body = foe.body;
+                    return body.right > net.x - NET_GROUND_HALF_WIDTH &&
+                        body.left < net.x + NET_GROUND_HALF_WIDTH &&
+                        body.bottom > floorY - 12 && body.bottom < floorY + 8;
+                });
+                if (caught) {
+                    netFoe(api, scene, player, caught, NET_STUN, true);
                     removeNet();
                 }
             }
@@ -889,6 +1171,14 @@ function getRodTip(player) {
         y: rod.y + localX * sin + localY * cos
     };
 }
+const HOOK_CASTS = {
+    side: { spawn: { x: 60, y: 0 }, velocity: { x: 1000, y: -250 }, latches: true },
+    up: { spawn: { x: 20, y: -40 }, velocity: { x: 150, y: -1150 }, latches: true },
+    down: { spawn: { x: 30, y: 40 }, velocity: { x: 0, y: 950 }, latches: false, reels: true, straightRope: true }
+};
+
+const DOWN_REEL = { speed: 900, minMs: 150, front: 40, holdMs: 250, damage: 0.15 };
+
 function tryPull(api, scene, player, target, direction, currentTime) {
     const dtapDelay = 250;
     const pullCD = player.dirSpecialCooldown;
@@ -903,23 +1193,22 @@ function tryPull(api, scene, player, target, direction, currentTime) {
         player.isAttacking = true;
         player.hasHitSideSpecial = false;
 
-        // face direction
-        if (direction === 'left') {
-            player.lastDir = { x: -1, y: 0 };
-        } else {
-            player.lastDir = { x: 1, y: 0 };
-        }
+        const vertical = direction === 'up' || direction === 'down';
+        const facing = direction === 'left' ? -1 : direction === 'right' ? 1 : (player.lastDir.x || player.facingX || 1);
+        player.lastDir = { x: facing, y: 0 };
+        const cast = HOOK_CASTS[direction] ?? HOOK_CASTS.side;
 
         // GRAPHICS FOR ROPE
         const rope = scene.add.graphics();
 
         // HOOK PROJECTILE
         const hook = scene.physics.add.sprite(
-            player.x + player.lastDir.x * 60,
-            player.y,
-            'hook' // make a small hook sprite
+            player.x + facing * cast.spawn.x,
+            player.y + cast.spawn.y,
+            'hook'
         );
         hook.body.setMass(0);
+        api.applySkin(hook, player.skin);
 
         hook.setScale(0.8);
         hook.body.allowGravity = true;
@@ -928,10 +1217,7 @@ function tryPull(api, scene, player, target, direction, currentTime) {
         scene.objs.add(rope);
 
         // initial launch speed
-        hook.setVelocity(
-            player.lastDir.x * 1000,
-            -250
-        );
+        hook.setVelocity(facing * cast.velocity.x, cast.velocity.y);
 
         scene.sound.play('reel');
         scene.sound.play('whoosh');
@@ -1048,6 +1334,53 @@ function tryPull(api, scene, player, target, direction, currentTime) {
             timeoutEvent = scene.time.delayedCall(750, cleanup);
             startReelAnim();
         };
+        const reelTargetIn = target => {
+            const hit = api.landHit(scene, player, target, {
+                special: true,
+                ranged: true,
+                damage: DOWN_REEL.damage,
+                plankDamage: 0,
+                hitstun: 2000,
+                hitstunGrowth: false,
+                sound: 'anyhit',
+                noDeathRay: true,
+                resetCombo: false
+            });
+            if (!hit) {
+                cleanup();
+                return;
+            }
+            latchToTarget(target);
+            timeoutEvent?.remove(false);
+            const hitAt = target.lastHitAt;
+            const from = { x: target.x, y: target.y };
+            const startedAt = scene.time.now;
+            const endPoint = () => ({ x: player.x + facing * DOWN_REEL.front, y: player.y });
+            const duration = Math.max(DOWN_REEL.minMs,
+                Phaser.Math.Distance.Between(from.x, from.y, endPoint().x, endPoint().y) / DOWN_REEL.speed * 1000);
+            target.body.allowGravity = false;
+            const release = () => {
+                removeReel();
+                if (target.active) {
+                    target.body.allowGravity = true;
+                    target.setVelocity(0, 0);
+                    if (target.lastHitAt === hitAt) target.hitstunUntil = scene.time.now + DOWN_REEL.holdMs;
+                }
+                cleanup();
+            };
+            const removeReel = api.addSceneUpdateListener(scene, () => {
+                if (!target.active || !player.active || target.lastHitAt !== hitAt || player.hitstun) {
+                    release();
+                    return;
+                }
+                const t = Math.min(1, (scene.time.now - startedAt) / duration);
+                const to = endPoint();
+                target.setPosition(from.x + (to.x - from.x) * t, from.y + (to.y - from.y) * t);
+                target.setVelocity(0, 0);
+                target.crashImmuneUntil = scene.time.now + REEL_CRASH_IMMUNITY_MS;
+                if (t >= 1) release();
+            });
+        };
         const pullPlayerToHook = () => {
             if (cleanedUp || !pullingToPlatform) return;
             if (!player.active) {
@@ -1087,6 +1420,10 @@ function tryPull(api, scene, player, target, direction, currentTime) {
             ...api.overlapEnemies(scene, hook, player, target => {
                 if (cleanedUp || player.hasHitSideSpecial || pullingToPlatform || api.isInvincible(target)) return;
                 player.hasHitSideSpecial = true;
+                if (cast.reels) {
+                    reelTargetIn(target);
+                    return;
+                }
 
                 const dx = player.x - target.x;
                 const dy = player.y - target.y;
@@ -1094,8 +1431,9 @@ function tryPull(api, scene, player, target, direction, currentTime) {
                 const pullStrength = 900;
 
                 api.landHit(scene, player, target, {
+                    special: true,
                     ranged: true,
-                    damage: 0.22,
+                    damage: 0.22 * (vertical ? 1 : SIDE_SPECIAL_POWER),
                     plankDamage: 0,
                     hitstun: 550,
                     hitstunGrowth: false,
@@ -1114,9 +1452,9 @@ function tryPull(api, scene, player, target, direction, currentTime) {
             scene.physics.add.overlap(
                 hook,
                 api.platformsWithoutStandingPlatform(scene, player),
-                latchToPlatform
+                cast.latches ? latchToPlatform : () => cleanup()
             ),
-            scene.physics.add.overlap(hook, scene.planks, () => latchToPlatform())
+            scene.physics.add.overlap(hook, scene.planks, () => cast.latches ? latchToPlatform() : cleanup())
         );
 
         removeRopeUpdate = api.addSceneUpdateListener(scene, () => {
@@ -1147,7 +1485,7 @@ function tryPull(api, scene, player, target, direction, currentTime) {
             const midY = (tip.y + hook.y) / 2;
             const ropeLength = Math.hypot(hook.x - tip.x, hook.y - tip.y);
             const straightenTime = 400;
-            const bendLeft = Math.max(0, 1 - (scene.time.now - castTime) / straightenTime);
+            const bendLeft = cast.straightRope ? 0 : Math.max(0, 1 - (scene.time.now - castTime) / straightenTime);
             const ropeBend = Math.min(60, ropeLength * 0.2) * bendLeft;
             const ctrlX = midX;
             const ctrlY = midY - ropeBend * 2;
@@ -1183,6 +1521,7 @@ function createHarpoonRack(scene, player) {
     player.harpoonRack = [];
     for (let i = 0; i < MAX_HARPOONS - 1; i++) {
         const harpoon = scene.add.image(player.x, player.y, 'harpoon');
+        applySkin(harpoon, player.skin);
         scene.objs.addAt(harpoon, behindPlayer);
         player.harpoonRack.push(harpoon);
     }
@@ -1244,10 +1583,14 @@ export default {
         updateTrapper(api, scene, player, victim);
         updateAngler(api, scene, player);
     },
-    handleDirSpecial: (api, scene, attacker, direction, currentTime, victim) =>
-        attacker.variant === 'TRAPPER'
-            ? throwNet(api, scene, attacker, victim, direction, currentTime)
-            : tryPull(api, scene, attacker, victim, direction, currentTime),
+    upSpecialVariants: ['ANGLER', 'TRAPPER'],
+    downSpecialVariants: ['ANGLER', 'TRAPPER'],
+    handleDirSpecial: (api, scene, attacker, direction, currentTime, victim) => {
+        if (attacker.variant !== 'TRAPPER') return tryPull(api, scene, attacker, victim, direction, currentTime);
+        if (direction === 'up') return spearfish(api, scene, attacker, currentTime);
+        if (direction === 'down') return harpoonDive(api, scene, attacker, currentTime);
+        return throwNet(api, scene, attacker, victim, direction, currentTime);
+    },
     handleNeutralSpecial: neutralSpecial,
     variantNeutralSpecials: { ANGLER: fishThrow, TRAPPER: throwHarpoon },
     handleHorizantalTilt: (api, scene, attacker, victim) =>

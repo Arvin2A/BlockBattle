@@ -46,7 +46,7 @@ function stepSpeedStretch(squash, player, dt) {
     const speed = Math.hypot(x, y);
     if (speed > 1) squash.motionHorizontal = (x * x) / (speed * speed);
     const t = Phaser.Math.Clamp((speed - SPEED_STRETCH.speedMin) / (SPEED_STRETCH.speedMax - SPEED_STRETCH.speedMin), 0, 1);
-    const target = Math.pow(t, SPEED_STRETCH.curve) * SPEED_STRETCH.amount;
+    const target = player.noSpeedStretch ? 0 : Math.pow(t, SPEED_STRETCH.curve) * SPEED_STRETCH.amount;
     squash.motion += (target - squash.motion) * (1 - Math.exp(-dt * SPEED_STRETCH.response));
 }
 

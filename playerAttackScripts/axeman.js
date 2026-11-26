@@ -4,13 +4,47 @@
 
 import Phaser from 'phaser';
 import { grindExplosion, grindTick, setGrindFloat, ALWAYS_ON_GRINDERS, interruptGrinder, grinderCanResume, holdGrinderInPlace } from '../combat/grinder.js';
-import { MIN_ABILITY_COOLDOWN_MS } from '../gameSettings.js';
+import { MIN_ABILITY_COOLDOWN_MS, SIDE_SPECIAL_POWER } from '../gameSettings.js';
+import { jitterVictim } from '../combat/knockback.js';
 
 export const MAX_WOOD_COUNT = 225;
 const WOOD_PER_TICK = 10;
 export const CHAINSAW_COOLDOWN_MS = 4000;
 const CHAINSAW_CHIP_DAMAGE = 0.005;
 const CHAINSAW_EXPLOSION_SCALE = 0.75;
+const CHAINSAW_SIDE_MIN_DOT = 0.8;
+const VERTICAL_RAMPAGE = {
+    grindMs: { up: 390, downAir: 390 },
+    chipScale: { up: 2.1, downAir: 1 },
+    hitInterval: 50,
+    jitter: 10,
+    jitterMs: 120,
+    tickSound: 'hammerhit',
+    tickRate: 1.6,
+    launchSound: 'hammerhit',
+    damage: 0.06,
+    hitstun: 450,
+    hitFreeze: 60
+};
+const UP_RAMPAGE = { maxX: 240, y: 450 };
+const TEAR_DOWN = {
+    x: 150,
+    y: 600,
+    groundRange: 90,
+    groundHit: {
+        damage: 0.05,
+        plankDamage: 0,
+        hitstun: 300,
+        hitstunGrowth: false,
+        hitFreeze: 60,
+        sound: 'axeslash1',
+        knockback: { x: 300, y: 420, growth: false, scaleWithDamage: false },
+        decelerateAfter: 500,
+        resetCombo: false
+    }
+};
+const WOOD_INTERVAL_MS = 100;
+const GRINDING_RAMPAGES = new Set(['up', 'downAir']);
 
 function tilt(api, scene, attacker, victim, xMul, yMul, kbTime) {
     api.tiltAttack(scene, attacker, victim, {
@@ -26,6 +60,8 @@ function deactivateChainsaw(scene, attacker) {
     attacker.clearTint();
     attacker.chainsawSFX.setRate(1);
     attacker.rampageUntil = 0;
+    attacker.rampageMode = null;
+    attacker.aimLock = null;
     attacker.rampageEvent?.remove(false);
     attacker.rampageEvent = null;
     scene.sound.play('deactivatechainsaw');
@@ -49,7 +85,7 @@ function startChainsawHitEvent(api, scene, attacker, victim, options) {
     attacker.chainsawHitEvent = scene.time.addEvent({
         delay: attacker.chainsawHitInterval,
         loop: true,
-        callback: () => updateChainsaw(api, scene, attacker, victim, options)
+        callback: () => updateChainsaw(api, scene, attacker, api.nearestEnemy(scene, attacker) ?? victim, options)
     });
 }
 
@@ -81,7 +117,24 @@ function isRampaging(scene, attacker) {
     return scene.time.now < (attacker.rampageUntil ?? 0);
 }
 
-function startRampage(api, scene, attacker, victim) {
+function rampageModeFor(attacker, direction) {
+    if (direction === 'up') return 'up';
+    if (direction !== 'down') return 'side';
+    return attacker.body.blocked.down || attacker.body.touching.down ? 'downGround' : 'downAir';
+}
+
+function tearIntoGround(api, scene, attacker) {
+    for (const enemy of api.getEnemies(scene, attacker)) {
+        if (!api.attackIsElligible(attacker, enemy, TEAR_DOWN.groundRange, { ignoreCanAttack: true, ignoreFacing: true })) continue;
+        api.landHit(scene, attacker, enemy, {
+            special: true,
+            ...TEAR_DOWN.groundHit,
+            direction: { x: Math.sign(enemy.x - attacker.x) || attacker.lastDir.x || 1, y: 0 }
+        });
+    }
+}
+
+function startRampage(api, scene, attacker, victim, mode = 'side') {
     if (!attacker.chainsawMode || attacker.hitstun || attacker.freeze ||
         scene.time.now < (attacker.rampageCooldownUntil ?? 0) ||
         scene.time.now < (attacker.chainsawCooldownUntil ?? 0)) return;
@@ -94,20 +147,51 @@ function startRampage(api, scene, attacker, victim) {
     attacker.rampageUntil = scene.time.now + RAMPAGE_MS;
     attacker.rampageExplosionUntil = attacker.rampageUntil + RAMPAGE_EXPLOSION_GRACE_MS;
     attacker.rampageCooldownUntil = attacker.rampageUntil;
-    attacker.chainsawHitInterval = 25;
+    attacker.rampageMode = mode;
+    attacker.rampageExplosionMode = mode;
+    attacker.rampageContact = 0;
+    attacker.chainsawHitInterval = mode === 'side' ? 25 : VERTICAL_RAMPAGE.hitInterval;
     attacker.chainsawSFX.setRate(1.2);
     attacker.setTint(0xff3333);
+    if (mode === 'downAir' || mode === 'downGround') attacker.lastDir = { x: 0, y: 1 };
+    attacker.aimLock = { ...attacker.lastDir };
+    if (mode === 'downGround') tearIntoGround(api, scene, attacker);
     startChainsawHitEvent(api, scene, attacker, victim, {});
-    attacker.rampageEvent = scene.time.delayedCall(RAMPAGE_MS, () => {
-        attacker.rampageEvent = null;
-        attacker.rampageUntil = 0;
-        attacker.clearTint();
-        attacker.chainsawSFX.setRate(1);
-        if (!attacker.chainsawActive) return;
-        attacker.chainsawHitInterval = 50;
-        startChainsawHitEvent(api, scene, attacker, victim, {});
-    });
+    attacker.rampageEvent = scene.time.delayedCall(RAMPAGE_MS, () => endRampage(api, scene, attacker, victim));
+}
 
+function endRampage(api, scene, attacker, victim) {
+    attacker.rampageEvent?.remove(false);
+    attacker.rampageEvent = null;
+    attacker.rampageUntil = 0;
+    attacker.rampageMode = null;
+    attacker.aimLock = null;
+    attacker.clearTint();
+    attacker.chainsawSFX.setRate(1);
+    if (!attacker.chainsawActive) return;
+    attacker.chainsawHitInterval = 50;
+    startChainsawHitEvent(api, scene, attacker, victim, {});
+}
+
+function verticalRampageLaunch(api, scene, attacker, victim) {
+    const side = Math.sign(victim.x - attacker.x) || attacker.lastDir.x || 1;
+    const angle = Math.atan2(victim.y - attacker.y, victim.x - attacker.x);
+    const launch = attacker.rampageMode === 'up'
+        ? { x: side * UP_RAMPAGE.maxX * Math.abs(Math.cos(angle)), y: -UP_RAMPAGE.y }
+        : { x: side * TEAR_DOWN.x, y: TEAR_DOWN.y };
+    endRampage(api, scene, attacker, victim);
+    attacker.chainsawContactDuration = 0;
+    api.landHit(scene, attacker, victim, {
+        special: true,
+        damage: VERTICAL_RAMPAGE.damage,
+        plankDamage: 0,
+        hitstun: VERTICAL_RAMPAGE.hitstun,
+        hitFreeze: VERTICAL_RAMPAGE.hitFreeze,
+        sound: VERTICAL_RAMPAGE.launchSound,
+        knockback: ({ kb }) => ({ x: launch.x * kb, y: launch.y * kb }),
+        decelerateAfter: target => VERTICAL_RAMPAGE.hitstun * target.KBmultiplier,
+        resetCombo: false
+    });
 }
 
 // The explosion follows the same curve as a combo finisher: speed and hitstun
@@ -121,10 +205,12 @@ function explodeChainsaw(api, scene, attacker, victim, options = {}) {
     attacker.chainsawCooldownUntil = scene.time.now + (attacker.noAbilityCooldown ? MIN_ABILITY_COOLDOWN_MS : CHAINSAW_COOLDOWN_MS);
     const rampaging = scene.time.now < (attacker.rampageExplosionUntil ?? 0);
     attacker.rampageExplosionUntil = 0;
+    const sidePower = rampaging && attacker.rampageExplosionMode === 'side' ? SIDE_SPECIAL_POWER : 1;
     const force = (options.explosionKnockback ?? 450) * CHAINSAW_EXPLOSION_SCALE *
-        (rampaging ? RAMPAGE_EXPLOSION_KNOCKBACK_SCALE : 1);
+        (rampaging ? RAMPAGE_EXPLOSION_KNOCKBACK_SCALE : 1) * sidePower;
     grindExplosion(api, scene, attacker, victim, {
-        damage: (options.explosionDamage ?? 0.25) * CHAINSAW_EXPLOSION_SCALE * (rampaging ? RAMPAGE_EXPLOSION_DAMAGE_SCALE : 1),
+        special: rampaging,
+        damage: (options.explosionDamage ?? 0.25) * CHAINSAW_EXPLOSION_SCALE * (rampaging ? RAMPAGE_EXPLOSION_DAMAGE_SCALE : 1) * sidePower,
         force,
         hitstun: options.explosionHitstun ?? 400,
         hitFreeze: options.hitFreezeDuration ?? 60,
@@ -207,20 +293,28 @@ function breakPlanksWithChainsaw(api, scene, attacker) {
 
 function updateChainsaw(api, scene, attacker, victim, options = {}) {
     if (!attacker.active || attacker.hitstun || attacker.freeze) {
+        const blockedAHit = attacker.active && attacker.blocking && !attacker.hitstun;
         deactivateChainsaw(scene, attacker);
-        interruptGrinder(scene, attacker);
+        if (!blockedAHit) interruptGrinder(scene, attacker);
         return;
     }
     api.positionAttackSprite(attacker, 'activechainsaw');
     breakPlanksWithChainsaw(api, scene, attacker);
     const rampaging = isRampaging(scene, attacker);
+    const grinding = rampaging && GRINDING_RAMPAGES.has(attacker.rampageMode);
     const victimBlocking = Boolean(victim.blocking);
     const contact = grindTick(api, scene, attacker, victim, attacker.chainsawLastContactTime, {
-        range: (options.range ?? api.STANDARD_HITS.jab.range) + (attacker.sawExtension ?? 0),
-        chipDamage: options.chipDamage ?? CHAINSAW_CHIP_DAMAGE,
+        special: rampaging,
+        range: options.range ?? api.STANDARD_HITS.jab.range,
+        extraReach: attacker.sawExtension ?? 0,
+        upwardScale: rampaging && attacker.rampageMode === 'up' ? 1 : undefined,
+        chipDamage: (options.chipDamage ?? CHAINSAW_CHIP_DAMAGE) * (grinding ? VERTICAL_RAMPAGE.chipScale[attacker.rampageMode] : 1) *
+            (rampaging && attacker.rampageMode === 'side' ? SIDE_SPECIAL_POWER : 1),
         hitstun: options.hitstunDuration,
         freeze: options.freezeDuration,
-        reboundOnBlock: rampaging
+        reboundOnBlock: rampaging,
+        eligibility: attacker.lastDir.y === 0 ? { minDot: CHAINSAW_SIDE_MIN_DOT } : {},
+        ...(grinding ? { sound: VERTICAL_RAMPAGE.tickSound, soundConfig: { rate: VERTICAL_RAMPAGE.tickRate } } : {})
     });
     if (contact === null) {
         attacker.chainsawLastContactTime = 0;
@@ -229,6 +323,15 @@ function updateChainsaw(api, scene, attacker, victim, options = {}) {
     if (rampaging && victimBlocking) {
         deactivateChainsaw(scene, attacker);
         interruptGrinder(scene, attacker);
+        return;
+    }
+    if (grinding) {
+        jitterVictim(victim, VERTICAL_RAMPAGE.jitter, VERTICAL_RAMPAGE.jitterMs);
+        attacker.rampageContact += contact;
+        attacker.chainsawLastContactTime = scene.time.now;
+        if (attacker.rampageContact >= VERTICAL_RAMPAGE.grindMs[attacker.rampageMode] && victim.active && !api.isInvincible(victim)) {
+            verticalRampageLaunch(api, scene, attacker, victim);
+        }
         return;
     }
     const contactRate = rampaging ? 2 : 1;
@@ -243,7 +346,7 @@ function updateChainsaw(api, scene, attacker, victim, options = {}) {
 }
 
 function rampageExtension(scene, attacker) {
-    if (!attacker.chainsawActive || !isRampaging(scene, attacker)) return 0;
+    if (!attacker.chainsawActive || !isRampaging(scene, attacker) || attacker.rampageMode === 'downGround') return 0;
     const t = Phaser.Math.Clamp(1 - (attacker.rampageUntil - scene.time.now) / RAMPAGE_MS, 0, 1);
     const reach = Math.min(1, t / RAMPAGE_REACH.outPortion, (1 - t) / RAMPAGE_REACH.backPortion);
     return RAMPAGE_REACH.maxExtension * (1 - Math.pow(1 - reach, 3));
@@ -312,7 +415,7 @@ function updateChainsawWood(scene, attacker, victim) {
     if (attacker.woodCollectionLastTick === null) {
         attacker.woodCollectionLastTick = now;
     } else {
-        const collectionInterval = 100;
+        const collectionInterval = WOOD_INTERVAL_MS;
         const collectionTicks = Math.floor(
             (now - attacker.woodCollectionLastTick) / collectionInterval
         );
@@ -354,6 +457,7 @@ function placePlank(
         'plank'
     );
     scene.sound.play('placeplank');
+    api.applySkin(plank, attacker.skin);
     plank.setOrigin(0.5);
     plank.setAngle(rotated ? 90 : 0);
     plank.setDepth(3);
@@ -447,9 +551,10 @@ function handleDirSpecial(api, scene, attacker, direction, currentTime, victim) 
         attacker.lastTap[direction] = currentTime;
         if (!doubleTap || currentTime < (attacker.nextSideSpecialTime ?? 0)) return;
         api.startSideSpecialCooldown(attacker, currentTime, attacker.dirSpecialCooldown);
-        startRampage(api, scene, attacker, victim);
+        startRampage(api, scene, attacker, victim, rampageModeFor(attacker, direction));
         return;
     }
+    if (direction === 'up' || direction === 'down') return tryDiagonalPowerSwing(api, scene, attacker, direction, currentTime);
     return tryCleave(api, scene, attacker, direction, currentTime);
 }
 function neutralPlaceAndHarvest(api, scene, attacker, victim) {
@@ -535,6 +640,7 @@ function throwAxe(api, scene, attacker) {
         attacker.y + AXE_THROW.spawn.y,
         'axeprojectile'
     ).setFlipX(dir > 0);
+    api.applySkin(sprite, attacker.skin);
     scene.objs.add(sprite);
     attacker.thrownAxe = {
         sprite,
@@ -577,7 +683,7 @@ function hitFoes(api, scene, owner, axe, from, to, spec, direction) {
         const scale = api.deflects(scene, foe, owner, spec.damage);
         if (scale) return { kind: 'deflected', foe, scale };
         foe.flash?.();
-        const landed = api.landHit(scene, owner, foe, { ...spec, direction });
+        const landed = api.landHit(scene, owner, foe, { special: true, ...spec, direction });
         if (landed && spec.choppedMs) foe.choppedUntil = Math.max(foe.choppedUntil ?? 0, scene.time.now + spec.choppedMs);
         return { kind: 'hit', foe };
     }
@@ -759,11 +865,12 @@ const SUPER_SWING = {
 };
 function superSwing(api, scene, attacker, target, animKey) {
     // The axe only swings when it connects.
-    const hit = api.attackIsElligible(attacker, target, 150);
+    const aim = attacker.powerSwingAim;
+    const hit = api.attackIsElligible(attacker, target, 150, aim ? { direction: aim, allowTargetBelow: true } : {});
     if (hit) {
         api.setAttackSprite(attacker, animKey);
         attacker.hasHitSideSpecial = true;
-        api.landHit(scene, attacker, target, SUPER_SWING);
+        api.landHit(scene, attacker, target, { ...SUPER_SWING, special: true, ...(aim ? { direction: aim } : { power: SIDE_SPECIAL_POWER }) });
         target.choppedUntil = scene.time.now + 3000;
     }
     api.clearQueuedStunTimers(scene, attacker, target);
@@ -774,6 +881,36 @@ function superSwing(api, scene, attacker, target, animKey) {
     });
     return hit;
 }
+const DIAGONAL_POWER_SWING = { speed: 800, ms: 140, angle: Math.PI / 4, endSlowdown: 5, recoverMs: 350 };
+
+function tryDiagonalPowerSwing(api, scene, player, direction, currentTime) {
+    if (player.hitstun || player.freeze || currentTime < player.nextSideSpecialTime) return;
+    api.startSideSpecialCooldown(player, currentTime, player.dirSpecialCooldown);
+    const dirX = player.lastDir.x || player.facingX || 1;
+    const dirY = direction === 'up' ? -1 : 1;
+    const aim = { x: dirX * Math.cos(DIAGONAL_POWER_SWING.angle), y: dirY * Math.sin(DIAGONAL_POWER_SWING.angle) };
+    player.powerSwingAim = aim;
+    player.isUsingSideSpecial = true;
+    player.isAttacking = true;
+    player.hasHitSideSpecial = false;
+    player.afterimage = true;
+    api.startDashTrail(player, DIAGONAL_POWER_SWING.ms);
+    player.lastDir = { x: dirX, y: 0 };
+    player.body.setAllowGravity(false);
+    player.setVelocity(aim.x * DIAGONAL_POWER_SWING.speed, aim.y * DIAGONAL_POWER_SWING.speed);
+    scene.time.delayedCall(DIAGONAL_POWER_SWING.ms, () => {
+        player.body.setAllowGravity(true);
+        player.afterimage = false;
+        if (!player.hitstun) {
+            player.setVelocity(player.body.velocity.x / DIAGONAL_POWER_SWING.endSlowdown, player.body.velocity.y / DIAGONAL_POWER_SWING.endSlowdown);
+        }
+        scene.time.delayedCall(DIAGONAL_POWER_SWING.recoverMs, () => {
+            player.isUsingSideSpecial = false;
+            if (player.powerSwingAim === aim) player.powerSwingAim = null;
+        });
+    });
+}
+
 function tryCleave(api, scene, player, direction, currentTime) {
     const dtapDelay = 250;
     const cleaveCD = player.dirSpecialCooldown;
@@ -848,6 +985,8 @@ export default {
     toggleAttackVariants: ['CHAINSAW'],
     handleMisc: (api, scene, attacker) => toggleChainsawMode(scene, attacker),
     handleDirSpecial: unlessAxeOut(handleDirSpecial),
+    upSpecialVariants: ['CHAINSAW', 'LUMBERER'],
+    downSpecialVariants: ['CHAINSAW', 'LUMBERER'],
     variantNeutralSpecials: {
         LUMBERER: lumbererNeutral,
         CHAINSAW: neutralPlaceAndHarvest

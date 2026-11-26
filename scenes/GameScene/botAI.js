@@ -56,7 +56,7 @@ const SPECIAL_REACH = {
     LONGSWORD: 330,
     DAGGER: 200,
     LUMBERER: 170,
-    METAMORPHIC: 150,
+    SLATE: 150,
     LANDSCAPER: 170,
     MALLET: 110,
     SLEDGEHAMMER: 260,
@@ -74,6 +74,13 @@ const FINISHER_GUARD_MS = 300;
 const AFTER_SMACK_BLOCK_MS = 600;
 const SPECIAL_DODGE_MS = 450;
 const GRAB_DODGE_RANGE = 260;
+
+const RECOIL_BOT = { laneHalf: 40, maxRange: 700 };
+
+function recoilBlastDirection(dx, dy) {
+    if (Math.abs(dy) > RECOIL_BOT.laneHalf || Math.abs(dx) > RECOIL_BOT.maxRange || Math.abs(dx) < 50) return null;
+    return dx < 0 ? 'right' : 'left';
+}
 
 const MINI_LANE_HALF = 45;
 const MINI_ESCAPE_MS = 900;
@@ -700,17 +707,14 @@ export function runBotAI(scene, bot, target, fiveframecount) {
         const horizontalLane = Math.abs(dy + 10) <= target.body.height / 2 + 1;
         const verticalLane = Math.abs(dx) <= target.body.width / 2 + 1;
         const canShootHorizontally = horizontalLane && Math.abs(dx) > 50;
-        // Basic shots are locked out during the minigun, so don't stand and aim
-        // up/down at them; let the movement below line the bot back up instead.
         const canShootVertically = verticalLane && (dy <= -35 || dy >= 15) &&
             !bot.gunmanSpecialActive;
-        // The minigun only fires sideways, so only start it with a horizontal line.
-        const specialHorizontal = canShootHorizontally && Math.abs(dx) <= 1000;
+        const miniDirection = canShootHorizontally && Math.abs(dx) <= 1000 ? (dx < 0 ? 'left' : 'right') : null;
+        const recoilDirection = bot.recoilJammed ? miniDirection : recoilBlastDirection(dx, dy);
 
-        if (targetHittable && specialHorizontal &&
+        if (targetHittable && recoilDirection &&
             !bot.gunmanSpecialActive && now >= bot.nextSideSpecialTime) {
-            bot.lastDir = { x: Math.sign(dx), y: 0 };
-            handleDirSpecial(scene, bot, dx < 0 ? 'left' : 'right', now, target);
+            handleDirSpecial(scene, bot, recoilDirection, now, target);
         }
 
         if (canShootHorizontally || canShootVertically) {
@@ -1083,7 +1087,7 @@ function specialFits(bot, dx, dy, grounded) {
         case 'HAMMERMAN':
             if (bot.variant === 'SLEDGEHAMMER') return false;
             return adx < 80 && ady < 100;
-        case 'SLATEMAN':
+        case 'ROCKMAN':
             return adx < SLIDE_TRIGGER.maxDx && ady < SLIDE_TRIGGER.maxDy;
         case 'CROWBARMAN':
             if (bot.variant === 'DEMOLITIONIST') return grounded && adx < 220 && ady < 80;

@@ -9,6 +9,7 @@ const MAP_CENTER_X = 1000;
 import { getCharacterTexture } from './characterTextures.js';
 import { hasIdleAttackSprite } from './attacks.js';
 import { getCharacterScript } from './combat/characterStats.js';
+import { applySkin, chosenSkin, skinTextureKey } from './combat/skins.js';
 import { COLORS, FONTS } from './ui/theme.js';
 import { MATCH_LIVES, PLAYER_COLORS } from './matchModes.js';
 export function initiatePlayers(scene, matchSettings) {
@@ -23,11 +24,15 @@ export function initiatePlayers(scene, matchSettings) {
             color: entry.color,
             character: entry.character,
             lastDir: { x: spawn.x <= MAP_CENTER_X ? 1 : -1, y: 0 },
+            facingX: spawn.x <= MAP_CENTER_X ? 1 : -1,
             icon: getCharacterTexture(entry.character, entry.variant),
             lives: MATCH_LIVES,
             eliminated: false,
             isCpu: Boolean(entry.bot || scene.simulationMode || (scene.botMode && index === 1))
         });
+        fighter.skin = entry.skin ?? (!scene.online && !fighter.isCpu ? chosenSkin(entry.character) : null);
+        fighter.icon = skinTextureKey(scene, fighter.icon, fighter.skin);
+        applySkin(fighter, fighter.skin);
         return fighter;
     });
     for (const player of Object.values(players)) {
@@ -254,7 +259,7 @@ export function initiatePlayers(scene, matchSettings) {
             externalDamageScale: 1,
             moveSpeedScale: 1,
             jumpScale: 1,
-            dirSpecialCooldown: 3500
+            dirSpecialCooldown: 2500
         });
         const unmodifiedSpeed = p.baseMovementSpeed;
         if (modifierOptions.SLUGGISH.enabled) {
@@ -265,7 +270,7 @@ export function initiatePlayers(scene, matchSettings) {
         }
         if (modifierOptions.FAST.enabled) {
             p.baseMovementSpeed += 300;
-            p.dirSpecialCooldown = 1750;
+            p.dirSpecialCooldown = 1250;
         }
         for (const percent of getEnabledCustomValues('speed')) {
             p.baseMovementSpeed += unmodifiedSpeed * percent / 100;
@@ -318,7 +323,7 @@ export function initiatePlayers(scene, matchSettings) {
     });
 
     for (const player of Object.values(players)) {
-        if (player.name === 'SLATEMAN') {
+        if (player.name === 'ROCKMAN') {
             player.playerKBresistance = 2;
             player.slateTrail = scene.add.particles(player.x, player.y, '__WHITE', {
                 // Spawn spread out, get flung upward, then gravity pulls them
@@ -380,7 +385,7 @@ export function initiatePlayers(scene, matchSettings) {
                 p.y + (p.lastDir.y * 50),
                 p.variant === 'SLEDGEHAMMER' ? 'sledgehammeratk' : 'hammeratk'
             );
-        } else if (p.name == "SLATEMAN") {
+        } else if (p.name == "ROCKMAN") {
             p.atk = scene.add.sprite(
                 p.x + (p.lastDir.x * 50),
                 p.y + (p.lastDir.y * 50),
@@ -407,6 +412,7 @@ export function initiatePlayers(scene, matchSettings) {
             );
         }
         p.atk.setScale(getCharacterScript(p)?.variantAttackSpriteScales?.[p.variant] ?? 1);
+        applySkin(p.atk, p.skin);
         scene.objs.add(p.atk);
     }
 

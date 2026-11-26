@@ -161,10 +161,12 @@ export function landHit(scene, attacker, target, spec = {}) {
         ranged = false,
         shieldCost = null,
         deferCounter = false,
-        victimShake = 0
+        victimShake = 0,
+        special = false,
+        power = 1
     } = spec;
     if (target.uninterruptible || target.eliminated || isTeammate(attacker, target)) return false;
-    if (!unblockable && blocksHit(scene, target, attacker, damage, { ranged, shieldCost, deferCounter })) return false;
+    if (!unblockable && blocksHit(scene, target, attacker, damage, { ranged, shieldCost, deferCounter, special })) return false;
     const now = scene.time.now;
     const direction = spec.direction || attacker.lastDir;
     const damageScale = getAttackDamageScale(attacker);
@@ -191,11 +193,12 @@ export function landHit(scene, attacker, target, spec = {}) {
     }
     attacker.comboTimer = 600;
 
-    target.KBmultiplier += damage * damageScale;
+    target.KBmultiplier += damage * damageScale * power;
     damagePlanksInAttack(attacker, plankDamage * damageScale);
 
-    const launch = knockback && resolveLaunch(attacker, target, knockback, direction, damageScale);
-    onHit?.(scene);
+    const rawLaunch = knockback && resolveLaunch(attacker, target, knockback, direction, damageScale);
+    const launch = rawLaunch && power !== 1 ? { x: rawLaunch.x * power, y: rawLaunch.y * power } : rawLaunch;
+    onHit?.(scene, target);
     if (hitFreezeMs > 0) hitFreeze(scene, hitFreezeMs);
     if (victimShake > 0) shakeVictim(target, victimShake);
     playHitSound(scene, attacker, sound);

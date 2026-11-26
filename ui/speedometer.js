@@ -17,10 +17,21 @@ const SLOTS = [
     { index: 1, x: 875, label: 'P2', color: COLORS.p2 }
 ];
 
+const RENAMED_RECORDS = { 'SLATEMAN METAMORPHIC': 'ROCKMAN SLATE' };
+
+function renameRecords(records) {
+    for (const [from, to] of Object.entries(RENAMED_RECORDS)) {
+        if (!records[from]) continue;
+        records[to] ??= records[from];
+        delete records[from];
+    }
+    return records;
+}
+
 function loadRecords() {
     try {
         const saved = JSON.parse(localStorage.getItem(RECORDS_KEY));
-        if (saved) return saved;
+        if (saved) return renameRecords(saved);
         const legacy = JSON.parse(localStorage.getItem(LEGACY_RECORDS_KEY)) ?? {};
         return Object.fromEntries(Object.entries(legacy)
             .map(([key, record]) => [key, { top: 0, distance: record.distance ?? 0 }]));

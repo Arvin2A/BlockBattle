@@ -4,7 +4,7 @@
 
 import Phaser from 'phaser';
 import './assetVersions.js';
-import {handleAttack, handleMatchEnd, tryExtraJump, handleDirSpecial, handleNeutralSpecial, handleDirSpecialAttack, handleHorizantalTilt, handleDownTilt, handleUpTilt, downslamAttack, updateScythemanGrass, updateChainsawWood, updateCharacter, handleMisc, hasMiscButton, usesToggleAttack, getSpecialMeter, tryQuickslamJump, positionAttackSprite, hasIdleAttackSprite, getAttackSpriteOffset, getAttackSpriteAngle, getAttackSpriteFlipX, getAttackSpriteScale, triggerScreenShake, spawnDirtBurst, spawnExplosion} from './attacks.js';
+import {handleAttack, handleMatchEnd, tryExtraJump, handleDirSpecial, handleNeutralSpecial, hasUpSpecial, hasDownSpecial, handleDirSpecialAttack, handleHorizantalTilt, handleDownTilt, handleUpTilt, downslamAttack, updateScythemanGrass, updateChainsawWood, updateCharacter, handleMisc, hasMiscButton, usesToggleAttack, getSpecialMeter, tryQuickslamJump, positionAttackSprite, hasIdleAttackSprite, getAttackSpriteOffset, getAttackSpriteAngle, getAttackSpriteFlipX, getAttackSpriteScale, triggerScreenShake, spawnDirtBurst, spawnExplosion} from './attacks.js';
 import { COLORS, FONTS, HEX, makePanel, textStyle } from './ui/theme.js';
 import { PLAYER_COLORS, buildRoster, isTeamMode } from './matchModes.js';
 import { isAlive, nearestEnemy } from './combat/targets.js';
@@ -13,6 +13,7 @@ import { addSettingsButton, applyVolume, getScreenShakeScale, openSettings, useM
 import { buttonTexture, getButtonTint, skinButton } from './ui/matchButtons.js';
 import { openConfirm } from './ui/confirmDialog.js';
 import { openAdvancedInfo } from './ui/advancedInfo.js';
+import { installCharacterInfoHotkey } from './ui/infoHotkey.js';
 import { CHARACTER_ROSTER } from './characterRoster.js';
 import { addThumbstick } from './ui/touchJoystick.js';
 import { createSpeedometers, updateSpeedometers } from './ui/speedometer.js';
@@ -40,7 +41,7 @@ import { runBotAI } from './scenes/GameScene/botAI.js';
 import { runBotAI as runLegacyBotAI } from './scenes/GameScene/botAILegacy.js'; // BENCHMARK-TEMP
 import { Map } from './scenes/GameScene/Map.js';
 import { getMapEvent } from './scenes/GameScene/mapEvents.js';
-import { getHeatStat, getCharacterStat } from './combat/characterStats.js';
+import { getHeatStat, getCharacterStat, isSuppressed } from './combat/characterStats.js';
 import { updateBurn } from './combat/heat.js';
 import { getActiveKillZones, modifierOptions } from './scenes/MapAndModifierSelect.js';
 import UIPlugin from 'phaser4-rex-plugins/templates/ui/ui-plugin.js';
@@ -248,6 +249,7 @@ loadFont().then(() => {
         : new Phaser.Game(config);
     if (!isAuthority()) game.events.once('ready', () => {
         addButtonHoverSounds(game);
+        installCharacterInfoHotkey(game);
         applyVolume(game, false);
         startDesktopPresence(game);
     });
@@ -328,6 +330,31 @@ var homeBtnPressed;
 
 const KO_LOCK_MS = 1500;
 const STAT_BLOCK = { y: 65, width: 195, imageScale: 0.65, minGap: 44 };
+const LIFE_PIPS = { y: 108, size: 16, gap: 8, angle: 45, lostAlpha: 0.25 };
+
+function createLifeBar(scene, player, x, scale) {
+    const step = (LIFE_PIPS.size + LIFE_PIPS.gap) * scale;
+    const count = player.lives;
+    const pips = Array.from({ length: count }, (_, index) => {
+        const pip = scene.add.image((index - (count - 1) / 2) * step, 0, player.icon).setAngle(LIFE_PIPS.angle);
+        return pip.setScale(LIFE_PIPS.size * scale / Math.max(pip.width, pip.height));
+    });
+    const bar = scene.add.container(x, LIFE_PIPS.y, pips);
+    bar.shownLives = count;
+    return bar;
+}
+
+function updateLifeBar(player) {
+    const bar = player.lifeBar;
+    if (!bar || bar.shownLives === player.lives) return;
+    bar.shownLives = player.lives;
+    bar.list.forEach((pip, index) => {
+        const left = index < player.lives;
+        pip.setAlpha(left ? 1 : LIFE_PIPS.lostAlpha);
+        if (left) pip.clearTint();
+        else pip.setTint(HEX.cpu);
+    });
+}
 
 function getStatLayout(count) {
     if (count === 2) return { xs: [300, 700], scale: 1 };
@@ -1147,7 +1174,8 @@ function create() {
         createKBText(this, player, x - 15 * scale, STAT_BLOCK.y);
         player.KBText.setScale(scale);
         player.KBFlashText.setScale(scale);
-        this.hud.add([player.statIcon, nameText, player.KBText, player.KBFlashText]);
+        player.lifeBar = createLifeBar(this, player, x, scale);
+        this.hud.add([player.statIcon, nameText, player.KBText, player.KBFlashText, player.lifeBar]);
     });
 
     attackKey1 = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.E);
@@ -1261,13 +1289,6 @@ function create() {
             }
         });
     };
-    this.onInfoKey = () => {
-        if (this.online) return;
-        if (this.advancedInfo) this.advancedInfo.close();
-        else this.openCharacterInfo();
-    };
-    this.input.keyboard?.on('keydown-I', this.onInfoKey);
-    this.events.once('shutdown', () => this.input.keyboard?.off('keydown-I', this.onInfoKey));
 
     this.pauseButton = addSettingsButton(this, {
         depth: 1999,
@@ -1616,25 +1637,29 @@ function showMatchEnd(scene, winners) {
     const flash = scene.add.rectangle(500, 300, 1000, 600, 0xffffff, 1);
     const topBar = scene.add.rectangle(500, -35, 1000, 70, 0x000000);
     const bottomBar = scene.add.rectangle(500, 635, 1000, 70, 0x000000);
-    const stamp = scene.add.text(500, 270, 'GAME!', textStyle('title', {
-        fontSize: '96px',
-        strokeThickness: 10
-    })).setOrigin(0.5).setScale(3).setAlpha(0);
-    scene.hud.add([topBar, bottomBar, stamp, flash]);
+    const stampStyle = textStyle('title', { fontSize: '96px', strokeThickness: 10 });
+    const stamp = scene.add.text(500, 270, 'GAME!', stampStyle)
+        .setOrigin(0.5).setScale(GAME_STAMP.startScale).setAlpha(0);
+    const echo = scene.add.text(500, 270, 'GAME!', stampStyle).setOrigin(0.5).setVisible(false);
+    scene.hud.add([topBar, bottomBar, echo, stamp, flash]);
 
     scene.tweens.add({ targets: flash, alpha: 0, duration: 400, onComplete: () => flash.destroy() });
     scene.tweens.add({ targets: topBar, y: 35, duration: 300, ease: 'Cubic.easeOut' });
     scene.tweens.add({ targets: bottomBar, y: 565, duration: 300, ease: 'Cubic.easeOut' });
+    scene.tweens.add({ targets: stamp, alpha: 1, delay: GAME_STAMP.delayMs, duration: GAME_STAMP.dropMs / 2 });
     scene.tweens.add({
         targets: stamp,
-        scale: 1,
-        alpha: 1,
-        delay: 150,
-        duration: 350,
-        ease: 'Back.easeOut',
+        scale: GAME_STAMP.squashScale,
+        delay: GAME_STAMP.delayMs,
+        duration: GAME_STAMP.dropMs,
+        ease: 'Expo.easeIn',
         onComplete: () => {
-            triggerScreenShake(scene, 14, 400);
+            triggerScreenShake(scene, 18, 450);
             scene.sound.play('slamimpact');
+            scene.sound.play('gameStamp');
+            scene.tweens.add({ targets: stamp, scale: 1, duration: GAME_STAMP.settleMs, ease: 'Back.easeOut' });
+            expandEcho(scene, echo);
+            jitterStamp(scene, stamp);
         }
     });
 
@@ -1643,6 +1668,48 @@ function showMatchEnd(scene, winners) {
     scene.time.delayedCall(1400, () => {
         scene.tweens.add({ targets: stamp, alpha: 0, scale: 0.6, duration: 250, onComplete: () => stamp.destroy() });
         showResultsPanel(scene, winners);
+    });
+}
+
+const GAME_STAMP = {
+    startScale: 4,
+    squashScale: 0.85,
+    delayMs: 120,
+    dropMs: 160,
+    settleMs: 140,
+    echo: { alpha: 0.6, scale: 1.9, ms: 550 },
+    jitter: { maxAngle: 20, ms: 380, stepMs: 14 }
+};
+
+function expandEcho(scene, echo) {
+    echo.setVisible(true).setAlpha(GAME_STAMP.echo.alpha).setScale(1).setAngle(0);
+    scene.tweens.add({
+        targets: echo,
+        scale: GAME_STAMP.echo.scale,
+        alpha: 0,
+        duration: GAME_STAMP.echo.ms,
+        ease: 'Quad.easeOut',
+        onComplete: () => echo.destroy()
+    });
+}
+
+function jitterStamp(scene, stamp) {
+    const { maxAngle, ms, stepMs } = GAME_STAMP.jitter;
+    const start = scene.time.now;
+    let side = Math.random() < 0.5 ? -1 : 1;
+    const timer = scene.time.addEvent({
+        delay: stepMs,
+        loop: true,
+        callback: () => {
+            const left = 1 - (scene.time.now - start) / ms;
+            if (left <= 0 || !stamp.active) {
+                timer.remove(false);
+                if (stamp.active) stamp.setAngle(0);
+                return;
+            }
+            side = -side;
+            stamp.setAngle(side * maxAngle * left * left * Phaser.Math.FloatBetween(0.6, 1));
+        }
     });
 }
 
@@ -1908,7 +1975,7 @@ const IDLE_WEAPON_TEXTURES = {
     MALLET: 'hammeratk',
     ANGLER: 'rodatk',
     TRAPPER: 'harpoonatk',
-    METAMORPHIC: 'slateatk1',
+    SLATE: 'slateatk1',
     CRAZER: 'gunmanatk'
 };
 
@@ -1964,17 +2031,18 @@ function updateSledgehammerAnimation(player) {
     }
 }
 
-// SLATEMAN's speed at 0% KB, and how much faster each 100% KB makes him.
-const SLATEMAN_START_SPEED = 0.75;
-const SLATEMAN_SPEED_PER_KB = 0.5;
-const SLATEMAN_PHASES = [
-    { minKB: -Infinity, texture: 'slateman', resistance: 2 },
-    { minKB: 1.50, texture: 'slatemanphase1', resistance: 1.5 },
-    { minKB: 2.00, texture: 'slatemanphase2', resistance: 1 },
-    { minKB: 2.50, texture: 'slatemanphase3', resistance: 0.5 }
+// ROCKMAN's speed at 0% KB, and how much faster each 100% KB makes him.
+const ROCKMAN_START_SPEED = 0.75;
+const ROCKMAN_SPEED_PER_KB = 0.5;
+const ROCKMAN_PHASES = [
+    { minKB: -Infinity, texture: 'rockman', resistance: 2 },
+    { minKB: 1.50, texture: 'rockmanphase1', resistance: 1.5 },
+    { minKB: 2.00, texture: 'rockmanphase2', resistance: 1 },
+    { minKB: 2.50, texture: 'rockmanphase3', resistance: 0.5 }
 ];
 
 const CLIPPED_SPEED_SCALE = 0.35;
+const SUPPRESSED_SPEED_SCALE = 0.25;
 const CHOPPED_GROUND_SPEED_SCALE = 0.35;
 const CHOPPED_AIR_SPEED_SCALE = 0.75;
 
@@ -2079,8 +2147,8 @@ function updateKB(scene) {
 
         let speedScaling = 1;
         let damageScale = 1;
-        if (player.name === "SLATEMAN") {
-            speedScaling = SLATEMAN_START_SPEED + (player.KBmultiplier - 1) * SLATEMAN_SPEED_PER_KB;
+        if (player.name === "ROCKMAN") {
+            speedScaling = ROCKMAN_START_SPEED + (player.KBmultiplier - 1) * ROCKMAN_SPEED_PER_KB;
             damageScale = Math.max(0.1, 1 - (player.KBmultiplier - 1) * 0.35);
         }
         if (player.chopped) {
@@ -2090,6 +2158,7 @@ function updateKB(scene) {
         }
         const clipped = scene.time.now < (player.clippedUntil ?? 0);
         if (clipped) speedScaling *= CLIPPED_SPEED_SCALE;
+        if (isSuppressed(player)) speedScaling *= SUPPRESSED_SPEED_SCALE;
         speedScaling *= player.moveSpeedScale ?? 1;
         speedScaling *= weather?.speedScale ?? 1;
         damageScale *= weather?.damageScale ?? 1;
@@ -2102,9 +2171,9 @@ function updateKB(scene) {
 
         if (player.lastKBmultiplier !== player.KBmultiplier) {
 
-            if (player.name === "SLATEMAN") {
-                const phase = SLATEMAN_PHASES.filter(({ minKB }) => player.KBmultiplier >= minKB).length - 1;
-                const { texture, resistance } = SLATEMAN_PHASES[phase];
+            if (player.name === "ROCKMAN") {
+                const phase = ROCKMAN_PHASES.filter(({ minKB }) => player.KBmultiplier >= minKB).length - 1;
+                const { texture, resistance } = ROCKMAN_PHASES[phase];
                 player.setTexture(texture);
                 player.playerKBresistance = resistance;
                 if (phase > (player.slatePhase ?? 0)) scene.sound.play('rockbreak');
@@ -2454,11 +2523,13 @@ function updateFighterBookkeeping(scene, player) {
 }
 
 function updateFacing(player, input) {
-    if (player.moveDirLock) player.lastDir = { x: player.moveDirLock, y: 0 };
+    if (player.aimLock) player.lastDir = { ...player.aimLock };
+    else if (player.moveDirLock) player.lastDir = { x: player.moveDirLock, y: 0 };
     else if (input.left) player.lastDir = { x: -1, y: 0 };
     else if (input.right) player.lastDir = { x: 1, y: 0 };
     else if (input.up) player.lastDir = { x: 0, y: -1 };
     else if (input.down) player.lastDir = { x: 0, y: 1 };
+    if (player.lastDir.x) player.facingX = Math.sign(player.lastDir.x);
     if (player.lastDir.y === 0 && !player.activeGrab) player.atk.setAngle(getAttackSpriteAngle(player));
 }
 
@@ -2506,7 +2577,9 @@ function handleMovementInput(scene, player, input, victim) {
     const rightPressed = input.rightPressed;
     const specialPressed = input.specialPressed;
     const specialHeld = input.special;
-    const specialDirection = input.left ? 'left' : input.right ? 'right' : null;
+    const specialDirection = input.left ? 'left' : input.right ? 'right'
+        : input.up && hasUpSpecial(player) ? 'up'
+        : input.down && hasDownSpecial(player) ? 'down' : null;
     const command = type => executeStateCommand(scene, scene.gameState.players, { playerID: player.id, type });
 
     if (leftPressed) {
@@ -2630,7 +2703,12 @@ function recordAchievements(scene, winners) {
                 if (farmed) result.qualifies = false;
                 return [fighter.slot, result];
             }));
-        reportMatchEnd(winners.map(fighter => fighter.slot), results);
+        const stats = Object.fromEntries(fighters.map(fighter => [fighter.slot, {
+            kos: fighter.stats.kos,
+            maxKB: fighter.stats.maxKB,
+            damage: fighter.stats.damageDealt
+        }]));
+        reportMatchEnd(winners.map(fighter => fighter.slot), results, stats);
         return;
     }
     if (!scene.botMode || scene.simulationMode) return;
@@ -2701,6 +2779,7 @@ function creditScorer(scene, loser) {
 function knockOut(scene, loser) {
     loser.koLockedUntil = scene.time.now + KO_LOCK_MS;
     loser.lives -= 1;
+    updateLifeBar(loser);
     loser.KBmultiplier = modifierOptions.SUDDEN_DEATH.enabled ? 4.00 : 1.00;
     loser.statsLastKB = loser.KBmultiplier;
 
@@ -2733,6 +2812,7 @@ function removePlayersWhoLeft(scene) {
         closeAfkStreak(fighter);
         if (scene.matchStartTime !== null) fighter.leftAt = scene.time.now;
         fighter.lives = 0;
+        updateLifeBar(fighter);
         const matchOver = teamsStillIn(scene).size <= 1;
         if (!matchOver) eliminateFighter(scene, fighter);
         endMatchIfDecided(scene);
@@ -2803,6 +2883,7 @@ function update() {
     for (const player of living) {
         if (player.KBmultiplier < 0.7) player.KBmultiplier = 0.70;
         updateKBText(this, player, player.KBmultiplier);
+        updateLifeBar(player);
     }
     for (const player of living) updateMatchStats(this, player);
     for (const player of living) {
@@ -2812,9 +2893,10 @@ function update() {
     }
 
     for (const player of living) {
-        if (player.afterimage && this.time.now > player.afterimageTimer) {
+        const dashTrail = this.time.now < (player.dashTrail?.until ?? 0) ? player.dashTrail : null;
+        if ((player.afterimage || dashTrail) && this.time.now > player.afterimageTimer) {
             spawnAfterimage(this, player);
-            player.afterimageTimer = this.time.now + (player.ultraLaunch ? 12 : player.violentLaunch ? 20 : 40);
+            player.afterimageTimer = this.time.now + (player.ultraLaunch ? 12 : player.violentLaunch ? 20 : dashTrail?.everyMs ?? 40);
         }
     }
 

@@ -2,8 +2,15 @@
 // Original source: https://github.com/Arvin2A/BlockBattle
 // Licensed under the GNU GPL v3 only. See LICENSE.
 
+import Phaser from 'phaser';
+import { sayLine } from '../combat/dialogue.js';
+
 const MINI_DAMAGE = 0.007;
 const MINI_FALL_SPEED = 60;
+const MINI_CHIP_KNOCKBACK_X = 15;
+const MINI_SUPPRESS_MS = 150;
+const MINI_DURATION_MS = 1000;
+
 const SHOT_SHIELD_COST = 0.05;
 const EXPLOSION_SHIELD_COST = 0.4;
 
@@ -43,7 +50,8 @@ function playShotAnimation(
     else play();
 }
 
-function createBeam(api, scene, attacker, candidates, sprite = attacker.atk, shotDir) {
+function createBeam(api, scene, attacker, candidates, sprite = attacker.atk, shotDir, look = {}) {
+    const { thickness = 2, color = 0xffff00, fadeMs = 120 } = look;
     const aimLength = Math.hypot(shotDir.x, shotDir.y) || 1;
     const directionX = shotDir.x / aimLength;
     const directionY = shotDir.y / aimLength;
@@ -55,7 +63,7 @@ function createBeam(api, scene, attacker, candidates, sprite = attacker.atk, sho
         0,
         visualOffsetX * directionX + visualOffsetY * directionY
     );
-    const ray = { directionX, directionY, startX: rayOriginX, startY: rayOriginY };
+    const ray = { directionX, directionY, startX: rayOriginX, startY: rayOriginY, halfThickness: thickness / 2 };
     let contactDistance = null;
     let target = null;
     for (const candidate of candidates) {
@@ -84,14 +92,14 @@ function createBeam(api, scene, attacker, candidates, sprite = attacker.atk, sho
         startX + directionX * beamLength / 2,
         startY + directionY * beamLength / 2,
         beamLength,
-        2,
-        0xffff00
+        thickness,
+        color
     ).setRotation(Math.atan2(directionY, directionX)).setDepth(8);
     scene.objs.add(beam);
     scene.tweens.add({
         targets: beam,
         alpha: 0,
-        duration: 120,
+        duration: fadeMs,
         onComplete: () => beam.destroy()
     });
 
@@ -181,7 +189,7 @@ function getBeamContactDistance(victim, beam) {
         Math.abs(beam.directionX) * victimHalfWidth +
         Math.abs(beam.directionY) * victimHalfHeight;
 
-    if (distanceAlongBeam < 0 || distanceFromBeam > perpendicularExtent + 1) return null;
+    if (distanceAlongBeam < 0 || distanceFromBeam > perpendicularExtent + (beam.halfThickness ?? 0) + 1) return null;
     return Math.max(0, distanceAlongBeam - extentAlongBeam);
 }
 
@@ -215,9 +223,9 @@ function handleShot(api, scene, attacker, victim, options = {}) {
     if ((!options.ignoreCooldown &&
         (scene.time.now < attacker.nextAttackTime || !attacker.canAttack)) || attacker.hitstun) return;
     if (!options.isSpecial && attacker.gunmanSpecialActive) return;
-    const shotDir = options.isSpecial
+    const shotDir = options.shotDir ?? (options.isSpecial
         ? { x: victim?.active ? (victim.x >= attacker.x ? 1 : -1) : (attacker.lastDir.x || 1), y: 0 }
-        : attacker.lastDir;
+        : attacker.lastDir);
     const isExplosion = options.damageIncrement === undefined && attacker.combo >= 4;
     if (options.isSpecial) {
         playShotAnimation(
@@ -259,7 +267,7 @@ function handleShot(api, scene, attacker, victim, options = {}) {
     const shieldCost = options.isSpecial ? null : (isExplosion ? EXPLOSION_SHIELD_COST : SHOT_SHIELD_COST) * hitCount;
     const deflected = hitCount > 0 && api.deflects(scene, victim, attacker, shotDamage * hitCount, { shieldCost });
     if (deflected) reflectShot(api, scene, attacker, victim, shotDamage * hitCount * deflected, isExplosion);
-    if (hitCount > 0 && !deflected && !api.blocksHit(scene, victim, attacker, shotDamage * hitCount, { ranged: true, shieldCost })) {
+    if (hitCount > 0 && !deflected && !api.blocksHit(scene, victim, attacker, shotDamage * hitCount, { ranged: true, shieldCost, special: Boolean(options.isSpecial) })) {
         victim.flash();
         const damageScale = api.getAttackDamageScale(attacker);
         victim.KBmultiplier += shotDamage * damageScale * hitCount;
@@ -268,17 +276,25 @@ function handleShot(api, scene, attacker, victim, options = {}) {
         if (options.freezeDuration !== undefined) {
             victim.freezeUntil = scene.time.now + options.freezeDuration;
         }
-        const knockback = (isExplosion ? 600 : 0) * victim.KBmultiplier * damageScale;
-        const verticalKick = shotDir.y === 0
-            ? (isExplosion ? -220 : 0)
-            : shotDir.y * knockback;
+        if (options.suppressMs !== undefined) {
+            victim.suppressedUntil = Math.max(victim.suppressedUntil ?? 0, scene.time.now + options.suppressMs);
+        }
+        if (options.chipKnockbackX !== undefined) {
+            const side = shotDir.x || Math.sign(victim.x - attacker.x) || 1;
+            api.applyKnockback(scene, victim, side * options.chipKnockbackX, victim.body.velocity.y);
+        } else {
+            const knockback = (isExplosion ? 600 : 0) * victim.KBmultiplier * damageScale;
+            const verticalKick = shotDir.y === 0
+                ? (isExplosion ? -220 : 0)
+                : shotDir.y * knockback;
 
-        api.applyKnockback(
-            scene,
-            victim,
-            shotDir.x * knockback,
-            verticalKick
-        );
+            api.applyKnockback(
+                scene,
+                victim,
+                shotDir.x * knockback,
+                verticalKick
+            );
+        }
         if (options.attackerFallSpeed !== undefined) {
             attacker.setVelocityY(Math.min(attacker.body.velocity.y, options.attackerFallSpeed));
         }
@@ -317,68 +333,329 @@ function startSideSpecialCooldown(player, currentTime, duration) {
     player.sideSpecialCooldownDuration = duration;
     player.nextSideSpecialTime = currentTime + duration;
 }
+const RECOIL = {
+    chargeMs: 800,
+    shake: 3,
+    holdFrame: 1,
+    holdFallSpeed: 60,
+    holdSlow: 0.85,
+    muzzle: 50,
+    beam: { thickness: 12, color: 0xfff27a, fadeMs: 220 },
+    plankDamage: 0.3,
+    damage: { side: 0.25, up: 0.4, down: 0.25 },
+    knockbackScale: { side: 0.65, up: 1, down: 0.65 },
+    hit: {
+        ranged: true,
+        special: true,
+        plankDamage: 0,
+        hitstun: 500,
+        hitFreeze: 120,
+        knockback: { x: 900, y: 900 },
+        decelerateAfter: target => 500 * target.KBmultiplier,
+        resetCombo: false
+    },
+    push: { speed: 1540, ms: 220, endSlowdown: 3 },
+    ring: { from: 55, to: 10, lineWidth: 3, color: 0xfff27a, alpha: { from: 0.35, to: 0.95 } },
+    shakeScreen: { intensity: 7, ms: 220 }
+};
+
+function recoilAim(kind, direction) {
+    if (kind === 'up') return { x: 0, y: 1 };
+    if (kind === 'down') return { x: 0, y: -1 };
+    return { x: direction === 'left' ? 1 : -1, y: 0 };
+}
+
+function placeRecoilGun(gun, attacker, aim, facing, jitter) {
+    const flip = aim.x < 0 || (aim.x === 0 && facing < 0);
+    const angle = flip ? -Math.atan2(aim.y, -aim.x) : Math.atan2(aim.y, aim.x);
+    gun.setFlipX(flip)
+        .setRotation(angle)
+        .setPosition(
+            attacker.x + aim.x * RECOIL.muzzle + Phaser.Math.FloatBetween(-jitter, jitter),
+            attacker.y + aim.y * RECOIL.muzzle + Phaser.Math.FloatBetween(-jitter, jitter)
+        );
+}
+
 function handleGunmanSpecial(api, scene, attacker, direction, currentTime, victim) {
     const dtapDelay = 250;
-    const gunCD = attacker.dirSpecialCooldown;
-
     if (attacker.hitstun || attacker.freeze) return;
     if (currentTime < attacker.nextSideSpecialTime) return;
-
-    if (currentTime - attacker.lastTap[direction] < dtapDelay || attacker.isBot) {
-        if (!victim || !attacker.active || attacker.gunmanSpecialActive) return;
-
-        attacker.isUsingSideSpecial = true;
-        attacker.isAttacking = true;
-        attacker.hasHitSideSpecial = false;
-
-        attacker.isUsingSideSpecial = false;
-        attacker.atk.setVisible(false);
-
-        startSideSpecialCooldown(attacker, currentTime, gunCD);
-
-        const specialSprite = scene.add.sprite(attacker.x, attacker.y + 20, 'gunmanspecial')
-            .setVisible(false)
-            .setDepth(attacker.atk.depth);
-        scene.objs.add(specialSprite);
-        attacker.gunmanSpecialActive = true;
-
-        const fireBullet = () => {
-            if (!attacker.active) return;
-
-            if (attacker.lastDir.y === 0 && victim.active) {
-                attacker.lastDir.x = victim.x >= attacker.x ? 1 : -1;
-            }
-
-            attacker.lastDir.y = 0;
-
-            handleShot(api, scene, attacker, victim, {
-                damageIncrement: MINI_DAMAGE,
-                hitstunDuration: 100,
-                freezeDuration: 50,
-                attackerFallSpeed: MINI_FALL_SPEED,
-                ignoreCooldown: true,
-                ignoreCombo: true,
-                sprite: specialSprite,
-                animation: 'gunmanspecial',
-                animationDelay: 35,
-                isSpecial: true
-            });
-        };
-
-        fireBullet();
-        const firingEvent = scene.time.addEvent({ delay: 35, loop: true, callback: fireBullet });
-        scene.time.delayedCall(1500, () => {
-            firingEvent.remove(false);
-            scene.sound.play('gunspecialend', {volume: 0.75})
-            specialSprite.destroy();
-            attacker.gunmanSpecialActive = false;
-            attacker.isAttacking = false;
-            attacker.idleWeaponTexture = 'gunmanspecial';
-            if (!attacker.active) return;
-            attacker.atk.stop().setTexture('gunmanspecial', 2).setVisible(true);
-        });
-    }
+    const doubleTap = currentTime - attacker.lastTap[direction] < dtapDelay || attacker.isBot;
     attacker.lastTap[direction] = currentTime;
+    if (!doubleTap || !attacker.active || attacker.gunmanSpecialActive) return;
+    if (attacker.recoilJammed) {
+        startMini(api, scene, attacker, direction, currentTime, victim);
+        return;
+    }
+    startRecoilBlast(api, scene, attacker, direction, currentTime, victim);
+}
+
+function startMini(api, scene, attacker, direction, currentTime, victim) {
+    if (!victim) return;
+    attacker.isAttacking = true;
+    attacker.atk.setVisible(false);
+    startSideSpecialCooldown(attacker, currentTime, attacker.dirSpecialCooldown);
+    const aimY = direction === 'up' ? -1 : direction === 'down' ? 1 : 0;
+    const facing = direction === 'left' ? -1 : direction === 'right' ? 1 : (attacker.lastDir.x || attacker.facingX || 1);
+    const aim = aimY ? { x: 0, y: aimY } : { x: facing, y: 0 };
+
+    const specialSprite = scene.add.sprite(attacker.x, attacker.y + 20, 'gunmanspecial')
+        .setVisible(false)
+        .setDepth(attacker.atk.depth);
+    api.applySkin(specialSprite, attacker.skin);
+    scene.objs.add(specialSprite);
+    attacker.gunmanSpecialActive = true;
+
+    const fireBullet = () => {
+        if (!attacker.active) return;
+        attacker.lastDir = { ...aim };
+        handleShot(api, scene, attacker, victim, {
+            damageIncrement: MINI_DAMAGE,
+            chipKnockbackX: MINI_CHIP_KNOCKBACK_X,
+            suppressMs: MINI_SUPPRESS_MS,
+            attackerFallSpeed: MINI_FALL_SPEED,
+            ignoreCooldown: true,
+            ignoreCombo: true,
+            sprite: specialSprite,
+            animation: 'gunmanspecial',
+            animationDelay: 35,
+            isSpecial: true,
+            shotDir: aim
+        });
+    };
+
+    fireBullet();
+    const firingEvent = scene.time.addEvent({ delay: 35, loop: true, callback: fireBullet });
+    scene.time.delayedCall(MINI_DURATION_MS, () => {
+        firingEvent.remove(false);
+        scene.sound.play('gunspecialend', { volume: 0.75 });
+        specialSprite.destroy();
+        attacker.gunmanSpecialActive = false;
+        attacker.isAttacking = false;
+        if (aimY && attacker.lastDir.x === 0) attacker.lastDir = { x: facing, y: 0 };
+        attacker.idleWeaponTexture = 'gunmanspecial';
+        if (!attacker.active) return;
+        attacker.atk.stop().setTexture('gunmanspecial', 2).setVisible(true);
+    });
+}
+
+const RECOIL_JAM = {
+    shots: 10,
+    flashMs: 90,
+    flashTint: 0xff2a2a,
+    selfDamage: 0.1,
+    selfLaunch: { x: 250, y: 420 },
+    selfHitstunMs: 400,
+    line: 'screw it',
+    alarmRate: 1.7,
+    swap: { shrinkMs: 220, growMs: 260, holdOffset: 40 },
+    meterColor: 0xfff27a,
+    jammedColor: 0xff8c3a
+};
+
+function recoilShotsLeft(attacker) {
+    return attacker.recoilShotsLeft ?? RECOIL_JAM.shots;
+}
+
+function jamRecoilGun(api, scene, attacker, gun) {
+    const now = scene.time.now;
+    gun.clearTint();
+    api.spawnExplosion(scene, { x: gun.x, y: gun.y }, 0.8);
+    api.triggerScreenShake(scene, 8, 250);
+    scene.sound.play('explosion');
+    attacker.recoilJammed = true;
+    attacker.flash();
+    attacker.KBmultiplier += RECOIL_JAM.selfDamage;
+    attacker.hitstunUntil = now + RECOIL_JAM.selfHitstunMs;
+    const facing = attacker.lastDir.x || attacker.facingX || 1;
+    api.applyKnockback(scene, attacker, -facing * RECOIL_JAM.selfLaunch.x, -RECOIL_JAM.selfLaunch.y, { noDeathRay: true });
+    sayLine(scene, attacker, RECOIL_JAM.line);
+}
+
+function swapToMini(api, scene, attacker, pistol, direction, victim) {
+    const facing = attacker.lastDir.x || attacker.facingX || 1;
+    const hitAt = attacker.lastHitAt;
+    const { shrinkMs, growMs, holdOffset } = RECOIL_JAM.swap;
+    attacker.gunmanSpecialActive = true;
+    attacker.isAttacking = true;
+    pistol.clearTint().setRotation(0).setFlipX(facing < 0);
+    let held = pistol;
+    const follow = api.addSceneUpdateListener(scene, () => {
+        if (!held?.active) return;
+        attacker.atk.setVisible(false);
+        held.setPosition(attacker.x + facing * holdOffset, attacker.y);
+    });
+    const finish = () => {
+        follow();
+        if (held?.active) held.destroy();
+        attacker.gunmanSpecialActive = false;
+        attacker.isAttacking = false;
+        if (attacker.active && attacker.lastHitAt === hitAt) {
+            const towardVictim = victim?.active && victim.x < attacker.x ? 'left' : 'right';
+            const miniDirection = direction === 'up' || direction === 'down' ? direction : towardVictim;
+            startMini(api, scene, attacker, miniDirection, scene.time.now, victim);
+        }
+    };
+    scene.tweens.add({
+        targets: pistol,
+        scale: 0,
+        duration: shrinkMs,
+        ease: 'Back.easeIn',
+        onComplete: () => {
+            pistol.destroy();
+            const mini = scene.add.sprite(attacker.x + facing * holdOffset, attacker.y, 'gunmanspecial', 0)
+                .setFlipX(facing < 0)
+                .setScale(0)
+                .setDepth(attacker.atk.depth);
+            scene.objs.add(mini);
+            held = mini;
+            scene.tweens.add({ targets: mini, scale: 1, duration: growMs, ease: 'Back.easeOut', onComplete: finish });
+        }
+    });
+}
+
+function recoilMeter(scene, player) {
+    const duration = Number.isFinite(player.sideSpecialCooldownDuration) ? player.sideSpecialCooldownDuration : 0;
+    const remaining = Math.max(0, player.nextSideSpecialTime - scene.time.now);
+    const progress = !player.hasUsedSideSpecial || duration <= 0 ? 1 : Phaser.Math.Clamp(1 - remaining / duration, 0, 1);
+    const ready = progress >= 1;
+    const status = ready ? 'READY' : `RECHARGING ${Math.ceil(remaining / 1000)}s`;
+    if (player.recoilJammed) {
+        return {
+            progress,
+            color: RECOIL_JAM.jammedColor,
+            text: `${status}  MINI`,
+            textColor: ready ? '#ffffff' : '#bbbbbb'
+        };
+    }
+    const left = recoilShotsLeft(player);
+    return {
+        progress,
+        color: RECOIL_JAM.meterColor,
+        text: `${status}  SHOTS ${left}`,
+        textColor: left <= 2 ? '#ff6a6a' : ready ? '#ffffff' : '#bbbbbb'
+    };
+}
+
+function startRecoilBlast(api, scene, attacker, direction, currentTime, victim) {
+    const kind = direction === 'up' || direction === 'down' ? direction : 'side';
+    const facing = kind === 'side' ? (direction === 'left' ? -1 : 1) : (attacker.lastDir.x || attacker.facingX || 1);
+    const aim = recoilAim(kind, direction);
+    startSideSpecialCooldown(attacker, currentTime, attacker.dirSpecialCooldown);
+    attacker.gunmanSpecialActive = true;
+    attacker.isAttacking = true;
+    attacker.lastDir = { x: facing, y: 0 };
+    attacker.atk.setVisible(false);
+
+    const gun = scene.add.sprite(attacker.x, attacker.y, 'gunmanatk', RECOIL.holdFrame).setDepth(attacker.atk.depth);
+    scene.objs.add(gun);
+    const ring = scene.add.circle(attacker.x, attacker.y, RECOIL.ring.from)
+        .setStrokeStyle(RECOIL.ring.lineWidth, RECOIL.ring.color, RECOIL.ring.alpha.from)
+        .setDepth(attacker.depth + 1);
+    scene.objs.add(ring);
+    const startedAt = scene.time.now;
+
+    const jamming = recoilShotsLeft(attacker) <= 0;
+    const alarm = jamming ? scene.sound.add('danger', { rate: RECOIL_JAM.alarmRate }) : null;
+    alarm?.play();
+    const stopAlarm = () => {
+        alarm?.stop();
+        alarm?.destroy();
+    };
+    const end = () => {
+        removeCharge();
+        stopAlarm();
+        if (gun.active) gun.destroy();
+        if (ring.active) ring.destroy();
+        attacker.gunmanSpecialActive = false;
+        attacker.isAttacking = false;
+    };
+    const removeCharge = api.addSceneUpdateListener(scene, () => {
+        if (!attacker.active || attacker.hitstun) {
+            end();
+            return;
+        }
+        if (jamming) {
+            const flashOn = Math.floor((scene.time.now - startedAt) / RECOIL_JAM.flashMs) % 2 === 0;
+            if (flashOn) gun.setTint(RECOIL_JAM.flashTint);
+            else gun.clearTint();
+        }
+        attacker.atk.setVisible(false);
+        attacker.setVelocity(attacker.body.velocity.x * RECOIL.holdSlow, Math.min(attacker.body.velocity.y, RECOIL.holdFallSpeed));
+        placeRecoilGun(gun, attacker, aim, facing, RECOIL.shake);
+        const t = Math.min(1, (scene.time.now - startedAt) / RECOIL.chargeMs);
+        ring.setPosition(attacker.x, attacker.y)
+            .setRadius(RECOIL.ring.from + (RECOIL.ring.to - RECOIL.ring.from) * t)
+            .setStrokeStyle(RECOIL.ring.lineWidth, RECOIL.ring.color,
+                RECOIL.ring.alpha.from + (RECOIL.ring.alpha.to - RECOIL.ring.alpha.from) * t);
+        if (t < 1) return;
+        placeRecoilGun(gun, attacker, aim, facing, 0);
+        if (jamming) {
+            removeCharge();
+            stopAlarm();
+            ring.destroy();
+            jamRecoilGun(api, scene, attacker, gun);
+            swapToMini(api, scene, attacker, gun, direction, victim);
+            return;
+        }
+        attacker.recoilShotsLeft = recoilShotsLeft(attacker) - 1;
+        fireRecoilBlast(api, scene, attacker, gun, aim, kind);
+        end();
+        recoilPush(api, scene, attacker, { x: -aim.x, y: -aim.y });
+    });
+}
+
+function fireRecoilBlast(api, scene, attacker, gun, aim, kind) {
+    scene.sound.play('recoilShot');
+    api.triggerScreenShake(scene, RECOIL.shakeScreen.intensity, RECOIL.shakeScreen.ms);
+    const beam = createBeam(api, scene, attacker, api.getEnemies(scene, attacker), gun, aim, RECOIL.beam);
+    if (beam.blockedPlank) api.damagePlank(scene, beam.blockedPlank, RECOIL.plankDamage);
+    if (!beam.target) return;
+    const deflectScale = api.deflects(scene, beam.target, attacker, RECOIL.damage[kind]);
+    if (deflectScale) {
+        deflectRecoilBlast(api, scene, beam.target, kind, deflectScale);
+        return;
+    }
+    landRecoilBlast(api, scene, attacker, beam.target, kind, aim, 1);
+}
+
+function landRecoilBlast(api, scene, shooter, target, kind, aim, scale) {
+    const knockbackScale = RECOIL.knockbackScale[kind] * scale;
+    target.flash();
+    api.landHit(scene, shooter, target, {
+        ...RECOIL.hit,
+        damage: RECOIL.damage[kind] * scale,
+        knockback: { x: RECOIL.hit.knockback.x * knockbackScale, y: RECOIL.hit.knockback.y * knockbackScale },
+        direction: aim
+    });
+}
+
+function deflectRecoilBlast(api, scene, reflector, kind, scale) {
+    const angle = Phaser.Math.FloatBetween(0, Math.PI * 2);
+    const aim = { x: Math.cos(angle), y: Math.sin(angle) };
+    const muzzle = { x: reflector.x, y: reflector.y + 10 };
+    scene.sound.play('recoilShot');
+    const beam = createBeam(api, scene, reflector, api.getEnemies(scene, reflector), muzzle, aim, RECOIL.beam);
+    if (beam.blockedPlank) api.damagePlank(scene, beam.blockedPlank, RECOIL.plankDamage);
+    if (beam.target) landRecoilBlast(api, scene, reflector, beam.target, kind, aim, scale);
+}
+
+function recoilPush(api, scene, attacker, dir) {
+    if (!attacker.active || attacker.hitstun) return;
+    attacker.isUsingSideSpecial = true;
+    attacker.hasHitSideSpecial = true;
+    attacker.afterimage = true;
+    attacker.body.setAllowGravity(false);
+    attacker.setVelocity(dir.x * RECOIL.push.speed, dir.y * RECOIL.push.speed);
+    api.startDashTrail(attacker, RECOIL.push.ms);
+    scene.time.delayedCall(RECOIL.push.ms, () => {
+        attacker.body.setAllowGravity(true);
+        attacker.isUsingSideSpecial = false;
+        attacker.afterimage = false;
+        if (attacker.active && !attacker.hitstun) {
+            attacker.setVelocity(attacker.body.velocity.x / RECOIL.push.endSlowdown, attacker.body.velocity.y / RECOIL.push.endSlowdown);
+        }
+    });
 }
 
 const SHOTGUN = {
@@ -388,7 +665,7 @@ const SHOTGUN = {
     range: 200,
     minDot: 0.75,
     recoil: 260,
-    sound: 'gunshot',
+    sound: 'shotgun',
     reloadSound: 'reload',
     hit: {
         damage: 0.08,
@@ -422,6 +699,7 @@ function shotgun(api, scene, attacker) {
         });
         if (!inCone) continue;
         api.landHit(scene, attacker, enemy, {
+            special: true,
             ...SHOTGUN.hit,
             direction: aim,
             knockback: ({ kb, damageScale }) => ({
@@ -455,6 +733,9 @@ export default {
         shotgunfire: { x: 26, y: 10 }
     },
     handleAttack: handleShot,
+    specialMeter: recoilMeter,
+    upSpecialVariants: ['CRAZER'],
+    downSpecialVariants: ['CRAZER'],
     handleDirSpecial: handleGunmanSpecial,
     handleNeutralSpecial: shotgun,
     variantNeutralSpecials: { CRAZER: shotgun },

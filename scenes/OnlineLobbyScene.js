@@ -20,6 +20,7 @@ import inappropriateWords from '../assets/inappropriate_words?raw';
 import { getOnlineServerHost, getServerName, isOnlineConfigured, makeInviteLink } from '../mp/serverConfig.js';
 import { CHAOS_TIERS, COLORS, HEX, makeButton, makePanel } from '../ui/theme.js';
 import { openAdvancedInfo } from '../ui/advancedInfo.js';
+import { withCharacterInfoWarning } from '../ui/characterInfoWarning.js';
 import { openFighterPicker } from '../ui/fighterPicker.js';
 import { isVariantUnlocked } from '../achievements.js';
 import { clipScrollablePanel } from '../ui/clipScroll.js';
@@ -49,6 +50,15 @@ const MEMBER_STATUS_GAP = 10;
 const COPY_LINK = { x: PANEL.x, y: 146, width: PANEL.width, height: 30, copiedMs: 1500 };
 const MODIFIER_LIST = { width: 520, height: 440, listHeight: 330, cardWidth: 440 };
 const SUB_SCREENS = ['create', 'stage', 'modifiers', 'browse', 'invite'];
+const ROOM = { infoY: 210, playerYs: [244, 284], rowHeight: 38, bansY: 320, stageY: 352, viewersY: 392, closeArmMs: 2500 };
+const ROOM_STAGE_BUTTON = { width: 120, height: 26 };
+const ROOM_VIEWERS_BUTTON = { width: 200, height: 30 };
+const VIEWER_ROWS = { top: 236, gap: 42, height: 36 };
+const VIEWER_CONTROLS = { play: { offset: 150, width: 80 }, kick: { offset: 55, width: 80 } };
+const TOURNAMENT_ROW = { fill: 0x3d300a, stroke: HEX.accent };
+const ROOM_CONTROLS = { map: { offset: 182, width: 56 }, swap: { offset: 108, width: 80 }, kick: { offset: 34, width: 56 }, tagOffset: 220 };
+const TOURNAMENT_BUTTON = { width: 240, height: 30 };
+const TOURNAMENT_CODE_LENGTH = 64;
 const SHAKE_OFFSETS = [0, -12, 10, -8, 6, -3, 0];
 const SHAKE_MS = 350;
 const START_ERROR_MS = 1500;
@@ -74,7 +84,7 @@ function saveSettings(settings) {
     }
 }
 
-function openNameBox(current, onDone, getError = () => null, { title = 'CHANGE YOUR NAME', maxLength = MAX_NAME_LENGTH } = {}) {
+function openNameBox(current, onDone, getError = () => null, { title = 'CHANGE YOUR NAME', maxLength = MAX_NAME_LENGTH, hint: hintOverride = null, secret = false } = {}) {
     const overlay = document.createElement('div');
     overlay.style.cssText = 'position:fixed;inset:0;z-index:1000;display:flex;align-items:center;' +
         'justify-content:center;background:rgba(0,0,0,0.6);padding:16px;box-sizing:border-box;';
@@ -85,14 +95,14 @@ function openNameBox(current, onDone, getError = () => null, { title = 'CHANGE Y
     label.textContent = title;
     label.style.cssText = 'font-size:22px;text-align:center;';
     const input = document.createElement('input');
-    input.type = 'text';
+    input.type = secret ? 'password' : 'text';
     input.value = current;
     input.maxLength = maxLength;
     input.autocomplete = 'off';
     input.spellcheck = false;
     input.style.cssText = 'font:inherit;font-size:22px;padding:8px;background:#000;color:#fff;border:2px solid #888;';
     const hint = document.createElement('div');
-    const hintText = `Up to ${maxLength} letters/numbers. Enter to save, Esc to cancel.`;
+    const hintText = hintOverride ?? `Up to ${maxLength} letters/numbers. Enter to save, Esc to cancel.`;
     hint.textContent = hintText;
     hint.style.cssText = 'font-size:14px;color:#999;text-align:center;';
     const showError = message => {
@@ -185,6 +195,11 @@ function makeArrow(scene, x, y, label, onClick) {
 }
 
 
+function showButton(button, visible) {
+    button.box.setVisible(visible);
+    button.text.setVisible(visible);
+}
+
 function text(scene, x, y, value, style = {}) {
     return scene.add.text(x, y, value, {
         fontFamily: 'GameFont',
@@ -234,11 +249,11 @@ export class OnlineLobbyScene extends Phaser.Scene {
     }
 
     init(data) {
-        this.autoQueue = Boolean(data?.autoQueue);
         this.autoJoin = data?.autoJoin ?? null;
         this.notice = data?.notice ?? null;
         this.joiningFromInvite = false;
         this.leavingToMenu = false;
+        this.roomSelectionSynced = false;
     }
 
     create() {
@@ -374,7 +389,7 @@ export class OnlineLobbyScene extends Phaser.Scene {
     }
 
     get modalOpen() {
-        return Boolean(this.advancedInfo || this.modifierList || this.modifierWarning || this.fighterPicker);
+        return Boolean(this.advancedInfo || this.modifierList || this.modifierWarning || this.fighterPicker || this.characterInfoWarning);
     }
 
     openModifierList() {
@@ -472,7 +487,8 @@ export class OnlineLobbyScene extends Phaser.Scene {
             getSelection: () => this.selection,
             changeCharacter: direction => this.changeCharacter(direction),
             changeVariant: direction => this.changeVariant(direction),
-            openInfo: () => this.openCharacterInfo()
+            openInfo: () => this.openCharacterInfo(),
+            isUnlocked: (characterKey, variantName) => this.variantAllowed(characterKey, variantName)
         });
     }
 
@@ -495,6 +511,8 @@ export class OnlineLobbyScene extends Phaser.Scene {
         this.buildBrowseScreen();
         this.buildLobbyScreen();
         this.buildInviteScreen();
+        this.buildViewersScreen();
+        this.buildTournamentScreen();
         const panelBack = makeButton(this, PANEL_LEFT + 50, 146, 100, 30, '< BACK', () => this.goBack(), 17);
         SUB_SCREENS.forEach(screen => this.addToScreen(screen, panelBack));
 
@@ -537,9 +555,11 @@ export class OnlineLobbyScene extends Phaser.Scene {
             create: '< > FIGHTER   ^ v VARIANT   N NAME   ENTER CREATE   ESC BACK',
             stage: '^ v BROWSE STAGES   ENTER DONE   ESC BACK',
             modifiers: 'CLICK A CARD TO TOGGLE IT, CLICK ITS BOX TO CHANGE IT   ESC BACK',
-            browse: '< > FIGHTER   ^ v VARIANT   1-4 JOIN   ESC BACK',
+            browse: '< > FIGHTER   ^ v VARIANT   1-4 JOIN OR WATCH   ESC BACK',
             lobby: '< > FIGHTER   ^ v VARIANT   ENTER READY / START   ESC LEAVE',
-            invite: 'CLICK INVITE NEXT TO A PLAYER   ESC BACK TO LOBBY'
+            invite: 'CLICK INVITE NEXT TO A PLAYER   ESC BACK TO LOBBY',
+            viewers: 'EVERYONE WATCHING THIS TOURNAMENT MATCH   ESC BACK TO ROOM',
+            tournament: '< > FIGHTER   ^ v VARIANT   ENTER READY / START   ESC LEAVE'
         };
         this.keyHint.setText(hints[name] ?? '');
         if (name === 'browse') this.refreshRooms();
@@ -550,6 +570,8 @@ export class OnlineLobbyScene extends Phaser.Scene {
         if (name === 'quick') this.refreshQueue();
         if (name === 'quick' || name === 'home') this.refreshQuickCount();
         if (name === 'invite') this.refreshInvite();
+        if (name === 'tournament') this.refreshTournament();
+        if (name === 'viewers') this.refreshViewers();
     }
 
     buildHomeScreen() {
@@ -560,6 +582,10 @@ export class OnlineLobbyScene extends Phaser.Scene {
             this.quickButton,
             makeButton(this, PANEL.x, 418, 360, 48, 'BROWSE LOBBIES', () => this.showScreen('browse'), 24)
         );
+        const tournament = makeButton(this, PANEL_RIGHT - TOURNAMENT_BUTTON.width / 2, COPY_LINK.y, TOURNAMENT_BUTTON.width, TOURNAMENT_BUTTON.height,
+            'HOST TOURNAMENT MATCH', () => this.openTournamentCode(), 15);
+        tournament.text.setColor(COLORS.accent);
+        this.addToScreen('home', tournament);
         this.addToScreen('home', text(this, PANEL.x - 170, 362, 'QUICK 1V1 STAGE', { fontSize: '11px', fill: '#bbbbbb' }).setOrigin(0, 0.5));
         this.quickMapText = this.addToScreen('home', text(this, PANEL.x + 75, 362, '', { fontFamily: 'VCROSD', fontSize: '16px' }).setOrigin(0.5));
         this.addToScreen('home',
@@ -646,9 +672,9 @@ export class OnlineLobbyScene extends Phaser.Scene {
             this.addToScreen('stage', card, preview, name);
             return { card, preview, name, previewScale: { x: preview.scaleX, y: preview.scaleY } };
         });
-        this.addToScreen('stage', makeButton(this, PANEL.x, 462, 200, 36, 'DONE', () => this.showScreen('create'), 20));
+        this.addToScreen('stage', makeButton(this, PANEL.x, 462, 200, 36, 'DONE', () => this.closeStage(), 20));
         this.input.on('wheel', (_pointer, _objects, _deltaX, deltaY) => {
-            if (this.screen === 'stage' && deltaY !== 0 && !this.modalOpen) this.pickStage(this.lobbySettings.mapIndex + Math.sign(deltaY));
+            if (this.screen === 'stage' && deltaY !== 0 && !this.modalOpen) this.pickStage(this.stageIndex + Math.sign(deltaY));
         });
     }
 
@@ -694,11 +720,12 @@ export class OnlineLobbyScene extends Phaser.Scene {
             const y = 238 + i * 54;
             const row = { room: null };
             row.box = this.add.rectangle(PANEL.x, y, ROW_WIDTH, 48, HEX.panel).setStrokeStyle(2, HEX.border);
+            row.badge = text(this, ROW_RIGHT - 180, y - 11, 'TOURNAMENT MATCH', { fontSize: '9px', fill: COLORS.accent }).setOrigin(0.5);
             row.name = text(this, ROW_LEFT + 12, y - 11, '', { fontFamily: 'VCROSD', fontSize: '18px' }).setOrigin(0, 0.5);
             row.details = text(this, ROW_LEFT + 12, y + 11, '', { fontSize: '10px', fill: '#aaaaaa' }).setOrigin(0, 0.5);
             row.count = text(this, ROW_RIGHT - 105, y, '', { fontFamily: 'VCROSD', fontSize: '18px' }).setOrigin(0.5);
             row.join = makeButton(this, ROW_RIGHT - 42, y, 70, 30, 'JOIN', () => this.joinRoom(row.room), 16);
-            this.addToScreen('browse', row.box, row.name, row.details, row.count, row.join);
+            this.addToScreen('browse', row.box, row.badge, row.name, row.details, row.count, row.join);
             this.roomRows.push(row);
         }
         this.emptyRoomsText = this.addToScreen('browse', text(this, PANEL.x, 316, 'No lobbies are open right now.\nCreate one and it shows up here\nfor everyone online.', {
@@ -775,6 +802,407 @@ export class OnlineLobbyScene extends Phaser.Scene {
             align: 'center',
             lineSpacing: 6
         }).setOrigin(0.5));
+    }
+
+    buildTournamentScreen() {
+        const add = (...objects) => this.addToScreen('tournament', ...objects);
+        this.roomTitle = this.screenTitle('tournament', '');
+        this.roomInfo = add(text(this, PANEL.x, ROOM.infoY, '', { fontSize: '11px', fill: COLORS.muted }).setOrigin(0.5));
+        this.roomCopyLink = makeButton(this, COPY_LINK.x, COPY_LINK.y, COPY_LINK.width, COPY_LINK.height,
+            'COPY INVITE LINK', () => this.copyInviteLink(this.roomCopyLink), 17);
+        this.roomCopyLink.text.setColor(COLORS.accent);
+        add(this.roomCopyLink);
+        const controlX = offset => ROW_RIGHT - offset;
+        this.roomPlayerRows = ROOM.playerYs.map(y => {
+            const row = { member: null };
+            row.box = this.add.rectangle(PANEL.x, y, ROW_WIDTH, ROOM.rowHeight, HEX.panel).setStrokeStyle(2, HEX.border);
+            row.swatch = this.add.rectangle(ROW_LEFT + 18, y, 18, 18, 0xffffff);
+            row.name = text(this, ROW_LEFT + 36, y - 8, '', { fontFamily: 'VCROSD', fontSize: '17px' }).setOrigin(0, 0.5);
+            row.status = text(this, ROW_LEFT + 36, y - 8, '', { fontFamily: 'VCROSD', fontSize: '13px' }).setOrigin(0, 0.5);
+            row.fighter = text(this, ROW_LEFT + 36, y + 10, '', { fontSize: '10px', fill: COLORS.muted }).setOrigin(0, 0.5);
+            row.tag = text(this, ROW_RIGHT - 15, y, '', { fontFamily: 'VCROSD', fontSize: '14px' }).setOrigin(1, 0.5);
+            row.readyShade = this.add.rectangle(PANEL.x, y, ROW_WIDTH, ROOM.rowHeight - 2, 0x000000, 0.6);
+            row.readyText = text(this, PANEL.x, y, 'READY!', {
+                fontFamily: 'VCROSD',
+                fontSize: '24px',
+                fill: COLORS.ready,
+                stroke: COLORS.stroke,
+                strokeThickness: 4
+            }).setOrigin(0.5);
+            const { map, swap, kick } = ROOM_CONTROLS;
+            row.map = makeButton(this, controlX(map.offset), y, map.width, 24, 'STAGE', () => this.roomCommand('mapPicker', row.member), 12);
+            row.swap = makeButton(this, controlX(swap.offset), y, swap.width, 24, 'SPECTATE', () => this.roomCommand('swapRole', row.member), 12);
+            row.kick = makeButton(this, controlX(kick.offset), y, kick.width, 24, 'KICK', () => this.roomCommand('kick', row.member), 12);
+            row.kick.text.setColor(COLORS.error);
+            add(row.box, row.swatch, row.name, row.status, row.fighter, row.tag, row.readyShade, row.readyText, row.map, row.swap, row.kick);
+            return row;
+        });
+        this.roomBans = add(text(this, PANEL.x, ROOM.bansY, '', { fontSize: '11px', align: 'center' }).setOrigin(0.5));
+        this.roomStage = add(text(this, PANEL.x, ROOM.stageY, '', { fontFamily: 'VCROSD', fontSize: '17px', fill: COLORS.accent }).setOrigin(0.5));
+        this.roomStageButton = makeButton(this, ROW_RIGHT - ROOM_STAGE_BUTTON.width / 2, ROOM.stageY, ROOM_STAGE_BUTTON.width, ROOM_STAGE_BUTTON.height,
+            'PICK STAGE', () => this.openRoomStage(), 14);
+        this.roomStageButton.text.setColor(COLORS.accent);
+        this.roomViewersButton = makeButton(this, PANEL.x, ROOM.viewersY, ROOM_VIEWERS_BUTTON.width, ROOM_VIEWERS_BUTTON.height,
+            'SEE VIEWERS', () => this.showScreen('viewers'), 16);
+        add(this.roomStageButton, this.roomViewersButton);
+        this.roomButtons = {
+            start: makeButton(this, PANEL.x, LOBBY_BUTTON.y, LOBBY_BUTTON.width, LOBBY_BUTTON.height, 'START', () => this.startLobby(), 22),
+            resetBans: makeButton(this, PANEL.x, LOBBY_BUTTON.y, LOBBY_BUTTON.width, LOBBY_BUTTON.height, 'NEW SET', () => this.resetRoomBans(), 20),
+            ban: makeButton(this, PANEL.x, LOBBY_BUTTON.y, LOBBY_BUTTON.width, LOBBY_BUTTON.height, 'BAN', () => this.sendBan(), 22),
+            ready: makeButton(this, PANEL.x, LOBBY_BUTTON.y, LOBBY_BUTTON.width, LOBBY_BUTTON.height, 'READY', () => this.toggleReady(), 22),
+            watch: makeButton(this, PANEL.x, LOBBY_BUTTON.y, LOBBY_BUTTON.width, LOBBY_BUTTON.height, 'WATCH', () => net.send({ t: 'watch' }), 22),
+            leave: makeButton(this, PANEL.x, LOBBY_BUTTON.y, LOBBY_BUTTON.width, LOBBY_BUTTON.height, 'LEAVE', () => this.leaveRoom(), 22)
+        };
+        this.roomButtons.ban.text.setColor(COLORS.error);
+        add(...Object.values(this.roomButtons));
+        this.closeArmedUntil = 0;
+    }
+
+    buildViewersScreen() {
+        this.viewersTitle = this.screenTitle('viewers', 'VIEWERS');
+        this.viewersNote = this.addToScreen('viewers', text(this, PANEL.x, VIEWER_ROWS.top - 32, 'THE HOST ALWAYS WATCHES TOO', {
+            fontSize: '11px', fill: COLORS.muted
+        }).setOrigin(0.5));
+        this.viewerRows = [];
+        for (let i = 0; i < 4; i++) {
+            const y = VIEWER_ROWS.top + i * VIEWER_ROWS.gap;
+            const row = { viewer: null };
+            row.box = this.add.rectangle(PANEL.x, y, ROW_WIDTH, VIEWER_ROWS.height, HEX.panel).setStrokeStyle(2, HEX.border);
+            row.name = text(this, ROW_LEFT + 15, y - 7, '', { fontFamily: 'VCROSD', fontSize: '17px' }).setOrigin(0, 0.5);
+            row.tag = text(this, ROW_LEFT + 15, y + 9, '', { fontSize: '10px', fill: COLORS.muted }).setOrigin(0, 0.5);
+            const { play, kick } = VIEWER_CONTROLS;
+            row.play = makeButton(this, ROW_RIGHT - play.offset, y, play.width, 26, 'PLAY', () => this.roomCommand('swapRole', row.viewer), 15);
+            row.kick = makeButton(this, ROW_RIGHT - kick.offset, y, kick.width, 26, 'KICK', () => this.roomCommand('kick', row.viewer), 15);
+            row.kick.text.setColor(COLORS.error);
+            this.addToScreen('viewers', row.box, row.name, row.tag, row.play, row.kick);
+            this.viewerRows.push(row);
+        }
+        this.emptyViewersText = this.addToScreen('viewers', text(this, PANEL.x, 310, 'Nobody else is watching yet.\nAnyone online can watch from BROWSE LOBBIES.', {
+            fontSize: '13px', fill: '#999999', align: 'center', lineSpacing: 6
+        }).setOrigin(0.5));
+        this.addToScreen('viewers', makeButton(this, PANEL.x, 452, 220, 36, 'BACK TO ROOM', () => this.showScreen('tournament'), 18));
+    }
+
+    refreshViewers() {
+        const lobby = this.lobby;
+        if (!this.viewerRows || !lobby?.tournament) return;
+        const visible = this.screen === 'viewers';
+        const isHost = lobby.role === 'host';
+        const between = !lobby.inMatch;
+        this.viewersTitle.setText(`VIEWERS (${lobby.spectators.length}/${lobby.maxSpectators})`).setFontSize(20);
+        this.emptyViewersText.setVisible(visible && lobby.spectators.length === 0);
+        this.viewerRows.forEach((row, index) => {
+            const viewer = lobby.spectators[index] ?? null;
+            row.viewer = viewer;
+            [row.box, row.name, row.tag].forEach(part => part.setVisible(visible && Boolean(viewer)));
+            const controls = visible && isHost && between && Boolean(viewer);
+            showButton(row.kick, controls);
+            showButton(row.play, controls && lobby.members.length < 2);
+            if (!viewer) return;
+            const status = viewer.status !== 'active' ? `   ${MEMBER_STATUS[viewer.status]?.label ?? ''}` : '';
+            row.name.setText(`${viewer.name}${viewer.you ? ' (YOU)' : ''}`).setColor(viewer.you ? COLORS.accent : COLORS.text);
+            row.tag.setText(`#${viewer.tag}${status}`.toUpperCase());
+        });
+        if (visible) this.queueText.setText(this.roomPhase(lobby)).setColor(COLORS.accent);
+    }
+
+    roomPhase(lobby) {
+        const [first, second] = lobby.members;
+        const versus = first && second ? `${first.name} VS ${second.name}` : '';
+        if (lobby.inMatch) return `MATCH IN PROGRESS: ${versus}`.toUpperCase();
+        if (lobby.members.length < 2) return `WAITING FOR PLAYERS (${lobby.members.length}/2)`;
+        if (!lobby.bansDone) {
+            const banned = lobby.members.filter(member => member.banned).length;
+            return `${versus}: BANNING FIGHTERS (${banned}/2 IN)`.toUpperCase();
+        }
+        const ready = lobby.members.filter(member => member.ready).length;
+        if (ready < 2) return `${versus}: PICKING FIGHTERS (${ready}/2 READY)`.toUpperCase();
+        return `${versus}: BOTH READY, THE HOST IS ABOUT TO START`.toUpperCase();
+    }
+
+    canPickRoomStage() {
+        const lobby = this.lobby;
+        return Boolean(lobby?.tournament && !lobby.inMatch && lobby.members.some(member => member.you && member.mapPicker));
+    }
+
+    openRoomStage() {
+        if (!this.canPickRoomStage()) return;
+        this.stageFor = 'room';
+        this.roomStageIndex = Math.max(0, MAP_CHOICES.indexOf(this.lobby.map));
+        this.showScreen('stage');
+    }
+
+    get stageIndex() {
+        return this.stageFor === 'room' ? this.roomStageIndex : this.lobbySettings.mapIndex;
+    }
+
+    closeStage() {
+        if (this.stageFor !== 'room') {
+            this.showScreen('create');
+            return;
+        }
+        this.stageFor = null;
+        const map = MAP_CHOICES[this.roomStageIndex];
+        if (this.canPickRoomStage() && map !== this.lobby.map) net.send({ t: 'pickMap', map });
+        this.showScreen(this.lobby?.tournament ? 'tournament' : 'home');
+    }
+
+    takeRoomSelection() {
+        this.roomSelectionSynced = true;
+        const me = this.lobby.members.find(member => member.you);
+        if (!me) return;
+        const characterIndex = CHARACTER_ROSTER.findIndex(character => character.key === me.character);
+        const variantIndex = CHARACTER_ROSTER[characterIndex]?.variants.findIndex(variant => variant.name === me.variant) ?? -1;
+        if (characterIndex < 0 || variantIndex < 0) return;
+        if (this.selection.characterIndex === characterIndex && this.selection.variantIndex === variantIndex) return;
+        this.selection.characterIndex = characterIndex;
+        this.selection.variantIndex = variantIndex;
+        this.refreshSelection();
+    }
+
+    roomCommand(type, target) {
+        if (!target?.tag || this.lobby?.role !== 'host' || this.lobby.inMatch) return;
+        net.send({ t: type, tag: target.tag });
+    }
+
+    resetRoomBans() {
+        if (this.lobby?.role !== 'host' || this.lobby.inMatch) return;
+        net.send({ t: 'resetBans' });
+    }
+
+    roomFighterName(entry) {
+        const character = CHARACTER_ROSTER.find(each => each.key === entry.character);
+        return `${character?.name ?? entry.character} - ${entry.variant}`.toUpperCase();
+    }
+
+    isBannedChoice(characterKey, variantName) {
+        const lobby = this.lobby;
+        if (!lobby?.tournament || lobby.role !== 'player' || !lobby.bansDone) return false;
+        return lobby.bans.some(ban => ban.character === characterKey && ban.variant === variantName);
+    }
+
+    variantAllowed(characterKey, variantName) {
+        return Boolean(this.lobby?.tournament) || isVariantUnlocked(characterKey, variantName);
+    }
+
+    fixLockedSelection() {
+        if (!this.selection) return;
+        const character = CHARACTER_ROSTER[this.selection.characterIndex];
+        if (isVariantUnlocked(character.key, character.variants[this.selection.variantIndex].name)) return;
+        this.selection.variantIndex = 0;
+        this.refreshSelection();
+    }
+
+    refreshVariantLabel() {
+        if (!this.selection || !this.variantText?.active) return;
+        const { character, variant } = this.getChoice();
+        const banned = this.isBannedChoice(character.key, variant.name);
+        this.variantText.setText(banned ? `${variant.name} - BANNED` : variant.name)
+            .setColor(banned ? COLORS.error : variant.color ?? '#ffffff');
+    }
+
+    sendBan() {
+        const lobby = this.lobby;
+        if (lobby?.role !== 'player' || lobby.bansDone || lobby.inMatch || this.modalOpen) return;
+        const current = lobby.members.find(member => member.you)?.ban;
+        const characterIndex = current ? CHARACTER_ROSTER.findIndex(each => each.key === current.character) : -1;
+        const banChoice = characterIndex >= 0
+            ? { characterIndex, variantIndex: Math.max(0, CHARACTER_ROSTER[characterIndex].variants.findIndex(each => each.name === current.variant)) }
+            : { characterIndex: this.selection.characterIndex, variantIndex: this.selection.variantIndex };
+        const picker = () => this.fighterPicker;
+        const moveBan = (characterStep, variantStep) => {
+            const count = CHARACTER_ROSTER.length;
+            if (characterStep) {
+                banChoice.characterIndex = (banChoice.characterIndex + characterStep + count) % count;
+                banChoice.variantIndex = 0;
+            }
+            if (variantStep) {
+                const variants = CHARACTER_ROSTER[banChoice.characterIndex].variants.length;
+                banChoice.variantIndex = (banChoice.variantIndex + variantStep + variants) % variants;
+            }
+            picker()?.refresh();
+        };
+        openFighterPicker(this, {
+            mode: 'ban',
+            getSelection: () => banChoice,
+            changeCharacter: direction => moveBan(direction, 0),
+            changeVariant: direction => moveBan(0, direction),
+            openInfo: () => openAdvancedInfo(this, { characterIndex: banChoice.characterIndex, variantIndex: banChoice.variantIndex }),
+            isUnlocked: () => true,
+            onConfirm: choice => {
+                if (this.lobby?.role !== 'player' || this.lobby.bansDone || this.lobby.inMatch) return;
+                const character = CHARACTER_ROSTER[choice.characterIndex];
+                const variant = character.variants[choice.variantIndex] ?? character.variants[0];
+                net.send({ t: 'ban', character: character.key, variant: variant.name });
+            }
+        });
+    }
+
+    rejectRoom(message) {
+        this.sound.play('deny');
+        this.startError = message;
+        this.startErrorTimer?.remove();
+        this.startErrorTimer = this.time.delayedCall(START_ERROR_MS, () => {
+            this.startErrorTimer = null;
+            this.refreshTournament();
+        });
+        this.refreshTournament();
+    }
+
+    leaveRoom() {
+        if (!this.lobby?.tournament) return;
+        if (this.lobby.role === 'host' && this.time.now >= this.closeArmedUntil) {
+            this.closeArmedUntil = this.time.now + ROOM.closeArmMs;
+            this.rejectRoom('PRESS AGAIN TO CLOSE THE ROOM FOR EVERYONE');
+            return;
+        }
+        this.leaveLobby();
+    }
+
+    placeRoomButtons(layout) {
+        for (const [key, button] of Object.entries(this.roomButtons)) {
+            const offset = layout[key];
+            const shown = this.screen === 'tournament' && offset !== undefined;
+            showButton(button, shown);
+            if (shown) {
+                button.box.setX(PANEL.x + offset);
+                button.text.setX(PANEL.x + offset);
+            }
+        }
+    }
+
+    refreshTournament() {
+        const lobby = this.lobby;
+        if (!lobby?.tournament || !this.roomPlayerRows) return;
+        const visible = this.screen === 'tournament';
+        const isHost = lobby.role === 'host';
+        const isPlayer = lobby.role === 'player';
+        const between = !lobby.inMatch;
+        this.roomTitle.setText(lobby.name).setFontSize(lobby.name.length > 26 ? 16 : lobby.name.length > 16 ? 18 : 24);
+        const hostAway = lobby.hostStatus !== 'active' ? ` (${MEMBER_STATUS[lobby.hostStatus]?.label ?? ''})` : '';
+        this.roomInfo.setText(`TOURNAMENT MATCH   1V1   PRIVATE   NO MODIFIERS   HOST ${lobby.hostName} #${lobby.hostTag}${hostAway}`.toUpperCase());
+        showButton(this.roomCopyLink, visible && isHost);
+        const colors = MATCH_MODES['1v1'].colors;
+        this.roomPlayerRows.forEach((row, index) => {
+            const member = lobby.members[index] ?? null;
+            row.member = member;
+            const controls = visible && isHost && between && Boolean(member);
+            [row.map, row.swap, row.kick].forEach(button => showButton(button, controls));
+            const color = PLAYER_COLORS[colors[index]];
+            row.swatch.setFillStyle(color.hex, member ? 1 : 0.3);
+            row.box.setStrokeStyle(2, member?.ready ? HEX.accent : member?.you ? HEX.border : 0x666666);
+            [row.readyShade, row.readyText].forEach(part => part.setVisible(visible && Boolean(member?.ready)));
+            row.tag.setX(controls ? ROW_RIGHT - ROOM_CONTROLS.tagOffset : ROW_RIGHT - 15);
+            if (!member) {
+                row.name.setText('OPEN PLAYER SLOT').setColor('#777777');
+                row.status.setVisible(false);
+                row.fighter.setText(isHost ? 'SEND THE INVITE LINK TO A PLAYER' : '');
+                row.tag.setText('');
+                return;
+            }
+            row.name.setText(member.name).setColor(color.css);
+            const status = member.status !== 'active' ? MEMBER_STATUS[member.status] : null;
+            row.status.setVisible(visible && Boolean(status));
+            if (status) row.status.setText(status.label).setColor(status.color).setX(row.name.x + row.name.width + MEMBER_STATUS_GAP);
+            row.fighter.setText(`#${member.tag}   ${this.roomFighterName(member)}`);
+            row.map.text.setColor(member.mapPicker ? COLORS.accent : COLORS.text);
+            const labels = [`${member.wins ?? 0} WIN${member.wins === 1 ? '' : 'S'}`, member.mapPicker ? 'PICKS STAGE' : '', member.ready ? 'READY' : 'NOT READY', member.you ? 'YOU' : ''];
+            row.tag.setText(labels.filter(Boolean).join(' / ')).setColor(member.ready ? COLORS.accent : COLORS.error);
+        });
+
+        const me = lobby.members.find(member => member.you);
+        let bans;
+        if (lobby.bansDone) {
+            const names = [...new Set(lobby.bans.map(ban => this.roomFighterName(ban)))];
+            bans = `BANNED FOR BOTH PLAYERS: ${names.join('   AND   ')}`;
+        } else if (lobby.members.length === 0) {
+            bans = 'EACH PLAYER BANS ONE FIGHTER';
+        } else {
+            bans = lobby.members.map(member => {
+                const who = member.you ? 'YOU' : member.name;
+                if (member.ban) return `${who} BANNED ${this.roomFighterName(member.ban)}`;
+                return member.banned ? `${who} HAS BANNED A FIGHTER` : `${who}: CHOOSING A BAN...`;
+            }).join('\n');
+        }
+        const bansText = bans.toUpperCase();
+        const bansChanged = this.roomBans.text !== bansText;
+        const anyBan = lobby.members.some(member => member.banned);
+        this.roomBans.setText(bansText).setColor(anyBan ? COLORS.error : COLORS.text);
+        if (bansChanged && anyBan && this.roomBans.visible) {
+            this.tweens.killTweensOf(this.roomBans);
+            this.roomBans.setScale(1.25);
+            this.tweens.add({ targets: this.roomBans, scale: 1, duration: 220, ease: 'Back.easeOut' });
+        }
+
+        const picker = lobby.members.find(member => member.mapPicker);
+        const pickNote = picker ? `${picker.you ? 'YOU PICK' : `${picker.name} PICKS`}` : 'HOST CHOOSES WHO PICKS';
+        this.roomStage.setText(`STAGE: ${mapLabel(lobby.map)}   (${pickNote})`.toUpperCase());
+        showButton(this.roomStageButton, visible && between && Boolean(picker?.you));
+        this.roomViewersButton.text.setText(`SEE VIEWERS (${lobby.spectators.length}/${lobby.maxSpectators})`);
+        showButton(this.roomViewersButton, visible);
+
+        const ready = this.isReady;
+        this.roomButtons.ready.text.setText(ready ? 'UNREADY' : 'READY').setColor(ready ? COLORS.accent : COLORS.text);
+        this.roomButtons.ban.text.setText(me?.banned ? 'CHANGE BAN' : 'BAN').setFontSize(me?.banned ? 18 : 22);
+        const canWatch = lobby.inMatch && !lobby.watching;
+        let layout;
+        if (isHost) layout = between ? { start: -175, resetBans: 0, leave: 175 } : canWatch ? { watch: -95, leave: 95 } : { leave: 0 };
+        else if (isPlayer) layout = !between ? { leave: 0 } : lobby.bansDone ? { ready: -95, leave: 95 } : { ban: -95, leave: 95 };
+        else layout = canWatch ? { watch: -95, leave: 95 } : { leave: 0 };
+        this.roomButtons.leave.text.setText(isHost ? 'CLOSE ROOM' : 'LEAVE').setFontSize(isHost ? 18 : 22);
+        this.placeRoomButtons(layout);
+
+        let status;
+        if (lobby.inMatch) status = canWatch ? `${this.roomPhase(lobby)}. PRESS WATCH TO SPECTATE` : this.roomPhase(lobby);
+        else if (isHost) {
+            if (lobby.members.length < 2) status = `WAITING FOR PLAYERS (${lobby.members.length}/2)`;
+            else if (!lobby.bansDone) status = 'WAITING FOR BOTH PLAYERS TO BAN A FIGHTER';
+            else if (!lobby.members.every(member => member.ready)) status = 'WAITING FOR BOTH PLAYERS TO READY UP';
+            else status = 'BOTH PLAYERS ARE READY. PRESS START';
+        } else if (isPlayer) {
+            if (lobby.members.length < 2) status = me?.banned ? 'WAITING FOR AN OPPONENT' : 'WAITING FOR AN OPPONENT. YOU CAN BAN WHILE YOU WAIT';
+            else if (!lobby.bansDone) status = me?.banned ? 'WAITING FOR YOUR OPPONENT TO BAN' : 'PRESS BAN TO PICK A FIGHTER TO BAN';
+            else if (!ready) status = 'BANS ARE IN. PICK YOUR FIGHTER, THEN PRESS READY';
+            else if (!lobby.members.every(member => member.ready)) status = 'YOU ARE READY. WAITING FOR YOUR OPPONENT TO READY UP';
+            else status = 'YOU ARE READY. WAITING FOR THE HOST TO START';
+        } else status = `YOU ARE WATCHING. ${this.roomPhase(lobby)}`;
+        if (this.startErrorTimer) this.queueText.setText(this.startError).setColor(COLORS.error);
+        else this.queueText.setText(status).setColor(COLORS.accent);
+        this.refreshVariantLabel();
+    }
+
+    openTournamentCode() {
+        if (!this.selection || !net.connected || this.queueState !== 'idle' || this.closeNameBox || this.modalOpen) return;
+        this.input.keyboard.enabled = false;
+        this.closeNameBox = openNameBox('', entered => {
+            this.closeNameBox = null;
+            if (!this.sys.isActive()) return;
+            this.input.keyboard.enabled = true;
+            const code = entered?.trim();
+            if (!code || this.queueState !== 'idle') return;
+            net.send({ t: 'createTournament', code, name: this.selection.name });
+            this.queueState = 'creating';
+            this.queueText.setText('CHECKING THE CODE...').setColor(COLORS.accent);
+        }, () => null, {
+            title: 'TOURNAMENT MATCH CODE',
+            maxLength: TOURNAMENT_CODE_LENGTH,
+            hint: 'Only tournament hosts have this code. Enter to open the room, Esc to cancel.',
+            secret: true
+        });
+    }
+
+    leftRoom(message) {
+        const wasTournament = Boolean(this.lobby?.tournament);
+        this.closeModifierList();
+        this.queueState = 'idle';
+        this.lobby = null;
+        this.fixLockedSelection();
+        this.refreshVariantLabel();
+        if (wasTournament || this.screen === 'tournament') this.showScreen('home');
+        if (message) {
+            this.queueText.setText(String(message).toUpperCase()).setColor(COLORS.error);
+            this.setStatus(message, COLORS.error);
+        }
     }
 
     changePlayerPage(direction) {
@@ -862,11 +1290,22 @@ export class OnlineLobbyScene extends Phaser.Scene {
         popup.parts.forEach(part => part.destroy());
     }
 
+    afterInfoWarning(canGo, action) {
+        if (!canGo()) return;
+        withCharacterInfoWarning(this, () => {
+            if (canGo()) action();
+        }, () => this.openCharacterInfo());
+    }
+
     acceptInvite() {
         const invite = this.invitePopup?.invite;
         this.closeInvitePopup();
-        if (!invite || !this.selection || !net.connected) return;
-        if (this.queueState !== 'idle' && this.queueState !== 'queued') return;
+        const canGo = () => invite && this.selection && net.connected &&
+            (this.queueState === 'idle' || this.queueState === 'queued');
+        this.afterInfoWarning(canGo, () => this.joinInvitedLobby(invite));
+    }
+
+    joinInvitedLobby(invite) {
         this.sendChoice('joinLobby', { room: invite.room });
         this.queueState = 'joining';
         if (this.screen === 'quick') this.showScreen('home');
@@ -880,8 +1319,8 @@ export class OnlineLobbyScene extends Phaser.Scene {
         }));
         bind(['LEFT', 'A'], () => this.changeCharacter(-1));
         bind(['RIGHT', 'D'], () => this.changeCharacter(1));
-        bind(['UP', 'W'], () => this.screen === 'stage' ? this.pickStage(this.lobbySettings.mapIndex - 1) : this.changeVariant(-1));
-        bind(['DOWN', 'S'], () => this.screen === 'stage' ? this.pickStage(this.lobbySettings.mapIndex + 1) : this.changeVariant(1));
+        bind(['UP', 'W'], () => this.screen === 'stage' ? this.pickStage(this.stageIndex - 1) : this.changeVariant(-1));
+        bind(['DOWN', 'S'], () => this.screen === 'stage' ? this.pickStage(this.stageIndex + 1) : this.changeVariant(1));
         bind(['N'], () => this.editName());
         bind(['I'], () => this.openInfo());
         bind(['C'], () => this.openPicker());
@@ -900,10 +1339,15 @@ export class OnlineLobbyScene extends Phaser.Scene {
         }
         if (this.screen === 'home' || this.screen === 'quick') this.toggleQuick();
         else if (this.screen === 'create') this.createLobby();
-        else if (this.screen === 'stage' || this.screen === 'modifiers') this.showScreen('create');
+        else if (this.screen === 'stage') this.closeStage();
+        else if (this.screen === 'modifiers') this.showScreen('create');
+        else if (this.screen === 'viewers') this.showScreen('tournament');
         else if (this.screen === 'lobby') {
             if (this.lobby?.host && this.isReady) this.startLobby();
             else this.toggleReady();
+        } else if (this.screen === 'tournament') {
+            if (this.lobby?.role === 'host') this.startLobby();
+            else if (this.lobby?.role === 'player') this.toggleReady();
         }
     }
 
@@ -924,8 +1368,11 @@ export class OnlineLobbyScene extends Phaser.Scene {
             this.showScreen('quick');
         });
         listen('left', () => {
+            const wasTournament = Boolean(this.lobby?.tournament);
+            this.stageFor = null;
             this.queueState = 'idle';
             this.lobby = null;
+            if (wasTournament) this.fixLockedSelection();
             this.refreshQueue();
         });
         listen('rooms', message => {
@@ -938,6 +1385,19 @@ export class OnlineLobbyScene extends Phaser.Scene {
             this.closeInvitePopup();
             this.lobby = message.lobby;
             this.refreshLockTint();
+            if (this.lobby.tournament) {
+                if (!this.roomSelectionSynced) this.takeRoomSelection();
+                const pickingStage = this.screen === 'stage' && this.stageFor === 'room';
+                if (pickingStage && !this.canPickRoomStage()) this.stageFor = null;
+                if (this.screen === 'viewers') {
+                    this.refreshTournament();
+                    this.refreshViewers();
+                } else if (pickingStage && this.stageFor === 'room') {
+                    this.refreshTournament();
+                } else if (this.screen !== 'tournament') this.showScreen('tournament');
+                else this.refreshTournament();
+                return;
+            }
             const full = this.lobby.members.length >= MATCH_MODES[this.lobby.mode].players;
             const canInvite = this.lobby.private && this.lobby.host && !full;
             if (this.screen === 'invite' && canInvite) this.refreshInvite();
@@ -966,9 +1426,17 @@ export class OnlineLobbyScene extends Phaser.Scene {
             }
         });
         listen('matchFound', message => this.startMatch(message));
+        listen('tournamentFailed', message => {
+            if (this.queueState === 'creating') this.queueState = 'idle';
+            this.setStatus(message.msg, COLORS.error);
+            if (this.screen === 'home') this.queueText.setText(String(message.msg ?? '').toUpperCase()).setColor(COLORS.error);
+        });
+        listen('kicked', message => this.leftRoom(message.msg));
+        listen('roomClosed', message => this.leftRoom(message.msg));
         listen('error', message => {
             this.setStatus(message.msg, '#ff6b6b');
             if (this.screen === 'lobby' && this.lobby?.host) this.rejectStart(String(message.msg ?? '').toUpperCase());
+            if (this.screen === 'tournament') this.rejectRoom(String(message.msg ?? '').toUpperCase());
             if (this.queueState === 'queued' || this.queueState === 'joining' || this.queueState === 'creating') {
                 this.queueState = 'idle';
                 if (this.screen === 'quick') this.showScreen('home');
@@ -986,6 +1454,7 @@ export class OnlineLobbyScene extends Phaser.Scene {
             this.closeModifierList();
             this.queueState = 'idle';
             this.lobby = null;
+            this.fixLockedSelection();
             this.rooms = [];
             this.waitingPlayers = [];
             this.closeInvitePopup();
@@ -1009,8 +1478,8 @@ export class OnlineLobbyScene extends Phaser.Scene {
                 if (!this.statusText?.active) return;
                 this.setStatus(`Connected to ${getOnlineServerHost()}`);
                 this.refreshSelection();
-                if (this.autoQueue) this.startQuick();
-                else if (this.autoJoin) this.joinByCode(this.autoJoin);
+                net.send({ t: 'sync' });
+                if (this.autoJoin) this.joinByCode(this.autoJoin);
                 else if (this.notice) this.showNotice();
             })
             .catch(error => {
@@ -1052,6 +1521,7 @@ export class OnlineLobbyScene extends Phaser.Scene {
     }
 
     get locked() {
+        if (this.queueState === 'lobby' && this.lobby?.tournament) return this.lobby.role !== 'player' || this.lobby.inMatch || this.isReady;
         if (this.queueState === 'lobby') return this.isReady;
         return this.queueState !== 'idle';
     }
@@ -1099,7 +1569,7 @@ export class OnlineLobbyScene extends Phaser.Scene {
         let next = this.selection.variantIndex;
         do {
             next = (next + direction + count) % count;
-        } while (next !== this.selection.variantIndex && !isVariantUnlocked(character.key, character.variants[next].name));
+        } while (next !== this.selection.variantIndex && !this.variantAllowed(character.key, character.variants[next].name));
         if (next === this.selection.variantIndex) {
             this.sound.play('deny');
             return;
@@ -1162,8 +1632,14 @@ export class OnlineLobbyScene extends Phaser.Scene {
 
     pickStage(index) {
         const count = MAP_CHOICES.length;
-        this.lobbySettings.mapIndex = (index + count) % count;
+        const next = (index + count) % count;
         this.sound.play('revolveselect');
+        if (this.stageFor === 'room') {
+            this.roomStageIndex = next;
+            this.refreshStage(true);
+            return;
+        }
+        this.lobbySettings.mapIndex = next;
         this.refreshStage(true);
         this.saveAll();
     }
@@ -1228,7 +1704,7 @@ export class OnlineLobbyScene extends Phaser.Scene {
     refreshStage(animate) {
         const count = MAP_CHOICES.length;
         this.stageCards.forEach(({ card, preview, name, previewScale }, index) => {
-            let offset = (index - this.lobbySettings.mapIndex + count) % count;
+            let offset = (index - this.stageIndex + count) % count;
             if (offset > count / 2) offset -= count;
             const shown = Math.abs(offset) <= 1;
             const selected = offset === 0;
@@ -1306,12 +1782,27 @@ export class OnlineLobbyScene extends Phaser.Scene {
             row.room = room;
             [row.box, row.name, row.details, row.count, row.join.box, row.join.text]
                 .forEach(part => part.setVisible(visible && Boolean(room)));
+            row.badge.setVisible(visible && Boolean(room?.tournament));
             if (!room) return;
-            const mods = room.modifiers ? `   ${room.modifiers} MODIFIER${room.modifiers === 1 ? '' : 'S'}` : '';
-            row.name.setText(`${index + 1}. ${room.name}`);
             const hostTag = room.hostTag ? ` #${room.hostTag}` : '';
-            row.details.setText(`${room.mode.toUpperCase()}   ${mapLabel(room.map)}   HOST ${room.host}${hostTag}${mods}`.toUpperCase());
-            row.count.setText(`${room.players}/${room.max}`);
+            row.name.setText(`${index + 1}. ${room.name}`).setColor(room.tournament ? COLORS.accent : COLORS.text);
+            if (room.tournament) {
+                const fighters = room.fighters?.length === 2 ? `${room.fighters[0]} VS ${room.fighters[1]}` : `WAITING FOR PLAYERS (${room.fighters?.length ?? 0}/2)`;
+                const phase = room.inMatch ? 'LIVE NOW' : 'BETWEEN MATCHES';
+                row.box.setFillStyle(TOURNAMENT_ROW.fill).setStrokeStyle(3, TOURNAMENT_ROW.stroke);
+                row.details.setText(`${fighters}   ${phase}   ${mapLabel(room.map)}   HOST ${room.host}${hostTag}`.toUpperCase()).setColor(COLORS.accent);
+                row.count.setText(`${room.spectators}/${room.maxSpectators}`).setColor(COLORS.accent);
+                const full = room.spectators >= room.maxSpectators;
+                row.join.text.setText('WATCH').setFontSize(14).setColor(full ? COLORS.muted : COLORS.accent);
+                row.join.box.setAlpha(full ? 0.5 : 1);
+                return;
+            }
+            const mods = room.modifiers ? `   ${room.modifiers} MODIFIER${room.modifiers === 1 ? '' : 'S'}` : '';
+            row.box.setFillStyle(HEX.panel).setStrokeStyle(2, HEX.border);
+            row.details.setText(`${room.mode.toUpperCase()}   ${mapLabel(room.map)}   HOST ${room.host}${hostTag}${mods}`.toUpperCase()).setColor('#aaaaaa');
+            row.count.setText(`${room.players}/${room.max}`).setColor(COLORS.text);
+            row.join.text.setText('JOIN').setFontSize(16).setColor(COLORS.text);
+            row.join.box.setAlpha(1);
         });
     }
 
@@ -1436,6 +1927,18 @@ export class OnlineLobbyScene extends Phaser.Scene {
 
     toggleReady() {
         if (this.queueState !== 'lobby' || !this.lobby) return;
+        if (this.lobby.tournament) {
+            if (this.lobby.role !== 'player' || this.lobby.inMatch) return;
+            if (!this.isReady && !this.lobby.bansDone) {
+                this.rejectRoom('BOTH PLAYERS NEED TO BAN A FIGHTER FIRST');
+                return;
+            }
+            const { character, variant } = this.getChoice();
+            if (!this.isReady && this.isBannedChoice(character.key, variant.name)) {
+                this.rejectRoom('THAT FIGHTER IS BANNED. PICK A DIFFERENT ONE');
+                return;
+            }
+        }
         if (!this.isReady) this.sendLobbyPick();
         net.send({ t: 'ready', r: !this.isReady });
     }
@@ -1469,6 +1972,7 @@ export class OnlineLobbyScene extends Phaser.Scene {
         this.fighterIcon.setTexture(getCharacterTexture(character.key, variant.name)).setDisplaySize(FIGHTER_ICON, FIGHTER_ICON);
         this.fighterName.setText(character.name);
         this.variantText.setText(variant.name).setColor(variant.color ?? '#ffffff');
+        this.refreshVariantLabel();
         this.fighterPicker?.refresh();
         this.nameButton.text.setFontSize(15).setText(`NAME: ${this.selection.name}${net.tag ? ` #${net.tag}` : ''}`);
         for (let size = 14; size >= 10 && this.nameButton.text.width > FIGHTER.width - 16; size--) {
@@ -1509,8 +2013,15 @@ export class OnlineLobbyScene extends Phaser.Scene {
         net.send({ t: type, name: this.selection.name, character: character.key, variant: variant.name, ...extra });
     }
 
+    canStartOnline() {
+        return Boolean(this.selection && net.connected && this.queueState === 'idle');
+    }
+
     startQuick() {
-        if (!this.selection || !net.connected || this.queueState !== 'idle') return;
+        this.afterInfoWarning(() => this.canStartOnline(), () => this.queueQuick());
+    }
+
+    queueQuick() {
         const { map } = this.getChoice();
         this.sendChoice('queue', { map });
         this.queueState = 'queued';
@@ -1530,7 +2041,10 @@ export class OnlineLobbyScene extends Phaser.Scene {
     }
 
     createLobby() {
-        if (!this.selection || !net.connected || this.queueState !== 'idle') return;
+        this.afterInfoWarning(() => this.canStartOnline(), () => this.sendCreateLobby());
+    }
+
+    sendCreateLobby() {
         const settings = this.lobbySettings;
         this.sendChoice('createLobby', {
             lobbyName: this.getLobbyName(),
@@ -1546,7 +2060,10 @@ export class OnlineLobbyScene extends Phaser.Scene {
 
     joinByCode(code) {
         this.autoJoin = null;
-        if (!this.selection || !net.connected || this.queueState !== 'idle') return;
+        this.afterInfoWarning(() => this.canStartOnline(), () => this.sendJoinByCode(code));
+    }
+
+    sendJoinByCode(code) {
         this.sendChoice('joinLobby', { code });
         this.queueState = 'joining';
         this.joiningFromInvite = true;
@@ -1558,14 +2075,14 @@ export class OnlineLobbyScene extends Phaser.Scene {
         this.notice = null;
     }
 
-    copyInviteLink() {
+    copyInviteLink(button = this.copyLinkButton) {
         const code = this.lobby?.inviteCode;
         if (!code) return;
         const link = makeInviteLink(code);
         const copied = () => {
-            this.copyLinkButton.text.setText('COPIED');
+            button.text.setText('COPIED');
             this.time.delayedCall(COPY_LINK.copiedMs, () => {
-                if (this.copyLinkButton.text.active) this.copyLinkButton.text.setText('COPY INVITE LINK');
+                if (button.text.active) button.text.setText('COPY INVITE LINK');
             });
             this.setStatus('Invite link copied. Send it to a friend.', COLORS.accent);
         };
@@ -1578,14 +2095,29 @@ export class OnlineLobbyScene extends Phaser.Scene {
     }
 
     joinRoom(room) {
-        if (!room || !this.selection || !net.connected || this.queueState !== 'idle') return;
-        this.sendChoice('joinLobby', { room: room.id });
+        if (room?.tournament) {
+            if (room.spectators >= room.maxSpectators) {
+                this.sound.play('deny');
+                return;
+            }
+            if (this.canStartOnline()) this.sendJoinRoom(room);
+            return;
+        }
+        this.afterInfoWarning(() => Boolean(room) && this.canStartOnline(), () => this.sendJoinRoom(room));
+    }
+
+    sendJoinRoom(room) {
+        this.sendChoice('joinLobby', room.tournament ? { room: room.id, watch: true } : { room: room.id });
         this.queueState = 'joining';
         this.queueText.setText('JOINING...');
     }
 
     startLobby() {
         if (!this.lobby?.host) return;
+        if (this.lobby.tournament) {
+            if (!this.lobby.inMatch) net.send({ t: 'startLobby' });
+            return;
+        }
         if (this.lobby.members.length < MATCH_MODES[this.lobby.mode].players) {
             this.rejectStart('THE LOBBY NEEDS TO BE FULL TO START');
             return;
@@ -1601,10 +2133,12 @@ export class OnlineLobbyScene extends Phaser.Scene {
         if (this.queueState !== 'lobby') return;
         this.closeModifierList();
         net.send({ t: 'leave' });
+        const wasTournament = Boolean(this.lobby?.tournament);
         this.queueState = 'idle';
         this.lobby = null;
         this.invitesSent.clear();
-        this.showScreen('browse');
+        this.showScreen(wasTournament ? 'home' : 'browse');
+        if (wasTournament) this.fixLockedSelection();
     }
 
     startMatch(match) {
@@ -1612,7 +2146,8 @@ export class OnlineLobbyScene extends Phaser.Scene {
         this.queueState = 'found';
         if (this.screen === 'quick') this.refreshQueue();
         const others = match.roster.filter(entry => entry.slot !== match.slot);
-        this.queueText.setText(others.length === 1
+        if (match.spectator) this.queueText.setText(`SPECTATING ${match.roster.map(entry => entry.name).join(' VS ')}`);
+        else this.queueText.setText(others.length === 1
             ? `VS ${others[0].name}  (${others[0].character.toUpperCase()})`
             : `${match.mode.toUpperCase()} STARTING!`);
         this.sound.play('hover2');
@@ -1629,13 +2164,22 @@ export class OnlineLobbyScene extends Phaser.Scene {
             this.closeInvitePopup();
             return;
         }
-        const parents = { stage: 'create', modifiers: 'create', create: 'home', browse: 'home', invite: 'lobby' };
+        if (this.screen === 'stage' && this.stageFor === 'room') {
+            this.stageFor = null;
+            this.showScreen('tournament');
+            return;
+        }
+        const parents = { stage: 'create', modifiers: 'create', create: 'home', browse: 'home', invite: 'lobby', viewers: 'tournament' };
         if (this.screen === 'quick') {
             this.cancelQuick();
             return;
         }
         if (this.screen === 'lobby') {
             this.leaveLobby();
+            return;
+        }
+        if (this.screen === 'tournament') {
+            this.leaveRoom();
             return;
         }
         if (parents[this.screen]) {

@@ -1,5 +1,71 @@
 # Changelog
 
+## 2026-11-26
+
+### Added
+- 8 fighter mastery achievements: SWORDMASTER, AXEMASTER, REELMASTER (FISHERMAN), SCYTHEMASTER, HAMMERMASTER, ROCKMASTER, CROWBARMASTER and GUNMASTER, each with its own icon. Playing as that fighter (any variant), beat every fighter and every variant as a HARD CPU, and win once against a VERY HARD CPU without losing a life, with no modifiers. Progress shows in two parts (n/14 HARD CPUS and n/1 FLAWLESS WIN). Each one stays locked until that fighter's other variant is unlocked (ROCKMAN and GUNMAN start unlocked), and save codes carry mastery progress.
+- Gold skins: mastering a fighter unlocks a gold version of every one of its variants. The body, life icons, arms, held weapons and swing sheets go gold, plus ANGLER's hook and fish, LUMBERER's thrown axe, TRAPPER's harpoons, LAWNMOWER's mower, HOOKER's and DEMOLITIONIST's crowbars, CHAINSAW's planks and MALLET/SLEDGEHAMMER's steel walls. Nets and CRAZER's shots stay normal. A GOLD: ON / OFF button on the character select card turns it on or off per fighter (on by default once unlocked), and the preview shows it. Gold skins are offline only for now.
+
+## 2026-11-25
+
+### Changed
+- Every directional special is split into an UP, DOWN and side (left/right) special. Hold up or down and press special for the new ones; double-tap left/right or press special while holding left/right for the side one. Each fighter's up and down share the side special's cooldown.
+- Side specials hit at 75% of their old strength (damage and launch), except CRAZER's. Moves that pull, pin or hold someone instead of launching them (ANGLER's pull, GRUELING SLAM's pin, the net hold) only lost damage. MALLET's SIPHONING REPAIR heals 3.75% per missed strike and 18.75% per landed one (was 5% and 25%), and SLEDGEHAMMER's QUICKSLAM hits at 75%.
+- LANDSCAPER's GRUELING SLAM gives him a hop forward and up (about a jump's worth) when the scythe reaches the bottom of the swing.
+- LAWNMOWER getting hit while riding blows up the mower under him: 8% to LAWNMOWER, and it's back 1 second later. It used to roll off and fade out.
+- LAWNMOWER's EJECT speeds up through grass. PULL CORD wait is 10s and drops to half after 150 grass cuts (was 13s and 100 cuts). PLOW's explosion does 45% with less knockback (was 60%), and its grind chip damage is halved. Holding up or down with special no longer sprays CLIPPINGS, and pressing up or down while special is held fires that special.
+- CHAINSAW: the saw's chip and explosion are weaker (explosion at 75%), the cooldown after an explosion is 4s (was 5s), and RAMPAGE's cord reaches 50px (was 65). A blocked RAMPAGE bounces CHAINSAW back like a counter and turns the saw off. When CHAINSAW himself blocks, his saw starts again right after.
+- During any RAMPAGE the saw's aim stays locked to the way it started, and a sideways saw only catches targets within about 37° of straight ahead.
+- Combo finishers launch 600 sideways and 400 up (was 500/500). LANDSCAPER's 3rd hit launches 600/600 (was 350/700).
+- LONGSWORD's QUICK DRAW stuns longer (0.675s, was 0.525s), freezes longer and shakes the victim. Its slash reaches 175 (was 150), and a QUICK DRAW from a sheathed block reaches 260 in any direction.
+- SLEDGEHAMMER's QUICKSLAM follow-up is automatic: 0.4s after the first slam lands, he leaps after them and slams them down. Jumping no longer triggers it.
+- TRAPPER's 1st and 2nd harpoon jabs shove the target 145px forward and dash him after them (1600 speed, stopping 80px short) when they land, so the 3rd hit, the pin, lines up.
+- ANGLER's hook can be cast up (it pulls him up to a platform or reels a fighter down) and down (it reels anyone below up to him in a straight line for 15%, and never latches onto platforms).
+- CPUs: EASY and NORMAL don't grab ledges or edgeguard; NORMAL blocks more (30%) and now dodges GUNMAN's MINI; HARD edgeguards and grabs ledges; VERY HARD blocks 70% of the time (was 50%). Ledge grabs only catch the outer edges of the main stage.
+- BOT MASTER levels have to be done in order: a level's progress doesn't count until the one before it is done, and the CPU card shows which level is required.
+- The GAME! screen slams in like a stamp, with a screen shake, an echo and a new sound.
+- GUNMAN's SHOTGUN has its own sound.
+- The modifier achievement warning only shows in VS CPU.
+- SNOWY's blizzard freeze lasts 250ms with NO MERCY on (was 500ms, which is still the normal length). NO MERCY restarts the blizzard as soon as it ends, so the full freeze could keep players frozen nonstop.
+
+### Added
+- Tournament announcement: a tournament starts Monday 11/30. Players sign up by emailing zamanarvin@sewanhakaschools.org.
+- UP and DOWN specials:
+  - LONGSWORD: DOUBLE LUNGE. Up/down lunges diagonally (12%, short hold), then dashes left or right for a second hit (18%).
+  - DAGGER: a quick diagonal dash up or down; the first fighter it touches takes 20% with LUNGE's knockback.
+  - LUMBERER: POWER SWING dashing 45° up or down, launching along that diagonal and leaving them CHOPPED.
+  - CHAINSAW: up RAMPAGE grinds a fighter above for 0.39s then launches them up; down RAMPAGE (TEAR DOWN) grinds below and spikes them in the air, or rips into the ground for a wood burst.
+  - ANGLER: hook cast up or down (see Changed).
+  - TRAPPER: SPEARFISH (up) rises at a 30° angle toward where he faces with the harpoon pointed that way, skewers the first fighter in its path (6%), carries them and flings them along that angle (10%). HARPOON DIVE (down, air only) dives harpoon-first and pins the first fighter under him (12%) like his 3rd harpoon hit. Both need a harpoon and use one only when they land.
+  - LANDSCAPER: UP REAP winds the scythe back for 0.38s, then reaps over his head; a fighter above takes 15% and gets slammed down, pinned. WHIRL DROP (down, air only) falls fast with the scythe spinning around him and pins whoever he lands on (15%).
+  - LAWNMOWER: LAUNCH (up) tilts the mower 45° up for 0.5s while the engine revs and dirt turns to gold sparks, then the mower explodes (used up) and he headbutts diagonally up (18%, huge knockback), slowing into a gentle fall. CRASH RIDE (down, air only) drops him riding the mower sideways like a skateboard; landing on a fighter grinds them for 0.45s then explodes (20%, mower used up), landing on the floor bounces him back off it.
+  - MALLET: a 3-stop dash at 45° up or down, swinging forward, backward, forward. The first two hold (6% each), the last launches along the dash (12%).
+  - SLEDGEHAMMER: DOWN SLAM (down), a quick slam in front of and below him for 15%. WHIRLWIND (up) spins the sledgehammer around him, slightly tilted toward where he faces, while he rises straight up fast. He always rises the same height (340px) and stops dead at the top. It hits 3 times in just over half a second: the first two catch anyone near him (5% each) and carry them up with him; the third launches them (12%) the way he's facing, mostly sideways (700 across, 250 up). It's synced to a sped-up twirling sound, and hits land with a deeper thud.
+  - SLATE: PLUNGEDASH, a quick 45° dash up or down with the dagger out that applies PLUNGED (7.5%).
+  - HOOKER: up grabs above him and the fling slams them down; down grabs below him and flings them up.
+  - DEMOLITIONIST: POGO SLAM (up) bounces off the ground on the tape measure, then the crowbar slam lands, still left or right, and spikes them downward (20%). SLAM DROP (down, air only) falls with the crowbar raised and slams on landing. A planted crowbar is recalled by any direction.
+  - CRAZER: RECOIL BLAST up and down (see below).
+- CRAZER's side special is RECOIL BLAST. A 0.8s charge (the pistol shakes on its muzzle-flash frame and a ring closes in on him, while he nearly hovers), then one thick beam straight behind him with a new sound, and the recoil launches him the other way at 1540 speed. Up fires straight down to rocket him up; down fires straight up to rocket him down. A beam hit does 40% on up and 25% on side and down (with about two-thirds of the knockback), launching along the beam. LONGSWORD can deflect it in a random direction.
+- RECOIL BLAST lasts 10 shots a match, shown on his special meter. The 11th charge flashes the gun red with a sped-up alarm, then it blows up on him (10%), he says "screw it" in a speech bubble, swaps the pistol for the minigun and fires MINI. From then on every direction of his special is MINI: 1s of fire in the direction pressed (up, down, left or right), pushing whoever it hits slightly sideways and stopping them from attacking, using specials or jumping, and slowing them to 25%.
+- FIGHTER INFO marks what's new this update in green and what changed in yellow (with a key at the top of any fighter that has either). Every fighter's info now covers their up and down specials, and DIR SPECIAL is called SIDE SPECIAL there. LAWNMOWER's info no longer lists the removed TRIPLE JUMP, and MALLET's and LAWNMOWER's numbers are up to date. The I key opens FIGHTER INFO from any screen (not while typing in a text box), showing the fighter you have picked or the last one you looked at. During an online match the game ignores your keys while it's open.
+- Fighters can say lines in a speech bubble that looks like online quick chat and works offline and online.
+- Invite links: online lobbies have an invite code and a COPY LINK button. Opening the link starts the game straight into that lobby, private ones included.
+- Tournament matches online. A HOST TOURNAMENT MATCH button on the online home screen asks for a code, which the server checks against the comma-separated codes in `BB_TOURNAMENT_CODE`, one per tournament, so several tournaments can run at once. Each code can have one room open at a time (rooms are off when it isn't set; wrong codes count toward the same 10-per-minute limit as invite codes). The room is always 1v1, private (joined by invite link or invite) and has no modifiers.
+- The tournament host doesn't play. They see a COPY INVITE LINK button, a KICK button for every player and spectator (kicked players can't rejoin that room), SPECTATE buttons on player rows, a SEE VIEWERS button that lists everyone watching (with PLAY and KICK for each), a STAGE button that picks which player chooses the stage (that player gets a PICK STAGE button that opens the stage select screen), START, NEW SET and CLOSE ROOM (press twice). Host controls only work between matches.
+- The first 2 people to join by invite link are players. Anyone online can watch: tournament matches show up at the top of BROWSE LOBBIES with a gold tint and outline, who's playing, whether it's live, and an n/4 WATCH button, and watchers can join at any time, even mid-match (they're dropped straight into the live match). Up to 4 viewers plus the host.
+- The room's status line spells out what's happening for viewers: waiting for players, banning (n/2 in), picking fighters (n/2 ready), about to start, or match in progress, with who's playing.
+- Tournament match rooms show a READY! overlay on a player's row once they ready up, like normal lobbies.
+- Bans: each player presses BAN, which opens the fighter picker as BAN CHARACTER (a see-through red box with an X marks the fighter, and the button says BAN), and picks the variant to ban without changing their own fighter. The room shows live when each player has banned (the line pops when it changes), but which fighter stays hidden from the opponent and spectators until both players have banned. Then both bans are shown, the READY button appears (it's hidden until both bans are in), and neither player can ready up with a banned variant. A player can ban while waiting for their opponent, and that ban carries over when the opponent joins. Bans stay for the next match with the same two players, and clear when a player changes after both bans were in, or when the host presses NEW SET.
+- Every variant can be picked in a tournament room, unlocked or not. Leaving the room puts a locked variant back to the fighter's first variant.
+- Spectating: the host and spectators watch the match live with a SPECTATING banner, no controls and chat bubbles they can read but not send. ESC twice stops watching, and WATCH in the room jumps back in. At the end they see who won and a BACK TO ROOM button. Players get BACK TO ROOM too, and the room keeps everyone between matches.
+- A tournament match takes 2 of the server's match slots instead of 1.
+- Tournament matches don't count toward achievements or unlocks.
+- Online results screen: instead of a plain VICTORY/DEFEAT box, online matches (Quick 1v1, lobbies, tournaments, and for spectators) end with a panel that drops in and types out like the offline one: "[PLAYER NAME] WINS!" in the winner's color, a line under it (VICTORY, DEFEAT, YOUR OPPONENT LEFT, and so on), each player's name and fighter, and their KOS, MAX KB and DAMAGE. The game server sends the stats with the match result. Endings with no stats (a crash or a lost connection) fall back to the old box.
+- Tournament set record: the room counts each player's wins while the same two players stay in. It shows as "N WINS" on their row and as a SET WINS row on the results screen. It resets with the bans when a player changes, or when the host presses NEW SET (was RESET BANS).
+
+### Removed
+- LAWNMOWER's triple-jump mower ditch.
+
 ## 2026-11-23
 
 ### Changed

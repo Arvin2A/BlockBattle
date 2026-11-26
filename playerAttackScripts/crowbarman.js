@@ -3,6 +3,8 @@
 // Licensed under the GNU GPL v3 only. See LICENSE.
 
 import demolitionist from './demolitionist.js';
+import { applySkin } from '../combat/skins.js';
+import { SIDE_SPECIAL_POWER } from '../gameSettings.js';
 import { kickSquash, SQUASH } from '../combat/squash.js';
 import { overAnyPlatform } from '../combat/universalMoves.js';
 
@@ -70,6 +72,7 @@ function spikeCrowbar(api, scene, player) {
     const length = Math.hypot(SPIKE.aim.x, SPIKE.aim.y);
     const dir  = { x: facing * SPIKE.aim.x / length, y: SPIKE.aim.y / length };
     const sprite = scene.add.image(player.x + dir.x * SPIKE.spawn, player.y + dir.y * SPIKE.spawn, 'lilcrowbar') .setScale(SPIKE.scale).setRotation(Math.atan2(dir.y, dir.x) + SPIKE.spriteAngle);
+    applySkin(sprite, player.skin);
     scene.objs.add(sprite);
     player.spike = { 
         sprite,
@@ -111,7 +114,7 @@ function updateFlyingCrowbar(api, scene, player, spike, seconds) {
                 return;
             }
             foe.flash?.();
-            api.landHit(scene, player, foe, { ...SPIKE.hit, direction: { x: spike.facing, y: 1 } });
+            api.landHit(scene, player, foe, { special: true, ...SPIKE.hit, direction: { x: spike.facing, y: 1 } });
             break;
         }
     }
@@ -181,6 +184,7 @@ function neutralSpecial(api, scene, player) {
         .setOrigin(facing > 0 ? 1 : 0, VAULT.originY)
         .setRotation(facing * VAULT.plantAngle)
         .setDepth((player.depth ?? 5) + VAULT.depthOffset);
+    applySkin(pole, player.skin);
     scene.objs.add(pole);
     player.vault = { phase: 'plant', start: scene.time.now, facing, pole };
     player.moveSpeedScale = 0;
@@ -276,8 +280,15 @@ function tryGrab(api, scene, attacker, target, direction, currentTime, animKey =
     if (currentTime < attacker.nextSideSpecialTime) return;
 
     if (currentTime - attacker.lastTap[direction] < dtapDelay || attacker.isBot) {
+        const mode = direction === 'up' || direction === 'down' ? direction : 'side';
+        const facing = mode === 'side' ? (direction === 'left' ? -1 : 1) : (attacker.lastDir.x || attacker.facingX || 1);
+        const reach = GRAB_REACH[mode];
 
         api.setAttackSprite(attacker, animKey);
+        if (mode !== 'side') {
+            attacker.atkAngleOverride = reach.spriteAngle * facing;
+            attacker.atk.setAngle(attacker.atkAngleOverride);
+        }
         attacker.isUsingSideSpecial = true
         attacker.isUsingSideSpecial = false;
         api.startSideSpecialCooldown(attacker, currentTime, grabCD);
@@ -296,27 +307,28 @@ function tryGrab(api, scene, attacker, target, direction, currentTime, animKey =
             attacker.grabWindingUp = false;
             removeInterruptCheck();
             if (interrupted) {
+                attacker.atkAngleOverride = null;
                 api.hideAttackSprite(attacker);
                 return;
             }
             const grabAnimPlaying = attacker.atk.anims.isPlaying && attacker.atk.anims.currentAnim?.key === animKey;
 
             //canAttack is already off for the windup, so skip that check; the interrupt check covers hitstun.
-            const grabLands = api.attackIsElligible(attacker, target, 200, { ignoreCanAttack: true });
+            const grabLands = api.attackIsElligible(attacker, target, 200, { ignoreCanAttack: true, ...reach.bypass });
             attacker.attackBypassesHitstun = false;
             api.damagePlanksInAttack(attacker, 0.03 * api.getAttackDamageScale(attacker));
             if (grabLands) {
-                const grabOffset = {
-                    x: Math.sign(target.x - attacker.x) * 150,
-                    y: Math.min(target.y - attacker.y, 0)
-                };
+                const side = Math.sign(target.x - attacker.x) || facing;
+                const grabOffset = mode === 'side'
+                    ? { x: side * 150, y: Math.min(target.y - attacker.y, 0) }
+                    : { x: side * reach.hold.x, y: reach.hold.y };
                 target.hitstunUntil = 3000 + scene.time.now;
                 target.willDecelerate = false;
                 target.freezeUntil = scene.time.now - 1;
                 attacker.freezeUntil = scene.time.now - 1;
                 attacker.willDecelerate = true;
                 attacker.comboTimer = 600;
-                target.KBmultiplier += 0.03 * api.getAttackDamageScale(attacker);
+                target.KBmultiplier += 0.03 * api.getAttackDamageScale(attacker) * SIDE_SPECIAL_POWER;
                 //weak damage, but the target is grabbed and unable to move or attack for 3 seconds
                 scene.sound.play('grab');
                 target.body.allowGravity = false;
@@ -329,12 +341,14 @@ function tryGrab(api, scene, attacker, target, direction, currentTime, animKey =
                         x: attacker.atk.x - attacker.x,
                         y: attacker.atk.y - attacker.y
                     },
-                    direction: direction === 'left' ? -1 : 1,
+                    direction: facing,
+                    mode,
                     atkFlipX: attacker.atk.flipX,
                     atkAngle: attacker.atk.angle,
                     aim: GRAB_AIM,
                     releaseEvent: scene.time.delayedCall(3000, () => releaseGrab(api, scene, attacker, scene.time.now, false))
                 };
+                attacker.atkAngleOverride = null;
                 const holdGrabPose = () => {
                     if (attacker.activeGrab && attacker.activeGrab.target === target) {
                         attacker.atk.setVisible(true);
@@ -354,8 +368,12 @@ function tryGrab(api, scene, attacker, target, direction, currentTime, animKey =
                 const sequence = attacker.attackSequence;
                 const missGrab = () => {
                     scene.sound.play('miss');
-                    if (attacker.attackSequence !== sequence) return;
+                    if (attacker.attackSequence !== sequence) {
+                        attacker.atkAngleOverride = null;
+                        return;
+                    }
                     attacker.atk.once(`animationcomplete-${animKey}`, () => {
+                        attacker.atkAngleOverride = null;
                         if (attacker.attackSequence === sequence) api.hideAttackSprite(attacker);
                     });
                     attacker.atk.playReverse({ key: animKey, duration: GRAB_RETRACT_MS });
@@ -377,6 +395,12 @@ function tryGrab(api, scene, attacker, target, direction, currentTime, animKey =
     attacker.lastTap[direction] = currentTime;
 
 }
+const GRAB_REACH = {
+    side: { bypass: {} },
+    up: { spriteAngle: -60, bypass: { direction: { x: 0, y: -1 }, minDot: 0.3 }, hold: { x: 50, y: -140 } },
+    down: { spriteAngle: 60, bypass: { direction: { x: 0, y: 1 }, minDot: 0.3, allowTargetBelow: true }, hold: { x: 70, y: 110 } }
+};
+
 const GRAB_SPIN = {
     hooks: [[13, 98], [64, 143], [157, 135], [190, 98], [141, 65], [52, 61], [13, 98]],
     behindFrames: [4, 5],
@@ -389,6 +413,7 @@ const GRAB_SPIN = {
         knockback: { x: 1000, y: 600, growth: false },
         unblockable: true
     },
+    verticalKnockback: { x: 300, y: 950, growth: false },
     growthAt100: 0.5,
     whoosh: { key: 'whoosh', rate: 0.6 },
     attackLockMs: 2000
@@ -467,6 +492,7 @@ function followGrabSpin(api, scene, attacker) {
 function launchFromSpin(api, scene, attacker) {
     const grab = attacker.activeGrab;
     const side = grab.spin.flip ? 1 : -1;
+    const mode = grab.mode ?? 'side';
     const target = dropGrab(api, scene, attacker, scene.time.now, false);
     attacker.atk.once('animationcomplete-crowbargrabspin', () => api.hideAttackSprite(attacker));
     const holdAtPivot = () => {
@@ -483,8 +509,16 @@ function launchFromSpin(api, scene, attacker) {
     target.flungAt = scene.time.now;
     const hit = GRAB_SPIN.hit;
     const growth = 1 + GRAB_SPIN.growthAt100 * Math.max(0, target.KBmultiplier - 1);
-    const knockback = { ...hit.knockback, x: hit.knockback.x * growth, y: hit.knockback.y * growth };
-    api.landHit(scene, attacker, target, { ...hit, knockback, direction: { x: flingDirection, y: 0 } });
+    const base = mode === 'side' ? hit.knockback : GRAB_SPIN.verticalKnockback;
+    const knockback = { ...base, x: base.x * growth, y: base.y * growth };
+    const flingY = mode === 'up' ? 1 : mode === 'down' ? -1 : 0;
+    api.landHit(scene, attacker, target, {
+        special: true,
+        ...hit,
+        knockback,
+        power: mode === 'side' ? SIDE_SPECIAL_POWER : 1,
+        direction: { x: flingDirection, y: flingY }
+    });
 }
 
 const isDemolitionist = player => player.variant === 'DEMOLITIONIST';
@@ -515,6 +549,8 @@ export default {
             api.tryAttack(scene, attacker, victim, 'crowbaratk', 'crowbaratk');
         }
     }, demolitionist.handleAttack),
+    upSpecialVariants: ['HOOKER', 'DEMOLITIONIST'],
+    downSpecialVariants: ['HOOKER', 'DEMOLITIONIST'],
     handleDirSpecial: byVariant((api, scene, attacker, direction, currentTime, victim) =>
         tryGrab(api, scene, attacker, victim, direction, currentTime), demolitionist.handleDirSpecial),
     handleNeutralSpecial: neutralSpecial,

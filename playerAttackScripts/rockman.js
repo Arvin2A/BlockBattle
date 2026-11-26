@@ -2,6 +2,8 @@
 // Original source: https://github.com/Arvin2A/BlockBattle
 // Licensed under the GNU GPL v3 only. See LICENSE.
 
+import { SIDE_SPECIAL_POWER } from '../gameSettings.js';
+
 function tilt(api, scene, attacker, victim, xMul, yMul, kbTime) {
     api.tiltAttack(scene, attacker, victim, {
         animKey: 'slateatktilt', kb: 0.035, xMul, yMul,
@@ -115,7 +117,7 @@ function updateRockfall(api, scene, player) {
         });
         if (!below) continue;
         player.rockfallHits.add(enemy);
-        api.landHit(scene, player, enemy, { ...ROCKFALL.hit, direction: { x: Math.sign(enemy.x - player.x) || 1, y: 0 } });
+        api.landHit(scene, player, enemy, { special: true, ...ROCKFALL.hit, direction: { x: Math.sign(enemy.x - player.x) || 1, y: 0 } });
     }
     if (isGrounded(player)) {
         player.rockfalling = false;
@@ -179,10 +181,87 @@ const PLUNGE_BLADE_HIT = {
     decelerateAfter: 600
 };
 
+const PLUNGE_DASH = { speed: 800, ms: 196, angle: Math.PI / 4, endSlowdown: 3, armOffset: 38, minDot: 0.3 };
+
+function facingOf(player) {
+    return player.lastDir.x || player.facingX || 1;
+}
+
+function tryPlungeDash(api, scene, player, target, direction, currentTime) {
+    if (player.isPlunging || player.isPlungeDashing || player.hitstun || player.freeze) return;
+    if (currentTime < player.nextSideSpecialTime) return;
+    api.startSideSpecialCooldown(player, currentTime, player.dirSpecialCooldown);
+
+    const dirX = facingOf(player);
+    const dirY = direction === 'up' ? -1 : 1;
+    const aim = { x: dirX * Math.cos(PLUNGE_DASH.angle), y: dirY * Math.sin(PLUNGE_DASH.angle) };
+    const sequence = (player.attackSequence ?? 0) + 1;
+    player.attackSequence = sequence;
+    player.isPlungeDashing = true;
+    player.isUsingSideSpecial = true;
+    player.isAttacking = true;
+    player.afterimage = true;
+    api.startDashTrail(player, PLUNGE_DASH.ms);
+    player.lastDir = { x: dirX, y: 0 };
+    player.body.setAllowGravity(false);
+    player.atk.stop();
+    player.atk.setVisible(false);
+
+    const arm = scene.add.sprite(player.x, player.y, 'slateplunge', 15)
+        .setFlipX(dirX < 0)
+        .setAngle(dirX * dirY * PLUNGE_DASH.angle * 180 / Math.PI);
+    if (player.heated) arm.setTint(player.tintTopLeft);
+    scene.objs.add(arm);
+    arm.play('slateplungedash');
+
+    let landed = false;
+    const update = () => {
+        if (!player.active || player.hitstun) {
+            finish();
+            return;
+        }
+        player.setVelocity(aim.x * PLUNGE_DASH.speed, aim.y * PLUNGE_DASH.speed);
+        arm.setPosition(player.x + aim.x * PLUNGE_DASH.armOffset, player.y + aim.y * PLUNGE_DASH.armOffset);
+        player.atk.setVisible(false);
+        if (landed) return;
+        const bypass = { ignoreCanAttack: true, allowTargetBelow: true, direction: aim, minDot: PLUNGE_DASH.minDot };
+        const foe = api.getEnemies(scene, player).find(enemy =>
+            api.attackIsElligible(player, enemy, PLUNGE_BLADE_HIT.range, { ...bypass, silent: true }));
+        if (!foe) return;
+        if (api.strike(scene, player, foe, { special: true, ...PLUNGE_BLADE_HIT, bypass, direction: aim, singleTarget: true })) {
+            landed = true;
+            markPlunged(scene, foe);
+            api.clearQueuedStunTimers(scene, player, foe);
+        }
+    };
+    const removeUpdate = api.addSceneUpdateListener(scene, update);
+
+    let finished = false;
+    const finish = () => {
+        if (finished) return;
+        finished = true;
+        removeUpdate();
+        player.body.setAllowGravity(true);
+        player.isPlungeDashing = false;
+        player.isUsingSideSpecial = false;
+        player.afterimage = false;
+        if (player.attackSequence === sequence) player.isAttacking = false;
+        if (!player.hitstun) {
+            player.setVelocity(player.body.velocity.x / PLUNGE_DASH.endSlowdown, player.body.velocity.y / PLUNGE_DASH.endSlowdown);
+        }
+        if (!landed) {
+            player.combo = 0;
+            scene.sound.play('miss');
+        }
+        if (arm.active) arm.destroy();
+    };
+    scene.time.delayedCall(PLUNGE_DASH.ms, finish);
+}
+
 function plungeHit(api, scene, attacker, target, dirX, spec) {
     const bypass = { ignoreCanAttack: true, direction: { x: dirX, y: 0 } };
     if (!api.attackIsElligible(attacker, target, spec.range, { ...bypass, silent: true })) return false;
-    return api.strike(scene, attacker, target, { ...spec, bypass, direction: bypass.direction });
+    return api.strike(scene, attacker, target, { special: true, ...spec, power: SIDE_SPECIAL_POWER, bypass, direction: bypass.direction });
 }
 
 function markPlunged(scene, target) {
@@ -205,7 +284,7 @@ function tryPlunge(api, scene, player, target, direction, currentTime) {
     const dtapDelay = 250;
     const pullCD = player.dirSpecialCooldown;
 
-    if (player.isPlunging || player.hitstun || player.freeze) return;
+    if (player.isPlunging || player.isPlungeDashing || player.hitstun || player.freeze) return;
     if (currentTime < player.nextSideSpecialTime) return;
 
     if (
@@ -291,7 +370,7 @@ function tryPlunge(api, scene, player, target, direction, currentTime) {
 }
 
 const unlessPlunging = handler => (api, scene, attacker, ...args) => {
-    if (attacker.isPlunging) return;
+    if (attacker.isPlunging || attacker.isPlungeDashing) return;
     return handler(api, scene, attacker, ...args);
 };
 
@@ -313,15 +392,19 @@ export default {
     handleAttack: unlessPlunging((api, scene, attacker, victim) =>
         api.tryAttack(scene, attacker, victim,
             attacker.combo === 1 ? 'slateatksecond' : 'slateatk', 'slateatkthird')),
+    upSpecialVariants: ['SLATE'],
+    downSpecialVariants: ['SLATE'],
     handleDirSpecial: (api, scene, attacker, direction, currentTime, victim) =>
-        tryPlunge(api, scene, attacker, victim, direction, currentTime),
+        direction === 'up' || direction === 'down'
+            ? tryPlungeDash(api, scene, attacker, victim, direction, currentTime)
+            : tryPlunge(api, scene, attacker, victim, direction, currentTime),
     update: (api, scene, player) => {
         updatePlungeMovement(api, scene, player);
         updateBrace(api, scene, player);
     },
     onMatchEnd: (scene, player) => stopBrace(player),
     handleNeutralSpecial: unlessPlunging(brace),
-    variantNeutralSpecials: { METAMORPHIC: unlessPlunging(brace) },
+    variantNeutralSpecials: { SLATE: unlessPlunging(brace) },
     handleHorizantalTilt: unlessPlunging((api, scene, attacker, victim) =>
         tilt(api, scene, attacker, victim, 0.6, 1, 600)),
     handleDownTilt: unlessPlunging((api, scene, attacker, victim) =>

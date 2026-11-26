@@ -50,11 +50,11 @@ export function setGrindFloat(scene, attacker, floating, {
     }
 }
 
-function grindReach(attacker, victim, range) {
+function grindReach(attacker, victim, range, upwardScale = UPWARD_RANGE_SCALE) {
     const dx = victim.x - attacker.x;
     const dy = victim.y - attacker.y;
     const upward = attacker.lastDir.y < 0 || (dy < 0 && Math.abs(dy) > Math.abs(dx));
-    return upward ? range * UPWARD_RANGE_SCALE : range;
+    return upward ? range * upwardScale : range;
 }
 
 export function grindTick(api, scene, attacker, victim, lastContactAt, {
@@ -65,11 +65,16 @@ export function grindTick(api, scene, attacker, victim, lastContactAt, {
     blockCost = 0.02,
     blockedBuildsContact = true,
     reboundOnBlock = false,
+    special = false,
+    extraReach = 0,
+    upwardScale = UPWARD_RANGE_SCALE,
+    sound = 'anyhit',
+    soundConfig = undefined,
     float = {},
     eligibility = {}
 } = {}) {
     const inReach = victim.active && api.attackIsElligible(
-        attacker, victim, grindReach(attacker, victim, range), { ignoreCanAttack: true, silent: true, ...eligibility }
+        attacker, victim, grindReach(attacker, victim, range, upwardScale) + extraReach, { ignoreCanAttack: true, silent: true, ...eligibility }
     );
     if (!inReach) {
         setGrindFloat(scene, attacker, false);
@@ -78,7 +83,7 @@ export function grindTick(api, scene, attacker, victim, lastContactAt, {
     setGrindFloat(scene, attacker, true, float);
 
     const now = scene.time.now;
-    if (blocksHit(scene, victim, attacker, chipDamage, { minCost: blockCost, rebound: reboundOnBlock })) {
+    if (blocksHit(scene, victim, attacker, chipDamage, { minCost: blockCost, rebound: reboundOnBlock, special })) {
         if (!blockedBuildsContact) return 0;
         return lastContactAt > 0 ? now - lastContactAt : 0;
     }
@@ -87,7 +92,7 @@ export function grindTick(api, scene, attacker, victim, lastContactAt, {
     victim.freezeUntil = now + freeze;
     victim.willDecelerate = false;
     victim.flash();
-    scene.sound.play('anyhit');
+    scene.sound.play(sound, soundConfig);
     scene.time.delayedCall(hitstun, () => {
         if (victim.active && scene.time.now >= victim.hitstunUntil) {
             victim.willDecelerate = true;
@@ -105,12 +110,14 @@ export function grindExplosion(api, scene, attacker, victim, {
     noDeathRay = false,
     direction = null,
     ranged = false,
-    shieldCost = null
+    shieldCost = null,
+    special = false
 } = {}) {
     api.landHit(scene, attacker, victim, {
         direction,
         ranged,
         shieldCost,
+        special,
         damage,
         plankDamage: 0,
         hitstun,

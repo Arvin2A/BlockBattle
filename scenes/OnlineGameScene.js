@@ -16,7 +16,8 @@ import { getServerName } from '../mp/serverConfig.js';
 import { END_REASONS } from '../mp/protocol.js';
 import { encodeButtons, readControllerInput, INPUT_BUTTONS } from '../input.js';
 import { QuickChat } from './OnlineQuickChat.js';
-import { COLORS, FONTS, makeButton, makePanel } from '../ui/theme.js';
+import { COLORS, FONTS, makeButton, makePanel, textStyle } from '../ui/theme.js';
+import { CHARACTER_ROSTER } from '../characterRoster.js';
 import { addTouchAssist } from '../ui/touchAssist.js';
 import { addSettingsButton, useMatchVolume, usesThumbstick } from '../ui/settings.js';
 import { addThumbstick } from '../ui/touchJoystick.js';
@@ -50,6 +51,11 @@ const MAX_CLOCK_ADJUST = 0.1;
 const MAX_STEP_MS = 100;
 const SEEN_FRAME_MEMORY = 1200;
 const LATE_BUCKETS_MS = [50, 100, 200, 500];
+const RESULTS = {
+    top: 110, width: 640, headlineY: 145, sublineY: 182, nameY: 222, fighterY: 244,
+    firstRowY: 284, rowGap: 36, padBottom: 30, buttonGap: 42, dropFrom: -500,
+    duelColumns: [390, 610], groupLabelWidth: 150, groupColumnWidth: 205, groupPad: 20, maxWidth: 980
+};
 
 function emptyNetStats() {
     return {
@@ -82,6 +88,7 @@ export class OnlineGameScene extends Phaser.Scene {
 
     init(data) {
         this.match = data.match;
+        this.spectator = Boolean(data.match.spectator);
         this.playerIds = null;
         this.matchRunning = false;
         this.matchOver = false;
@@ -96,6 +103,7 @@ export class OnlineGameScene extends Phaser.Scene {
         this.cameras.main.fadeIn(500, 0, 0, 0);
 
         this.mirror = new MirrorView(this);
+        if (this.spectator) this.mirror.expectFullFrame();
         this.setupInput();
 
         this.cleanups = [
@@ -155,7 +163,12 @@ export class OnlineGameScene extends Phaser.Scene {
 
         const keyboard = this.input.keyboard;
         keyboard.addCapture(CAPTURED_KEYS);
+        const infoOpen = () => Boolean(this.advancedInfo || this.scene.get('OnlineOverlayScene')?.advancedInfo);
         keyboard.on('keydown', event => {
+            if (infoOpen()) {
+                if (this.keysHeld.size) this.releaseAllKeys();
+                return;
+            }
             if (event.code === 'Escape') {
                 this.events.emit('online-escape');
                 return;
@@ -199,7 +212,7 @@ export class OnlineGameScene extends Phaser.Scene {
     }
 
     flushInput() {
-        if (this.matchOver) return;
+        if (this.matchOver || this.spectator) return;
         const held = emptyButtons();
         for (const code of this.keysHeld) held[KEY_BINDINGS[code]] = true;
         for (const button of INPUT_BUTTONS) {
@@ -309,7 +322,7 @@ export class OnlineGameScene extends Phaser.Scene {
     }
 
     leaveTo(sceneKey, data) {
-        if (!this.matchOver) net.send({ t: 'forfeit' });
+        if (!this.matchOver) net.send({ t: this.spectator ? 'stopWatching' : 'forfeit' });
         this.matchOver = true;
         this.scene.stop('OnlineOverlayScene');
         if (sceneKey === 'MenuScene') net.disconnect();
@@ -341,8 +354,9 @@ export class OnlineOverlayScene extends Phaser.Scene {
     create() {
         const { slot, roster, mode } = this.match;
         this.slotColors = Object.fromEntries(roster.map(entry => [entry.slot, PLAYER_COLORS[entry.color].css]));
+        const spectator = this.gameScene.spectator;
         const self = roster.find(entry => entry.slot === slot);
-        const color = this.slotColors[slot];
+        const color = this.slotColors[slot] ?? COLORS.accent;
         const others = roster.filter(entry => entry.slot !== slot);
 
         this.pingText = this.add.text(990, 592, '', {
@@ -377,7 +391,8 @@ export class OnlineOverlayScene extends Phaser.Scene {
         this.quickChat = new QuickChat(this, {
             slotColors: this.slotColors,
             getPlayerObject: slot => game.getPlayerObject(slot),
-            worldToScreen: (x, y) => this.worldToScreen(x, y)
+            worldToScreen: (x, y) => this.worldToScreen(x, y),
+            readOnly: spectator
         });
         game.events.on('online-start', this.onStart, this);
         game.events.on('online-end', this.onEnd, this);
@@ -391,18 +406,22 @@ export class OnlineOverlayScene extends Phaser.Scene {
             this.quickChat.destroy();
         });
 
-        if (this.sys.game.device.input.touch) {
+        if (spectator) {
+            if (this.sys.game.device.input.touch) this.createForfeitButton();
+        } else if (this.sys.game.device.input.touch) {
             this.createTouchControls();
             this.createForfeitButton();
         }
         else if (roster.length === 2) this.createKeyGuides(slot);
         addSettingsButton(this, { x: this.forfeitButton ? 912 : 968, depth: 4000 });
 
-        const versus = others.length === 1
-            ? `VS ${others[0].name}`
-            : isTeamMode(mode) ? `TEAM ${PLAYER_COLORS[self.color].label}` : `${roster.length}-PLAYER FREE FOR ALL`;
+        const versus = spectator
+            ? roster.map(entry => entry.name).join(' VS ')
+            : others.length === 1
+                ? `VS ${others[0].name}`
+                : isTeamMode(mode) ? `TEAM ${PLAYER_COLORS[self.color].label}` : `${roster.length}-PLAYER FREE FOR ALL`;
         this.banner = this.add.text(500, 455, [
-            `YOU ARE ${slot.toUpperCase()}`,
+            spectator ? 'SPECTATING' : `YOU ARE ${slot.toUpperCase()}`,
             versus
         ].join('\n'), {
             fontFamily: 'VCROSD',
@@ -412,7 +431,7 @@ export class OnlineOverlayScene extends Phaser.Scene {
             strokeThickness: 6,
             align: 'center'
         }).setOrigin(0.5).setAlpha(0);
-        this.controlsHint = this.add.text(500, 525, 'EITHER KEY LAYOUT WORKS    LEAVE: ESC', {
+        this.controlsHint = this.add.text(500, 525, spectator ? 'STOP WATCHING: ESC' : 'EITHER KEY LAYOUT WORKS    LEAVE: ESC', {
             fontFamily: 'GameFont',
             fontSize: '14px',
             fill: '#ffffff',
@@ -447,7 +466,7 @@ export class OnlineOverlayScene extends Phaser.Scene {
             this.quickChat.close();
             return;
         }
-        this.requestLeave('PRESS ESC AGAIN TO LEAVE (COUNTS AS A LOSS)');
+        this.requestLeave(this.gameScene.spectator ? 'PRESS ESC AGAIN TO STOP WATCHING' : 'PRESS ESC AGAIN TO LEAVE (COUNTS AS A LOSS)');
     }
 
     requestLeave(notice) {
@@ -467,7 +486,7 @@ export class OnlineOverlayScene extends Phaser.Scene {
             .setInteractive({ useHandCursor: true });
         this.forfeitButton.on('pointerdown', () => {
             this.sound.play('hover2');
-            this.requestLeave('TAP AGAIN TO LEAVE (COUNTS AS A LOSS)');
+            this.requestLeave(this.gameScene.spectator ? 'TAP AGAIN TO STOP WATCHING' : 'TAP AGAIN TO LEAVE (COUNTS AS A LOSS)');
         });
     }
 
@@ -477,22 +496,140 @@ export class OnlineOverlayScene extends Phaser.Scene {
         this.tweens.add({ targets: this.noticeText, alpha: 0, delay: duration, duration: 300 });
     }
 
-    onEnd({ winners, reason }) {
-        this.forfeitButton?.setVisible(false).disableInteractive();
-        const won = Boolean(winners?.includes(this.match.slot));
+    winnerHeadline(winners) {
+        const entries = (winners ?? []).map(slot => this.match.roster.find(entry => entry.slot === slot)).filter(Boolean);
+        if (!entries.length) return null;
+        if (isTeamMode(this.match.mode)) return { text: `${PLAYER_COLORS[entries[0].color].label} TEAM WINS!`, color: this.slotColors[entries[0].slot] };
+        return { text: `${entries.map(entry => entry.name).join(' + ')} WINS!`, color: this.slotColors[entries[0].slot] };
+    }
+
+    endSubline(winners, reason) {
         const duel = this.match.roster.length === 2;
-        const titles = {
-            [END_REASONS.KO]: won ? 'VICTORY!' : 'DEFEAT',
+        if (this.gameScene.spectator) {
+            const notes = {
+                [END_REASONS.FORFEIT]: duel ? 'THE OTHER PLAYER LEFT' : 'EVERYONE ELSE LEFT',
+                [END_REASONS.DISCONNECT]: duel ? 'THE OTHER PLAYER DISCONNECTED' : 'EVERYONE ELSE LEFT',
+                [END_REASONS.AFK]: duel ? 'THE OTHER PLAYER WENT AFK' : 'EVERYONE ELSE LEFT',
+                [END_REASONS.SERVER_ERROR]: 'THE MATCH CRASHED ON THE SERVER',
+                lost_connection: 'LOST CONNECTION TO THE SERVER'
+            };
+            return { text: notes[reason] ?? 'SPECTATING', won: false };
+        }
+        const won = Boolean(winners?.includes(this.match.slot));
+        const notes = {
+            [END_REASONS.KO]: won ? 'VICTORY' : 'DEFEAT',
             [END_REASONS.FORFEIT]: won ? (duel ? 'YOUR OPPONENT LEFT, YOU WIN' : 'EVERYONE ELSE LEFT, YOU WIN') : 'YOU LEFT THE MATCH',
             [END_REASONS.DISCONNECT]: duel ? 'YOUR OPPONENT DISCONNECTED, YOU WIN' : 'EVERYONE ELSE LEFT, YOU WIN',
             [END_REASONS.AFK]: won ? (duel ? 'YOUR OPPONENT WENT AFK, YOU WIN' : 'EVERYONE ELSE LEFT, YOU WIN') : 'YOU WERE KICKED FOR BEING AFK',
             [END_REASONS.SERVER_ERROR]: 'THE MATCH CRASHED ON THE SERVER',
             lost_connection: 'LOST CONNECTION TO THE SERVER'
         };
-        const title = titles[reason] ?? 'MATCH OVER';
-        // Let people see the KO and "X WINS!" first.
+        return { text: notes[reason] ?? 'MATCH OVER', won };
+    }
+
+    onEnd(message) {
+        const { winners, reason } = message;
+        this.forfeitButton?.setVisible(false).disableInteractive();
+        const headline = this.winnerHeadline(winners);
+        const subline = this.endSubline(winners, reason);
+        const canRequeue = reason !== 'lost_connection';
         const delay = reason === END_REASONS.KO ? 1800 : 0;
-        this.time.delayedCall(delay, () => this.showEndPanel(title, won, reason !== 'lost_connection'));
+        this.time.delayedCall(delay, () => {
+            if (message.stats && headline) this.showResultsPanel(message, headline, subline, canRequeue);
+            else this.showEndPanel(headline && reason !== END_REASONS.SERVER_ERROR ? headline.text : subline.text, subline.won, canRequeue);
+        });
+    }
+
+    showResultsPanel({ winners, stats, record }, headline, subline, canRequeue) {
+        this.waitingText.setVisible(false);
+        this.youMarker.setVisible(false);
+        const roster = this.match.roster;
+        const duel = roster.length === 2;
+        const width = duel ? RESULTS.width : Math.min(RESULTS.maxWidth, RESULTS.groupLabelWidth + roster.length * RESULTS.groupColumnWidth + RESULTS.groupPad * 2);
+        const left = 500 - width / 2 + RESULTS.groupPad;
+        const columnWidth = (width - RESULTS.groupPad * 2 - RESULTS.groupLabelWidth) / roster.length;
+        const columns = duel ? RESULTS.duelColumns : roster.map((_, index) => left + RESULTS.groupLabelWidth + columnWidth * (index + 0.5));
+        const labelX = duel ? 500 : left + RESULTS.groupLabelWidth / 2;
+        const formatKB = multiplier => `${((multiplier * 100) - 100).toFixed(1)}%`;
+        const rows = [
+            ['KOS', slot => `${Math.round(stats[slot]?.kos ?? 0)}`],
+            ['MAX KB', slot => formatKB(stats[slot]?.maxKB ?? 1)],
+            ['DAMAGE', slot => `${(stats[slot]?.damage ?? 0).toFixed(1)}%`]
+        ];
+        if (record) rows.push(['SET WINS', slot => `${record[slot] ?? 0}`]);
+
+        this.add.rectangle(500, 300, 1000, 600, 0x000000, 0.55).setDepth(4990);
+        const typed = [
+            [this.add.text(500, RESULTS.headlineY, '', textStyle('title', { fontSize: '36px', fill: headline.color })).setOrigin(0.5), headline.text],
+            [this.add.text(500, RESULTS.sublineY, '', textStyle('body', {
+                fontSize: '18px',
+                fill: subline.won ? COLORS.accent : COLORS.muted
+            })).setOrigin(0.5), subline.text]
+        ];
+        roster.forEach((entry, index) => {
+            const character = CHARACTER_ROSTER.find(each => each.key === entry.character);
+            const isYou = entry.slot === this.match.slot;
+            const you = isYou && duel ? 'YOU   ' : '';
+            typed.push(
+                [this.add.text(columns[index], RESULTS.nameY, '', textStyle('title', {
+                    fontSize: duel ? '18px' : '13px',
+                    fill: this.slotColors[entry.slot],
+                    strokeThickness: 3
+                })).setOrigin(0.5), isYou && !duel ? `${entry.name} (YOU)` : entry.name],
+                [this.add.text(columns[index], RESULTS.fighterY, '', textStyle('body', {
+                    fontSize: duel ? '12px' : '10px',
+                    fill: COLORS.muted,
+                    align: 'center',
+                    wordWrap: { width: (duel ? 200 : columnWidth) - 10 }
+                })).setOrigin(0.5), `${you}${character?.name ?? entry.character} - ${entry.variant}`.toUpperCase()]
+            );
+        });
+        rows.forEach(([label, value], index) => {
+            const y = RESULTS.firstRowY + index * RESULTS.rowGap;
+            typed.push([this.add.text(labelX, y, '', textStyle('body', { fontSize: '18px', fill: COLORS.muted })).setOrigin(0.5), label]);
+            roster.forEach((entry, column) => typed.push([
+                this.add.text(columns[column], y, '', textStyle('body', {
+                    fill: winners?.includes(entry.slot) ? COLORS.accent : COLORS.text,
+                    fontSize: duel ? '24px' : '18px'
+                })).setOrigin(0.5),
+                value(entry.slot)
+            ]));
+        });
+
+        const panelHeight = RESULTS.firstRowY + (rows.length - 1) * RESULTS.rowGap + RESULTS.padBottom - RESULTS.top;
+        const panel = this.add.container(0, RESULTS.dropFrom, [
+            makePanel(this, 500, RESULTS.top + panelHeight / 2, width, panelHeight),
+            ...typed.map(([text]) => text)
+        ]).setDepth(5000);
+        this.tweens.add({
+            targets: panel,
+            y: 0,
+            duration: 650,
+            ease: 'Bounce.easeOut',
+            onComplete: () => this.typewrite(typed)
+        });
+        this.addEndButtons(canRequeue, RESULTS.top + panelHeight + RESULTS.buttonGap);
+    }
+
+    typewrite(queue, letterMs = 25) {
+        let item = 0;
+        let letters = 0;
+        const event = this.time.addEvent({
+            delay: letterMs,
+            loop: true,
+            callback: () => {
+                if (item >= queue.length) return;
+                const [text, full] = queue[item];
+                letters += 1;
+                text.setText(full.slice(0, letters));
+                if (full[letters - 1] !== ' ') this.sound.play('hover', { volume: 0.25 });
+                if (letters >= full.length) {
+                    item += 1;
+                    letters = 0;
+                    if (item >= queue.length) event.remove();
+                }
+            }
+        });
     }
 
     showEndPanel(title, won, canRequeue) {
@@ -507,23 +644,21 @@ export class OnlineOverlayScene extends Phaser.Scene {
             align: 'center',
             wordWrap: { width: 520 }
         }).setOrigin(0.5).setDepth(5003);
+        this.addEndButtons(canRequeue, 330);
+    }
 
-        const buttons = canRequeue && this.match.quick
-            ? [
-                { x: 380, label: 'PLAY AGAIN', action: () => this.gameScene.leaveTo('OnlineLobbyScene', { autoQueue: true }) },
-                { x: 620, label: 'LOBBY', action: () => this.gameScene.leaveTo('OnlineLobbyScene') }
-            ]
-            : canRequeue
-                ? [{ x: 500, label: 'LOBBY', action: () => this.gameScene.leaveTo('OnlineLobbyScene') }]
+    addEndButtons(canRequeue, y) {
+        const buttons = canRequeue
+            ? [{ x: 500, label: this.match.tournament ? 'BACK TO ROOM' : 'LOBBY', action: () => this.gameScene.leaveTo('OnlineLobbyScene') }]
             : [{ x: 500, label: 'MAIN MENU', action: () => this.gameScene.leaveTo('MenuScene') }];
 
         for (const button of buttons) {
-            const { box, text } = makeButton(this, button.x, 330, 200, 60, button.label, button.action, 26);
+            const { box, text } = makeButton(this, button.x, y, 200, 54, button.label, button.action, 24);
             box.setDepth(5001);
             text.setDepth(5002);
         }
         this.input.keyboard.once('keydown-ENTER', buttons[0].action);
-        this.add.text(500, 395, `ENTER: ${buttons[0].label}`, {
+        this.add.text(500, y + 50, `ENTER: ${buttons[0].label}`, {
             fontFamily: 'GameFont',
             fontSize: '12px',
             fill: '#999999'
