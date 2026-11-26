@@ -4,6 +4,19 @@
 
 ### Added
 - 8 fighter mastery achievements: SWORDMASTER, AXEMASTER, REELMASTER (FISHERMAN), SCYTHEMASTER, HAMMERMASTER, ROCKMASTER, CROWBARMASTER and GUNMASTER, each with its own icon. Playing as that fighter (any variant), get a flawless win (no lives lost) against all 8 fighters (any variant) as a HARD or VERY HARD CPU, with no modifiers. Progress shows as n/8 FLAWLESS WINS. Each one stays locked until that fighter's other variant is unlocked (ROCKMAN and GUNMAN start unlocked), and save codes carry mastery progress.
+- SLEDGEHAMMER's THICK STEEL PLANK gets a final stand: when an attack breaks it, that attack is still stopped, whether it's a swing, a thrown weapon or a beam.
+
+### Changed
+- CRAZER's RECOIL BLAST pierces walls and fighters. It hits for 50% (was 40% up, 25% side and down), and each wall or fighter it goes through takes 40% off its damage and knockback for everything behind it, walls included. Wooden and MALLET walls break and let it through; a SLEDGEHAMMER wall breaks at full power but always stops the beam. Map platforms still stop it.
+- Attacking while aiming down (or holding down) and down tilts are a SPIKE now, replacing the downward jab, push and down tilt for every fighter except GUNMAN, DEMOLITIONIST, CHAINSAW and LAWNMOWER (it doesn't replace the combo's 3rd hit). A 300ms windup winds the fighter back 10°, then leans them smoothly to 35° forward with the weapon pointed 25° lower, then a wide swing (170px, hitting anything in front, including low) that always faces left or right launches them 65° downward the way you face, for 5% (TRAPPER's armed stab keeps its damage). The down tilt version keeps the tilt's damage and a fixed launch. Spikes leave their target in hitstun twice as long, without changing the launch's path. A fighter on the ground gets sent 65° upward instead, so it can't stunlock.
+- TRAPPER's SPEARFISH ends with the same 8-stab flurry (10% total) on whoever it skewered, right before flinging them.
+- Anything launched downward (SPIKES, QUICKSLAM's follow-up slam, HARPOON DIVE, and every other downward hit) comes out of hitstun the moment it lands, instead of lying stunned on the floor. Pins (TRAPPER's 3rd stab, GRUELING SLAM, WHIRL DROP) still hold them down.
+- QUICKSLAM's follow-up slam (the leap that sends them flying down) stuns 1.3x longer.
+- SLEDGEHAMMER's SPIKE has an 800ms windup: he leans back, then swings a slowed-down QUICKSLAM as he leans 35° forward and smashes them 65° down with his full swing's 30% and a launch that grows with KB.
+- TRAPPER's HARPOON DIVE dives 15° off straight down, toward where he faces. Running into a fighter, or landing with one within 80px to the side (130px up or down), starts a flurry of 8 rapid harpoon stabs (each playing his harpoon jab) with LEGACY SCYTHEMAN's slash effect and sound (10% total), then a 12% launch down along the dive's angle. A fighter on the ground gets launched up along that angle instead, so it can't be stunlocked. It still needs a harpoon and only uses one when it lands.
+
+### Fixed
+- TRAPPER's empty-handed third punch launches grounded fighters strongly upward. Its weak launch could leave them on the floor for an endless punch stunlock.
 - Gold skins: mastering a fighter unlocks a gold version of every one of its variants. The body, life icons, arms, held weapons and swing sheets go gold, plus ANGLER's hook and fish, LUMBERER's thrown axe, TRAPPER's harpoons, LAWNMOWER's mower, HOOKER's and DEMOLITIONIST's crowbars, CHAINSAW's planks and MALLET/SLEDGEHAMMER's steel walls. Nets and CRAZER's shots stay normal. A GOLD: ON / OFF button on the character select card turns it on or off per fighter (on by default once unlocked), and the preview shows it. Gold skins are offline only for now.
 
 ## 2026-11-25
@@ -36,7 +49,7 @@
   - LUMBERER: POWER SWING dashing 45° up or down, launching along that diagonal and leaving them CHOPPED.
   - CHAINSAW: up RAMPAGE grinds a fighter above for 0.39s then launches them up; down RAMPAGE (TEAR DOWN) grinds below and spikes them in the air, or rips into the ground for a wood burst.
   - ANGLER: hook cast up or down (see Changed).
-  - TRAPPER: SPEARFISH (up) rises at a 30° angle toward where he faces with the harpoon pointed that way, skewers the first fighter in its path (6%), carries them and flings them along that angle (10%). HARPOON DIVE (down, air only) dives harpoon-first and pins the first fighter under him (12%) like his 3rd harpoon hit. Both need a harpoon and use one only when they land.
+  - TRAPPER: SPEARFISH (up) rises at a 30° angle toward where he faces with the harpoon pointed that way, skewers the first fighter in its path (6%), carries them and flings them along that angle (10%). HARPOON DIVE (down, air only) dives harpoon-first diagonally into a stab flurry (see below). Both need a harpoon and use one only when they land.
   - LANDSCAPER: UP REAP winds the scythe back for 0.38s, then reaps over his head; a fighter above takes 15% and gets slammed down, pinned. WHIRL DROP (down, air only) falls fast with the scythe spinning around him and pins whoever he lands on (15%).
   - LAWNMOWER: LAUNCH (up) tilts the mower 45° up for 0.5s while the engine revs and dirt turns to gold sparks, then the mower explodes (used up) and he headbutts diagonally up (18%, huge knockback), slowing into a gentle fall. CRASH RIDE (down, air only) drops him riding the mower sideways like a skateboard; landing on a fighter grinds them for 0.45s then explodes (20%, mower used up), landing on the floor bounces him back off it.
   - MALLET: a 3-stop dash at 45° up or down, swinging forward, backward, forward. The first two hold (6% each), the last launches along the dash (12%).

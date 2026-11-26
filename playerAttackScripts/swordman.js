@@ -215,6 +215,8 @@ function tryDaggerAttack(api, scene, attacker, target, animKey, thirdAnimKey) {
     if (attacker.combo >= 5) {
         //three more hits for dagger
         api.thirdAttack(scene, attacker, target, thirdAnimKey);
+    } else if (api.aimsDown(attacker)) {
+        api.spikeAttack(scene, attacker, target, animKey);
     } else {
         if (attacker.horizontalMovementActive) {
             api.pushAttack(scene, attacker, target, animKey);

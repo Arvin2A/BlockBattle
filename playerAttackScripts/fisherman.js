@@ -358,6 +358,8 @@ function useHarpoon(scene, player) {
     player.nextHarpoonAt ||= scene.time.now + HARPOON_REGEN_MS;
 }
 
+const GROUNDED_POP = { x: 250, y: 800 };
+
 const EMPTY_HANDED_FINISHER = {
     hitstun: 250,
     sound: 'slatelight1',
@@ -440,7 +442,14 @@ function harpoonAttack(api, scene, attacker, victim) {
     const damage = armed ? { damage: HARPOON_DAMAGE } : {};
 
     if (attacker.combo >= 2 && !armed) {
-        api.thirdAttack(scene, attacker, victim, 'harpoonlessatkthird', { ...EMPTY_HANDED_FINISHER, range });
+        const grounded = victim?.body && isOnFloor(api, scene, victim);
+        const pop = grounded ? {
+            knockback: ({ attacker: puncher, target }) => ({
+                x: (Math.sign(target.x - puncher.x) || 1) * GROUNDED_POP.x,
+                y: -GROUNDED_POP.y * target.KBmultiplier
+            })
+        } : {};
+        api.thirdAttack(scene, attacker, victim, 'harpoonlessatkthird', { ...EMPTY_HANDED_FINISHER, range, ...pop });
     } else if (attacker.combo >= 2) {
         const pinned = harpoonPin(api, scene, attacker, victim, 'harpoonatkthird', range);
         if (pinned !== null) {
@@ -448,6 +457,8 @@ function harpoonAttack(api, scene, attacker, victim) {
             leaveHarpoonBehind(scene, attacker, 'harpoonatkthird', () =>
                 stickHarpoon(api, scene, victim, pinnedHarpoonAngle(attacker), pinned, attacker.skin));
         }
+    } else if (api.aimsDown(attacker)) {
+        api.spikeAttack(scene, attacker, victim, sheet, armed ? { hit: { damage: HARPOON_DAMAGE, sound: 'axeslash2' } } : {});
     } else {
         const hit = attacker.horizontalMovementActive
             ? api.pushAttack(scene, attacker, victim, sheet, { range, sound: 'axeslash2', ...damage })
@@ -473,6 +484,7 @@ function harpoonPin(api, scene, attacker, target, animKey, range) {
         hitstun: canPin ? PIN_MS : 300,
         hitstunGrowth: false,
         noDeathRay: true,
+        holdsOnLanding: true,
         // Never a launch: held to the floor on the ground, driven straight down in the air.
         knockback: () => ({ x: 0, y: canPin && !grounded ? PIN_SPIKE_SPEED : 0 }),
         onHit: () => {
@@ -588,13 +600,25 @@ const SPEARFISH = {
     }
 };
 
+const HARPOON_FLURRY = { stabs: 8, stabMs: 40, damage: 0.10 };
+
 const HARPOON_DIVE = {
-    fallSpeed: 1300,
-    keepX: 0.3,
-    holdBelow: 40,
+    speed: 1300,
+    tilt: 15 * Math.PI / 180,
+    holdOut: 40,
     maxMs: 1200,
-    reach: { x: 50, below: 120, above: 10 },
-    damage: 0.12,
+    reach: { along: 110, side: 45 },
+    landReach: { x: 80, y: 130 },
+    launch: {
+        damage: 0.12,
+        plankDamage: 0,
+        hitstun: 450,
+        hitFreeze: 90,
+        sound: 'axeslash2',
+        knockback: { x: 750, y: 750 },
+        decelerateAfter: target => 450 * target.KBmultiplier,
+        resetCombo: false
+    },
     bounce: 350
 };
 
@@ -605,14 +629,6 @@ function holdHarpoonOut(scene, player, angle, distance) {
     const place = () => harpoon.setPosition(player.x + Math.cos(angle) * distance, player.y + Math.sin(angle) * distance);
     place();
     return { harpoon, place };
-}
-
-function foeInReach(api, scene, player, reach) {
-    return api.getEnemies(scene, player).find(foe => {
-        if (!foe.active || api.isInvincible(foe)) return false;
-        const dy = foe.y - player.y;
-        return Math.abs(foe.x - player.x) <= reach.x && dy >= -(reach.above ?? 0) && dy <= (reach.below ?? 0);
-    });
 }
 
 function startHarpoonSpecial(api, scene, player, currentTime, angle, distance) {
@@ -662,16 +678,31 @@ function spearfish(api, scene, player, currentTime) {
     let skewered = null;
     let hitAt = null;
 
-    const finish = () => {
-        removeUpdate();
+    const done = () => {
         endHarpoonSpecial(api, player, held);
         if (!player.hitstun) player.setVelocity(player.body.velocity.x, player.body.velocity.y / SPEARFISH.endSlowdown);
-        if (!skewered) return;
-        if (skewered.body) skewered.body.setAllowGravity(true);
-        if (!skewered.active || skewered.lastHitAt !== hitAt) return;
-        api.landHit(scene, player, skewered, { ...SPEARFISH.fling, direction: aim });
-        useHarpoon(scene, player);
-        stickHarpoon(api, scene, skewered, angle, false, player.skin);
+    };
+    const finish = () => {
+        removeUpdate();
+        const foe = skewered;
+        if (!foe || !foe.active || foe.lastHitAt !== hitAt) {
+            if (foe?.body) foe.body.setAllowGravity(true);
+            done();
+            return;
+        }
+        const release = () => {
+            if (foe.body) foe.body.setAllowGravity(true);
+        };
+        harpoonFlurry(api, scene, player, foe, held, aim, () => {
+            release();
+            api.landHit(scene, player, foe, { ...SPEARFISH.fling, direction: aim });
+            useHarpoon(scene, player);
+            stickHarpoon(api, scene, foe, angle, false, player.skin);
+            done();
+        }, () => {
+            release();
+            done();
+        });
     };
     const removeUpdate = api.addSceneUpdateListener(scene, () => {
         const elapsed = scene.time.now - startedAt;
@@ -707,59 +738,136 @@ function spearfish(api, scene, player, currentTime) {
     });
 }
 
-function harpoonDive(api, scene, player, currentTime) {
-    if (isOnFloor(api, scene, player)) return;
-    const held = startHarpoonSpecial(api, scene, player, currentTime, Math.PI / 2, HARPOON_DIVE.holdBelow);
-    if (!held) return;
-    const startedAt = scene.time.now;
+function slashEffect(scene, target) {
+    const slash = scene.add.image(target.x, target.y, 'slasheffect').setScale(1.5).setDepth(9);
+    scene.objs.add(slash);
+    scene.tweens.add({ targets: slash, alpha: 0, duration: 100, onComplete: () => slash.destroy() });
+}
 
-    const finish = () => {
-        removeUpdate();
-        endHarpoonSpecial(api, player, held);
+function harpoonFlurry(api, scene, player, foe, held, aim, onDone, onBreak) {
+    const facing = Math.sign(aim.x) || player.facingX || 1;
+    player.setVelocity(0, 0);
+    player.body.setAllowGravity(false);
+    held.harpoon.setVisible(false);
+    let stabs = 0;
+    let lastHitAt = null;
+    const stopAiming = () => {
+        player.atkAngleOverride = null;
+        player.lastDir = { x: player.lastDir.x >= 0 ? 1 : -1, y: 0 };
     };
-    const pinFoe = foe => {
-        const now = scene.time.now;
-        const canPin = now >= (foe.pinImmuneUntil ?? 0);
-        const grounded = isOnFloor(api, scene, foe);
+    const stab = () => {
+        const broken = !player.active || player.hitstun || !foe.active || api.isInvincible(foe) ||
+            (lastHitAt !== null && foe.lastHitAt !== lastHitAt);
+        if (broken) {
+            stopAiming();
+            onBreak();
+            return;
+        }
+        if (stabs >= HARPOON_FLURRY.stabs) {
+            stopAiming();
+            onDone();
+            return;
+        }
+        player.setVelocity(0, 0);
+        const dx = foe.x - player.x;
+        const dy = foe.y - player.y;
+        const side = Math.sign(dx) || facing;
+        const length = Math.hypot(dx, dy) || 1;
+        player.lastDir = { x: dx / length || side * 0.01, y: dy / length };
+        player.atkAngleOverride = side * Phaser.Math.RadToDeg(Math.atan2(dy, Math.abs(dx)));
+        api.setAttackSprite(player, 'harpoonatk');
+        player.atk.setAngle(player.atkAngleOverride);
         const hit = api.landHit(scene, player, foe, {
             special: true,
-            damage: HARPOON_DIVE.damage,
+            damage: HARPOON_FLURRY.damage / HARPOON_FLURRY.stabs,
             plankDamage: 0,
-            hitstun: canPin ? PIN_MS : 300,
+            hitstun: HARPOON_FLURRY.stabMs * 3,
             hitstunGrowth: false,
-            hitFreeze: 80,
-            sound: 'axeslash2',
+            stun: { target: HARPOON_FLURRY.stabMs * 3, attacker: HARPOON_FLURRY.stabMs * 3 },
             noDeathRay: true,
             resetCombo: false,
-            direction: { x: 0, y: 1 },
-            knockback: () => ({ x: 0, y: canPin && !grounded ? PIN_SPIKE_SPEED : 0 }),
-            onHit: () => {
-                if (!canPin) return;
-                foe.pinImmuneUntil = now + PIN_MS + PIN_IMMUNITY_MS;
-                if (grounded) foe.freezeUntil = now + PIN_MS;
-            }
+            direction: aim
         });
-        if (!hit) return false;
-        useHarpoon(scene, player);
-        stickHarpoon(api, scene, foe, Math.PI / 2, canPin, player.skin);
-        player.setVelocity(player.body.velocity.x, -HARPOON_DIVE.bounce);
-        return true;
+        if (!hit) {
+            onBreak();
+            return;
+        }
+        lastHitAt = foe.lastHitAt;
+        foe.body.setAllowGravity(false);
+        foe.setVelocity(0, 0);
+        foe.willDecelerate = false;
+        slashEffect(scene, foe);
+        scene.sound.play('slash');
+        stabs += 1;
+        scene.time.delayedCall(HARPOON_FLURRY.stabMs, stab);
     };
-    const removeUpdate = api.addSceneUpdateListener(scene, () => {
+    stab();
+}
+
+function harpoonDive(api, scene, player, currentTime) {
+    if (isOnFloor(api, scene, player)) return;
+    const facing = player.lastDir.x || player.facingX || 1;
+    const aim = { x: facing * Math.sin(HARPOON_DIVE.tilt), y: Math.cos(HARPOON_DIVE.tilt) };
+    const angle = Math.atan2(aim.y, aim.x);
+    const held = startHarpoonSpecial(api, scene, player, currentTime, angle, HARPOON_DIVE.holdOut);
+    if (!held) return;
+    const startedAt = scene.time.now;
+    player.body.setAllowGravity(false);
+    let removeUpdate = null;
+
+    const finish = () => {
+        removeUpdate?.();
+        removeUpdate = null;
+        endHarpoonSpecial(api, player, held);
+    };
+    const nearestFoe = reach => api.getEnemies(scene, player)
+        .filter(foe => foe.active && !api.isInvincible(foe) &&
+            Math.abs(foe.x - player.x) <= reach.x && Math.abs(foe.y - player.y) <= reach.y)
+        .sort((a, b) => Phaser.Math.Distance.Between(player.x, player.y, a.x, a.y) -
+            Phaser.Math.Distance.Between(player.x, player.y, b.x, b.y))[0];
+
+    const launch = foe => {
+        const grounded = isOnFloor(api, scene, foe);
+        const direction = grounded ? { x: aim.x, y: -aim.y } : aim;
+        if (foe.body) foe.body.setAllowGravity(true);
+        const hit = api.landHit(scene, player, foe, { ...HARPOON_DIVE.launch, special: true, direction });
+        if (hit) {
+            useHarpoon(scene, player);
+            stickHarpoon(api, scene, foe, angle, false, player.skin);
+        }
+        finish();
+        if (!player.hitstun) player.setVelocity(-aim.x * HARPOON_DIVE.bounce * 0.5, -HARPOON_DIVE.bounce);
+    };
+
+    const stabFlurry = foe => {
+        removeUpdate();
+        removeUpdate = null;
+        harpoonFlurry(api, scene, player, foe, held, aim, () => launch(foe), () => {
+            if (foe.body) foe.body.setAllowGravity(true);
+            finish();
+        });
+    };
+
+    removeUpdate = api.addSceneUpdateListener(scene, () => {
         if (!player.active || player.hitstun || scene.time.now - startedAt > HARPOON_DIVE.maxMs) {
             finish();
             return;
         }
         player.atk.setVisible(false);
-        player.setVelocity(player.body.velocity.x * HARPOON_DIVE.keepX, HARPOON_DIVE.fallSpeed);
+        player.setVelocity(aim.x * HARPOON_DIVE.speed, aim.y * HARPOON_DIVE.speed);
         held.place();
-        const foe = foeInReach(api, scene, player, HARPOON_DIVE.reach);
-        if (foe && pinFoe(foe)) {
-            finish();
+        const foe = foeAlongAim(api, scene, player, aim, HARPOON_DIVE.reach);
+        if (foe) {
+            stabFlurry(foe);
             return;
         }
-        if (player.body.blocked.down || player.body.touching.down) {
+        if (player.body.blocked.down || player.body.touching.down || player.body.blocked.left || player.body.blocked.right) {
+            const target = nearestFoe(HARPOON_DIVE.landReach);
             api.spawnDirtBurst(scene, player.x, player.body.bottom, 8, 3, 6, 1.1);
+            if (target) {
+                stabFlurry(target);
+                return;
+            }
             scene.sound.play('miss');
             finish();
         }

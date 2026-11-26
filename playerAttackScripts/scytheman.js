@@ -29,6 +29,8 @@ function tryAttack2(api, scene, attacker, target, animKey, thirdAnimKey) {
 
     if (attacker.combo >= 2) {
         slamThirdAttack(api, scene, attacker, target, thirdAnimKey);
+    } else if (api.aimsDown(attacker)) {
+        api.spikeAttack(scene, attacker, target, animKey);
     } else {
         if (attacker.horizontalMovementActive) {
             api.pushAttack(scene, attacker, target, animKey);
@@ -154,6 +156,7 @@ function landGruelingSlam(api, scene, player, target, scythe, facing, options = 
         noDeathRay: true,
         resetCombo: false,
         knockback: () => ({ x: 0, y: targetGrounded ? 0 : SLAM.crashSpeed }),
+        holdsOnLanding: true,
         decelerateAfter: 50,
         onHit: () => target.flash(),
         missSound: 'miss'
@@ -316,6 +319,7 @@ function tryWhirlDrop(api, scene, player, currentTime) {
             resetCombo: false,
             direction: { x: 0, y: 1 },
             knockback: () => ({ x: 0, y: foeGrounded ? 0 : SLAM.crashSpeed }),
+            holdsOnLanding: true,
             decelerateAfter: 50,
             onHit: () => foe.flash()
         });

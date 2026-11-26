@@ -101,6 +101,7 @@ function steelPlank(
 
     plank.health = attacker.variant === 'SLEDGEHAMMER' ? 0.50 : 0.13;
     plank.maxHealth = plank.health;
+    plank.finalStand = attacker.variant === 'SLEDGEHAMMER';
 
     plank.owner = attacker;
     scene.objs.add(plank);
@@ -150,6 +151,28 @@ const SLEDGEHAMMER_SWING = {
     decelerateAfter: 1000
 };
 
+const SLEDGEHAMMER_SPIKE = {
+    windupMs: 800,
+    windupLean: -25,
+    animScale: 0.6,
+    launchSpeed: 900,
+    launchGrowth: true,
+    recoveryMs: 700,
+    windupSound: 'sledgewhoosh',
+    hitstunScale: 2,
+    hit: {
+        range: SLEDGEHAMMER_SWING.range + 20,
+        shieldCost: SLEDGEHAMMER_SWING.shieldCost,
+        damage: SLEDGEHAMMER_SWING.damage,
+        plankDamage: SLEDGEHAMMER_SWING.plankDamage,
+        hitstun: SLEDGEHAMMER_SWING.hitstun,
+        hitstunGrowth: true,
+        hitFreeze: SLEDGEHAMMER_SWING.hitFreeze,
+        sound: SLEDGEHAMMER_SWING.sound,
+        decelerateAfter: 300
+    }
+};
+
 function hardSwing(api, scene, attacker, target, animKey) {
     api.setAttackSprite(attacker, animKey);
     //short windup before the mallet connects, like veryhardSwing but much quicker.
@@ -197,7 +220,10 @@ function tryAttack3(api, scene, attacker, target, animKey, thirdAnimKey) {
     if (scene.time.now < attacker.nextAttackTime) return;
     if (!attacker.canAttack || attacker.hitstun) return;
 
-    if (attacker.variant == 'MALLET') {
+    if (api.aimsDown(attacker)) {
+        api.spikeAttack(scene, attacker, target, attacker.variant === 'SLEDGEHAMMER' ? 'sledgehammerquickslam1' : animKey,
+            attacker.variant === 'SLEDGEHAMMER' ? SLEDGEHAMMER_SPIKE : {});
+    } else if (attacker.variant == 'MALLET') {
         hardSwing(api, scene, attacker, target, animKey);
     } else if (attacker.variant == 'SLEDGEHAMMER') {
         veryhardSwing(api, scene, attacker, target, animKey);
@@ -245,6 +271,7 @@ function tryRepair(api, scene, player, target, direction, currentTime) {
 }
 // Quickslam's first hit pops the target straight up for the follow-up jump.
 const QUICKSLAM_POWER = SIDE_SPECIAL_POWER;
+const QUICKSLAM_HITSTUN_SCALE = 1.3;
 function quickslamLaunchUp({ attacker, kb, damageScale, grounded, side }) {
     const dirY = attacker.lastDir.y === 0 ? -1 : attacker.lastDir.y; //always launch upwards if on same level
     if (grounded && dirY > 0.7) return { x: 50 * kb * side * QUICKSLAM_POWER, y: -1500 * kb * QUICKSLAM_POWER };
@@ -428,6 +455,7 @@ function quickslam2(api, scene, attacker, target, animKey = 'sledgehammerquicksl
             onHit: () => scene.sound.play('damn', { volume: 2 })
         });
         if (!hit) attacker.combo = 0;
+        else api.stretchHitstun(scene, target, QUICKSLAM_HITSTUN_SCALE);
         attacker.canAttack = true;
         api.clearQueuedStunTimers(scene, attacker, target);
     });

@@ -124,6 +124,7 @@ function refundFrozenHitstun(scene, frozenAt, frozenFor) {
     if (!(frozenFor > 0)) return;
     for (const fighter of getAllFighters(scene)) {
         if (fighter.hitstunUntil > frozenAt) fighter.hitstunUntil += frozenFor;
+        if (fighter.launchArcUntil > frozenAt) fighter.launchArcUntil += frozenFor;
     }
 }
 
@@ -189,6 +190,7 @@ export function deathRayAttackLocked(scene) {
 export function clearLaunchArc(target) {
     if (!target.launchArc) return;
     target.launchArc = false;
+    target.launchArcUntil = 0;
     target.body?.setGravityY(0);
 }
 
@@ -201,15 +203,42 @@ function startLaunchArc(scene, target, vx, vy) {
     if (seconds <= 0 || speed < 1 || vy > 0 || (vy === 0 && grounded)) return vy;
     const height = LAUNCH_ARC_HEIGHT * speed * seconds;
     target.launchArc = true;
+    target.launchArcUntil = target.hitstunUntil;
     target.body.setGravityY(8 * height / (seconds * seconds));
     return vy - 4 * height / seconds;
+}
+
+export function markDownwardLaunch(target, vy) {
+    const body = target.body;
+    if (!body || !(vy > 0) || body.blocked.down || body.touching.down) return;
+    target.landingEndsHitstunAfter = target.scene.time.now;
+}
+
+export function updateLandingHitstun(player) {
+    const since = player.landingEndsHitstunAfter;
+    if (!since) return;
+    const now = player.scene.time.now;
+    if (!player.hitstun) {
+        player.landingEndsHitstunAfter = 0;
+        return;
+    }
+    const body = player.body;
+    if (now <= since || !(body.blocked.down || body.touching.down) || body.velocity.y < 0) return;
+    player.landingEndsHitstunAfter = 0;
+    player.hitstunUntil = now;
+}
+
+export function stretchHitstun(scene, target, scale) {
+    const now = scene.time.now;
+    if (target.hitstunUntil > now) target.hitstunUntil = now + (target.hitstunUntil - now) * scale;
 }
 
 export function updateLaunchArc(player) {
     if (!player.launchArc) return;
     const body = player.body;
     const landed = (body.blocked.down || body.touching.down) && body.velocity.y >= 0;
-    if (!player.hitstun || player.freeze || player.grabbedBy || landed) clearLaunchArc(player);
+    const arcOver = player.launchArcUntil > 0 && player.scene.time.now >= player.launchArcUntil;
+    if (!player.hitstun || player.freeze || player.grabbedBy || landed || arcOver) clearLaunchArc(player);
 }
 
 function deathRayNeedsVx(vx, vy) {

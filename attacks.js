@@ -23,6 +23,7 @@ import {
 } from './combat/effects.js';
 import {
     applyKnockback,
+    stretchHitstun,
     deathRayAttackLocked,
     hitFreeze,
     isInvincible,
@@ -247,6 +248,176 @@ function isUpTilt(xMul, yMul) {
     return xMul === 0 && yMul > 0 && yMul < 1;
 }
 
+export const SPIKE = {
+    windupMs: 300,
+    windBackDegrees: -10,
+    windBackShare: 1 / 3,
+    leanDegrees: 35,
+    weaponExtraDegrees: 25,
+    launchDegrees: 65,
+    launchSpeed: 750,
+    range: 170,
+    verticalReach: { up: 60, down: 110 },
+    poseHoldMs: 150,
+    hitstunScale: 2,
+    smashMs: 60,
+    minDot: 0.05,
+    recoveryMs: 400,
+    hit: {
+        damage: 0.05,
+        plankDamage: 0.03,
+        hitstun: 600,
+        hitstunGrowth: false,
+        hitFreeze: 80,
+        sound: 'light',
+        decelerateAfter: 300,
+        missSound: 'miss'
+    }
+};
+
+export function aimsDown(attacker) {
+    return attacker.lastDir.y > 0 || Boolean(attacker.scene?.playerInputs?.[attacker.slot]?.down);
+}
+
+function isDownTilt(xMul, yMul) {
+    return xMul === 0 && yMul > 1;
+}
+
+function spikeLaunch(facing, speed, growth) {
+    const angle = Phaser.Math.DegToRad(SPIKE.launchDegrees);
+    return ({ target, damageScale }) => {
+        const power = growth ? speed * target.KBmultiplier * damageScale : speed;
+        const grounded = target.body.blocked.down || target.body.touching.down;
+        const y = Math.sin(angle) * power;
+        return { x: facing * Math.cos(angle) * power, y: grounded ? -y : y };
+    };
+}
+
+export function spikeAttack(scene, attacker, target, animKey, options = {}) {
+    if (!attacker.canAttack || attacker.hitstun) return false;
+    const {
+        windupMs = SPIKE.windupMs,
+        windupLean = 0,
+        launchSpeed = SPIKE.launchSpeed,
+        launchGrowth = false,
+        recoveryMs = SPIKE.recoveryMs,
+        animScale = 1,
+        windupSound = null,
+        hitstunScale = SPIKE.hitstunScale,
+        hit = {}
+    } = options;
+    const facing = attacker.facingX || Math.sign(attacker.lastDir.x) || 1;
+    const aim = { x: facing, y: 0 };
+    const lean = degrees => {
+        attacker.setAngle(facing * degrees);
+        attacker.atkAngleOverride = facing * (degrees + SPIKE.weaponExtraDegrees);
+        attacker.atk.setAngle(attacker.atkAngleOverride);
+    };
+    attacker.aimLock = aim;
+    attacker.lastDir = { ...aim };
+    attacker.combo = 0;
+    attacker.canAttack = false;
+    attacker.nextAttackTime = scene.time.now + windupMs + recoveryMs;
+    const firstFrame = scene.anims.get(animKey)?.frames[0];
+    attacker.atk.stop();
+    if (firstFrame) attacker.atk.setTexture(firstFrame.textureKey, firstFrame.textureFrame);
+    positionAttackSprite(attacker, animKey);
+    attacker.isAttacking = true;
+    let spiking = true;
+    const swing = () => {
+        setAttackSprite(attacker, animKey);
+        attacker.atk.anims.timeScale = animScale;
+        attacker.atk.setAngle(attacker.atkAngleOverride);
+        attacker.atk.once(`animationcomplete-${animKey}`, () => {
+            if (!spiking || !attacker.active) return;
+            attacker.isAttacking = true;
+            attacker.atk.setVisible(true);
+            attacker.atk.setAngle(attacker.atkAngleOverride);
+        });
+    };
+    const pose = { degrees: 0 };
+    let poseTween = null;
+    const tweenLean = (degrees, duration, ease, then = null) => {
+        poseTween?.stop();
+        poseTween = scene.tweens.add({
+            targets: pose,
+            degrees,
+            duration,
+            ease,
+            onUpdate: () => attacker.active && lean(pose.degrees),
+            onComplete: () => {
+                if (!attacker.active) return;
+                lean(degrees);
+                then?.();
+            }
+        });
+    };
+    lean(0);
+    if (windupLean) tweenLean(windupLean, windupMs, 'Sine.easeOut');
+    else {
+        const backMs = windupMs * SPIKE.windBackShare;
+        tweenLean(SPIKE.windBackDegrees, backMs, 'Sine.easeOut', () => {
+            swing();
+            tweenLean(SPIKE.leanDegrees, windupMs - backMs, 'Quad.easeIn');
+        });
+    }
+    if (windupSound) scene.time.delayedCall(Math.max(0, windupMs - 50), () => {
+        if (attacker.active && !attacker.hitstun) scene.sound.play(windupSound);
+    });
+    const resetPose = () => {
+        spiking = false;
+        poseTween?.stop();
+        if (!attacker.active) return;
+        if (!attacker.atk.anims.isPlaying) {
+            attacker.isAttacking = false;
+            hideAttackSprite(attacker);
+        }
+        attacker.setAngle(0);
+        attacker.atkAngleOverride = null;
+        attacker.atk.anims.timeScale = 1;
+        if (attacker.aimLock === aim) attacker.aimLock = null;
+        if (!attacker.activeGrab) attacker.atk.setAngle(getAttackSpriteAngle(attacker));
+    };
+    afterWindup(scene, attacker, windupMs, () => {
+        if (!attacker.active) return;
+        if (windupLean) {
+            swing();
+            tweenLean(SPIKE.leanDegrees, SPIKE.smashMs, 'Quad.easeIn');
+        } else {
+            poseTween?.stop();
+            lean(SPIKE.leanDegrees);
+        }
+        attacker.canAttack = true;
+        const landed = strike(scene, attacker, target, {
+            ...SPIKE.hit,
+            ...hit,
+            range: hit.range ?? SPIKE.range,
+            bypass: { verticalReach: SPIKE.verticalReach, minDot: SPIKE.minDot },
+            direction: aim,
+            knockback: spikeLaunch(facing, launchSpeed, launchGrowth)
+        });
+        if (!landed) attacker.combo = 0;
+        if (landed && hitstunScale !== 1) {
+            const now = scene.time.now;
+            getEnemies(scene, attacker)
+                .filter(foe => foe.lastHitAt === now && foe.hitstunUntil > now)
+                .forEach(foe => stretchHitstun(scene, foe, hitstunScale));
+        }
+        recoverAfterAttack(scene, attacker, { recovery: recoveryMs });
+        clearQueuedStunTimers(scene, attacker, target);
+        scene.time.delayedCall(SPIKE.poseHoldMs + (windupLean ? SPIKE.smashMs : 0), resetPose);
+    }, {
+        interruptible: true,
+        onInterrupt: () => {
+            resetPose();
+            attacker.isAttacking = false;
+            attacker.canAttack = true;
+            hideAttackSprite(attacker);
+        }
+    });
+    return true;
+}
+
 export function tiltAttack(scene, attacker, target, {
     animKey,
     kb = 0.1,
@@ -261,6 +432,13 @@ export function tiltAttack(scene, attacker, target, {
 }) {
     if (scene.time.now < attacker.nextAttackTime) return;
     if (!attacker.canAttack || attacker.hitstun) return;
+    if (isDownTilt(xMul, yMul)) {
+        onUse?.(scene);
+        return spikeAttack(scene, attacker, target, animKey, {
+            launchGrowth: false,
+            hit: { damage: kb, sound: sfx, hitFreeze: freeze, hitstun: kbTime + 300, decelerateAfter: kbTime, onHit }
+        });
+    }
     setAttackSprite(attacker, animKey);
     if (onUse) {
         onUse(scene);
@@ -301,6 +479,8 @@ export function tryAttack(scene, attacker, target, animKey, thirdAnimKey) {
 
     if (attacker.combo >= 2) {
         thirdAttack(scene, attacker, target, thirdAnimKey);
+    } else if (aimsDown(attacker)) {
+        spikeAttack(scene, attacker, target, animKey);
     } else {
         if (attacker.horizontalMovementActive) {
             pushAttack(scene, attacker, target, animKey);
@@ -367,6 +547,9 @@ const sharedAttackHelpers = {
     pushAttack,
     thirdAttack,
     tiltAttack,
+    aimsDown,
+    spikeAttack,
+    stretchHitstun,
     tryAttack,
     damagePlanksInAttack,
     addSceneUpdateListener,

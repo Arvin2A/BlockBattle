@@ -219,10 +219,22 @@ function explodeChainsaw(api, scene, attacker, victim, options = {}) {
     deactivateChainsaw(scene, attacker);
 }
 
-function destroyPlank(api, scene, plank) {
-    if (!plank.active) return;
+const FINAL_STAND_MS = 100;
+
+function finalStand(api, scene, plank) {
+    plank.broken = true;
     plank.expireEvent?.remove(false);
-    scene.planks.remove(plank, false, false);
+    plank.body.checkCollision.none = true;
+    plank.setVisible(false);
+    burstPlank(api, scene, plank);
+    scene.time.delayedCall(FINAL_STAND_MS, () => {
+        if (!plank.active) return;
+        scene.planks.remove(plank, false, false);
+        plank.destroy();
+    });
+}
+
+function burstPlank(api, scene, plank) {
     api.spawnDirtBurst(
         scene,
         plank.x,
@@ -236,12 +248,19 @@ function destroyPlank(api, scene, plank) {
         320,
         false
     );
-    plank.destroy();
     scene.sound.play('plankbreak');
 }
 
+function destroyPlank(api, scene, plank) {
+    if (!plank.active || plank.broken) return;
+    plank.expireEvent?.remove(false);
+    scene.planks.remove(plank, false, false);
+    burstPlank(api, scene, plank);
+    plank.destroy();
+}
+
 export function damagePlank(api, scene, plank, damage = 0.02) {
-    if (!plank.active || !Number.isFinite(damage) || damage <= 0) return;
+    if (!plank.active || plank.broken || !Number.isFinite(damage) || damage <= 0) return;
 
     plank.health = Math.max(0, plank.health - damage);
 
@@ -259,7 +278,9 @@ export function damagePlank(api, scene, plank, damage = 0.02) {
 
     scene.sound.play('axeslash1');
 
-    if (plank.health <= 0) destroyPlank(api, scene, plank);
+    if (plank.health > 0) return;
+    if (plank.finalStand) finalStand(api, scene, plank);
+    else destroyPlank(api, scene, plank);
 }
 
 function breakPlanksWithChainsaw(api, scene, attacker) {

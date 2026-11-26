@@ -29,7 +29,7 @@ import { updateCrashes } from './combat/crash.js';
 import { KILLZONE, attachKillzoneWalls } from './combat/borders.js';
 import { INFINITE_SPAN } from './scenes/GameScene/MapDefinitions.js';
 import { updateUniversalMoves, isUniversalBusy, tryLedgeGrab, hideWeaponsForUniversalMoves, restoreHiddenWeapons } from './combat/universalMoves.js';
-import { updateLaunchArc, isInvincible, applyVictimShakes, restoreVictimShakes } from './combat/knockback.js';
+import { updateLaunchArc, updateLandingHitstun, isInvincible, applyVictimShakes, restoreVictimShakes } from './combat/knockback.js';
 import { isAirDodgePhasing } from './combat/block.js';
 import { MenuScene } from './scenes/MenuScene.js';
 import { fadeOutTo } from './scenes/transitions.js';
@@ -2500,6 +2500,7 @@ function updateFighterBookkeeping(scene, player) {
     if (player.isAttacking || player.hitstun || player.freeze) cancelDownslamFx(player);
     if (player.hitstun) player.downslamArmed = false;
     updateLaunchArc(player);
+    updateLandingHitstun(player);
     if (player.canAttack || player.hitstun || player.freeze || player.activeGrab || player.grabbedBy) {
         player.attackLockedFor = 0;
     } else {

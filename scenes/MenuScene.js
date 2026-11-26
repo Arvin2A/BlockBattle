@@ -20,7 +20,7 @@ var navBox = null;
 var layout = []
 var selectedIndex = 0;
 var previousInput = {};
-const CHANGELOG_VERSION = "2026-11-26-1";
+const CHANGELOG_VERSION = "2026-11-26-7";
 const ONLINE_STATUS_REFRESH_MS = 10000;
 const MIN_VERSION_COLOR_BRIGHTNESS = 170;
 
@@ -110,6 +110,22 @@ export class MenuScene extends Phaser.Scene {
                         body: "A BLOCK BATTLE tournament starts Monday, 11/30. If you want in, email zamanarvin@sewanhakaschools.org to sign up."
                     },
                     {
+                        title: "UP & DOWN SPECIALS",
+                        body: "Every fighter's special got split three ways. Double-tap left or right for the side special like always, or hold up or down and press special for two brand new ones.\n LONGSWORD lunges twice, DAGGER darts diagonally, LUMBERER power swings up or down, and CHAINSAW grinds people above or below him. ANGLER casts his hook up to pull himself onto platforms or down to reel people in, and TRAPPER rises on a harpoon with SPEARFISH or dives diagonally into a stab flurry with HARPOON DIVE.\n LANDSCAPER reaps over his head or whirls down onto people, and LAWNMOWER rockets himself into a headbutt or crash rides his mower onto your head. MALLET does a three-swing dash, SLEDGEHAMMER slams down or spins up in a WHIRLWIND, SLATE dashes with his dagger out, HOOKER grabs above and below, and DEMOLITIONIST pogos off his tape measure or drops into a slam."
+                    },
+                    {
+                        title: "SPIKES",
+                        body: "Attacking downward and down tilts are spikes now. Your fighter winds back and leans forward for a split second, then swings wide in front of them and sends whoever it catches flying down at an angle. Great for knocking people back down when they're trying to get back to the stage.\n If they're standing on the ground, it sends them up at that angle instead, so nobody gets stuck. SLEDGEHAMMER leans way back first and brings the hammer smashing down, slow but brutal. GUNMAN, DEMOLITIONIST, CHAINSAW and LAWNMOWER keep their own down attacks."
+                    },
+                    {
+                        title: "HARPOON DIVE FLURRY",
+                        body: "TRAPPER's HARPOON DIVE comes in at a steep angle now. Catch someone with it, or land close enough to them, and he unloads 8 quick harpoon stabs before launching them down the same angle. SPEARFISH does the same flurry on whoever he skewers before flinging them. If they're stuck on the ground, they go up instead, so no getting stunlocked into the floor.\n His empty-handed punches can't stunlock people on the ground anymore either. The third punch pops them up."
+                    },
+                    {
+                        title: "SLEDGEHAMMER'S FINAL STAND",
+                        body: "SLEDGEHAMMER's wall doesn't go down without taking the hit with it. If an attack breaks the wall, that attack still gets stopped, so you're covered even when it shatters."
+                    },
+                    {
                         title: "FIGHTER MASTERIES",
                         body: "Every fighter has a mastery achievement now. As that fighter, beat all 8 fighters on HARD or VERY HARD without losing a life. Any of their variants counts. You need the fighter's other variant unlocked before it starts counting.\n Master a fighter and you unlock its gold skin for every variant. Gold bodies, gold weapons, gold everything they throw. You can turn it on or off with the GOLD button in character select."
                     },
@@ -122,12 +138,8 @@ export class MenuScene extends Phaser.Scene {
                         body: "SLEDGEHAMMER finally has his up special. He spins the sledgehammer around himself and shoots straight up, hitting three times on the way.\n Anyone caught by the first two hits gets dragged up with him, and the third sends them flying the way he's facing."
                     },
                     {
-                        title: "UP & DOWN SPECIALS",
-                        body: "Every fighter's special got split three ways. Double-tap left or right for the side special like always, or hold up or down and press special for two brand new ones.\n LONGSWORD lunges twice, DAGGER darts diagonally, LUMBERER power swings up or down, and CHAINSAW grinds people above or below him. ANGLER casts his hook up to pull himself onto platforms or down to reel people in, and TRAPPER rises on a harpoon with SPEARFISH or pins people from above with HARPOON DIVE.\n LANDSCAPER reaps over his head or whirls down onto people, and LAWNMOWER rockets himself into a headbutt or crash rides his mower onto your head. MALLET does a three-swing dash, SLEDGEHAMMER slams down or spins up in a WHIRLWIND, SLATE dashes with his dagger out, HOOKER grabs above and below, and DEMOLITIONIST pogos off his tape measure or drops into a slam."
-                    },
-                    {
                         title: "RECOIL BLAST",
-                        body: "CRAZER's side special is RECOIL BLAST now. He holds his pistol steady while a ring closes in, then fires one huge beam behind him and the kick sends him flying the other way. Up shoots down to send him up, down shoots up to send him down.\n The gun only has 10 blasts in it. Push it past that and it blows up in his hands, he says what we're all thinking, and pulls out the minigun. MINI is back for the rest of the match, firing whichever way you press and pinning down whoever's in front of it."
+                        body: "CRAZER's side special is RECOIL BLAST now. He holds his pistol steady while a ring closes in, then fires one huge beam behind him and the kick sends him flying the other way. Up shoots down to send him up, down shoots up to send him down.\n The beam goes right through walls and fighters, losing some punch with each one, so you can hit a whole line of people. The one thing it can't get through is a SLEDGEHAMMER wall.\n The gun only has 10 blasts in it. Push it past that and it blows up in his hands, he says what we're all thinking, and pulls out the minigun. MINI is back for the rest of the match, firing whichever way you press and pinning down whoever's in front of it."
                     },
                     {
                         title: "SIDE SPECIALS TONED DOWN",
@@ -756,7 +768,7 @@ export class MenuScene extends Phaser.Scene {
 
         const changelogBlurb = this.add.text(
             40, 180,
-            "A tournament starts Monday 11/30, email zamanarvin@sewanhakaschools.org to join. Every fighter gets an up and a down special, and mastering a fighter unlocks its gold skin.",
+            "A tournament starts Monday 11/30, email zamanarvin@sewanhakaschools.org to join. Every fighter gets an up and a down special, RECOIL BLAST pierces walls, and mastering a fighter unlocks its gold skin.",
             {
                 fontFamily: "VCROSD",
                 fontSize: "16px",

@@ -341,8 +341,8 @@ const RECOIL = {
     holdSlow: 0.85,
     muzzle: 50,
     beam: { thickness: 12, color: 0xfff27a, fadeMs: 220 },
-    plankDamage: 0.3,
-    damage: { side: 0.25, up: 0.4, down: 0.25 },
+    damage: 0.5,
+    pierceFalloff: 0.6,
     knockbackScale: { side: 0.65, up: 1, down: 0.65 },
     hit: {
         ranged: true,
@@ -608,15 +608,69 @@ function startRecoilBlast(api, scene, attacker, direction, currentTime, victim) 
 function fireRecoilBlast(api, scene, attacker, gun, aim, kind) {
     scene.sound.play('recoilShot');
     api.triggerScreenShake(scene, RECOIL.shakeScreen.intensity, RECOIL.shakeScreen.ms);
-    const beam = createBeam(api, scene, attacker, api.getEnemies(scene, attacker), gun, aim, RECOIL.beam);
-    if (beam.blockedPlank) api.damagePlank(scene, beam.blockedPlank, RECOIL.plankDamage);
-    if (!beam.target) return;
-    const deflectScale = api.deflects(scene, beam.target, attacker, RECOIL.damage[kind]);
-    if (deflectScale) {
-        deflectRecoilBlast(api, scene, beam.target, kind, deflectScale);
-        return;
+    piercingRecoilBeam(api, scene, attacker, gun, aim, kind, 1);
+}
+
+function piercingRecoilBeam(api, scene, shooter, sprite, aim, kind, scale) {
+    const length = Math.hypot(aim.x, aim.y) || 1;
+    const dir = { x: aim.x / length, y: aim.y / length };
+    const ray = { directionX: dir.x, directionY: dir.y, startX: shooter.x, startY: shooter.y, halfThickness: RECOIL.beam.thickness / 2 };
+    const along = body => getRayRectangleDistance(ray.startX, ray.startY, dir.x, dir.y, body);
+    const stops = [];
+    for (const foe of api.getEnemies(scene, shooter)) {
+        if (!foe?.active || !foe.body || api.isInvincible(foe)) continue;
+        const at = getBeamContactDistance(foe, ray);
+        if (at !== null) stops.push({ at, foe });
     }
-    landRecoilBlast(api, scene, attacker, beam.target, kind, aim, 1);
+    for (const plank of scene.planks.getChildren()) {
+        if (!plank.active || !plank.body?.enable) continue;
+        const at = along(plank.body);
+        if (at !== null) stops.push({ at, plank });
+    }
+    for (const platform of api.getProjectileBlockingPlatforms(scene, shooter)) {
+        if (!platform.active || !platform.body?.enable) continue;
+        const at = along(platform.body);
+        if (at !== null) stops.push({ at, solid: true });
+    }
+    stops.sort((a, b) => a.at - b.at);
+    let power = scale;
+    let end = 10000;
+    for (const stop of stops) {
+        if (stop.solid) {
+            end = stop.at;
+            break;
+        }
+        if (stop.plank) {
+            const finalStand = stop.plank.finalStand;
+            api.damagePlank(scene, stop.plank, RECOIL.damage * power);
+            if (finalStand) {
+                end = stop.at;
+                break;
+            }
+        } else {
+            const deflectScale = api.deflects(scene, stop.foe, shooter, RECOIL.damage * power);
+            if (deflectScale) {
+                end = stop.at;
+                deflectRecoilBlast(api, scene, stop.foe, kind, power * deflectScale);
+                break;
+            }
+            landRecoilBlast(api, scene, shooter, stop.foe, kind, aim, power);
+        }
+        power *= RECOIL.pierceFalloff;
+    }
+    drawRecoilBeam(scene, shooter, sprite, dir, end);
+}
+
+function drawRecoilBeam(scene, shooter, sprite, dir, end) {
+    const { thickness, color, fadeMs } = RECOIL.beam;
+    const start = Math.max(0, (sprite.x - shooter.x) * dir.x + (sprite.y - 10 - shooter.y) * dir.y);
+    const beamLength = Math.max(0, end - start);
+    const x = shooter.x + dir.x * (start + beamLength / 2);
+    const y = shooter.y + dir.y * (start + beamLength / 2);
+    const beam = scene.add.rectangle(x, y, beamLength, thickness, color)
+        .setRotation(Math.atan2(dir.y, dir.x)).setDepth(8);
+    scene.objs.add(beam);
+    scene.tweens.add({ targets: beam, alpha: 0, duration: fadeMs, onComplete: () => beam.destroy() });
 }
 
 function landRecoilBlast(api, scene, shooter, target, kind, aim, scale) {
@@ -624,7 +678,7 @@ function landRecoilBlast(api, scene, shooter, target, kind, aim, scale) {
     target.flash();
     api.landHit(scene, shooter, target, {
         ...RECOIL.hit,
-        damage: RECOIL.damage[kind] * scale,
+        damage: RECOIL.damage * scale,
         knockback: { x: RECOIL.hit.knockback.x * knockbackScale, y: RECOIL.hit.knockback.y * knockbackScale },
         direction: aim
     });
@@ -635,9 +689,7 @@ function deflectRecoilBlast(api, scene, reflector, kind, scale) {
     const aim = { x: Math.cos(angle), y: Math.sin(angle) };
     const muzzle = { x: reflector.x, y: reflector.y + 10 };
     scene.sound.play('recoilShot');
-    const beam = createBeam(api, scene, reflector, api.getEnemies(scene, reflector), muzzle, aim, RECOIL.beam);
-    if (beam.blockedPlank) api.damagePlank(scene, beam.blockedPlank, RECOIL.plankDamage);
-    if (beam.target) landRecoilBlast(api, scene, reflector, beam.target, kind, aim, scale);
+    piercingRecoilBeam(api, scene, reflector, muzzle, aim, kind, scale);
 }
 
 function recoilPush(api, scene, attacker, dir) {

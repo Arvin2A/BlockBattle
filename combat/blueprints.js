@@ -4,7 +4,7 @@
 
 import { getEnemies, isTeammate } from './targets.js';
 import { attackIsElligible } from './eligibility.js';
-import { applyKnockback, hitFreeze, shakeVictim } from './knockback.js';
+import { applyKnockback, hitFreeze, markDownwardLaunch, shakeVictim } from './knockback.js';
 import { addSceneUpdateListener } from './effects.js';
 import { damagePlanksInAttack } from './planks.js';
 import { cutGrassInSwing } from './grass.js';
@@ -165,6 +165,7 @@ export function landHit(scene, attacker, target, spec = {}) {
         deferCounter = false,
         victimShake = 0,
         special = false,
+        holdsOnLanding = false,
         power = 1
     } = spec;
     if (target.uninterruptible || target.eliminated || isTeammate(attacker, target)) return false;
@@ -178,6 +179,7 @@ export function landHit(scene, attacker, target, spec = {}) {
         target.revokeVictimStun = null;
     }
     target.lastHitAt = now;
+    target.landingEndsHitstunAfter = 0;
     if (attacker.team !== undefined) target.lastHitBy = attacker;
     let netHeld = false;
     if (target.nettedUntil > now) {
@@ -215,13 +217,15 @@ export function landHit(scene, attacker, target, spec = {}) {
 
     if (launch) {
         const launchDelay = typeof knockback === 'object' ? knockback.delay ?? 0 : 0;
+        const launchNow = () => {
+            applyKnockback(scene, target, launch.x, launch.y, { noDeathRay, ignoreResistance });
+            if (!holdsOnLanding) markDownwardLaunch(target, launch.y);
+        };
         if (launchDelay > 0) {
             applyKnockback(scene, target, 0, 0, { noDeathRay, ignoreResistance });
-            scene.time.delayedCall(launchDelay, () => {
-                applyKnockback(scene, target, launch.x, launch.y, { noDeathRay, ignoreResistance });
-            });
+            scene.time.delayedCall(launchDelay, launchNow);
         } else {
-            applyKnockback(scene, target, launch.x, launch.y, { noDeathRay, ignoreResistance });
+            launchNow();
         }
     }
 
