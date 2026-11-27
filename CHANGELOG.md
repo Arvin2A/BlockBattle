@@ -3,7 +3,7 @@
 ## 2026-11-27
 
 ### Changed
-- TRAPPER's armed 3rd hit no longer pins. It knocks them away like a normal 3rd hit, but weaker and without growing with KB, and they stay stunned after the hitstun until they touch the ground.
+- TRAPPER's armed 3rd hit no longer pins. It knocks them away like a normal 3rd hit, but weaker and without growing with KB, and they stay stunned for up to 0.25 seconds after the hitstun. Landing before that ends (or during the hitstun) stuns them for 0.5 seconds instead.
 - PLUNGED lasts about 1.7 seconds (was 2.5) and CHOPPED from LUMBERER's POWER SWING lasts 2 seconds (was 3).
 - SLEDGEHAMMER's big swing can't be interrupted. Getting hit during the windup no longer cancels it, and it still lands on time.
 - HARD and VERY HARD CPUs back away from SLEDGEHAMMER's big swing when they're in front of him and within its reach.

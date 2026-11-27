@@ -333,7 +333,9 @@ const HARPOON_FINISHER = {
     hitstun: 400,
     knockback: { x: 380, y: 320, growth: false, onDown: 'popUp' },
     decelerateAfter: 700,
-    landingStunMs: 100
+    landingStunMs: 100,
+    afterHitstunStunMs: 250,
+    landedStunMs: 500
 };
 
 const PIN_FLOOR_REACH = 40;
@@ -475,13 +477,21 @@ function harpoonFinisher(api, scene, attacker, target, animKey, range) {
 }
 
 function stunUntilLanding(api, scene, target) {
+    let stunEndsAt = null;
     const removeWatch = api.addSceneUpdateListener(scene, () => {
         if (!target.active || target.eliminated || target.outOfBounds) {
             removeWatch();
             return;
         }
         if (target.hitstun) return;
-        if (isOnFloor(api, scene, target) || !api.applyStun(scene, target, HARPOON_FINISHER.landingStunMs)) removeWatch();
+        stunEndsAt ??= scene.time.now + HARPOON_FINISHER.afterHitstunStunMs;
+        const left = Math.min(HARPOON_FINISHER.landingStunMs, stunEndsAt - scene.time.now);
+        if (isOnFloor(api, scene, target)) {
+            api.applyStun(scene, target, HARPOON_FINISHER.landedStunMs);
+            removeWatch();
+            return;
+        }
+        if (left <= 0 || !api.applyStun(scene, target, left)) removeWatch();
     });
 }
 
@@ -712,7 +722,8 @@ function spearfish(api, scene, player, currentTime) {
 }
 
 function slashEffect(scene, target) {
-    const slash = scene.add.image(target.x, target.y, 'slasheffect').setScale(1.5).setDepth(9);
+    const slash = scene.add.image(target.x, target.y, 'slasheffect').setScale(1.5).setDepth(9)
+        .setRotation(Phaser.Math.FloatBetween(0, Math.PI * 2));
     scene.objs.add(slash);
     scene.tweens.add({ targets: slash, alpha: 0, duration: 100, onComplete: () => slash.destroy() });
 }

@@ -106,16 +106,16 @@ export class MenuScene extends Phaser.Scene {
                 date: "11/27/26",
                 entries: [
                     {
-                        title: "TRAPPER'S NEW FINISHER",
-                        body: "TRAPPER's third harpoon stab doesn't pin anymore. It knocks you away like a normal finisher, just softer, and it doesn't get stronger the more damage you have. The catch is you can't do anything until you touch the ground again.\n His empty-handed third punch knocks people away normally now instead of popping them straight up."
-                    },
-                    {
                         title: "TOURNAMENT ON MONDAY",
                         body: "A BLOCK BATTLE tournament starts Monday, 11/30. If you want in, email zamanarvin@sewanhakaschools.org to sign up."
                     },
                     {
                         title: "UP & DOWN SPECIALS",
                         body: "Every fighter's special got split three ways. Double-tap left or right for the side special like always, or hold up or down and press special for two brand new ones.\n LONGSWORD lunges twice, DAGGER darts diagonally, LUMBERER power swings up or down, and CHAINSAW grinds people above or below him. ANGLER casts his hook up to pull himself onto platforms or down to reel people in, and TRAPPER rises on a harpoon with SPEARFISH or dives diagonally into a stab flurry with HARPOON DIVE.\n LANDSCAPER reaps over his head or whirls down onto people, and LAWNMOWER rockets himself into a headbutt or crash rides his mower onto your head. MALLET does a three-swing dash, SLEDGEHAMMER slams down or spins up in a WHIRLWIND, SLATE dashes with his dagger out, HOOKER grabs above and below, and DEMOLITIONIST pogos off his tape measure or drops into a slam."
+                    },
+                    {
+                        title: "TRAPPER'S NEW FINISHER",
+                        body: "TRAPPER's third harpoon stab doesn't pin anymore. It knocks you away like a normal finisher, just softer, and it doesn't get stronger the more damage you have. The catch is you can't do anything for a moment after, unless you land first.\n His empty-handed third punch knocks people away normally now instead of popping them straight up."
                     },
                     {
                         title: "SPIKES",
