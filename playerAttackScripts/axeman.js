@@ -885,6 +885,7 @@ const SUPER_SWING = {
     decelerateAfter: 800
 };
 const SUPER_SWING_LOCK_MS = 400;
+const CHOPPED_MS = 3000 / 1.5;
 
 function superSwing(api, scene, attacker, target, animKey) {
     // The axe only swings when it connects.
@@ -894,8 +895,8 @@ function superSwing(api, scene, attacker, target, animKey) {
     if (!hit) return false;
     api.setAttackSprite(attacker, animKey);
     attacker.hasHitSideSpecial = true;
-    api.landHit(scene, attacker, target, { ...SUPER_SWING, special: true, ...(aim ? { direction: aim } : { power: SIDE_SPECIAL_POWER }) });
-    target.choppedUntil = scene.time.now + 3000;
+    const landed = api.landHit(scene, attacker, target, { ...SUPER_SWING, special: true, ...(aim ? { direction: aim } : { power: SIDE_SPECIAL_POWER }) });
+    if (landed) target.choppedUntil = scene.time.now + CHOPPED_MS;
     api.clearQueuedStunTimers(scene, attacker, target);
     attacker.canAttack = false;
     const lock = attacker.superSwingLock = (attacker.superSwingLock ?? 0) + 1;

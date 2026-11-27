@@ -214,6 +214,7 @@ function tryPlungeDash(api, scene, player, target, direction, currentTime) {
     scene.objs.add(arm);
     arm.play('slateplungedash');
 
+    let tried = false;
     let landed = false;
     const update = () => {
         if (!player.active || player.hitstun) {
@@ -223,13 +224,14 @@ function tryPlungeDash(api, scene, player, target, direction, currentTime) {
         player.setVelocity(aim.x * PLUNGE_DASH.speed, aim.y * PLUNGE_DASH.speed);
         arm.setPosition(player.x + aim.x * PLUNGE_DASH.armOffset, player.y + aim.y * PLUNGE_DASH.armOffset);
         player.atk.setVisible(false);
-        if (landed) return;
+        if (tried) return;
         const bypass = { ignoreCanAttack: true, allowTargetBelow: true, direction: aim, minDot: PLUNGE_DASH.minDot };
         const foe = api.getEnemies(scene, player).find(enemy =>
             api.attackIsElligible(player, enemy, PLUNGE_BLADE_HIT.range, { ...bypass, silent: true }));
         if (!foe) return;
-        if (api.strike(scene, player, foe, { special: true, ...PLUNGE_BLADE_HIT, bypass, direction: aim, singleTarget: true })) {
-            landed = true;
+        tried = true;
+        landed = api.strike(scene, player, foe, { special: true, ...PLUNGE_BLADE_HIT, bypass, direction: aim, singleTarget: true });
+        if (landed) {
             markPlunged(scene, foe);
             api.clearQueuedStunTimers(scene, player, foe);
         }
@@ -260,14 +262,16 @@ function tryPlungeDash(api, scene, player, target, direction, currentTime) {
 
 function plungeHit(api, scene, attacker, target, dirX, spec) {
     const bypass = { ignoreCanAttack: true, direction: { x: dirX, y: 0 } };
-    if (!api.attackIsElligible(attacker, target, spec.range, { ...bypass, silent: true })) return false;
+    if (!api.attackIsElligible(attacker, target, spec.range, { ...bypass, silent: true })) return null;
     return api.strike(scene, attacker, target, { special: true, ...spec, power: SIDE_SPECIAL_POWER, bypass, direction: bypass.direction });
 }
+
+const PLUNGED_MS = 2500 / 1.5;
 
 function markPlunged(scene, target) {
     target.plunged = true;
     target.plungeEvent?.remove(false);
-    target.plungeEvent = scene.time.delayedCall(2500, () => {
+    target.plungeEvent = scene.time.delayedCall(PLUNGED_MS, () => {
         target.plunged = false;
         target.plungeEvent = null;
     });
@@ -312,6 +316,15 @@ function tryPlunge(api, scene, player, target, direction, currentTime) {
     player.atk.setVisible(false);
 
     const hits = { drawOut: false, blade: false, drawIn: false };
+    const tried = { drawOut: false, blade: false, drawIn: false };
+    const tryHit = (key, spec) => {
+        if (tried[key]) return false;
+        const result = plungeHit(api, scene, player, target, dirX, spec);
+        if (result === null) return false;
+        tried[key] = true;
+        hits[key] = result;
+        return result;
+    };
     let missPlayed = false;
 
     const plungeUpdate = () => {
@@ -327,10 +340,9 @@ function tryPlunge(api, scene, player, target, direction, currentTime) {
         player.plungeBladeOut = frame >= PLUNGE_FRAMES.bladeOut && frame < PLUNGE_FRAMES.bladeIn;
 
         if (frame < PLUNGE_FRAMES.bladeOut) {
-            if (!hits.drawOut) hits.drawOut = plungeHit(api, scene, player, target, dirX, PLUNGE_DRAW_HIT);
+            tryHit('drawOut', PLUNGE_DRAW_HIT);
         } else if (player.plungeBladeOut) {
-            if (!hits.blade && plungeHit(api, scene, player, target, dirX, PLUNGE_BLADE_HIT)) {
-                hits.blade = true;
+            if (tryHit('blade', PLUNGE_BLADE_HIT)) {
                 markPlunged(scene, target);
                 api.clearQueuedStunTimers(scene, player, target);
             }
@@ -340,7 +352,7 @@ function tryPlunge(api, scene, player, target, direction, currentTime) {
                 player.combo = 0;
                 scene.sound.play('miss');
             }
-            if (!hits.blade && !hits.drawIn) hits.drawIn = plungeHit(api, scene, player, target, dirX, PLUNGE_DRAW_HIT);
+            if (!hits.blade) tryHit('drawIn', PLUNGE_DRAW_HIT);
         }
     };
 

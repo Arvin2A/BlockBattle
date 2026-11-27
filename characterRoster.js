@@ -31,7 +31,7 @@ export const CHARACTER_ROSTER = [
             {
                 name: 'LUMBERER',
                 desc: 'Beware of the chopping axe.',
-                abilities: 'SIDE SPECIAL: POWER SWING \n\n Deal a 34% KB medium knockback strike that leaves them CHOPPED for 3 seconds. \n\n{new@2026-11-27}UP / DOWN SPECIAL: POWER SWING \n\n Dash 45° up or down into the same swing. It launches them along that diagonal and still leaves them CHOPPED.{/new} \n\nCHOPPED \n\n They deal half damage and slow down to 35% speed on the ground and 75% in the air. \n\nNEUTRAL SPECIAL: THROW / RECALL \n\n Throw your axe! It hits for 7%, leaves them CHOPPED for half a second and sticks into whatever it lands on. After 1.5 seconds it RECALLs itself, hitting everyone in its way back for 5%. You can\'t swing until it\'s back in your hands.',
+                abilities: 'SIDE SPECIAL: POWER SWING \n\n Deal a 34% KB medium knockback strike that leaves them CHOPPED for {changed@2026-11-27}2 seconds, only if it isn\'t blocked{/changed}. \n\n{new@2026-11-27}UP / DOWN SPECIAL: POWER SWING \n\n Dash 45° up or down into the same swing. It launches them along that diagonal and still leaves them CHOPPED.{/new} \n\nCHOPPED \n\n They deal half damage and slow down to 35% speed on the ground and 75% in the air. \n\nNEUTRAL SPECIAL: THROW / RECALL \n\n Throw your axe! It hits for 7%, leaves them CHOPPED for half a second and sticks into whatever it lands on. After 1.5 seconds it RECALLs itself, hitting everyone in its way back for 5%. You can\'t swing until it\'s back in your hands.',
                 color: '#ff4444'
             },
             {
@@ -103,7 +103,7 @@ export const CHARACTER_ROSTER = [
             {
                 name: 'SLATE',
                 desc: 'Start with extra resistance to attacks. The more damage you take the faster you get, but deal less damage.',
-                abilities: 'SIDE SPECIAL: SLIDE \n\n Apply PLUNGED to your opponent, which makes the foe take 100% more knockback for the next hits within 2.5 seconds! \n\n{new@2026-11-27}UP / DOWN SPECIAL: PLUNGEDASH \n\n Dash diagonally up or down with your dagger out. Anyone it catches is PLUNGED too.{/new} \n\nNEUTRAL SPECIAL: BRACE \n\n On the ground, press it to turn to stone and lock in place. You heal 10% every second, but you\'re stuck for at least 1 second. After that, press it again or any other button to get out. Getting hit breaks the brace, but that hit only does 2/3 of its damage. \n\nIn the air it\'s ROCKFALL: drop straight down like a rock, invincible on the way down, hitting anyone under you for 4%, then land already braced.',
+                abilities: 'SIDE SPECIAL: SLIDE \n\n Apply PLUNGED to your opponent, which makes the foe take 100% more knockback for the next hits within {changed@2026-11-27}about 1.7 seconds, only if it isn\'t blocked{/changed}! \n\n{new@2026-11-27}UP / DOWN SPECIAL: PLUNGEDASH \n\n Dash diagonally up or down with your dagger out. Anyone it catches is PLUNGED too.{/new} \n\nNEUTRAL SPECIAL: BRACE \n\n On the ground, press it to turn to stone and lock in place. You heal 10% every second, but you\'re stuck for at least 1 second. After that, press it again or any other button to get out. Getting hit breaks the brace, but that hit only does 2/3 of its damage. \n\nIn the air it\'s ROCKFALL: drop straight down like a rock, invincible on the way down, hitting anyone under you for 4%, then land already braced.',
                 color: '#ffffff'
             }
         ]
