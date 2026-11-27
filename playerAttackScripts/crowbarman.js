@@ -530,6 +530,7 @@ function byVariant(hooker, demolitionist) {
 }
 
 export default {
+    spikeAnimation: () => 'crowbaratk',
     variantDemoAnimations: {
         HOOKER: ['crowbaratk', 'crowbargrab'],
         DEMOLITIONIST: ['crowbarslam']

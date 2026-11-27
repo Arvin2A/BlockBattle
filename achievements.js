@@ -161,7 +161,7 @@ export const ACHIEVEMENT_ICONS = [
 
 export const MASTERY_ICON_FILES = MASTERIES.map(mastery => ({
     key: `achievement_${mastery.icon}`,
-    path: `assets/ingame/achievements_${mastery.icon}.png`
+    path: `assets/achievements/achievements_${mastery.icon}.png`
 }));
 
 function emptySave() {

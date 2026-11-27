@@ -6,13 +6,13 @@ import { preloadGoldTextures } from '../../combat/skins.js';
 import { MASTERY_ICON_FILES } from '../../achievements.js';
 
 export function preloadAchievementsButton() {
-    this.load.image('achievementsButton', 'assets/ingame/achievementsButton.png');
+    this.load.image('achievementsButton', 'assets/ui/buttons/achievementsButton.png');
 }
 
 export function preloadAchievementIcons() {
     preloadAchievementsButton.call(this);
     ['BlockHead', 'BotMasterI', 'BotMasterII', 'BotMasterIII', 'BotMasterIV']
-        .forEach(name => this.load.image(`achievement_${name}`, `assets/ingame/achievement_${name}.png`));
+        .forEach(name => this.load.image(`achievement_${name}`, `assets/achievements/achievement_${name}.png`));
     MASTERY_ICON_FILES.forEach(({ key, path }) => this.load.image(key, path));
     preloadCharacterIcons.call(this);
 }
@@ -20,8 +20,8 @@ export function preloadAchievementIcons() {
 export function preloadMenu() {
     this.load.image('menuBackground', 'assets/menu/Homescreen.png');
     preloadAchievementsButton.call(this);
-    this.load.image('settingsBtn', 'assets/ingame/settingsBtn.png');
-    this.load.image('pressedSettingsBtn', 'assets/ingame/pressedSettingsBtn.png');
+    this.load.image('settingsBtn', 'assets/ui/buttons/settingsBtn.png');
+    this.load.image('pressedSettingsBtn', 'assets/ui/buttons/pressedSettingsBtn.png');
     this.load.image('uifade', 'assets/menu/uifade.png');
     this.load.audio('hover', 'audio/hover.wav');
     this.load.audio('buttonhover', 'audio/buttonhover.wav');
@@ -45,9 +45,9 @@ export function preloadMapSelection() {
 }
 
 export function preloadGreySettingsButton() {
-    this.load.image('settingsBtnGrey', 'assets/ingame/settingsBtnGrey.png');
-    this.load.image('pressedSettingsBtnGrey', 'assets/ingame/pressedSettingsBtnGrey.png');
-    this.load.image('achievementsButtonGrey', 'assets/ingame/achievementsButtonGrey.png');
+    this.load.image('settingsBtnGrey', 'assets/ui/buttons/settingsBtnGrey.png');
+    this.load.image('pressedSettingsBtnGrey', 'assets/ui/buttons/pressedSettingsBtnGrey.png');
+    this.load.image('achievementsButtonGrey', 'assets/ui/buttons/achievementsButtonGrey.png');
 }
 
 export function preloadCharacterSelection() {
@@ -108,32 +108,32 @@ export function preload() {
     // MAP / STAGE
     // =====================================================
 
-    this.load.image('background', 'assets/ingame/background_one.png');
+    this.load.image('background', 'assets/maps/desert/background_one.png');
 
-    this.load.image('betterground', 'assets/ingame/betterground.png');
+    this.load.image('betterground', 'assets/maps/desert/betterground.png');
 
-    this.load.image('platform', 'assets/ingame/platform.png');
-    this.load.image('platform1', 'assets/ingame/platform1.png');
+    this.load.image('platform', 'assets/maps/desert/platform.png');
+    this.load.image('platform1', 'assets/maps/desert/platform1.png');
 
-    this.load.image('groundhitbox', 'assets/ingame/groundhitbox.png');
-    this.load.image('thickgroundhitbox', 'assets/ingame/groundhitbox2.png');
+    this.load.image('groundhitbox', 'assets/maps/groundhitbox.png');
+    this.load.image('thickgroundhitbox', 'assets/maps/groundhitbox2.png');
 
-    this.load.image('snowy_background', 'assets/ingame/snowy_background.png');
-    this.load.image('snowy_betterground', 'assets/ingame/snowy_betterground.png');
-    this.load.image('cannon_headless', 'assets/ingame/cannon_headless.png');
-    this.load.spritesheet('snowycannonshothead', 'assets/ingame/snowycannonshothead.png', { frameWidth: 100, frameHeight: 100 });
-    this.load.image('dangermark', 'assets/ingame/dangermark.png');
-    this.load.image('cannonball_impact', 'assets/ingame/cannonball_impact.png');
-    this.load.image('mudpillar', 'assets/ingame/mudpillar.png');
-    this.load.spritesheet('flytraphead', 'assets/ingame/flytraphead.png', { frameWidth: 30, frameHeight: 30 });
+    this.load.image('snowy_background', 'assets/maps/snowy/snowy_background.png');
+    this.load.image('snowy_betterground', 'assets/maps/snowy/snowy_betterground.png');
+    this.load.image('cannon_headless', 'assets/maps/snowy/cannon_headless.png');
+    this.load.spritesheet('snowycannonshothead', 'assets/maps/snowy/snowycannonshothead.png', { frameWidth: 100, frameHeight: 100 });
+    this.load.image('dangermark', 'assets/maps/snowy/dangermark.png');
+    this.load.image('cannonball_impact', 'assets/maps/snowy/cannonball_impact.png');
+    this.load.image('mudpillar', 'assets/maps/jungle/mudpillar.png');
+    this.load.spritesheet('flytraphead', 'assets/maps/jungle/flytraphead.png', { frameWidth: 30, frameHeight: 30 });
     
-    this.load.image('snowplatform1', 'assets/ingame/snowplatform1.png');
-    this.load.image('snowplatform2', 'assets/ingame/snowplatform2.png');
+    this.load.image('snowplatform1', 'assets/maps/snowy/snowplatform1.png');
+    this.load.image('snowplatform2', 'assets/maps/snowy/snowplatform2.png');
 
-    this.load.image('jungle_background', 'assets/ingame/jungle_background.png');
-    this.load.image('jungle_betterground', 'assets/ingame/jungle_betterground.png');
-    this.load.image('jungle_platform', 'assets/ingame/jungle_platform.png');
-    this.load.image('jungle_ray', 'assets/ingame/jungle_ray.png');
+    this.load.image('jungle_background', 'assets/maps/jungle/jungle_background.png');
+    this.load.image('jungle_betterground', 'assets/maps/jungle/jungle_betterground.png');
+    this.load.image('jungle_platform', 'assets/maps/jungle/jungle_platform.png');
+    this.load.image('jungle_ray', 'assets/maps/jungle/jungle_ray.png');
 
     this.load.image('jungle_preview', 'assets/menu/jungle_preview.png');
 
@@ -144,29 +144,29 @@ export function preload() {
     // UI
     // =====================================================
 
-    this.load.image('redstat', 'assets/ingame/KBstatBG1.png');
-    this.load.image('bluestat', 'assets/ingame/KBstatBG2.png');
-    this.load.image('greenstat', 'assets/ingame/KBstatBG3.png');
-    this.load.image('yellowstat', 'assets/ingame/KBstatBG4.png');
-    this.load.image('botstat', 'assets/ingame/KBstatBGBOT.png');
+    this.load.image('redstat', 'assets/hud/KBstatBG1.png');
+    this.load.image('bluestat', 'assets/hud/KBstatBG2.png');
+    this.load.image('greenstat', 'assets/hud/KBstatBG3.png');
+    this.load.image('yellowstat', 'assets/hud/KBstatBG4.png');
+    this.load.image('botstat', 'assets/hud/KBstatBGBOT.png');
 
 
-    this.load.image('p1guide', 'assets/ingame/p1guide.png');
-    this.load.image('p2guide', 'assets/ingame/p2guide.png');
+    this.load.image('p1guide', 'assets/hud/p1guide.png');
+    this.load.image('p2guide', 'assets/hud/p2guide.png');
 
-    this.load.image('winbar', 'assets/ingame/WINbar.png');
+    this.load.image('winbar', 'assets/hud/WINbar.png');
 
-    this.load.image('restartBtn', 'assets/ingame/restartBtn.png');
-    this.load.image('restartBtnPressed', 'assets/ingame/pressedRestart.png');
+    this.load.image('restartBtn', 'assets/ui/buttons/restartBtn.png');
+    this.load.image('restartBtnPressed', 'assets/ui/buttons/pressedRestart.png');
 
-    this.load.image('gohomeBtn', 'assets/ingame/goHomeBtn.png');
-    this.load.image('settingsBtn', 'assets/ingame/settingsBtn.png');
-    this.load.image('pressedSettingsBtn', 'assets/ingame/pressedSettingsBtn.png');
-    this.load.image('gohomeBtnPressed', 'assets/ingame/pressedgoHome.png');
-    this.load.image('forfeitBtn', 'assets/ingame/forfeitBtn.png');
+    this.load.image('gohomeBtn', 'assets/ui/buttons/goHomeBtn.png');
+    this.load.image('settingsBtn', 'assets/ui/buttons/settingsBtn.png');
+    this.load.image('pressedSettingsBtn', 'assets/ui/buttons/pressedSettingsBtn.png');
+    this.load.image('gohomeBtnPressed', 'assets/ui/buttons/pressedgoHome.png');
+    this.load.image('forfeitBtn', 'assets/ui/buttons/forfeitBtn.png');
 
-    this.load.image('resumeBtn', 'assets/ingame/resumeBtn.png');
-    this.load.image('characterInfoBtn', 'assets/ingame/characterInfoBtn.png');
+    this.load.image('resumeBtn', 'assets/ui/buttons/resumeBtn.png');
+    this.load.image('characterInfoBtn', 'assets/ui/buttons/characterInfoBtn.png');
     preloadAchievementsButton.call(this);
     [
         ['resumeBtnGrey', 'resumeBtnGrey'],
@@ -177,10 +177,10 @@ export function preload() {
         ['settingsBtnGrey', 'settingsBtnGrey'],
         ['pressedSettingsBtnGrey', 'pressedSettingsBtnGrey'],
         ['characterInfoBtnGrey', 'characterInfoBtnGrey']
-    ].forEach(([key, file]) => this.load.image(key, `assets/ingame/${file}.png`));
+    ].forEach(([key, file]) => this.load.image(key, `assets/ui/buttons/${file}.png`));
 
     for (let i = 1; i < 5; i++) {
-        this.load.image('countdown' + i, 'assets/ingame/countdown' + i + '.png');
+        this.load.image('countdown' + i, 'assets/hud/countdown' + i + '.png');
     }
 
     this.load.image('ready', 'assets/menu/READY.png');
@@ -191,9 +191,9 @@ export function preload() {
     // HAZARDS
     // =====================================================
 
-    this.load.spritesheet('sandstorm', 'assets/ingame/sandstorm.png', {frameWidth: 1000, frameHeight: 600});    
-    this.load.spritesheet('blizzard', 'assets/ingame/blizzard.png', {frameWidth: 1000, frameHeight: 600});
-    this.load.spritesheet('rainstorm', 'assets/ingame/rainstorm.png', {frameWidth: 1000, frameHeight: 600});
+    this.load.spritesheet('sandstorm', 'assets/maps/desert/sandstorm.png', {frameWidth: 1000, frameHeight: 600});    
+    this.load.spritesheet('blizzard', 'assets/maps/snowy/blizzard.png', {frameWidth: 1000, frameHeight: 600});
+    this.load.spritesheet('rainstorm', 'assets/maps/jungle/rainstorm.png', {frameWidth: 1000, frameHeight: 600});
 
     this.load.audio('storm', 'audio/sandstorm.wav');
     this.load.audio('rainfadein', 'audio/rainfadein.wav');
@@ -203,7 +203,7 @@ export function preload() {
     // EFFECTS
     // =====================================================
 
-    this.load.image('doublejump', 'assets/ingame/DoubleJump.png');
+    this.load.image('doublejump', 'assets/effects/DoubleJump.png');
     this.load.image('plungedAura', 'assets/statusailments/plungedAura.png');
 
     // =====================================================
@@ -212,8 +212,8 @@ export function preload() {
 
     this.load.spritesheet('uni-ledgepull', 'assets/sprites/universal/uni-ledgepull.png', { frameWidth: 100, frameHeight: 100 });
     this.load.spritesheet('uni-slam', 'assets/sprites/universal/uni-slam.png', { frameWidth: 100, frameHeight: 100 });
-    this.load.image('shieldbreak', 'assets/ingame/shieldbreak.png');
-    this.load.image('blockshield', 'assets/ingame/resistanceshield.png');
+    this.load.image('shieldbreak', 'assets/hud/shieldbreak.png');
+    this.load.image('blockshield', 'assets/effects/resistanceshield.png');
 
     preloadFighterSprites.call(this);
 
@@ -223,7 +223,7 @@ export function preload() {
 
     this.load.spritesheet(
         'upbambooGrow',
-        'assets/ingame/upBamboo.png',
+        'assets/maps/jungle/upBamboo.png',
         {
             frameWidth: 50,
             frameHeight: 50
@@ -231,13 +231,13 @@ export function preload() {
     );
     this.load.spritesheet(
         'upgrassGrow',
-        'assets/ingame/upGrass.png',
+        'assets/effects/upGrass.png',
         {
             frameWidth: 75,
             frameHeight: 75
         }
     );
-    this.load.image('impactcrater', 'assets/ingame/impactcrater.png');
+    this.load.image('impactcrater', 'assets/effects/impactcrater.png');
 
 
 
@@ -889,7 +889,7 @@ export function preloadFighterSprites() {
     );
     this.load.spritesheet(
         'explosion',
-        'assets/ingame/explosion.png',
+        'assets/effects/explosion.png',
         {
             frameWidth: 120,
             frameHeight: 200

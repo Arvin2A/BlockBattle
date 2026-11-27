@@ -4,7 +4,7 @@
 
 import { Commands } from "../../commands.js";
 import { executeStateCommand } from "../../commands.js";
-import { handleAttack, handleMisc, tryExtraJump, canExtraJump } from "../../attacks.js";
+import { handleAttack, handleMisc, tryExtraJump, canExtraJump, handleUpTilt, SPIKE } from "../../attacks.js";
 import { handleDirSpecial } from "../../attacks.js";
 import { handleDirSpecialAttack } from "../../attacks.js";
 import { toggleChainsawMode } from "../../attacks.js";
@@ -48,7 +48,8 @@ const DIFFICULTY = {
         thinkMs: 0, attackDelayMs: 0, hesitateChance: 0, hesitateMs: 0,
         edgeguard: true, dodgeSpecials: true, downslam: true, edgeFling: true,
         smack: true, ledge: true, blockChance: 0.7, dodgeMinigun: true, predictBlock: true,
-        deflectChance: 0.85, respectCounter: true, blockReactMs: 0, counterNoticeMs: 0
+        deflectChance: 0.85, respectCounter: true, blockReactMs: 0, counterNoticeMs: 0,
+        edgeCombo: true
     }
 };
 
@@ -542,6 +543,89 @@ function edgeguard(scene, bot, target, surfaces, stageCenter) {
     return true;
 }
 
+const EDGE_COMBO = {
+    edgeRange: 200,
+    tiltReach: { x: 135, up: 100, down: 20 },
+    spikeReach: { x: 150, up: 40, down: 110 },
+    jumpDelayMs: 60,
+    maxMs: 1300,
+    landedGraceMs: 200,
+    spikeSettleMs: 450,
+    retryMs: 2500,
+    chance: 0.8,
+    noComboVariants: ['SLEDGEHAMMER', 'DEMOLITIONIST', 'LAWNMOWER', 'CHAINSAW']
+};
+
+function canEdgeCombo(bot) {
+    return bot.name !== 'GUNMAN' && !EDGE_COMBO.noComboVariants.includes(bot.variant);
+}
+
+function edgeComboSetup(bot, target, surfaces, side) {
+    const dx = target.x - bot.x;
+    const dy = target.y - bot.y;
+    const reach = EDGE_COMBO.tiltReach;
+    if (Math.abs(dx) > reach.x || dy < -reach.up || dy > reach.down) return false;
+    const surface = surfaceBelow(surfaces, target.x, target.body.bottom);
+    if (!surface) return false;
+    const edgeX = side > 0 ? surface.right : surface.left;
+    const toEdge = (edgeX - target.x) * side;
+    if (toEdge < 0 || toEdge > EDGE_COMBO.edgeRange) return false;
+    return !surfaceBelow(surfaces, edgeX + side * 40, surface.top);
+}
+
+function tryStartEdgeCombo(scene, bot, target, surfaces, side, now) {
+    if (now < (bot.nextEdgeComboAt ?? 0) || !edgeComboSetup(bot, target, surfaces, side)) return false;
+    bot.nextEdgeComboAt = now + EDGE_COMBO.retryMs;
+    if (Math.random() > EDGE_COMBO.chance) return false;
+    bot.lastDir = { x: side, y: 0 };
+    bot.facingX = side;
+    send(scene, bot, Commands.NONE);
+    handleUpTilt(scene, bot, target);
+    if (target.lastHitAt !== now) return true;
+    bot.edgeCombo = { target, side, startedAt: now, jumped: false, spikedAt: 0 };
+    return true;
+}
+
+function runEdgeCombo(scene, bot, surfaces, now) {
+    const combo = bot.edgeCombo;
+    const target = combo.target;
+    const elapsed = now - combo.startedAt;
+    const stop = () => { bot.edgeCombo = null; return false; };
+    if (!target.active || target.eliminated || bot.hitstun || bot.freeze || elapsed > EDGE_COMBO.maxMs) return stop();
+    if (combo.spikedAt) {
+        if (now - combo.spikedAt > EDGE_COMBO.spikeSettleMs) return stop();
+        send(scene, bot, Commands.NONE);
+        return true;
+    }
+    if (elapsed > EDGE_COMBO.landedGraceMs && isGrounded(target)) return stop();
+    if (isOffStage(bot, surfaces) && bot.hasDoubleJumped && bot.body.velocity.y > 0 && bot.y > target.y + 40) return stop();
+
+    const aim = predictTarget(target, SPIKE.windupMs);
+    const dx = aim.x - bot.x;
+    const dy = aim.y - bot.y;
+    if (Math.abs(dx) > 20) send(scene, bot, dx < 0 ? Commands.LEFT : Commands.RIGHT);
+    else send(scene, bot, Commands.NONE);
+
+    const grounded = isGrounded(bot);
+    if (grounded && !combo.jumped && elapsed >= EDGE_COMBO.jumpDelayMs) {
+        combo.jumped = true;
+        bot.lastJump = now;
+        send(scene, bot, Commands.UP);
+        return true;
+    }
+    if (!grounded && bot.body.velocity.y > -60 && bot.y > target.y - 30) tryDoubleJump(scene, bot);
+
+    const reach = EDGE_COMBO.spikeReach;
+    const inReach = Math.abs(dx) <= reach.x && dy >= -reach.up && dy <= reach.down;
+    if (!grounded && inReach && bot.canAttack && now >= bot.nextAttackTime && !isInvincible(target)) {
+        bot.facingX = Math.sign(dx) || combo.side;
+        bot.lastDir = { x: 0, y: 1 };
+        handleAttack(scene, bot, target);
+        combo.spikedAt = now;
+    }
+    return true;
+}
+
 export function runBotAI(scene, bot, target, fiveframecount) {
     //let the ai make the ai 🔥
     bot.horizontalMovementActive = false;
@@ -637,6 +721,8 @@ export function runBotAI(scene, bot, target, fiveframecount) {
         send(scene, bot, Commands.NONE);
         return;
     }
+
+    if (bot.edgeCombo && runEdgeCombo(scene, bot, surfaces, now)) return;
 
     // ======================
     // RECOVERY
@@ -819,6 +905,10 @@ export function runBotAI(scene, bot, target, fiveframecount) {
         now >= (bot.botNextAttackAt ?? 0);
     if (bot.variant === 'DEMOLITIONIST' && targetHittable &&
         planTapePunch(scene, bot, target, side, dx, dy, readyToAttack, difficulty, now)) {
+        return;
+    }
+    if (difficulty.edgeCombo && canEdgeCombo(bot) && targetHittable && readyToAttack && grounded &&
+        isGrounded(target) && !targetOffStage && tryStartEdgeCombo(scene, bot, target, surfaces, side, now)) {
         return;
     }
     const hammerSwing = bot.name === 'HAMMERMAN' ? HAMMER_SWINGS[bot.variant] : null;

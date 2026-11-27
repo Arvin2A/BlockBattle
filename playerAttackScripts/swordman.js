@@ -786,6 +786,7 @@ function tryLunge(api, scene, player, direction, currentTime, animKey = 'swordat
 }
 
 export default {
+    spikeAnimation: attacker => attacker.variant === 'DAGGER' ? 'daggeratk' : 'swordatk',
     variantDemoAnimations: {
         LONGSWORD: ['swordatk', 'swordatksecond', 'swordatkthird', 'swordatktilt', 'sheathe', 'sheatheatk'],
         DAGGER: ['daggeratk', 'swordatktilt']

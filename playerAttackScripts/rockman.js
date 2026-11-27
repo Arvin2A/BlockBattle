@@ -375,6 +375,7 @@ const unlessPlunging = handler => (api, scene, attacker, ...args) => {
 };
 
 export default {
+    spikeAnimation: () => 'slateatk',
     demoAnimations: ['slateatk', 'slateatksecond', 'slateatkthird', 'slateatktilt'],
     demoIdle: 'slateatk1',
     armColor: 0x2c2d31,

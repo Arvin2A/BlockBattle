@@ -159,7 +159,7 @@ const SLEDGEHAMMER_SPIKE = {
     launchGrowth: true,
     recoveryMs: 700,
     windupSound: 'sledgewhoosh',
-    hitstunScale: 2,
+    hitstunScale: 2 / 1.7,
     hit: {
         range: SLEDGEHAMMER_SWING.range + 20,
         shieldCost: SLEDGEHAMMER_SWING.shieldCost,
@@ -776,6 +776,7 @@ function tryQuickslam(api, scene, attacker, target, direction, currentTime) {
 }
 
 export default {
+    spikeAnimation: attackAnim,
     variantAttackSpriteScales: { MALLET: 0.75 },
     variantDemoAnimations: {
         MALLET: ['hammeratk', 'hammeratkheal'],

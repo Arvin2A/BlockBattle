@@ -129,6 +129,11 @@ export function initiatePlayers(scene, matchSettings) {
             set() { },
             configurable: true
         });
+        Object.defineProperty(p, 'stunned', {
+            get() { return scene.time.now < this.stunUntil; },
+            set() { },
+            configurable: true
+        });
 
         // Arena tracking and damage state.
         Object.assign(p, {
@@ -214,6 +219,8 @@ export function initiatePlayers(scene, matchSettings) {
             lastAttackTime: 0,
             horizontalMovementActive: false,
             inputLocked: false,
+            stunUntil: 0,
+            stunChainStartedAt: 0,
             inputLockReleasableAt: Infinity,
             releaseInputLock: null
         });

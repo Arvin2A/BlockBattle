@@ -884,23 +884,27 @@ const SUPER_SWING = {
     knockback: { x: 800, y: 500, growth: false },
     decelerateAfter: 800
 };
+const SUPER_SWING_LOCK_MS = 400;
+
 function superSwing(api, scene, attacker, target, animKey) {
     // The axe only swings when it connects.
     const aim = attacker.powerSwingAim;
-    const hit = api.attackIsElligible(attacker, target, 150, aim ? { direction: aim, allowTargetBelow: true } : {});
-    if (hit) {
-        api.setAttackSprite(attacker, animKey);
-        attacker.hasHitSideSpecial = true;
-        api.landHit(scene, attacker, target, { ...SUPER_SWING, special: true, ...(aim ? { direction: aim } : { power: SIDE_SPECIAL_POWER }) });
-        target.choppedUntil = scene.time.now + 3000;
-    }
+    const bypass = { ignoreCanAttack: true, ...(aim ? { direction: aim, allowTargetBelow: true } : {}) };
+    const hit = api.attackIsElligible(attacker, target, 150, bypass);
+    if (!hit) return false;
+    api.setAttackSprite(attacker, animKey);
+    attacker.hasHitSideSpecial = true;
+    api.landHit(scene, attacker, target, { ...SUPER_SWING, special: true, ...(aim ? { direction: aim } : { power: SIDE_SPECIAL_POWER }) });
+    target.choppedUntil = scene.time.now + 3000;
     api.clearQueuedStunTimers(scene, attacker, target);
     attacker.canAttack = false;
-    scene.time.delayedCall(400, () => {
+    const lock = attacker.superSwingLock = (attacker.superSwingLock ?? 0) + 1;
+    scene.time.delayedCall(SUPER_SWING_LOCK_MS, () => {
+        if (attacker.superSwingLock !== lock) return;
         api.hideAttackSprite(attacker);
         attacker.canAttack = true;
     });
-    return hit;
+    return true;
 }
 const DIAGONAL_POWER_SWING = { speed: 800, ms: 140, angle: Math.PI / 4, endSlowdown: 5, recoverMs: 350 };
 
@@ -975,6 +979,7 @@ function tryCleave(api, scene, player, direction, currentTime) {
 }
 
 export default {
+    spikeAnimation: () => 'axeatk',
     variantDemoAnimations: {
         LUMBERER: ['axeatk', 'axeatkthird', 'axeatktilt'],
         CHAINSAW: ['activechainsaw']

@@ -1601,6 +1601,7 @@ function forVariant(lawnmower, landscaper) {
 }
 
 export default {
+    spikeAnimation: () => 'scytheatk',
     variantDemoAnimations: {
         LANDSCAPER: ['scytheatk', 'scytheatktilt'],
         LAWNMOWER: ['pullcord', { prop: 'lawnmower-held', ms: 1400 }]

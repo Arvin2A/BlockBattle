@@ -29,6 +29,8 @@ import { updateCrashes } from './combat/crash.js';
 import { KILLZONE, attachKillzoneWalls } from './combat/borders.js';
 import { INFINITE_SPAN } from './scenes/GameScene/MapDefinitions.js';
 import { updateUniversalMoves, isUniversalBusy, tryLedgeGrab, hideWeaponsForUniversalMoves, restoreHiddenWeapons } from './combat/universalMoves.js';
+import { clearStun } from './combat/stun.js';
+import { getAttackPose } from './combat/attackSprite.js';
 import { updateLaunchArc, updateLandingHitstun, isInvincible, applyVictimShakes, restoreVictimShakes } from './combat/knockback.js';
 import { isAirDodgePhasing } from './combat/block.js';
 import { MenuScene } from './scenes/MenuScene.js';
@@ -646,7 +648,7 @@ function trackAfk(scene, slot, { active, reconnecting, resumed }) {
     const delta = scene.game.loop.delta;
     if (active || resumed) {
         closeAfkStreak(player);
-    } else if (!player.hitstun) {
+    } else if (!player.hitstun && !player.stunned) {
         player.afkMs = (player.afkMs ?? 0) + delta;
     }
     if (player.afkMs >= AFK_KICK_MS && !player.afkKicked && !reconnecting) {
@@ -1424,6 +1426,7 @@ function startMatchSequence(scene) {
 function teleportBackToArena(player, x = 1000) {
     player.activeHookCleanup?.();
     player.nettedUntil = 0;
+    clearStun(player);
     player.setPosition(x, 0);
     player.setVelocityY(modifierOptions.NO_GRAVITY_FRICTION.enabled ? NO_GRAVITY_RESPAWN_DRIFT : 0);
     player.setVelocityX(0);
@@ -1964,7 +1967,8 @@ function updateSwordmanIdle(player) {
     }
     sprite.setVisible(true);
     sprite.setFlipX(-player.lastDir.x < 0);
-    if (player.lastDir.y < 0) sprite.setAngle(90);
+    if (typeof player.atkAngleOverride === 'number') sprite.setAngle(player.atkAngleOverride);
+    else if (player.lastDir.y < 0) sprite.setAngle(90);
     else if (player.lastDir.y > 0) sprite.setAngle(-90);
     else sprite.setAngle(0);
 }
@@ -1996,7 +2000,8 @@ function updateWeaponIdle(player) {
         player.y + player.lastDir.y * player.atkYOffset - 15 + offset.y
     );
     sprite.setFlipX(getAttackSpriteFlipX(player, idleTexture));
-    if (player.lastDir.y < 0) sprite.setAngle(90);
+    if (typeof player.atkAngleOverride === 'number') sprite.setAngle(player.atkAngleOverride);
+    else if (player.lastDir.y < 0) sprite.setAngle(90);
     else if (player.lastDir.y > 0) sprite.setAngle(-90);
     else sprite.setAngle(0);
 }
@@ -2006,7 +2011,9 @@ function updateSledgehammerAnimation(player) {
     const sprite = player.atk;
 
     sprite.setPosition(player.x, player.y);
-    if (player.lastDir.x !== 0) sprite.setFlipX(-player.lastDir.x < 0);
+    const pose = getAttackPose(player);
+    if (pose) sprite.setFlipX(pose.flipX);
+    else if (player.lastDir.x !== 0) sprite.setFlipX(-player.lastDir.x < 0);
 
     if (player.isAttacking) {
         if (sprite.anims.currentAnim?.key === 'sledge_walk') {
@@ -2406,6 +2413,13 @@ function applyInputLock(scene, player) {
         player.inputLockShown = showLocked;
         setMobileButtonsLocked(scene, player.slot, showLocked);
     }
+    if (player.stunned && input) {
+        for (const button of INPUT_BUTTONS) {
+            input[button] = false;
+            consumePress(input, button);
+        }
+        return;
+    }
     if (!player.inputLocked || !input) return;
     for (const button of INPUT_BUTTONS) {
         if (button === 'special') continue;
@@ -2431,7 +2445,7 @@ function handleAttackInput(scene, player, input, victim) {
     const toggleAttack = usesToggleAttack(player);
     const attackPressed = toggleAttack ? input.attackPressed : input.attack || input.attackPressed;
     const ledgeGrab = input.attackPressed && tryLedgeGrab(scene, player, victim);
-    if (!attackPressed || ledgeGrab || isUniversalBusy(player) || (player.hitstun && !player.activeGrab)) return;
+    if (!attackPressed || ledgeGrab || isUniversalBusy(player) || player.stunned || (player.hitstun && !player.activeGrab)) return;
     const now = scene.time.now;
     if (inputMode[player.slot] !== 'keyboard' && !mobileControls[player.slot]?.attack) {
         dimMobileButtons(scene, player.slot);
@@ -2531,7 +2545,13 @@ function updateFacing(player, input) {
     else if (input.up) player.lastDir = { x: 0, y: -1 };
     else if (input.down) player.lastDir = { x: 0, y: 1 };
     if (player.lastDir.x) player.facingX = Math.sign(player.lastDir.x);
-    if (player.lastDir.y === 0 && !player.activeGrab) player.atk.setAngle(getAttackSpriteAngle(player));
+    if (player.activeGrab) return;
+    const pose = getAttackPose(player);
+    if (pose && typeof player.atkAngleOverride !== 'number') {
+        player.atk.setAngle(pose.angle).setFlipX(pose.flipX);
+    } else if (player.lastDir.y === 0) {
+        player.atk.setAngle(getAttackSpriteAngle(player));
+    }
 }
 
 function aimGrabbedWeapon(sprite, grab, target) {
@@ -2544,7 +2564,11 @@ function aimGrabbedWeapon(sprite, grab, target) {
 }
 
 function positionAttachments(scene, player) {
-    if (!player.activeGrab) {
+    const pose = getAttackPose(player);
+    if (!player.activeGrab && pose) {
+        if (player.atk.originX !== 0.5 || player.atk.originY !== 0.5) player.atk.setOrigin(0.5);
+        player.atk.setPosition(player.x + pose.dx, player.y + pose.dy);
+    } else if (!player.activeGrab) {
         if (player.atk.originX !== 0.5 || player.atk.originY !== 0.5) player.atk.setOrigin(0.5);
         const offset = getAttackSpriteOffset(player);
         player.atk.x = player.x + (player.lastDir.x * player.atkXOffset) + offset.x;
@@ -2571,7 +2595,7 @@ function positionLabels(scene, player) {
 }
 
 function handleMovementInput(scene, player, input, victim) {
-    if (player.hitstun || player.isBot || isUniversalBusy(player)) return;
+    if (player.hitstun || player.stunned || player.isBot || isUniversalBusy(player)) return;
     const { slot } = player;
     const now = scene.time.now;
     const leftPressed = input.leftPressed;
@@ -2918,7 +2942,7 @@ function update() {
 
     const pickAI = slot => window.__legacySlot === slot ? runLegacyBotAI : runBotAI;
     for (const player of [...fighters].reverse()) {
-        if (player.isBot && isAlive(player)) pickAI(player.slot)(this, player, victimOf(player), fiveframecount);
+        if (player.isBot && isAlive(player) && !player.stunned) pickAI(player.slot)(this, player, victimOf(player), fiveframecount);
     }
     updateKB(this);
     updateMapHazard(this);

@@ -43,6 +43,7 @@ import { damagePlank, damagePlanksInAttack, isBlockedByWall } from './combat/pla
 import { attackIsElligible, DEFAULT_BYPASS_OPTIONS } from './combat/eligibility.js';
 import { blocksHit, deflects, releaseCounter, trackDeflectable, attackLockedByBlock } from './combat/block.js';
 import { startUpTiltArc, UP_TILT_RANGE } from './combat/universalMoves.js';
+import { applyStun } from './combat/stun.js';
 import { applySkin } from './combat/skins.js';
 import {
     hasIdleAttackSprite,
@@ -255,11 +256,13 @@ export const SPIKE = {
     leanDegrees: 35,
     weaponExtraDegrees: 25,
     launchDegrees: 65,
-    launchSpeed: 750,
+    launchSpeed: 750 / 1.35,
     range: 170,
     verticalReach: { up: 60, down: 110 },
     poseHoldMs: 150,
-    hitstunScale: 2,
+    hitstunScale: 0.8,
+    diveSpeed: 150,
+    diveGravity: 700,
     smashMs: 60,
     minDot: 0.05,
     recoveryMs: 400,
@@ -324,10 +327,24 @@ export function spikeAttack(scene, attacker, target, animKey, options = {}) {
     positionAttackSprite(attacker, animKey);
     attacker.isAttacking = true;
     let spiking = true;
+    let diveGravity = null;
+    const startDive = () => {
+        const body = attacker.body;
+        if (!body || body.blocked.down || body.touching.down) return;
+        attacker.setVelocityY(Math.max(body.velocity.y, 0) + SPIKE.diveSpeed);
+        diveGravity = body.gravity.y + SPIKE.diveGravity;
+        body.setGravityY(diveGravity);
+    };
+    const endDive = () => {
+        if (diveGravity === null || !attacker.body) return;
+        if (attacker.body.gravity.y === diveGravity) attacker.body.setGravityY(diveGravity - SPIKE.diveGravity);
+        diveGravity = null;
+    };
     const swing = () => {
         setAttackSprite(attacker, animKey);
         attacker.atk.anims.timeScale = animScale;
         attacker.atk.setAngle(attacker.atkAngleOverride);
+        startDive();
         attacker.atk.once(`animationcomplete-${animKey}`, () => {
             if (!spiking || !attacker.active) return;
             attacker.isAttacking = true;
@@ -366,6 +383,7 @@ export function spikeAttack(scene, attacker, target, animKey, options = {}) {
     });
     const resetPose = () => {
         spiking = false;
+        endDive();
         poseTween?.stop();
         if (!attacker.active) return;
         if (!attacker.atk.anims.isPlaying) {
@@ -388,6 +406,7 @@ export function spikeAttack(scene, attacker, target, animKey, options = {}) {
             lean(SPIKE.leanDegrees);
         }
         attacker.canAttack = true;
+        endDive();
         const landed = strike(scene, attacker, target, {
             ...SPIKE.hit,
             ...hit,
@@ -418,6 +437,26 @@ export function spikeAttack(scene, attacker, target, animKey, options = {}) {
     return true;
 }
 
+const UP_TILT_AIM = { degrees: 65, holdMs: 300, extraStunMs: 300 };
+
+function aimUpTilt(scene, attacker) {
+    const facing = attacker.facingX || Math.sign(attacker.lastDir.x) || 1;
+    const angle = Phaser.Math.DegToRad(UP_TILT_AIM.degrees);
+    const aim = { x: facing * Math.cos(angle), y: -Math.sin(angle) };
+    attacker.aimLock = aim;
+    attacker.lastDir = { ...aim };
+    attacker.atkAngleOverride = -facing * UP_TILT_AIM.degrees;
+    const release = () => {
+        if (attacker.aimLock !== aim) return;
+        attacker.aimLock = null;
+        attacker.atkAngleOverride = null;
+        attacker.lastDir = { x: 0, y: -1 };
+        if (!attacker.activeGrab) attacker.atk.setAngle(getAttackSpriteAngle(attacker));
+    };
+    scene.time.delayedCall(UP_TILT_AIM.holdMs, release);
+    return release;
+}
+
 export function tiltAttack(scene, attacker, target, {
     animKey,
     kb = 0.1,
@@ -434,18 +473,26 @@ export function tiltAttack(scene, attacker, target, {
     if (!attacker.canAttack || attacker.hitstun) return;
     if (isDownTilt(xMul, yMul)) {
         onUse?.(scene);
-        return spikeAttack(scene, attacker, target, animKey, {
+        const spikeAnim = getCharacterScript(attacker)?.spikeAnimation?.(attacker) ?? animKey;
+        return spikeAttack(scene, attacker, target, spikeAnim, {
             launchGrowth: false,
             hit: { damage: kb, sound: sfx, hitFreeze: freeze, hitstun: kbTime + 300, decelerateAfter: kbTime, onHit }
         });
     }
+    const arcs = isUpTilt(xMul, yMul);
+    const releaseUpTiltAim = arcs ? aimUpTilt(scene, attacker) : null;
     setAttackSprite(attacker, animKey);
+    if (arcs) {
+        attacker.atk.setAngle(attacker.atkAngleOverride);
+        attacker.atk.once(`animationcomplete-${animKey}`, releaseUpTiltAim);
+    }
     if (onUse) {
         onUse(scene);
     }
-    const arcs = isUpTilt(xMul, yMul);
     const hit = strike(scene, attacker, target, {
-        range: arcs ? UP_TILT_RANGE : range,
+        range,
+        bypass: arcs ? { verticalReach: { up: UP_TILT_RANGE, down: 25 } } : {},
+        direction: arcs ? { x: 0, y: -1 } : null,
         damage: kb,
         hitstun: kbTime + 300,
         hitstunGrowth: false,
@@ -455,6 +502,7 @@ export function tiltAttack(scene, attacker, target, {
             ? (hitScene, victim) => {
                 onHit?.(hitScene);
                 startUpTiltArc(hitScene, attacker, victim);
+                applyStun(hitScene, victim, victim.hitstunUntil - hitScene.time.now + UP_TILT_AIM.extraStunMs);
             }
             : onHit,
         knockback: arcs ? null : {
@@ -549,6 +597,7 @@ const sharedAttackHelpers = {
     tiltAttack,
     aimsDown,
     spikeAttack,
+    applyStun,
     stretchHitstun,
     tryAttack,
     damagePlanksInAttack,

@@ -123,13 +123,27 @@ export function positionAttackSprite(attacker, animKey = '') {
     attacker.atk.setAngle(getBaseAttackAngle(attacker) + attacker.atkAimOffset + sawAim);
 }
 
+export function getAttackPose(attacker) {
+    const pose = attacker.atkPose;
+    return pose && attacker.isAttacking && pose.sequence === attacker.attackSequence ? pose : null;
+}
+
 export function setAttackSprite(attacker, animKey) {
     attacker.attackSequence = (attacker.attackSequence ?? 0) + 1;
     positionAttackSprite(attacker, animKey);
     attacker.atk.setFrame(0);
     attacker.isAttacking = true;
     attacker.lastAttackAnim = animKey;
+    const sequence = attacker.attackSequence;
+    attacker.atkPose = {
+        sequence,
+        dx: attacker.atk.x - attacker.x,
+        dy: attacker.atk.y - attacker.y,
+        angle: attacker.atk.angle,
+        flipX: attacker.atk.flipX
+    };
     attacker.atk.once(`animationcomplete-${animKey}`, () => {
+        if (attacker.atkPose?.sequence === sequence) attacker.atkPose = null;
         attacker.lastAttackEndTime = attacker.scene.time.now;
         attacker.isAttacking = false;
         attacker.attackBypassesHitstun = false;

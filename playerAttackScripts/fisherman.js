@@ -330,7 +330,8 @@ const MAX_STUCK_HARPOONS = 3;
 const HARPOON_LEFT_AT = { harpoonatk: 8, harpoonatkthird: 28 };
 
 const PIN_MS = 1000;
-const PIN_SPIKE_SPEED = 1400;
+const PIN_SPIKE_SPEED = 1400 / 3;
+const PIN_SPIKE_ANGLE = 45 * Math.PI / 180;
 
 const PIN_IMMUNITY_MS = 1500;
 const PIN_SHIFT = 150;
@@ -485,8 +486,11 @@ function harpoonPin(api, scene, attacker, target, animKey, range) {
         hitstunGrowth: false,
         noDeathRay: true,
         holdsOnLanding: true,
-        // Never a launch: held to the floor on the ground, driven straight down in the air.
-        knockback: () => ({ x: 0, y: canPin && !grounded ? PIN_SPIKE_SPEED : 0 }),
+        knockback: () => {
+            if (!canPin || grounded) return { x: 0, y: 0 };
+            const side = Math.sign(target.x - attacker.x) || attacker.lastDir.x || 1;
+            return { x: side * Math.sin(PIN_SPIKE_ANGLE) * PIN_SPIKE_SPEED, y: Math.cos(PIN_SPIKE_ANGLE) * PIN_SPIKE_SPEED };
+        },
         onHit: () => {
             if (!canPin) return;
             target.pinImmuneUntil = now + PIN_MS + PIN_IMMUNITY_MS;
@@ -1662,6 +1666,7 @@ function updateTrapper(api, scene, player) {
 }
 
 export default {
+    spikeAnimation: attacker => attacker.variant !== 'TRAPPER' ? 'rodatk' : harpoonsLeft(attacker) > 0 ? 'harpoonatk' : 'harpoonlessatk',
     variantAttackSpriteScales: { ANGLER: 0.6 },
     variantDemoAnimations: {
         ANGLER: ['rodatk', 'rodatkthird'],

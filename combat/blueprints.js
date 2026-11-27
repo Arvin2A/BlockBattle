@@ -179,7 +179,7 @@ export function landHit(scene, attacker, target, spec = {}) {
         target.revokeVictimStun = null;
     }
     target.lastHitAt = now;
-    target.landingEndsHitstunAfter = 0;
+    target.downLaunch = null;
     if (attacker.team !== undefined) target.lastHitBy = attacker;
     let netHeld = false;
     if (target.nettedUntil > now) {
@@ -219,7 +219,7 @@ export function landHit(scene, attacker, target, spec = {}) {
         const launchDelay = typeof knockback === 'object' ? knockback.delay ?? 0 : 0;
         const launchNow = () => {
             applyKnockback(scene, target, launch.x, launch.y, { noDeathRay, ignoreResistance });
-            if (!holdsOnLanding) markDownwardLaunch(target, launch.y);
+            markDownwardLaunch(target, launch.y, holdsOnLanding);
         };
         if (launchDelay > 0) {
             applyKnockback(scene, target, 0, 0, { noDeathRay, ignoreResistance });

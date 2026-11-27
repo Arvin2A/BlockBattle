@@ -208,24 +208,39 @@ function startLaunchArc(scene, target, vx, vy) {
     return vy - 4 * height / seconds;
 }
 
-export function markDownwardLaunch(target, vy) {
+const DOWN_LAUNCH_REBOUND = { scale: 0.45, minFallSpeed: 250, maxSpeed: 650, keepX: 0.6 };
+
+export function markDownwardLaunch(target, vy, keepHitstun = false) {
     const body = target.body;
     if (!body || !(vy > 0) || body.blocked.down || body.touching.down) return;
-    target.landingEndsHitstunAfter = target.scene.time.now;
+    target.downLaunch = { since: target.scene.time.now, pin: keepHitstun, rebounded: false, fallSpeed: vy };
 }
 
 export function updateLandingHitstun(player) {
-    const since = player.landingEndsHitstunAfter;
-    if (!since) return;
-    const now = player.scene.time.now;
+    const launch = player.downLaunch;
+    if (!launch) return;
     if (!player.hitstun) {
-        player.landingEndsHitstunAfter = 0;
+        player.downLaunch = null;
         return;
     }
     const body = player.body;
-    if (now <= since || !(body.blocked.down || body.touching.down) || body.velocity.y < 0) return;
-    player.landingEndsHitstunAfter = 0;
-    player.hitstunUntil = now;
+    const grounded = body.blocked.down || body.touching.down;
+    if (!grounded) {
+        if (body.velocity.y > 0) launch.fallSpeed = body.velocity.y;
+        return;
+    }
+    if (player.scene.time.now <= launch.since || body.velocity.y < 0) return;
+    const bounces = !launch.pin && !launch.rebounded && launch.fallSpeed >= DOWN_LAUNCH_REBOUND.minFallSpeed;
+    if (!bounces) {
+        player.downLaunch = null;
+        body.setVelocityX(0);
+        return;
+    }
+    launch.rebounded = true;
+    launch.since = player.scene.time.now;
+    clearLaunchArc(player);
+    const up = Math.min(launch.fallSpeed * DOWN_LAUNCH_REBOUND.scale, DOWN_LAUNCH_REBOUND.maxSpeed);
+    player.setVelocity(body.velocity.x * DOWN_LAUNCH_REBOUND.keepX, -up);
 }
 
 export function stretchHitstun(scene, target, scale) {
