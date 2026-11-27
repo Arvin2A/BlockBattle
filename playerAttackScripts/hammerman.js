@@ -191,25 +191,23 @@ function hardSwing(api, scene, attacker, target, animKey) {
 function veryhardSwing(api, scene, attacker, target, animKey) {
     //Hardest swing, only used for the sledgehammer variant of hammerman.
     api.setAttackSprite(attacker, animKey);
-    //getting hit during the windup resets the swing animation, so the swing has to be cancelled too
-    //otherwise it lands invisibly if the hitstun ends before the windup does.
-    const windup = api.afterWindup(scene, attacker, 800, () => {
+    attacker.attackBypassesHitstun = true;
+    attacker.sledgeSwingLandsAt = scene.time.now + 800;
+    attacker.sledgeSwingRange = SLEDGEHAMMER_SWING.range;
+    api.afterWindup(scene, attacker, 800, () => {
         //the delay makes slegdehammer man telegraphable and punishable, but also makes it feel like a big swing.
-        const hit = attacker.variant === "SLEDGEHAMMER" &&
-            api.strike(scene, attacker, target, SLEDGEHAMMER_SWING);
+        const hit = attacker.active && attacker.variant === "SLEDGEHAMMER" &&
+            api.strike(scene, attacker, target, { ...SLEDGEHAMMER_SWING, bypass: { ignoreAttackerStun: true, ignoreCanAttack: true } });
         if (!hit) attacker.combo = 0;
         attacker.canAttack = false;
         api.clearQueuedStunTimers(scene, attacker, target);
-    }, {
-        interruptible: true,
-        onInterrupt: () => { attacker.combo = 0; }
     });
     scene.time.delayedCall(1500, () => {
         //obviously its a longer delay, its a sledgehammer. the player should be punished for using it.
         attacker.canAttack = true;
     });
     scene.time.delayedCall(750, () => {
-        if (attacker.canAttack && !windup.interrupted) {
+        if (attacker.canAttack) {
             scene.sound.play('sledgewhoosh');
         }
     });
@@ -606,6 +604,17 @@ function trySledgeWhirlwind(api, scene, player, victim, currentTime) {
         scene.time.delayedCall(WHIRLWIND.holdLastFrameMs, finish);
     };
     const playHitSound = () => scene.sound.play(WHIRLWIND.hitSound.key, { rate: WHIRLWIND.hitSound.rate });
+    const whirlBypass = { ignoreCanAttack: true, allowTargetBelow: true, ignoreFacing: true };
+    const carrySpec = {
+        ...WHIRLWIND.carry,
+        onHit: (hitScene, target) => {
+            carried.set(target, { x: target.x - player.x, y: target.y - player.y, hitAt: hitScene.time.now });
+            target.body.setAllowGravity(false);
+            target.willDecelerate = false;
+            target.setVelocity(0, 0);
+            playHitSound();
+        }
+    };
     const whirlHit = index => {
         if (!stillWhirling() || !player.active || player.hitstun) return;
         const last = index === WHIRLWIND.hits - 1;
@@ -619,24 +628,32 @@ function trySledgeWhirlwind(api, scene, player, victim, currentTime) {
                     playHitSound();
                 }
             }
-            : {
-                ...WHIRLWIND.carry,
-                onHit: (hitScene, target) => {
-                    carried.set(target, { x: target.x - player.x, y: target.y - player.y, hitAt: hitScene.time.now });
-                    target.body.setAllowGravity(false);
-                    target.willDecelerate = false;
-                    target.setVelocity(0, 0);
-                    playHitSound();
-                }
-            };
+            : carrySpec;
         api.strike(scene, player, victim ?? api.getEnemies(scene, player)[0], {
             special: true,
             ...spec,
             range: WHIRLWIND.range,
-            bypass: { ignoreCanAttack: true, allowTargetBelow: true, ignoreFacing: true },
+            bypass: whirlBypass,
             direction: { x: launchX, y: 0 }
         });
         if (last) scene.time.delayedCall(WHIRLWIND.endAfterLastHitMs, finishAfterFreeze);
+    };
+    const catchTries = new Map();
+    const catchTouching = () => {
+        if (player.hitstun || scene.time.now - startedAt >= lastHitMs) return;
+        for (const foe of api.getEnemies(scene, player)) {
+            if (carried.has(foe) || scene.time.now < (catchTries.get(foe) ?? 0)) continue;
+            if (!api.attackIsElligible(player, foe, WHIRLWIND.range, { ...whirlBypass, silent: true })) continue;
+            catchTries.set(foe, scene.time.now + WHIRLWIND.hitEveryMs);
+            api.strike(scene, player, foe, {
+                special: true,
+                ...carrySpec,
+                range: WHIRLWIND.range,
+                bypass: whirlBypass,
+                direction: { x: launchX, y: 0 },
+                singleTarget: true
+            });
+        }
     };
     const removeUpdate = api.addSceneUpdateListener(scene, (time, delta) => {
         if (!stillWhirling() || scene.hitFreezeUntil > scene.time.now) return;
@@ -655,6 +672,7 @@ function trySledgeWhirlwind(api, scene, player, victim, currentTime) {
             foe.setPosition(player.x + hold.x, player.y + hold.y);
             foe.setVelocity(0, 0);
         }
+        catchTouching();
     });
     for (let index = 0; index < WHIRLWIND.hits; index++) {
         scene.time.delayedCall(WHIRLWIND.firstHitMs + WHIRLWIND.hitEveryMs * index, () => whirlHit(index));

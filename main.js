@@ -31,7 +31,7 @@ import { INFINITE_SPAN } from './scenes/GameScene/MapDefinitions.js';
 import { updateUniversalMoves, isUniversalBusy, tryLedgeGrab, hideWeaponsForUniversalMoves, restoreHiddenWeapons } from './combat/universalMoves.js';
 import { clearStun } from './combat/stun.js';
 import { getAttackPose } from './combat/attackSprite.js';
-import { updateLaunchArc, updateLandingHitstun, isInvincible, applyVictimShakes, restoreVictimShakes } from './combat/knockback.js';
+import { updateLaunchArc, updateLandingHitstun, isInvincible, applyVictimShakes, restoreVictimShakes, isVictimShaking } from './combat/knockback.js';
 import { isAirDodgePhasing } from './combat/block.js';
 import { MenuScene } from './scenes/MenuScene.js';
 import { fadeOutTo } from './scenes/transitions.js';
@@ -2934,7 +2934,7 @@ function update() {
 
     for (const player of living) {
         const dashTrail = this.time.now < (player.dashTrail?.until ?? 0) ? player.dashTrail : null;
-        if ((player.afterimage || dashTrail) && this.time.now > player.afterimageTimer) {
+        if ((player.afterimage || dashTrail) && !isVictimShaking(this, player) && this.time.now > player.afterimageTimer) {
             spawnAfterimage(this, player);
             player.afterimageTimer = this.time.now + (player.ultraLaunch ? 12 : player.violentLaunch ? 20 : dashTrail?.everyMs ?? 40);
         }

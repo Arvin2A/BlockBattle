@@ -130,6 +130,15 @@ function grabComingAt(bot, target, distance) {
         Math.sign(bot.x - target.x) === Math.sign(target.lastDir.x);
 }
 
+const SLEDGE_SWING_FLEE = { margin: 45, maxDy: 110 };
+
+function sledgeSwingComing(bot, target, distance, now) {
+    if (now >= (target.sledgeSwingLandsAt ?? 0)) return false;
+    const inFront = Math.sign(bot.x - target.x) === Math.sign(target.lastDir?.x ?? 0);
+    return inFront && distance < (target.sledgeSwingRange ?? 0) + SLEDGE_SWING_FLEE.margin &&
+        Math.abs(bot.y - target.y) < SLEDGE_SWING_FLEE.maxDy;
+}
+
 function specialJustStarted(bot, target) {
     const cooldownEnd = target.nextSideSpecialTime ?? 0;
     const started = bot.botSeenSpecialEnd !== undefined && cooldownEnd > bot.botSeenSpecialEnd;
@@ -262,6 +271,10 @@ function updateBotBlock(scene, bot, target, distance, difficulty, now) {
     }
     updateDeflects(scene, bot, target, difficulty, now);
     if (counterLanded(bot, target)) bot.botBlockUntil = 0;
+    if (difficulty.dodgeSpecials && sledgeSwingComing(bot, target, distance, now)) {
+        bot.botBlockUntil = 0;
+        bot.botBlockReactAt = null;
+    }
     bot.botWantsBlock = now < (bot.botBlockUntil ?? 0) && (bot.shield ?? 1) > BOT_BLOCK_MIN_SHIELD;
 }
 
@@ -774,7 +787,8 @@ export function runBotAI(scene, bot, target, fiveframecount) {
     }
 
     // Back off from a dir special that's already coming at us.
-    const specialComing = (target.isUsingSideSpecial && distance < 200) || grabComingAt(bot, target, distance);
+    const specialComing = (target.isUsingSideSpecial && distance < 200) || grabComingAt(bot, target, distance) ||
+        sledgeSwingComing(bot, target, distance, now);
     if (difficulty.dodgeSpecials && specialComing && !targetOffStage) {
         if (!walk(scene, bot, -side, surfaces) && grounded &&
             now - bot.lastJump > 500) {

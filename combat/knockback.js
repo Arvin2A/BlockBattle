@@ -39,6 +39,10 @@ export function jitterVictim(target, intensity, ms) {
     target.jitterUntil = Math.max(target.jitterUntil ?? 0, until);
 }
 
+export function isVictimShaking(scene, fighter) {
+    return (fighter.victimShake ?? 0) > 0 || scene.time.now < (fighter.jitterUntil ?? 0);
+}
+
 export function applyVictimShakes(scene, fighters) {
     const frozen = scene.hitFreezeUntil > scene.time.now;
     for (const fighter of fighters) {
