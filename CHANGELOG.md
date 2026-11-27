@@ -22,7 +22,7 @@
 - TRAPPER's HARPOON DIVE dives 15° off straight down, toward where he faces. Running into a fighter, or landing with one within 80px to the side (130px up or down), starts a flurry of 8 rapid harpoon stabs (each playing his harpoon jab) with LEGACY SCYTHEMAN's slash effect and sound (10% total), then a 12% launch down along the dive's angle. A fighter on the ground gets launched up along that angle instead, so it can't be stunlocked. It still needs a harpoon and only uses one when it lands.
 
 ### Fixed
-- Turning around during an attack's windup (SPIKES, MALLET and SLEDGEHAMMER swings, ANGLER's net throw, HOOKER's grab) no longer sends the hit the other way while the weapon still points the original direction.
+- Turning around after starting an attack or special no longer sends its hit the other way while the weapon still points the original direction. Your aim stays locked from the moment you start a swing until it's done, through every windup and delayed hit (SPIKES, MALLET's and SLEDGEHAMMER's swings, QUICK DRAW, SIPHONING REPAIR, QUICKSLAM, ANGLER's net, HOOKER's grab, and dashing specials like CLEAVE). A new attack still aims wherever you're holding when it starts.
 - A weapon's position and angle stay put for the whole swing animation. Turning or pressing up/down mid-swing used to snap it to the new direction partway through.
 - LUMBERER's power swings (CLEAVE and the up/down POWER SWING) lock his attacks for exactly 0.4s after they land. Every missed check during the swing used to add more lockout, so he could be stuck for almost a second.
 - TRAPPER's empty-handed third punch launches grounded fighters strongly upward. Its weak launch could leave them on the floor for an endless punch stunlock.

@@ -2547,7 +2547,7 @@ function inputAim(input) {
 }
 
 function aimFromInput(player, input) {
-    if (player.isBot || player.aimLock || player.moveDirLock) return;
+    if (player.isBot || player.aimLock || player.moveDirLock || player.isUsingSideSpecial) return;
     const aim = inputAim(input);
     if (!aim) return;
     player.lastDir = aim;
@@ -2558,7 +2558,7 @@ function updateFacing(player, input) {
     const pose = getAttackPose(player);
     if (player.aimLock) player.lastDir = { ...player.aimLock };
     else if (player.moveDirLock) player.lastDir = { x: player.moveDirLock, y: 0 };
-    else if (!pose) player.lastDir = inputAim(input) ?? player.lastDir;
+    else if (!pose && !player.isUsingSideSpecial) player.lastDir = inputAim(input) ?? player.lastDir;
     if (player.lastDir.x) player.facingX = Math.sign(player.lastDir.x);
     if (player.activeGrab) return;
     if (pose && typeof player.atkAngleOverride !== 'number') {

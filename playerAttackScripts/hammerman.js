@@ -257,11 +257,15 @@ function tryRepair(api, scene, player, target, direction, currentTime) {
             player.KBmultiplier -= hasAttacked ? REPAIR_SIPHON_HEAL : REPAIR_BASE_HEAL;
             spawnRepairBox();
         };
+        const unlockAim = api.lockAimDuringWindup(player);
         scene.time.delayedCall(300, () => {
             repairStrike();
             scene.time.delayedCall(100, () => {
                 repairStrike();
-                scene.time.delayedCall(150, repairStrike);
+                scene.time.delayedCall(150, () => {
+                    repairStrike();
+                    unlockAim();
+                });
             });
         });
         api.startSideSpecialCooldown(player, currentTime, repairCD);
@@ -438,7 +442,7 @@ function quickslam2(api, scene, attacker, target, animKey = 'sledgehammerquicksl
         if (attacker.moveDirLock === sideX) attacker.moveDirLock = null;
     });
     //The second quickslam is the aerial version, instead of sending the target flying up, it sends them flying down.
-    scene.time.delayedCall(50, () => {
+    api.afterWindup(scene, attacker, 50, () => {
         const aim = target?.active ? aimAt(attacker, target) : attacker.lastDir;
         const hit = api.strike(scene, attacker, target, {
             special: true,
@@ -483,7 +487,7 @@ function trySledgeDownSlam(api, scene, attacker, target, currentTime) {
     const facing = attacker.lastDir.x || attacker.facingX || 1;
     attacker.lastDir = { x: facing, y: 0 };
     api.setAttackSprite(attacker, 'sledgehammerquickslam2');
-    scene.time.delayedCall(50, () => {
+    api.afterWindup(scene, attacker, 50, () => {
         if (!attacker.active || attacker.hitstun) return;
         api.strike(scene, attacker, target, {
             special: true,

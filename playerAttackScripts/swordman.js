@@ -81,7 +81,7 @@ function parryDraw(api, scene, player, attacker) {
     player.blockPosePlayed = true;
     api.setAttackSprite(player, 'sheatheatk');
     scene.sound.play(QUICK_DRAW.sound);
-    scene.time.delayedCall(QUICK_DRAW.hitDelayMs, () => {
+    api.afterWindup(scene, player, QUICK_DRAW.hitDelayMs, () => {
         if (!player.active || !api.getEnemies(scene, player).includes(attacker)) return;
         api.strike(scene, player, attacker, {
             special: true,
@@ -116,8 +116,10 @@ function quickDraw(api, scene, player, victim) {
     player.setVelocityX(0);
     api.setAttackSprite(player, 'sheatheatkwindup');
     const sequence = player.attackSequence;
+    const unlockAim = api.lockAimDuringWindup(player);
     let stopWatching = () => {};
     const release = () => {
+        unlockAim();
         stopWatching();
         player.drawing = false;
         player.inputLocked = false;
@@ -129,7 +131,7 @@ function quickDraw(api, scene, player, victim) {
         player.combo = 0;
         api.setAttackSprite(player, 'sheatheatk');
         scene.sound.play(QUICK_DRAW.sound);
-        scene.time.delayedCall(QUICK_DRAW.hitDelayMs, () => {
+        api.afterWindup(scene, player, QUICK_DRAW.hitDelayMs, () => {
             if (!player.active || player.hitstun) return;
             api.strike(scene, player, victim, { ...QUICK_DRAW.slash, special: true });
         });
