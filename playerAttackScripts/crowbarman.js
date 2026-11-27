@@ -297,6 +297,7 @@ function tryGrab(api, scene, attacker, target, direction, currentTime, animKey =
         if (isGrounded(attacker)) attacker.setVelocityX(attacker.body.velocity.x * GRAB_WINDUP_SPEED_SCALE);
 
         let interrupted = false;
+        const unlockAim = api.lockAimDuringWindup(attacker);
         const removeInterruptCheck = api.addSceneUpdateListener(scene, () => {
             if (attacker.hitstun) interrupted = true;
         });
@@ -306,6 +307,7 @@ function tryGrab(api, scene, attacker, target, direction, currentTime, animKey =
         scene.time.delayedCall(GRAB_WINDUP_MS, () => {
             attacker.grabWindingUp = false;
             removeInterruptCheck();
+            unlockAim();
             if (interrupted) {
                 attacker.atkAngleOverride = null;
                 api.hideAttackSprite(attacker);

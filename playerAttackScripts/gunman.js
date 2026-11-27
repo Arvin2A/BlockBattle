@@ -12,6 +12,7 @@ const MINI_SUPPRESS_MS = 150;
 const MINI_DURATION_MS = 1000;
 
 const SHOT_SHIELD_COST = 0.05;
+const EXPLOSION_KNOCKBACK = { x: 600 * 0.75, y: 600 * 0.75 / 2, lift: 220 * 0.75 / 2 };
 const EXPLOSION_SHIELD_COST = 0.4;
 
 function playShotAnimation(
@@ -210,7 +211,12 @@ function reflectShot(api, scene, gunman, reflector, damage, isExplosion) {
         hitstun: isExplosion ? 300 : 0,
         sound: isExplosion ? 'explosion' : null,
         knockback: isExplosion
-            ? ({ kb, damageScale }) => ({ x: direction.x * 600 * kb * damageScale, y: direction.y === 0 ? -220 : direction.y * 600 * kb * damageScale })
+            ? ({ kb, damageScale }) => ({
+                x: direction.x * EXPLOSION_KNOCKBACK.x * kb * damageScale,
+                y: direction.y === 0
+                    ? api.capHorizontalLaunchY(-EXPLOSION_KNOCKBACK.lift * kb * damageScale)
+                    : direction.y * EXPLOSION_KNOCKBACK.y * kb * damageScale
+            })
             : null,
         decelerateAfter: isExplosion ? 800 : null,
         resetCombo: false,
@@ -283,10 +289,13 @@ function handleShot(api, scene, attacker, victim, options = {}) {
             const side = shotDir.x || Math.sign(victim.x - attacker.x) || 1;
             api.applyKnockback(scene, victim, side * options.chipKnockbackX, victim.body.velocity.y);
         } else {
-            const knockback = (isExplosion ? 600 : 0) * victim.KBmultiplier * damageScale;
-            const verticalKick = shotDir.y === 0
-                ? (isExplosion ? -220 : 0)
-                : shotDir.y * knockback;
+            const scale = victim.KBmultiplier * damageScale;
+            const knockback = (isExplosion ? EXPLOSION_KNOCKBACK.x : 0) * scale;
+            const verticalKick = !isExplosion
+                ? 0
+                : shotDir.y === 0
+                    ? api.capHorizontalLaunchY(-EXPLOSION_KNOCKBACK.lift * scale)
+                    : shotDir.y * EXPLOSION_KNOCKBACK.y * scale;
 
             api.applyKnockback(
                 scene,

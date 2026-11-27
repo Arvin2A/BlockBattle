@@ -158,8 +158,8 @@ export class MenuScene extends Phaser.Scene {
                         body: "Online lobbies have an invite link now. Hit COPY LINK, send it to a friend, and opening it drops them right into your lobby, even a private one."
                     },
                     {
-                        title: "BOT MASTER IN ORDER",
-                        body: "BOT MASTER levels have to be done in order now. The CPU card tells you which level you need to finish first."
+                        title: "BOT MASTER IV",
+                        body: "BOT MASTER IV doesn't have a reward for now, so it shows NONE instead of ???."
                     },
                     {
                         title: "GAME STAMP",

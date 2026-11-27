@@ -85,7 +85,7 @@ export const CHARACTER_ROSTER = [
             {
                 name: 'MALLET',
                 desc: 'EVERY hit is a knockback attack.',
-                abilities: 'NEUTRAL SPECIAL: STEEL PLANK \n\n Put up a steel wall in front of you, up to 2 at a time. Your swings go right through your own walls. \n\n{changed@2026-11-27}SIDE SPECIAL: SIPHONING REPAIR \n\n Let out a flurry of 3 strikes that siphon KB from your foe! Each strike heals you 3.75% KB, or 18.75% if it lands.{/changed} \n\n{new@2026-11-27}UP / DOWN SPECIAL: TRIPLE DASH \n\n Three short dashes at 45° up or down, swinging the mallet at each stop: forward, backward, forward. The first two hold them in place (6% each), the last one launches them along the dash (12%).{/new}',
+                abilities: 'NEUTRAL SPECIAL: STEEL PLANK \n\n Put up a steel wall in front of you, up to 2 at a time. Your swings go right through your own walls. \n\n{changed@2026-11-27}SIDE SPECIAL: SIPHONING REPAIR \n\n Let out a flurry of 3 strikes that siphon KB from your foe! Each strike heals you 3.75% KB, or 18.75% if it lands.{/changed} \n\n{new@2026-11-27}UP / DOWN SPECIAL: TRIPLE DASH \n\n Three short dashes at 45° up or down, swinging the mallet at each stop: forward, backward, forward. The first swing that lands (6%) grabs them and drags them along in front of the mallet, so they take every swing after it, and the last one launches them along the dash (12%).{/new}',
                 color: '#3da115'
             },
             {

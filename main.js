@@ -2450,6 +2450,7 @@ function handleAttackInput(scene, player, input, victim) {
     if (inputMode[player.slot] !== 'keyboard' && !mobileControls[player.slot]?.attack) {
         dimMobileButtons(scene, player.slot);
     }
+    if (player.canAttack && now >= (player.nextAttackTime ?? 0)) aimFromInput(player, input);
     if (toggleAttack) {
         handleAttack(scene, player, victim);
     } else if (now - player.lastInput.up < tiltThreshold) {
@@ -2537,16 +2538,29 @@ function updateFighterBookkeeping(scene, player) {
     });
 }
 
+function inputAim(input) {
+    if (input.left) return { x: -1, y: 0 };
+    if (input.right) return { x: 1, y: 0 };
+    if (input.up) return { x: 0, y: -1 };
+    if (input.down) return { x: 0, y: 1 };
+    return null;
+}
+
+function aimFromInput(player, input) {
+    if (player.isBot || player.aimLock || player.moveDirLock) return;
+    const aim = inputAim(input);
+    if (!aim) return;
+    player.lastDir = aim;
+    player.facingX = aim.x || player.facingX;
+}
+
 function updateFacing(player, input) {
+    const pose = getAttackPose(player);
     if (player.aimLock) player.lastDir = { ...player.aimLock };
     else if (player.moveDirLock) player.lastDir = { x: player.moveDirLock, y: 0 };
-    else if (input.left) player.lastDir = { x: -1, y: 0 };
-    else if (input.right) player.lastDir = { x: 1, y: 0 };
-    else if (input.up) player.lastDir = { x: 0, y: -1 };
-    else if (input.down) player.lastDir = { x: 0, y: 1 };
+    else if (!pose) player.lastDir = inputAim(input) ?? player.lastDir;
     if (player.lastDir.x) player.facingX = Math.sign(player.lastDir.x);
     if (player.activeGrab) return;
-    const pose = getAttackPose(player);
     if (pose && typeof player.atkAngleOverride !== 'number') {
         player.atk.setAngle(pose.angle).setFlipX(pose.flipX);
     } else if (player.lastDir.y === 0) {
@@ -2619,6 +2633,7 @@ function handleMovementInput(scene, player, input, victim) {
     }
     if (specialPressed) {
         if (!consumePress(input, 'special')) markKeyboardInput(scene, slot);
+        aimFromInput(player, input);
         if (specialDirection && !leftPressed && !rightPressed) {
             handleDirSpecial(scene, player, specialDirection, now, victim, true);
         } else if (!specialDirection) {

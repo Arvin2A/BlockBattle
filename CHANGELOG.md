@@ -7,6 +7,8 @@
 - SLEDGEHAMMER's THICK STEEL PLANK gets a final stand: when an attack breaks it, that attack is still stopped, whether it's a swing, a thrown weapon or a beam.
 
 ### Changed
+- BOT MASTER IV's reward shows NONE instead of ???.
+- CRAZER's 5th shot explosion knockback grows with KB in every direction now (its upward kick used to stay the same), at 3/4 of its old strength, with half as much upward or downward power.
 - CRAZER's RECOIL BLAST pierces walls and fighters. It hits for 50% (was 40% up, 25% side and down), and each wall or fighter it goes through takes 40% off its damage and knockback for everything behind it, walls included. Wooden and MALLET walls break and let it through; a SLEDGEHAMMER wall breaks at full power but always stops the beam. Map platforms still stop it.
 - Attacking while aiming down (or holding down) and down tilts are a SPIKE now, replacing the downward jab, push and down tilt for every fighter except GUNMAN, DEMOLITIONIST, CHAINSAW and LAWNMOWER (it doesn't replace the combo's 3rd hit). A 300ms windup winds the fighter back 10°, then leans them smoothly to 35° forward with the weapon pointed 25° lower (in the air they speed up and fall faster while leaning in), then a wide swing (170px, hitting anything in front, including low) that always faces left or right launches them 65° downward the way you face, for 5% (TRAPPER's armed stab keeps its damage). The down tilt version keeps the tilt's damage and a fixed launch. A fighter on the ground gets sent 65° upward instead, so it can't stunlock.
 - TRAPPER's SPEARFISH ends with the same 8-stab flurry (10% total) on whoever it skewered, right before flinging them.
@@ -20,6 +22,7 @@
 - TRAPPER's HARPOON DIVE dives 15° off straight down, toward where he faces. Running into a fighter, or landing with one within 80px to the side (130px up or down), starts a flurry of 8 rapid harpoon stabs (each playing his harpoon jab) with LEGACY SCYTHEMAN's slash effect and sound (10% total), then a 12% launch down along the dive's angle. A fighter on the ground gets launched up along that angle instead, so it can't be stunlocked. It still needs a harpoon and only uses one when it lands.
 
 ### Fixed
+- Turning around during an attack's windup (SPIKES, MALLET and SLEDGEHAMMER swings, ANGLER's net throw, HOOKER's grab) no longer sends the hit the other way while the weapon still points the original direction.
 - A weapon's position and angle stay put for the whole swing animation. Turning or pressing up/down mid-swing used to snap it to the new direction partway through.
 - LUMBERER's power swings (CLEAVE and the up/down POWER SWING) lock his attacks for exactly 0.4s after they land. Every missed check during the swing used to add more lockout, so he could be stuck for almost a second.
 - TRAPPER's empty-handed third punch launches grounded fighters strongly upward. Its weak launch could leave them on the floor for an endless punch stunlock.
@@ -41,7 +44,6 @@
 - TRAPPER's 1st and 2nd harpoon jabs shove the target 145px forward and dash him after them (1600 speed, stopping 80px short) when they land, so the 3rd hit, the pin, lines up.
 - ANGLER's hook can be cast up (it pulls him up to a platform or reels a fighter down) and down (it reels anyone below up to him in a straight line for 15%, and never latches onto platforms).
 - CPUs: EASY and NORMAL don't grab ledges or edgeguard; NORMAL blocks more (30%) and now dodges GUNMAN's MINI; HARD edgeguards and grabs ledges; VERY HARD blocks 70% of the time (was 50%). Ledge grabs only catch the outer edges of the main stage.
-- BOT MASTER levels have to be done in order: a level's progress doesn't count until the one before it is done, and the CPU card shows which level is required.
 - The GAME! screen slams in like a stamp, with a screen shake, an echo and a new sound.
 - GUNMAN's SHOTGUN has its own sound.
 - The modifier achievement warning only shows in VS CPU.
@@ -58,7 +60,7 @@
   - TRAPPER: SPEARFISH (up) rises at a 30° angle toward where he faces with the harpoon pointed that way, skewers the first fighter in its path (6%), carries them and flings them along that angle (10%). HARPOON DIVE (down, air only) dives harpoon-first diagonally into a stab flurry (see below). Both need a harpoon and use one only when they land.
   - LANDSCAPER: UP REAP winds the scythe back for 0.38s, then reaps over his head; a fighter above takes 15% and gets slammed down, pinned. WHIRL DROP (down, air only) falls fast with the scythe spinning around him and pins whoever he lands on (15%).
   - LAWNMOWER: LAUNCH (up) tilts the mower 45° up for 0.5s while the engine revs and dirt turns to gold sparks, then the mower explodes (used up) and he headbutts diagonally up (18%, huge knockback), slowing into a gentle fall. CRASH RIDE (down, air only) drops him riding the mower sideways like a skateboard; landing on a fighter grinds them for 0.45s then explodes (20%, mower used up), landing on the floor bounces him back off it.
-  - MALLET: a 3-stop dash at 45° up or down, swinging forward, backward, forward. The first two hold (6% each), the last launches along the dash (12%).
+  - MALLET: a 3-stop dash at 45° up or down, swinging forward, backward, forward. The first swing that lands (6%) grabs them and carries them in front of the mallet through the rest of the dash, taking every swing after it, and the last one launches them along the dash (12%).
   - SLEDGEHAMMER: DOWN SLAM (down), a quick slam in front of and below him for 15%. WHIRLWIND (up) spins the sledgehammer around him, slightly tilted toward where he faces, while he rises straight up fast. He always rises the same height (340px) and stops dead at the top. It hits 3 times in just over half a second: the first two catch anyone near him (5% each) and carry them up with him; the third launches them (12%) the way he's facing, mostly sideways (700 across, 250 up). It's synced to a sped-up twirling sound, and hits land with a deeper thud.
   - SLATE: PLUNGEDASH, a quick 45° dash up or down with the dagger out that applies PLUNGED (7.5%).
   - HOOKER: up grabs above him and the fling slams them down; down grabs below him and flings them up.

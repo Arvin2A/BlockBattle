@@ -12,7 +12,7 @@ const BOT_MASTER_LEVELS = [
     { id: 'BOT_MASTER_I', numeral: 'I', difficulty: 'EASY', reward: 'NONE' },
     { id: 'BOT_MASTER_II', numeral: 'II', difficulty: 'NORMAL', reward: 'NONE' },
     { id: 'BOT_MASTER_III', numeral: 'III', difficulty: 'HARD', reward: 'NONE' },
-    { id: 'BOT_MASTER_IV', numeral: 'IV', difficulty: 'VERY HARD', reward: '???' }
+    { id: 'BOT_MASTER_IV', numeral: 'IV', difficulty: 'VERY HARD', reward: 'NONE' }
 ];
 
 const BOT_TARGETS = CHARACTER_ROSTER.flatMap(character =>
@@ -261,11 +261,7 @@ export function getRequiredAchievement(achievement) {
         const unlock = ACHIEVEMENTS.find(each => each.unlocks?.character === achievement.masteryOf);
         return unlock && !isAchievementDone(unlock) ? unlock : null;
     }
-    if (!achievement.botDifficulty) return null;
-    const index = BOT_MASTER_LEVELS.findIndex(level => level.id === achievement.id);
-    if (index <= 0) return null;
-    const previous = ACHIEVEMENTS.find(each => each.id === BOT_MASTER_LEVELS[index - 1].id);
-    return previous && !isAchievementDone(previous) ? previous : null;
+    return null;
 }
 
 export function isAchievementLocked(achievement) {

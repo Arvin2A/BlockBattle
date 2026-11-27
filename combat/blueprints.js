@@ -65,8 +65,18 @@ export function recoverAfterAttack(scene, attacker, { hideAfter = 250, recovery 
     });
 }
 
+export function lockAimDuringWindup(attacker) {
+    if (attacker.aimLock) return () => { };
+    const aim = { ...attacker.lastDir };
+    attacker.aimLock = aim;
+    return () => {
+        if (attacker.aimLock === aim) attacker.aimLock = null;
+    };
+}
+
 export function afterWindup(scene, attacker, delay, onRelease, { interruptible = false, onInterrupt = null } = {}) {
     const windup = { interrupted: false };
+    const unlockAim = lockAimDuringWindup(attacker);
     const removeCheck = interruptible
         ? addSceneUpdateListener(scene, () => {
             if (attacker.hitstun) windup.interrupted = true;
@@ -74,8 +84,12 @@ export function afterWindup(scene, attacker, delay, onRelease, { interruptible =
         : () => { };
     scene.time.delayedCall(delay, () => {
         removeCheck();
-        if (windup.interrupted) onInterrupt?.();
-        else onRelease();
+        try {
+            if (windup.interrupted) onInterrupt?.();
+            else onRelease();
+        } finally {
+            unlockAim();
+        }
     });
     return windup;
 }

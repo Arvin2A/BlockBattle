@@ -65,6 +65,7 @@ import {
     scheduleDecelerate,
     recoverAfterAttack,
     afterWindup,
+    lockAimDuringWindup,
     playHitSound
 } from './combat/blueprints.js';
 
@@ -587,6 +588,7 @@ const sharedAttackHelpers = {
     STANDARD_HITS,
     recoverAfterAttack,
     afterWindup,
+    lockAimDuringWindup,
     scheduleDecelerate,
     clearQueuedStunTimers,
     queueStunRelease,

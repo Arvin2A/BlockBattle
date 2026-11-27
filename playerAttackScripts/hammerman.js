@@ -666,6 +666,8 @@ const MALLET_DASH = {
     endSlowdown: 3,
     range: 130,
     minDot: 0.2,
+    carryDistance: 70,
+    carryHoldMs: 150,
     hit: {
         damage: 0.06,
         plankDamage: 0,
@@ -689,22 +691,45 @@ const MALLET_DASH = {
     }
 };
 
-function malletDashStop(api, scene, player, victim, aim, stop) {
+function carryMalletVictim(scene, player, foe, aim) {
+    foe.body.setAllowGravity(false);
+    foe.setVelocity(0, 0);
+    foe.setPosition(player.x + aim.x * MALLET_DASH.carryDistance, player.y + aim.y * MALLET_DASH.carryDistance);
+    foe.hitstunUntil = Math.max(foe.hitstunUntil ?? 0, scene.time.now + MALLET_DASH.carryHoldMs);
+    foe.willDecelerate = false;
+}
+
+function releaseMalletVictim(foe) {
+    if (foe?.body) foe.body.setAllowGravity(true);
+}
+
+function malletDashStop(api, scene, player, victim, aim, stop, dashState) {
     const last = stop === MALLET_DASH.stops - 1;
     player.setVelocity(0, 0);
     api.setAttackSprite(player, 'hammeratk');
     if (stop === 1) player.atk.playReverse('hammeratk', true);
     player.atk.setAngle(player.atkAngleOverride);
     scene.sound.play('swosh', { volume: 0.6 });
+    const spec = { special: true, ...(last ? MALLET_DASH.finalHit : MALLET_DASH.hit), direction: aim };
+    const carried = dashState.carried;
+    if (carried) {
+        carryMalletVictim(scene, player, carried, aim);
+        if (last) {
+            releaseMalletVictim(carried);
+            dashState.carried = null;
+        }
+        api.landHit(scene, player, carried, spec);
+        api.clearQueuedStunTimers(scene, player, carried);
+        return;
+    }
     const bypass = { ignoreCanAttack: true, allowTargetBelow: true, direction: aim, minDot: MALLET_DASH.minDot };
-    const hit = api.strike(scene, player, victim, {
-        special: true,
-        ...(last ? MALLET_DASH.finalHit : MALLET_DASH.hit),
-        range: MALLET_DASH.range,
-        bypass,
-        direction: aim
-    });
-    if (hit) api.clearQueuedStunTimers(scene, player, victim);
+    const hit = api.strike(scene, player, victim, { ...spec, range: MALLET_DASH.range, bypass });
+    if (!hit) return;
+    api.clearQueuedStunTimers(scene, player, victim);
+    if (!last) {
+        dashState.carried = victim;
+        carryMalletVictim(scene, player, victim, aim);
+    }
 }
 
 function tryMalletDash(api, scene, player, victim, direction, currentTime) {
@@ -715,23 +740,40 @@ function tryMalletDash(api, scene, player, victim, direction, currentTime) {
     const dirY = direction === 'up' ? -1 : 1;
     const aim = { x: dirX * Math.cos(MALLET_DASH.angle), y: dirY * Math.sin(MALLET_DASH.angle) };
     const sequence = (player.malletDashSequence ?? 0) + 1;
+    const dashState = { carried: null };
     player.malletDashSequence = sequence;
     player.malletDashing = true;
     player.isUsingSideSpecial = true;
     player.hasHitSideSpecial = true;
     player.afterimage = true;
-    player.lastDir = { x: dirX, y: 0 };
+    player.lastDir = { ...aim };
+    player.aimLock = { ...aim };
     player.atkAngleOverride = dirX * dirY * MALLET_DASH.angle * 180 / Math.PI;
     player.body.setAllowGravity(false);
     scene.sound.play('lunge');
 
     const stillDashing = () => player.malletDashSequence === sequence && player.active && !player.hitstun;
+    const removeUpdate = api.addSceneUpdateListener(scene, () => {
+        const foe = dashState.carried;
+        if (!foe) return;
+        if (!stillDashing() || !foe.active || foe.eliminated) {
+            releaseMalletVictim(foe);
+            dashState.carried = null;
+            return;
+        }
+        carryMalletVictim(scene, player, foe, aim);
+    });
     const finish = () => {
         if (player.malletDashSequence !== sequence || !player.malletDashing) return;
+        removeUpdate();
+        releaseMalletVictim(dashState.carried);
+        dashState.carried = null;
         player.malletDashing = false;
         player.isUsingSideSpecial = false;
         player.afterimage = false;
         player.atkAngleOverride = null;
+        player.aimLock = null;
+        player.lastDir = { x: dirX, y: 0 };
         player.body.setAllowGravity(true);
         if (!player.hitstun) {
             player.setVelocity(player.body.velocity.x / MALLET_DASH.endSlowdown, player.body.velocity.y / MALLET_DASH.endSlowdown);
@@ -749,7 +791,7 @@ function tryMalletDash(api, scene, player, victim, direction, currentTime) {
                 finish();
                 return;
             }
-            malletDashStop(api, scene, player, victim, aim, stop);
+            malletDashStop(api, scene, player, victim, aim, stop, dashState);
             if (stop === MALLET_DASH.stops - 1) {
                 scene.time.delayedCall(MALLET_DASH.pauseMs, finish);
                 return;
