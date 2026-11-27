@@ -58,6 +58,7 @@ export const GOLD_TEXTURES = [
     { key: 'whitescythe', path: 'assets/sprites/scytheman/whitescythe-gold.png' },
     { key: 'hammeratk', path: 'assets/sprites/hammerman/malletswing1.1-gold.png', frame: [200, 100] },
     { key: 'hammeratkheal', path: 'assets/sprites/hammerman/malletswing1.2-gold.png', frame: [130, 75] },
+    { key: 'hammerdash', path: 'assets/sprites/hammerman/malletswing1.3-gold.png', frame: [100, 100] },
     { key: 'slateatk1', path: 'assets/sprites/rockman/slateatk1.1-gold.png', frame: [130, 100] },
     { key: 'slateatktilt', path: 'assets/sprites/rockman/slateatktilt-gold.png', frame: [75, 75] },
     { key: 'slateplunge', path: 'assets/sprites/rockman/slateplunge1.1-gold.png', frame: [130, 100] },

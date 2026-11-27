@@ -464,6 +464,7 @@ function quickslam2(api, scene, attacker, target, animKey = 'sledgehammerquicksl
 }
 const SLEDGE_DOWN_SLAM = {
     range: 200,
+    extraDownReach: 50,
     minDot: 0.2,
     aim: { x: 0.8, y: 0.6 },
     damage: 0.15,
@@ -487,19 +488,31 @@ function trySledgeDownSlam(api, scene, attacker, target, currentTime) {
     api.setAttackSprite(attacker, 'sledgehammerquickslam2');
     api.afterWindup(scene, attacker, 50, () => {
         if (!attacker.active || attacker.hitstun) return;
-        api.strike(scene, attacker, target, {
-            special: true,
-            range: SLEDGE_DOWN_SLAM.range,
-            direction: { x: facing * SLEDGE_DOWN_SLAM.aim.x, y: SLEDGE_DOWN_SLAM.aim.y },
-            bypass: { ignoreCanAttack: true, allowTargetBelow: true, minDot: SLEDGE_DOWN_SLAM.minDot },
-            damage: SLEDGE_DOWN_SLAM.damage,
-            hitstun: SLEDGE_DOWN_SLAM.hitstun,
-            hitFreeze: SLEDGE_DOWN_SLAM.hitFreeze,
-            sound: 'sledgehammerquickslam',
-            knockback: sledgeDownSlamKnockback,
-            decelerateAfter: target => SLEDGE_DOWN_SLAM.hitstun * target.KBmultiplier,
-            resetCombo: false
-        });
+        const inReach = foe => {
+            const dy = foe.y - attacker.y;
+            const reachDy = dy > 0 ? Math.max(0, dy - SLEDGE_DOWN_SLAM.extraDownReach) : dy;
+            return Math.hypot(foe.x - attacker.x, reachDy) <= SLEDGE_DOWN_SLAM.range;
+        };
+        let plankDamage = SLEDGE_DOWN_SLAM.damage;
+        for (const foe of api.getEnemies(scene, attacker).filter(inReach)) {
+            api.strike(scene, attacker, foe, {
+                special: true,
+                singleTarget: true,
+                plankDamage,
+                range: SLEDGE_DOWN_SLAM.range + SLEDGE_DOWN_SLAM.extraDownReach,
+                direction: { x: facing * SLEDGE_DOWN_SLAM.aim.x, y: SLEDGE_DOWN_SLAM.aim.y },
+                bypass: { ignoreCanAttack: true, allowTargetBelow: true, minDot: SLEDGE_DOWN_SLAM.minDot },
+                damage: SLEDGE_DOWN_SLAM.damage,
+                hitstun: SLEDGE_DOWN_SLAM.hitstun,
+                hitFreeze: SLEDGE_DOWN_SLAM.hitFreeze,
+                sound: 'sledgehammerquickslam',
+                knockback: sledgeDownSlamKnockback,
+                decelerateAfter: target => SLEDGE_DOWN_SLAM.hitstun * target.KBmultiplier,
+                resetCombo: false
+            });
+            plankDamage = 0;
+        }
+        if (plankDamage) api.damagePlanksInAttack(attacker, plankDamage * api.getAttackDamageScale(attacker));
         attacker.canAttack = true;
     });
 }
@@ -690,6 +703,7 @@ const MALLET_DASH = {
     minDot: 0.2,
     carryDistance: 70,
     carryHoldMs: 150,
+    swing: { anim: 'hammerdash', segmentEnds: [4, 8, 12], endHoldMs: 300 },
     hit: {
         damage: 0.06,
         plankDamage: 0,
@@ -725,11 +739,49 @@ function releaseMalletVictim(foe) {
     if (foe?.body) foe.body.setAllowGravity(true);
 }
 
+function malletDashSwing(api, player, stop, dashState) {
+    const atk = player.atk;
+    const holdAt = MALLET_DASH.swing.segmentEnds[stop];
+    const sequence = dashState.swingSequence;
+    const continuing = stop > 0 && atk.anims.isPaused && player.attackSequence === sequence;
+    if (continuing) {
+        atk.anims.resume();
+    } else {
+        api.setAttackSprite(player, MALLET_DASH.swing.anim);
+        dashState.swingSequence = player.attackSequence;
+        const startFrame = stop > 0 ? MALLET_DASH.swing.segmentEnds[stop - 1] : 0;
+        if (startFrame) atk.play({ key: MALLET_DASH.swing.anim, startFrame });
+    }
+    atk.setFlipY(dashState.flipY);
+    const last = stop === MALLET_DASH.stops - 1;
+    const swingSequence = dashState.swingSequence;
+    const hold = (anim, frame) => {
+        if (player.attackSequence !== swingSequence || anim.key !== MALLET_DASH.swing.anim) {
+            atk.off('animationupdate', hold);
+            return;
+        }
+        if (frame.index - 1 < holdAt) return;
+        atk.off('animationupdate', hold);
+        atk.anims.pause();
+        if (!last) return;
+        dashState.endHolding = true;
+        player.scene.time.delayedCall(MALLET_DASH.swing.endHoldMs, () => endMalletSwing(api, player, dashState));
+    };
+    atk.on('animationupdate', hold);
+}
+
+function endMalletSwing(api, player, dashState) {
+    dashState.endHolding = false;
+    player.atk.setFlipY(false);
+    if (player.attackSequence !== dashState.swingSequence || !player.atk.anims.isPaused) return;
+    player.isAttacking = false;
+    api.hideAttackSprite(player);
+}
+
 function malletDashStop(api, scene, player, victim, aim, stop, dashState) {
     const last = stop === MALLET_DASH.stops - 1;
     player.setVelocity(0, 0);
-    api.setAttackSprite(player, 'hammeratk');
-    if (stop === 1) player.atk.playReverse('hammeratk', true);
+    malletDashSwing(api, player, stop, dashState);
     player.atk.setAngle(player.atkAngleOverride);
     scene.sound.play('swosh', { volume: 0.6 });
     const spec = { special: true, ...(last ? MALLET_DASH.finalHit : MALLET_DASH.hit), direction: aim };
@@ -762,15 +814,16 @@ function tryMalletDash(api, scene, player, victim, direction, currentTime) {
     const dirY = direction === 'up' ? -1 : 1;
     const aim = { x: dirX * Math.cos(MALLET_DASH.angle), y: dirY * Math.sin(MALLET_DASH.angle) };
     const sequence = (player.malletDashSequence ?? 0) + 1;
-    const dashState = { carried: null };
+    const dashState = { carried: null, swingSequence: null, flipY: dirY > 0, endHolding: false };
     player.malletDashSequence = sequence;
     player.malletDashing = true;
     player.isUsingSideSpecial = true;
     player.hasHitSideSpecial = true;
     player.afterimage = true;
-    player.lastDir = { ...aim };
-    player.aimLock = { ...aim };
-    player.atkAngleOverride = dirX * dirY * MALLET_DASH.angle * 180 / Math.PI;
+    player.lastDir = { x: dirX, y: 0 };
+    player.aimLock = { x: dirX, y: 0 };
+    player.clipThroughPlayers = true;
+    player.atkAngleOverride = 0;
     player.body.setAllowGravity(false);
     scene.sound.play('lunge');
 
@@ -788,6 +841,8 @@ function tryMalletDash(api, scene, player, victim, direction, currentTime) {
     const finish = () => {
         if (player.malletDashSequence !== sequence || !player.malletDashing) return;
         removeUpdate();
+        player.clipThroughPlayers = false;
+        if (!dashState.endHolding) endMalletSwing(api, player, dashState);
         releaseMalletVictim(dashState.carried);
         dashState.carried = null;
         player.malletDashing = false;
@@ -853,10 +908,11 @@ export default {
     hitSounds: { light: 'hammerhit' },
     // Mallet swing sheets are drawn facing right and need their own nudge so
     // the arm sits behind the body with the handle out the front.
-    rightFacingAttackSprites: ['hammeratk', 'hammeratkheal', 'whirlwind'],
+    rightFacingAttackSprites: ['hammeratk', 'hammeratkheal', 'whirlwind', 'hammerdash'],
     textureAttackSpriteOffsets: {
         whirlwind: { x: -45, y: 5 },
         hammeratk: { x: -52, y: 20 },
+        hammerdash: { x: -30, y: 12 },
         hammeratkheal: { x: -6, y: -5 }
     },
     handleAttack: attack,

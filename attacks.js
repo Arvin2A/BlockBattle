@@ -257,7 +257,7 @@ export const SPIKE = {
     leanDegrees: 35,
     weaponExtraDegrees: 25,
     launchDegrees: 65,
-    launchSpeed: 750 / 1.35,
+    launchSpeed: 750 * 2 / 1.35,
     range: 170,
     verticalReach: { up: 60, down: 110 },
     poseHoldMs: 150,
@@ -438,7 +438,7 @@ export function spikeAttack(scene, attacker, target, animKey, options = {}) {
     return true;
 }
 
-const UP_TILT_AIM = { degrees: 65, holdMs: 300, extraStunMs: 300 };
+const UP_TILT_AIM = { degrees: 65, holdMs: 300, extraStunMs: 600 };
 
 function aimUpTilt(scene, attacker) {
     const facing = attacker.facingX || Math.sign(attacker.lastDir.x) || 1;

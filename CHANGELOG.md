@@ -2,7 +2,14 @@
 
 ## 2026-11-27
 
+### Added
+- MALLET's up/down special has its own 3-strike swing animation (malletswing1.3), one strike per dash. The down version plays it mirrored vertically. It has a gold version for the MALLET gold skin.
+
 ### Changed
+- SPIKES launch twice as hard (except SLEDGEHAMMER's, which has its own launch).
+- Fighters hit by an up tilt stay unable to act for 0.6s after their hitstun ends (was 0.3s).
+- SLEDGEHAMMER's DOWN SLAM reaches 50px further downward.
+- MALLET's up/down special passes through fighters during the dash, so carrying someone no longer bumps him into a sideways slide.
 - TRAPPER's armed 3rd hit no longer pins. It knocks them away like a normal 3rd hit, but weaker and without growing with KB, and they stay stunned for up to 0.25 seconds after the hitstun. Landing before that ends (or during the hitstun) stuns them for 0.5 seconds instead.
 - PLUNGED lasts about 1.7 seconds (was 2.5) and CHOPPED from LUMBERER's POWER SWING lasts 2 seconds (was 3).
 - SLEDGEHAMMER's big swing can't be interrupted. Getting hit during the windup no longer cancels it, and it still lands on time.

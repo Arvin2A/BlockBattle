@@ -173,6 +173,12 @@ export function createGameAnimations(scene) {
         repeat: 0
     });
     create({
+        key: 'hammerdash',
+        frames: frames('hammerdash', { start: 0, end: 12 }),
+        frameRate: 40,
+        repeat: 0
+    });
+    create({
         key: 'hammeratkheal',
         frames: frames('hammeratkheal', { start: 0, end: 32 }),
         frameRate: 32,

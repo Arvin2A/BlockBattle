@@ -716,6 +716,14 @@ export function preloadFighterSprites() {
         }
     );
     this.load.spritesheet(
+        'hammerdash',
+        'assets/sprites/hammerman/malletswing1.3.png',
+        {
+            frameWidth: 100,
+            frameHeight: 100
+        }
+    );
+    this.load.spritesheet(
         'hammermanintro',
         'assets/sprites/hammerman/malletintro.png',
         {

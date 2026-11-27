@@ -260,8 +260,10 @@ function tryPlungeDash(api, scene, player, target, direction, currentTime) {
     scene.time.delayedCall(PLUNGE_DASH.ms, finish);
 }
 
+const SLIDE_UP_REACH = 50;
+
 function plungeHit(api, scene, attacker, target, dirX, spec) {
-    const bypass = { ignoreCanAttack: true, direction: { x: dirX, y: 0 } };
+    const bypass = { ignoreCanAttack: true, direction: { x: dirX, y: 0 }, verticalReach: { up: SLIDE_UP_REACH, down: Infinity } };
     if (!api.attackIsElligible(attacker, target, spec.range, { ...bypass, silent: true })) return null;
     return api.strike(scene, attacker, target, { special: true, ...spec, power: SIDE_SPECIAL_POWER, bypass, direction: bypass.direction });
 }

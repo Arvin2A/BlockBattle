@@ -20,7 +20,7 @@ var navBox = null;
 var layout = []
 var selectedIndex = 0;
 var previousInput = {};
-const CHANGELOG_VERSION = "2026-11-27-1";
+const CHANGELOG_VERSION = "2026-11-27-2";
 const ONLINE_STATUS_REFRESH_MS = 10000;
 const MIN_VERSION_COLOR_BRIGHTNESS = 170;
 
@@ -116,6 +116,10 @@ export class MenuScene extends Phaser.Scene {
                     {
                         title: "TRAPPER'S NEW FINISHER",
                         body: "TRAPPER's third harpoon stab doesn't pin anymore. It knocks you away like a normal finisher, just softer, and it doesn't get stronger the more damage you have. The catch is you can't do anything for a moment after, unless you land first.\n His empty-handed third punch knocks people away normally now instead of popping them straight up."
+                    },
+                    {
+                        title: "MALLET TRIPLE DASH",
+                        body: "MALLET's up and down special has its own swing animation now: a quick three-strike flurry, one per dash. The first swing that lands drags them along in front of the mallet through the whole thing, and the last one launches them along the dash. He goes right through people while dashing, so carrying someone doesn't knock him off course."
                     },
                     {
                         title: "SPIKES",
