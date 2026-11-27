@@ -1,5 +1,18 @@
 # Changelog
 
+## 2026-11-27
+
+### Changed
+- TRAPPER's armed 3rd hit no longer pins. It knocks them away like a normal 3rd hit, but weaker and without growing with KB, and they stay stunned after the hitstun until they touch the ground.
+- PLUNGED lasts about 1.7 seconds (was 2.5) and CHOPPED from LUMBERER's POWER SWING lasts 2 seconds (was 3).
+- SLEDGEHAMMER's big swing can't be interrupted. Getting hit during the windup no longer cancels it, and it still lands on time.
+- HARD and VERY HARD CPUs back away from SLEDGEHAMMER's big swing when they're in front of him and within its reach.
+- Dash trails and afterimages pause while a fighter is shaking or jittering from a hit.
+
+### Fixed
+- TRAPPER's empty-handed 3rd punch no longer launches grounded fighters straight up.
+- Blocking SLATE's SLIDE or PLUNGEDASH no longer leaves you PLUNGED. Each of their hits only tries once, instead of every frame until your shield broke. Blocking LUMBERER's POWER SWING no longer leaves you CHOPPED.
+
 ## 2026-11-26
 
 ### Added
@@ -7,7 +20,6 @@
 - SLEDGEHAMMER's THICK STEEL PLANK gets a final stand: when an attack breaks it, that attack is still stopped, whether it's a swing, a thrown weapon or a beam.
 
 ### Changed
-- PLUNGED lasts about 1.7 seconds (was 2.5) and CHOPPED from LUMBERER's POWER SWING lasts 2 seconds (was 3).
 - BOT MASTER IV's reward shows NONE instead of ???.
 - CRAZER's 5th shot explosion knockback grows with KB in every direction now (its upward kick used to stay the same), at 3/4 of its old strength, with half as much upward or downward power.
 - CRAZER's RECOIL BLAST pierces walls and fighters. It hits for 50% (was 40% up, 25% side and down), and each wall or fighter it goes through takes 40% off its damage and knockback for everything behind it, walls included. Wooden and MALLET walls break and let it through; a SLEDGEHAMMER wall breaks at full power but always stops the beam. Map platforms still stop it.
@@ -23,7 +35,6 @@
 - TRAPPER's HARPOON DIVE dives 15° off straight down, toward where he faces. Running into a fighter, or landing with one within 80px to the side (130px up or down), starts a flurry of 8 rapid harpoon stabs (each playing his harpoon jab) with LEGACY SCYTHEMAN's slash effect and sound (10% total), then a 12% launch down along the dive's angle. A fighter on the ground gets launched up along that angle instead, so it can't be stunlocked. It still needs a harpoon and only uses one when it lands.
 
 ### Fixed
-- Blocking SLATE's SLIDE or PLUNGEDASH no longer leaves you PLUNGED. Each of their hits only tries once, instead of every frame until your shield broke. Blocking LUMBERER's POWER SWING no longer leaves you CHOPPED.
 - Turning around after starting an attack or special no longer sends its hit the other way while the weapon still points the original direction. Your aim stays locked from the moment you start a swing until it's done, through every windup and delayed hit (SPIKES, MALLET's and SLEDGEHAMMER's swings, QUICK DRAW, SIPHONING REPAIR, QUICKSLAM, ANGLER's net, HOOKER's grab, and dashing specials like CLEAVE). A new attack still aims wherever you're holding when it starts.
 - A weapon's position and angle stay put for the whole swing animation. Turning or pressing up/down mid-swing used to snap it to the new direction partway through.
 - LUMBERER's power swings (CLEAVE and the up/down POWER SWING) lock his attacks for exactly 0.4s after they land. Every missed check during the swing used to add more lockout, so he could be stuck for almost a second.

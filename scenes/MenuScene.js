@@ -20,7 +20,7 @@ var navBox = null;
 var layout = []
 var selectedIndex = 0;
 var previousInput = {};
-const CHANGELOG_VERSION = "2026-11-26-7";
+const CHANGELOG_VERSION = "2026-11-27-1";
 const ONLINE_STATUS_REFRESH_MS = 10000;
 const MIN_VERSION_COLOR_BRIGHTNESS = 170;
 
@@ -106,6 +106,10 @@ export class MenuScene extends Phaser.Scene {
                 date: "11/27/26",
                 entries: [
                     {
+                        title: "TRAPPER'S NEW FINISHER",
+                        body: "TRAPPER's third harpoon stab doesn't pin anymore. It knocks you away like a normal finisher, just softer, and it doesn't get stronger the more damage you have. The catch is you can't do anything until you touch the ground again.\n His empty-handed third punch knocks people away normally now instead of popping them straight up."
+                    },
+                    {
                         title: "TOURNAMENT ON MONDAY",
                         body: "A BLOCK BATTLE tournament starts Monday, 11/30. If you want in, email zamanarvin@sewanhakaschools.org to sign up."
                     },
@@ -119,7 +123,7 @@ export class MenuScene extends Phaser.Scene {
                     },
                     {
                         title: "HARPOON DIVE FLURRY",
-                        body: "TRAPPER's HARPOON DIVE comes in at a steep angle now. Catch someone with it, or land close enough to them, and he unloads 8 quick harpoon stabs before launching them down the same angle. SPEARFISH does the same flurry on whoever he skewers before flinging them. If they're stuck on the ground, they go up instead, so no getting stunlocked into the floor.\n His empty-handed punches can't stunlock people on the ground anymore either. The third punch pops them up."
+                        body: "TRAPPER's HARPOON DIVE comes in at a steep angle now. Catch someone with it, or land close enough to them, and he unloads 8 quick harpoon stabs before launching them down the same angle. SPEARFISH does the same flurry on whoever he skewers before flinging them. If they're stuck on the ground, they go up instead, so no getting stunlocked into the floor."
                     },
                     {
                         title: "SLEDGEHAMMER'S FINAL STAND",
@@ -135,7 +139,7 @@ export class MenuScene extends Phaser.Scene {
                     },
                     {
                         title: "SLEDGEHAMMER WHIRLWIND",
-                        body: "SLEDGEHAMMER finally has his up special. He spins the sledgehammer around himself and shoots straight up, hitting three times on the way.\n Anyone caught by the first two hits gets dragged up with him, and the third sends them flying the way he's facing."
+                        body: "SLEDGEHAMMER finally has his up special. He spins the sledgehammer around himself and shoots straight up, hitting three times on the way.\n Anyone who touches the spin before the last hit gets dragged up with him, and the third hit sends them flying the way he's facing."
                     },
                     {
                         title: "RECOIL BLAST",
@@ -768,7 +772,7 @@ export class MenuScene extends Phaser.Scene {
 
         const changelogBlurb = this.add.text(
             40, 180,
-            "A tournament starts Monday 11/30, email zamanarvin@sewanhakaschools.org to join. Every fighter gets an up and a down special, RECOIL BLAST pierces walls, and mastering a fighter unlocks its gold skin.",
+            "A tournament starts Monday 11/30, email zamanarvin@sewanhakaschools.org to join. Every fighter gets an up and a down special, TRAPPER has a new finisher, and mastering a fighter unlocks its gold skin.",
             {
                 fontFamily: "VCROSD",
                 fontSize: "16px",

@@ -329,14 +329,12 @@ const MAX_STUCK_HARPOONS = 3;
 
 const HARPOON_LEFT_AT = { harpoonatk: 8, harpoonatkthird: 28 };
 
-const PIN_MS = 1000;
-const PIN_SPIKE_SPEED = 1400 / 3;
-const PIN_SPIKE_ANGLE = 45 * Math.PI / 180;
-
-const PIN_IMMUNITY_MS = 1500;
-const PIN_SHIFT = 150;
-const PIN_SHIFT_MS = 120;
-
+const HARPOON_FINISHER = {
+    hitstun: 400,
+    knockback: { x: 380, y: 320, growth: false, onDown: 'popUp' },
+    decelerateAfter: 700,
+    landingStunMs: 100
+};
 
 const PIN_FLOOR_REACH = 40;
 
@@ -358,8 +356,6 @@ function useHarpoon(scene, player) {
     player.harpoons = harpoonsLeft(player) - 1;
     player.nextHarpoonAt ||= scene.time.now + HARPOON_REGEN_MS;
 }
-
-const GROUNDED_POP = { x: 250, y: 800 };
 
 const EMPTY_HANDED_FINISHER = {
     hitstun: 250,
@@ -443,20 +439,12 @@ function harpoonAttack(api, scene, attacker, victim) {
     const damage = armed ? { damage: HARPOON_DAMAGE } : {};
 
     if (attacker.combo >= 2 && !armed) {
-        const grounded = victim?.body && isOnFloor(api, scene, victim);
-        const pop = grounded ? {
-            knockback: ({ attacker: puncher, target }) => ({
-                x: (Math.sign(target.x - puncher.x) || 1) * GROUNDED_POP.x,
-                y: -GROUNDED_POP.y * target.KBmultiplier
-            })
-        } : {};
-        api.thirdAttack(scene, attacker, victim, 'harpoonlessatkthird', { ...EMPTY_HANDED_FINISHER, range, ...pop });
+        api.thirdAttack(scene, attacker, victim, 'harpoonlessatkthird', { ...EMPTY_HANDED_FINISHER, range });
     } else if (attacker.combo >= 2) {
-        const pinned = harpoonPin(api, scene, attacker, victim, 'harpoonatkthird', range);
-        if (pinned !== null) {
+        if (harpoonFinisher(api, scene, attacker, victim, 'harpoonatkthird', range)) {
             useHarpoon(scene, attacker);
             leaveHarpoonBehind(scene, attacker, 'harpoonatkthird', () =>
-                stickHarpoon(api, scene, victim, pinnedHarpoonAngle(attacker), pinned, attacker.skin));
+                stickHarpoon(api, scene, victim, Math.atan2(victim.y - attacker.y, victim.x - attacker.x), attacker.skin));
         }
     } else if (api.aimsDown(attacker)) {
         api.spikeAttack(scene, attacker, victim, sheet, armed ? { hit: { damage: HARPOON_DAMAGE, sound: 'axeslash2' } } : {});
@@ -467,53 +455,34 @@ function harpoonAttack(api, scene, attacker, victim) {
         if (armed && hit) {
             useHarpoon(scene, attacker);
             leaveHarpoonBehind(scene, attacker, 'harpoonatk', () =>
-                stickHarpoon(api, scene, victim, Math.atan2(victim.y - attacker.y, victim.x - attacker.x), false, attacker.skin));
+                stickHarpoon(api, scene, victim, Math.atan2(victim.y - attacker.y, victim.x - attacker.x), attacker.skin));
             harpoonShoveDash(api, scene, attacker, victim);
         }
     }
     attacker.nextAttackTime = scene.time.now + api.getAttackCooldown(attacker);
 }
 
-// Returns null on a miss, otherwise whether the foe got pinned.
-function harpoonPin(api, scene, attacker, target, animKey, range) {
-    const now = scene.time.now;
-    const canPin = now >= (target.pinImmuneUntil ?? 0);
-    const grounded = isOnFloor(api, scene, target);
-    const hit = api.thirdAttack(scene, attacker, target, animKey, {
+function harpoonFinisher(api, scene, attacker, target, animKey, range) {
+    return api.thirdAttack(scene, attacker, target, animKey, {
         range,
         damage: HARPOON_FINISHER_DAMAGE,
-        hitstun: canPin ? PIN_MS : 300,
+        hitstun: HARPOON_FINISHER.hitstun,
         hitstunGrowth: false,
-        noDeathRay: true,
-        holdsOnLanding: true,
-        knockback: () => {
-            if (!canPin || grounded) return { x: 0, y: 0 };
-            const side = Math.sign(target.x - attacker.x) || attacker.lastDir.x || 1;
-            return { x: side * Math.sin(PIN_SPIKE_ANGLE) * PIN_SPIKE_SPEED, y: Math.cos(PIN_SPIKE_ANGLE) * PIN_SPIKE_SPEED };
-        },
-        onHit: () => {
-            if (!canPin) return;
-            target.pinImmuneUntil = now + PIN_MS + PIN_IMMUNITY_MS;
-            if (grounded) target.freezeUntil = now + PIN_MS;
-            shiftPinned(scene, attacker, target);
+        knockback: HARPOON_FINISHER.knockback,
+        decelerateAfter: HARPOON_FINISHER.decelerateAfter,
+        onHit: (hitScene, foe) => stunUntilLanding(api, hitScene, foe)
+    });
+}
+
+function stunUntilLanding(api, scene, target) {
+    const removeWatch = api.addSceneUpdateListener(scene, () => {
+        if (!target.active || target.eliminated || target.outOfBounds) {
+            removeWatch();
+            return;
         }
+        if (target.hitstun) return;
+        if (isOnFloor(api, scene, target) || !api.applyStun(scene, target, HARPOON_FINISHER.landingStunMs)) removeWatch();
     });
-    return hit ? canPin : null;
-}
-
-function shiftPinned(scene, attacker, target) {
-    const facing = attacker.atk.flipX ? -1 : 1;
-    scene.tweens.add({
-        targets: target,
-        x: target.x + facing * PIN_SHIFT,
-        duration: PIN_SHIFT_MS,
-        ease: 'Cubic.easeOut'
-    });
-}
-
-function pinnedHarpoonAngle(attacker) {
-    const facing = attacker.atk.flipX ? -1 : 1;
-    return Math.atan2(1, facing * 0.45);
 }
 
 function leaveHarpoonBehind(scene, attacker, animKey, onLeave) {
@@ -535,12 +504,12 @@ function leaveHarpoonBehind(scene, attacker, animKey, onLeave) {
     atk.on('animationupdate', swap);
 }
 
-function stickHarpoon(api, scene, target, angle, pinned, skin = null) {
+function stickHarpoon(api, scene, target, angle, skin = null) {
     if (!target.active) return;
     const dirX = Math.cos(angle);
     const dirY = Math.sin(angle);
-    const tipY = pinned ? target.body.bottom + 4 : target.y + dirY * 10;
-    const tipX = pinned ? target.x + (tipY - target.y) * (dirX / dirY) : target.x + dirX * 10;
+    const tipY = target.y + dirY * 10;
+    const tipX = target.x + dirX * 10;
     const offsetX = tipX - dirX * HARPOON_TIP - target.x;
     const offsetY = tipY - dirY * HARPOON_TIP - target.y;
     const harpoon = scene.add.image(target.x + offsetX, target.y + offsetY, 'harpoon')
@@ -701,7 +670,7 @@ function spearfish(api, scene, player, currentTime) {
             release();
             api.landHit(scene, player, foe, { ...SPEARFISH.fling, direction: aim });
             useHarpoon(scene, player);
-            stickHarpoon(api, scene, foe, angle, false, player.skin);
+            stickHarpoon(api, scene, foe, angle, player.skin);
             done();
         }, () => {
             release();
@@ -837,7 +806,7 @@ function harpoonDive(api, scene, player, currentTime) {
         const hit = api.landHit(scene, player, foe, { ...HARPOON_DIVE.launch, special: true, direction });
         if (hit) {
             useHarpoon(scene, player);
-            stickHarpoon(api, scene, foe, angle, false, player.skin);
+            stickHarpoon(api, scene, foe, angle, player.skin);
         }
         finish();
         if (!player.hitstun) player.setVelocity(-aim.x * HARPOON_DIVE.bounce * 0.5, -HARPOON_DIVE.bounce);
