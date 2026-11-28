@@ -1007,7 +1007,7 @@ function throwHarpoon(api, scene, attacker, target) {
 const NET_RELEASE_MS = 100;
 const NET_LAUNCH = { x: 420, y: -250 };
 const NET_STUN = 1500;
-const NET_BOUNCE = { x: 260, y: -380 };
+const NET_BOUNCE = { x: 320, y: -380 };
 const NET_BUMP = {
     ranged: true,
     damage: 0.02,
@@ -1139,8 +1139,7 @@ function throwNet(api, scene, player, target, direction, currentTime) {
                     if (target.blocking && api.blocksHit(scene, target, player, 0, { ranged: true, special: true })) {
                         bouncedOff = target;
                         crashed = false;
-                        const away = Math.sign(net.x - target.x) || -facing;
-                        net.setVelocity(away * NET_BOUNCE.x, NET_BOUNCE.y);
+                        net.setVelocity(facing * NET_BOUNCE.x, NET_BOUNCE.y);
                         return;
                     }
                     if (canBeNetted(scene, api, target)) netFoe(api, scene, player, target, NET_STUN, false);
@@ -1210,10 +1209,9 @@ function throwNet(api, scene, player, target, direction, currentTime) {
             if (!net.active) return;
             if (state === 'held') {
                 net.setPosition(player.x + facing * heldOffsetX, player.y - 25);
-            } else if (state === 'air' && (net.body.blocked.down || net.body.touching.down)) {
+            } else if (state === 'air' && support && (net.body.blocked.down || net.body.touching.down)) {
                 layOnGround();
-            } else if (state === 'air' && (crashed || net.body.blocked.left || net.body.blocked.right ||
-                net.body.touching.left || net.body.touching.right)) {
+            } else if (state === 'air' && (crashed || net.body.blocked.left || net.body.blocked.right)) {
                 crashed = true;
                 net.setVelocityX(0);
             } else if (state === 'ground' && support && !(support.active && support.body?.enable)) {

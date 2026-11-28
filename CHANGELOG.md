@@ -6,7 +6,7 @@
 - MALLET's up/down special has its own 3-strike swing animation (malletswing1.3), one strike per dash. The down version plays it mirrored vertically. It has a gold version for the MALLET gold skin.
 
 ### Changed
-- TRAPPER's THROW NET can be blocked by any fighter. It bounces off the blocker and lands on the ground, where it can't catch whoever blocked it but still catches anyone else.
+- TRAPPER's THROW NET can be blocked by any fighter. It pops up off the blocker and keeps flying forward until it lands past them, where it can't catch whoever blocked it but still catches anyone else.
 - Fighter masteries now ask you to beat all 14 fighter variants (was all 8 fighters) as a HARD or VERY HARD CPU, winning with at least 2 lives left instead of a flawless win. Progress shows as n/14 WINS. Flawless wins from before carry over, counted as a win against that fighter's first variant.
 - ANGLER's GRAPPLE ignores knockback resistance. Against SLATE in his first two phases (under 100%), it pulls ANGLER to SLATE instead of pulling SLATE in.
 - SPIKES launch twice as hard (except SLEDGEHAMMER's, which has its own launch).

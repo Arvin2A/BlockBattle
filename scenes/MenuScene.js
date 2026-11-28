@@ -107,7 +107,7 @@ export class MenuScene extends Phaser.Scene {
                 entries: [
                     {
                         title: "BLOCKABLE NETS",
-                        body: "TRAPPER's net can be blocked now, by anyone. It bounces off your shield and lands on the ground behind it instead of wrapping you up. That net won't catch you, but it can still catch anyone else who walks into it."
+                        body: "TRAPPER's net can be blocked now, by anyone. It pops up off your shield and keeps flying the way it was thrown, landing past you instead of wrapping you up. That net won't catch you, but it can still catch anyone else who walks into it."
                     },
                     {
                         title: "TOURNAMENT ON MONDAY",
