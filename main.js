@@ -2715,6 +2715,7 @@ function matchResultFor(scene, player, winners, noModifiers, cpu = null) {
         variant: player.variant,
         won: winners.includes(player),
         timesKOd: player.stats.timesKOd,
+        livesLeft: player.lives,
         grassCut: player.grassCutCount ?? 0,
         counters: player.stats.counters,
         blocks: player.stats.blocks,

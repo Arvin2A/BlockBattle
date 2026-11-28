@@ -65,7 +65,7 @@ function masteryToastLabel(achievement) {
 
 function masteryLabel(achievement) {
     const { wins, targets } = getMasteryProgress(achievement);
-    return `${wins} / ${targets} FLAWLESS WINS`;
+    return `${wins} / ${targets} WINS`;
 }
 
 export class AchievementsScene extends Phaser.Scene {
