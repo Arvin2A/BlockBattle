@@ -488,6 +488,8 @@ function stunUntilLanding(api, scene, target) {
         stunEndsAt ??= scene.time.now + HARPOON_FINISHER.afterHitstunStunMs;
         const left = Math.min(HARPOON_FINISHER.landingStunMs, stunEndsAt - scene.time.now);
         if (isOnFloor(api, scene, target)) {
+            target.setVelocity(0, 0);
+            target.unpushableUntil = scene.time.now + HARPOON_FINISHER.landedStunMs;
             api.applyStun(scene, target, HARPOON_FINISHER.landedStunMs);
             removeWatch();
             return;

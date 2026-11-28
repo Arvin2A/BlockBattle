@@ -2527,7 +2527,7 @@ function updateFighterBookkeeping(scene, player) {
     }
     player.chopped = scene.time.now < player.choppedUntil;
     player.netted = player.hitstun && scene.time.now < player.nettedUntil;
-    player.body.pushable = !player.netted;
+    player.body.pushable = !player.netted && scene.time.now >= (player.unpushableUntil ?? 0);
     if (player.netted && (player.body.blocked.down || player.body.touching.down)) {
         player.setVelocityX(Math.abs(player.body.velocity.x) > 10 ? player.body.velocity.x * 0.8 : 0);
     }
