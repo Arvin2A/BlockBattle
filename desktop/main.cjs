@@ -2,6 +2,7 @@
 // Original source: https://github.com/Arvin2A/BlockBattle
 // Licensed under the GNU GPL v3 only. See LICENSE.
 
+const fs = require('node:fs');
 const path = require('node:path');
 const { pathToFileURL } = require('node:url');
 const { app, BrowserWindow, dialog, ipcMain, Menu, net, protocol, shell } = require('electron');
@@ -14,6 +15,7 @@ const GAME_ROOT = path.join(__dirname, '..', 'dist');
 const GAME_URL = `${SCHEME}://${HOST}/index.html`;
 const WINDOW = { width: 1200, height: 720, minWidth: 640, minHeight: 384, background: '#000000' };
 const RELEASES_URL = 'https://github.com/Arvin2A/BlockBattle/releases';
+const CRASH_RELOAD_DELAY_MS = 1000;
 const SPLASH_URL = 'data:text/html;charset=utf-8,' + encodeURIComponent(`<!doctype html><html><head><meta charset="utf-8"><title>BLOCK BATTLE!!</title><style>
 html,body{margin:0;height:100%;background:#000;color:#fff;font:bold 20px system-ui,sans-serif;letter-spacing:1px}
 body{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:18px}
@@ -71,6 +73,19 @@ async function updateGame(window, gameFiles) {
     }
 }
 
+function logCrash(message) {
+    const line = `[${new Date().toISOString()}] ${message}\n`;
+    console.error(line.trim());
+    try {
+        fs.appendFileSync(path.join(app.getPath('userData'), 'crash.log'), line);
+    } catch {
+    }
+}
+
+app.on('child-process-gone', (event, details) => {
+    logCrash(`${details.type} process stopped: ${details.reason} (exit code ${details.exitCode})`);
+});
+
 function openOutside(url) {
     if (/^https?:\/\//.test(url)) shell.openExternal(url);
 }
@@ -101,6 +116,15 @@ function createWindow() {
         event.preventDefault();
         openOutside(url);
     });
+    window.webContents.on('render-process-gone', (event, details) => {
+        logCrash(`game page stopped: ${details.reason} (exit code ${details.exitCode})`);
+        if (details.reason === 'clean-exit' || window.isDestroyed()) return;
+        setTimeout(() => {
+            if (!window.isDestroyed()) window.loadURL(GAME_URL);
+        }, CRASH_RELOAD_DELAY_MS);
+    });
+    window.webContents.on('unresponsive', () => logCrash('game page stopped responding'));
+    window.webContents.on('responsive', () => logCrash('game page is responding again'));
     window.webContents.on('before-input-event', (event, input) => {
         if (input.type === 'keyDown' && input.key === 'F11') {
             window.setFullScreen(!window.isFullScreen());
