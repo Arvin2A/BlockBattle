@@ -23,6 +23,7 @@ import { openAdvancedInfo } from '../ui/advancedInfo.js';
 import { withCharacterInfoWarning } from '../ui/characterInfoWarning.js';
 import { openFighterPicker } from '../ui/fighterPicker.js';
 import { isVariantUnlocked } from '../achievements.js';
+import { chosenSkin, isGoldSkinEnabled, isGoldSkinUnlocked, setGoldSkinEnabled, skinTextureKey } from '../combat/skins.js';
 import { clipScrollablePanel } from '../ui/clipScroll.js';
 
 const SETTINGS_KEY = 'blockBattleOnline';
@@ -385,7 +386,8 @@ export class OnlineLobbyScene extends Phaser.Scene {
             fontSize: '18px',
             fill: '#ffffff'
         }).setOrigin(0.5);
-        this.selectButton = makeButton(this, FIGHTER.x, 440, 214, 74, 'SELECT\nCHARACTER', () => this.openPicker(), 22);
+        this.selectButton = makeButton(this, FIGHTER.x, 424, 214, 54, 'SELECT\nCHARACTER', () => this.openPicker(), 20);
+        this.goldButton = makeButton(this, FIGHTER.x, 470, 214, 28, '', () => this.toggleGold(), 15);
     }
 
     get modalOpen() {
@@ -1558,6 +1560,26 @@ export class OnlineLobbyScene extends Phaser.Scene {
         this.nameButton.text.setColor(locked ? COLORS.error : COLORS.text);
         this.fighterIcon.setTint(locked ? HEX.lockedTint : 0xffffff);
         [this.selectButton.box, this.selectButton.text].forEach(part => part.setAlpha(locked ? 0.4 : 1));
+        this.refreshGold();
+    }
+
+    toggleGold() {
+        if (!this.selection || this.locked || this.modalOpen || this.invitePopup || this.closeNameBox) return;
+        const { character } = this.getChoice();
+        if (!isGoldSkinUnlocked(character.key)) return;
+        setGoldSkinEnabled(character.key, !isGoldSkinEnabled(character.key));
+        this.refreshSelection();
+    }
+
+    refreshGold() {
+        if (!this.goldButton?.box.active || !this.selection) return;
+        const { character } = this.getChoice();
+        const unlocked = isGoldSkinUnlocked(character.key);
+        const enabled = unlocked && isGoldSkinEnabled(character.key);
+        const label = !unlocked ? 'GOLD: NONE' : enabled ? 'GOLD: ON' : 'GOLD: OFF';
+        this.goldButton.text.setText(label).setColor(enabled ? COLORS.accent : COLORS.muted);
+        this.goldButton.box.setStrokeStyle(3, enabled ? HEX.accent : HEX.border);
+        [this.goldButton.box, this.goldButton.text].forEach(part => part.setAlpha(this.locked || !unlocked ? 0.4 : 1));
     }
 
     changeCharacter(direction) {
@@ -1927,8 +1949,9 @@ export class OnlineLobbyScene extends Phaser.Scene {
         if (this.queueState !== 'lobby' || this.isReady) return;
         const self = this.lobby?.members.find(member => member.you);
         const { character, variant } = this.getChoice();
-        if (self && self.character === character.key && self.variant === variant.name) return;
-        net.send({ t: 'pick', character: character.key, variant: variant.name });
+        const skin = chosenSkin(character.key);
+        if (self && self.character === character.key && self.variant === variant.name && (self.skin ?? null) === skin) return;
+        net.send({ t: 'pick', character: character.key, variant: variant.name, skin });
     }
 
     toggleReady() {
@@ -1975,8 +1998,10 @@ export class OnlineLobbyScene extends Phaser.Scene {
 
     refreshSelection() {
         const { character, variant, map } = this.getChoice();
-        this.fighterIcon.setTexture(getCharacterTexture(character.key, variant.name)).setDisplaySize(FIGHTER_ICON, FIGHTER_ICON);
+        this.fighterIcon.setTexture(skinTextureKey(this, getCharacterTexture(character.key, variant.name), chosenSkin(character.key)))
+            .setDisplaySize(FIGHTER_ICON, FIGHTER_ICON);
         this.fighterName.setText(character.name);
+        this.refreshGold();
         this.variantText.setText(variant.name).setColor(variant.color ?? '#ffffff');
         this.refreshVariantLabel();
         this.fighterPicker?.refresh();
@@ -2033,7 +2058,7 @@ export class OnlineLobbyScene extends Phaser.Scene {
 
     sendChoice(type, extra = {}) {
         const { character, variant } = this.getChoice();
-        net.send({ t: type, name: this.selection.name, character: character.key, variant: variant.name, ...extra });
+        net.send({ t: type, name: this.selection.name, character: character.key, variant: variant.name, skin: chosenSkin(character.key), ...extra });
     }
 
     canStartOnline() {

@@ -10,7 +10,7 @@ import { MAPS } from '../scenes/GameScene/MapDefinitions.js';
 import { toAsciiName } from './nameFilter.js';
 
 // Bump this whenever messages change so old tabs get a clear "refresh" error.
-export const PROTOCOL_VERSION = 21;
+export const PROTOCOL_VERSION = 22;
 
 export const RECONNECT_GRACE_MS = { lobby: 60000, match: 20000, menu: 15000 };
 
@@ -18,6 +18,12 @@ export const MP_PATH = '/mp';
 export const DEFAULT_PORT = 8080;
 
 export const MAP_CHOICES = [...Object.keys(MAPS), 'RANDOM'];
+
+export const SKINS = ['gold'];
+
+export function cleanSkin(skin) {
+    return SKINS.includes(skin) ? skin : null;
+}
 
 export const MAX_NAME_LENGTH = 16;
 export const MAX_LOBBY_NAME_LENGTH = 24;

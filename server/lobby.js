@@ -9,7 +9,7 @@ import { WebSocket } from 'ws';
 import { createNameFilter } from '../mp/nameFilter.js';
 import { ALL_BUTTONS_MASK } from '../input.js';
 import { CHARACTER_ROSTER, isValidSelection } from '../characterRoster.js';
-import { cleanName, cleanDeviceId, cleanInviteCode, cleanMatchResult, cleanMatchStats, END_REASONS, INVITE_CODE_LENGTH, INVITE_CODE_LETTERS, MAP_CHOICES, MAX_LOBBY_NAME_LENGTH, PROTOCOL_VERSION, RECONNECT_GRACE_MS } from '../mp/protocol.js';
+import { cleanName, cleanSkin, cleanDeviceId, cleanInviteCode, cleanMatchResult, cleanMatchStats, END_REASONS, INVITE_CODE_LENGTH, INVITE_CODE_LETTERS, MAP_CHOICES, MAX_LOBBY_NAME_LENGTH, PROTOCOL_VERSION, RECONNECT_GRACE_MS } from '../mp/protocol.js';
 import { MATCH_MODES, SLOTS, buildRoster, isValidMode } from '../matchModes.js';
 import { sanitizeOnlineModifiers } from '../modifiers.js';
 import { QUICK_CHAT_PHRASES, QuickChatLimiter } from '../mp/quickChat.js';
@@ -435,6 +435,7 @@ export class Lobby {
         client.choice = {
             character,
             variant,
+            skin: cleanSkin(message.skin),
             map: MAP_CHOICES.includes(message.map) ? message.map : 'RANDOM'
         };
         return true;
@@ -663,9 +664,10 @@ export class Lobby {
         const character = String(message.character ?? '');
         const variant = String(message.variant ?? '');
         if (!isValidSelection(character, variant)) return;
-        if (client.choice.character === character && client.choice.variant === variant) return;
+        const skin = cleanSkin(message.skin);
+        if (client.choice.character === character && client.choice.variant === variant && client.choice.skin === skin) return;
         if (lobby.tournament && isBanned(lobby, character, variant)) return;
-        client.choice = { ...client.choice, character, variant };
+        client.choice = { ...client.choice, character, variant, skin };
         this.lobbyChanged(lobby);
     }
 
@@ -693,6 +695,7 @@ export class Lobby {
                 name: member.name,
                 character: member.choice.character,
                 variant: member.choice.variant,
+                skin: member.choice.skin ?? null,
                 tag: member.tag,
                 you: member === viewer,
                 ready: Boolean(member.ready),
@@ -948,7 +951,7 @@ export class Lobby {
                         t: 'config',
                         map: match.map,
                         mode: match.mode,
-                        roster: match.roster.map(({ slot, name, character, variant, bot, difficulty }) => ({ slot, name, character, variant, bot: Boolean(bot), difficulty })),
+                        roster: match.roster.map(({ slot, name, character, variant, skin, bot, difficulty }) => ({ slot, name, character, variant, skin: skin ?? null, bot: Boolean(bot), difficulty })),
                         modifiers: match.modifiers,
                         ice
                     });

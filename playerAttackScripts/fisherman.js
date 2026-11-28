@@ -1007,6 +1007,7 @@ function throwHarpoon(api, scene, attacker, target) {
 const NET_RELEASE_MS = 100;
 const NET_LAUNCH = { x: 420, y: -250 };
 const NET_STUN = 1500;
+const NET_BOUNCE = { x: 260, y: -380 };
 const NET_BUMP = {
     ranged: true,
     damage: 0.02,
@@ -1103,10 +1104,12 @@ function throwNet(api, scene, player, target, direction, currentTime) {
             scene.tweens.add({ targets: net, alpha: 0, duration: 400, onComplete: removeNet });
         };
         player.activeNetCleanup = removeNet;
+        player.activeNet = net;
         scene.events.once('shutdown', removeNet);
 
         let crashed = false;
         let support = null;
+        let bouncedOff = null;
         const landsFromAbove = (other) =>
             net.body.velocity.y >= 0 && net.body.prev.y + net.body.height <= other.body.top + 8;
         const hitsSide = (other) => {
@@ -1132,7 +1135,14 @@ function throwNet(api, scene, player, target, direction, currentTime) {
                 ...[scene.planks, scene.gameState.map.lodgedBalls].filter(Boolean)
                     .map(walls => scene.physics.add.collider(net, walls, touchSurface)),
                 ...api.overlapEnemies(scene, net, player, target => {
-                    if (state !== 'air' || api.isInvincible(target)) return;
+                    if (state !== 'air' || target === bouncedOff || api.isInvincible(target)) return;
+                    if (target.blocking && api.blocksHit(scene, target, player, 0, { ranged: true, special: true })) {
+                        bouncedOff = target;
+                        crashed = false;
+                        const away = Math.sign(net.x - target.x) || -facing;
+                        net.setVelocity(away * NET_BOUNCE.x, NET_BOUNCE.y);
+                        return;
+                    }
                     if (canBeNetted(scene, api, target)) netFoe(api, scene, player, target, NET_STUN, false);
                     else api.landHit(scene, player, target, { special: true, ...NET_BUMP, power: SIDE_SPECIAL_POWER, direction: { x: facing, y: 0 } });
                     removeNet();
@@ -1210,7 +1220,7 @@ function throwNet(api, scene, player, target, direction, currentTime) {
                 fallAgain();
             } else if (state === 'ground') {
                 const caught = api.getEnemies(scene, player).find(foe => {
-                    if (!foe.active || !canBeNetted(scene, api, foe)) return false;
+                    if (!foe.active || foe === bouncedOff || !canBeNetted(scene, api, foe)) return false;
                     const body = foe.body;
                     return body.right > net.x - NET_GROUND_HALF_WIDTH &&
                         body.left < net.x + NET_GROUND_HALF_WIDTH &&
@@ -1392,6 +1402,7 @@ function tryPull(api, scene, player, target, direction, currentTime) {
             return true;
         };
         player.activeHookCleanup = removeHook;
+        player.activeHook = hook;
         player.idleWeaponTexture = 'linelessrod';
         scene.events.once('shutdown', removeHook);
         hook.setCollideWorldBounds(true);
@@ -1511,6 +1522,7 @@ function tryPull(api, scene, player, target, direction, currentTime) {
             player.setVelocity(towardX * PULL_SPEED, towardY * PULL_SPEED);
         };
 
+        const floorUnderCast = cast.latches ? null : api.getGroundedPlatform(scene, player);
         colliders.push(
             ...api.overlapEnemies(scene, hook, player, target => {
                 if (cleanedUp || player.hasHitSideSpecial || pullingToPlatform || api.isInvincible(target)) return;
@@ -1553,7 +1565,7 @@ function tryPull(api, scene, player, target, direction, currentTime) {
 
             scene.physics.add.overlap(
                 hook,
-                api.platformsWithoutStandingPlatform(scene, player),
+                api.getMapPlatforms(scene).filter(platform => platform !== floorUnderCast),
                 cast.latches ? latchToPlatform : () => cleanup()
             ),
             scene.physics.add.overlap(hook, scene.planks, () => cast.latches ? latchToPlatform() : cleanup())

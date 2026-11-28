@@ -10,7 +10,7 @@
 // The server opens  /BlockBattle/?authority=<matchId>&key=<secret>  for each match.
 
 import { MirrorCapture } from './mirror.js';
-import { getServerSocketUrl, PROTOCOL_VERSION } from './protocol.js';
+import { cleanSkin, getServerSocketUrl, PROTOCOL_VERSION } from './protocol.js';
 import { decodeButtons, INPUT_BUTTONS, ALL_BUTTONS_MASK } from '../input.js';
 import { AuthorityFastPeer } from './rtc.js';
 import { resetMapAndModifierSelection, setSelectedMap } from '../scenes/MapAndModifierSelect.js';
@@ -153,7 +153,7 @@ export function reportAfk(slot) {
 export function getOnlineMatchSettings() {
     return {
         mode: matchConfig.mode,
-        players: buildRoster(matchConfig.mode, matchConfig.roster.map(({ name, character, variant, bot }) => ({ name, character, variant, bot: Boolean(bot) })))
+        players: buildRoster(matchConfig.mode, matchConfig.roster.map(({ name, character, variant, skin, bot }) => ({ name, character, variant, skin: cleanSkin(skin), bot: Boolean(bot) })))
     };
 }
 

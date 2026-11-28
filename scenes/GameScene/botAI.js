@@ -30,25 +30,25 @@ const DIFFICULTY = {
         thinkMs: 320, attackDelayMs: 450, hesitateChance: 0.55, hesitateMs: 500,
         edgeguard: false, dodgeSpecials: false, downslam: false, edgeFling: false,
         smack: false, ledge: false, blockChance: 0, dodgeMinigun: false,
-        deflectChance: 0, respectCounter: false, blockReactMs: 0, counterNoticeMs: 0
+        deflectChance: 0, hookReactChance: 0, netReactChance: 0, respectCounter: false, blockReactMs: 0, counterNoticeMs: 0
     },
     NORMAL: {
         thinkMs: 220, attackDelayMs: 300, hesitateChance: 0.4, hesitateMs: 400,
         edgeguard: false, dodgeSpecials: false, downslam: true, edgeFling: false,
         smack: false, ledge: false, blockChance: 0.3, dodgeMinigun: true,
-        deflectChance: 0.3, respectCounter: false, blockReactMs: 300, counterNoticeMs: 0
+        deflectChance: 0.3, hookReactChance: 0, netReactChance: 0, respectCounter: false, blockReactMs: 300, counterNoticeMs: 0
     },
     HARD: {
         thinkMs: 0, attackDelayMs: 0, hesitateChance: 0, hesitateMs: 0,
         edgeguard: true, dodgeSpecials: true, downslam: true, edgeFling: true,
         smack: false, ledge: true, blockChance: 0.5, dodgeMinigun: true, predictBlock: false,
-        deflectChance: 0.6, respectCounter: true, blockReactMs: 90, counterNoticeMs: 450
+        deflectChance: 0.6, hookReactChance: 0, netReactChance: 0.6, respectCounter: true, blockReactMs: 90, counterNoticeMs: 450
     },
     'VERY HARD': {
         thinkMs: 0, attackDelayMs: 0, hesitateChance: 0, hesitateMs: 0,
         edgeguard: true, dodgeSpecials: true, downslam: true, edgeFling: true,
         smack: true, ledge: true, blockChance: 0.7, dodgeMinigun: true, predictBlock: true,
-        deflectChance: 0.85, respectCounter: true, blockReactMs: 0, counterNoticeMs: 0,
+        deflectChance: 0.85, hookReactChance: 0.85, netReactChance: 0.85, respectCounter: true, blockReactMs: 0, counterNoticeMs: 0,
         edgeCombo: true
     }
 };
@@ -115,6 +115,11 @@ const DEFLECT_BLOCK_MS = 220;
 const GUN_DEFLECT_BLOCK_MS = 250;
 const GUN_RELOAD_IGNORE_MS = 300;
 const COUNTER_KEEP_AWAY = 220;
+const HOOK_LOOKAHEAD_MS = 220;
+const HOOK_MISS_RADIUS = 75;
+const THROWN_BLOCK_MS = 250;
+const NET_LOOKAHEAD_MS = 450;
+const NET_MISS_RADIUS = 130;
 
 const BOT_BLOCK_MS = 350;
 const BOT_BLOCK_RANGE = 160;
@@ -181,24 +186,58 @@ function predictBlocks(bot, target, distance, now, specialStarted) {
     }
 }
 
+function headingAt(bot, object, velocity, lookaheadMs, missRadius) {
+    if (!velocity) return false;
+    const { x: vx, y: vy } = velocity;
+    const speedSq = vx * vx + vy * vy;
+    if (speedSq < 1) return false;
+    const dx = bot.x - object.x;
+    const dy = bot.y - object.y;
+    const seconds = (dx * vx + dy * vy) / speedSq;
+    if (seconds < 0 || seconds * 1000 > lookaheadMs) return false;
+    return Math.hypot(dx - vx * seconds, dy - vy * seconds) <= missRadius;
+}
+
 function incomingProjectile(scene, bot) {
     for (const projectile of deflectables(scene)) {
         const owner = projectile.deflectOwner;
         if (!projectile.active || (projectile.body && !projectile.body.enable)) continue;
         if (owner === bot || (owner && isTeammate(owner, bot))) continue;
         const velocity = projectile.body?.velocity ?? projectile.deflectVelocity;
-        if (!velocity) continue;
-        const { x: vx, y: vy } = velocity;
-        const speedSq = vx * vx + vy * vy;
-        if (speedSq < 1) continue;
-        const dx = bot.x - projectile.x;
-        const dy = bot.y - projectile.y;
-        const seconds = (dx * vx + dy * vy) / speedSq;
-        if (seconds < 0 || seconds * 1000 > DEFLECT_LOOKAHEAD_MS) continue;
-        if (Math.hypot(dx - vx * seconds, dy - vy * seconds) > DEFLECT_MISS_RADIUS) continue;
-        return projectile;
+        if (headingAt(bot, projectile, velocity, DEFLECT_LOOKAHEAD_MS, DEFLECT_MISS_RADIUS)) return projectile;
     }
     return null;
+}
+
+const THROWN_THREATS = [
+    { field: 'activeHook', chance: 'hookReactChance', lookaheadMs: HOOK_LOOKAHEAD_MS, missRadius: HOOK_MISS_RADIUS },
+    { field: 'activeNet', chance: 'netReactChance', lookaheadMs: NET_LOOKAHEAD_MS, missRadius: NET_MISS_RADIUS }
+];
+
+function incomingThrown(scene, bot, threat) {
+    for (const foe of scene.gameState.players) {
+        const thrown = foe[threat.field];
+        if (foe === bot || isTeammate(foe, bot) || !thrown?.active || !thrown.body?.enable) continue;
+        if (headingAt(bot, thrown, thrown.body.velocity, threat.lookaheadMs, threat.missRadius)) return thrown;
+    }
+    return null;
+}
+
+function updateThrownReact(scene, bot, difficulty, now) {
+    for (const threat of THROWN_THREATS) {
+        if (difficulty[threat.chance]) reactToThrown(scene, bot, threat, difficulty[threat.chance], now);
+    }
+}
+
+function reactToThrown(scene, bot, threat, chance, now) {
+    const thrown = incomingThrown(scene, bot, threat);
+    if (!thrown) return;
+    bot.botThrownRolls ??= new WeakMap();
+    if (!bot.botThrownRolls.has(thrown)) bot.botThrownRolls.set(thrown, Math.random() < chance);
+    if (!bot.botThrownRolls.get(thrown)) return;
+    bot.botDodgeUntil = 0;
+    if (isGrounded(bot)) blockFor(bot, now, THROWN_BLOCK_MS);
+    else if (!bot.airDodgeUsed) bot.botThrownAirDodge = true;
 }
 
 function gunAimedAt(bot, target, now) {
@@ -270,12 +309,17 @@ function updateBotBlock(scene, bot, target, distance, difficulty, now) {
         blockFor(bot, now, BOT_BLOCK_MS);
     }
     updateDeflects(scene, bot, target, difficulty, now);
+    updateThrownReact(scene, bot, difficulty, now);
     if (counterLanded(bot, target)) bot.botBlockUntil = 0;
     if (difficulty.dodgeSpecials && sledgeSwingComing(bot, target, distance, now)) {
         bot.botBlockUntil = 0;
         bot.botBlockReactAt = null;
     }
     bot.botWantsBlock = now < (bot.botBlockUntil ?? 0) && (bot.shield ?? 1) > BOT_BLOCK_MIN_SHIELD;
+    if (bot.botThrownAirDodge) {
+        bot.botThrownAirDodge = false;
+        bot.botWantsBlock = true;
+    }
 }
 
 function getDifficulty(bot) {

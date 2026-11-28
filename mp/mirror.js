@@ -10,6 +10,7 @@
 // Players never run game logic, they only see the result and send inputs.
 
 import { getScreenShakeScale, hitParticlesEnabled } from '../ui/settings.js';
+import { skinTextureKey } from '../combat/skins.js';
 
 const ROOT = 0;
 const LATE_SOUND_MS = 250;
@@ -99,7 +100,7 @@ function serialize(obj) {
     switch (obj.type) {
         case 'Image':
         case 'Sprite':
-            state.k = obj.texture?.key;
+            state.k = obj.skin && obj.texture ? skinTextureKey(obj.scene, obj.texture.key, obj.skin) : obj.texture?.key;
             state.f = obj.frame?.name;
             state.cr = obj.isCropped ? `${obj._crop.x},${obj._crop.y},${obj._crop.width},${obj._crop.height}` : '';
             break;

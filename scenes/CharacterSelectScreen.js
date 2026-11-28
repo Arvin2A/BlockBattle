@@ -540,10 +540,11 @@ export class CharacterSelectScene extends Phaser.Scene {
         const { goldToggle, demo } = slot.card;
         demo.setSkin(slot.isCpu ? null : chosenSkin(character.key));
         if (!goldToggle) return;
-        const unlocked = isGoldSkinUnlocked(character.key) && !this.isVariantLocked(player);
-        const enabled = isGoldSkinEnabled(character.key);
-        [goldToggle.box, goldToggle.text].forEach(part => part.setVisible(unlocked));
-        goldToggle.text.setText(enabled ? 'GOLD: ON' : 'GOLD: OFF').setColor(enabled ? COLORS.accent : COLORS.muted);
+        const owned = isGoldSkinUnlocked(character.key);
+        const unlocked = owned && !this.isVariantLocked(player);
+        const enabled = unlocked && isGoldSkinEnabled(character.key);
+        [goldToggle.box, goldToggle.text].forEach(part => part.setVisible(true).setAlpha(unlocked ? 1 : 0.4));
+        goldToggle.text.setText(!owned ? 'GOLD: NONE' : enabled ? 'GOLD: ON' : 'GOLD: OFF').setColor(enabled ? COLORS.accent : COLORS.muted);
         goldToggle.box.setStrokeStyle(3, enabled ? HEX.accent : HEX.border);
     }
 

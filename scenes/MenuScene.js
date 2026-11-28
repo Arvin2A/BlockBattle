@@ -20,7 +20,7 @@ var navBox = null;
 var layout = []
 var selectedIndex = 0;
 var previousInput = {};
-const CHANGELOG_VERSION = "2026-11-27-2";
+const CHANGELOG_VERSION = "2026-11-27-3";
 const ONLINE_STATUS_REFRESH_MS = 10000;
 const MIN_VERSION_COLOR_BRIGHTNESS = 170;
 
@@ -105,6 +105,10 @@ export class MenuScene extends Phaser.Scene {
                 name: "UP & DOWN SPECIALS",
                 date: "11/27/26",
                 entries: [
+                    {
+                        title: "BLOCKABLE NETS",
+                        body: "TRAPPER's net can be blocked now, by anyone. It bounces off your shield and lands on the ground behind it instead of wrapping you up. That net won't catch you, but it can still catch anyone else who walks into it."
+                    },
                     {
                         title: "TOURNAMENT ON MONDAY",
                         body: "A BLOCK BATTLE tournament starts Monday, 11/30. If you want in, email zamanarvin@sewanhakaschools.org to sign up."
@@ -776,7 +780,7 @@ export class MenuScene extends Phaser.Scene {
 
         const changelogBlurb = this.add.text(
             40, 180,
-            "A tournament starts Monday 11/30, email zamanarvin@sewanhakaschools.org to join. Every fighter gets an up and a down special, TRAPPER has a new finisher, and mastering a fighter unlocks its gold skin.",
+            "A tournament starts Monday 11/30, email zamanarvin@sewanhakaschools.org to join. Every fighter gets an up and a down special, TRAPPER has a new finisher and blockable nets, and mastering a fighter unlocks its gold skin.",
             {
                 fontFamily: "VCROSD",
                 fontSize: "16px",

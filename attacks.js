@@ -607,6 +607,7 @@ const sharedAttackHelpers = {
     addProjectilePlatformColliders,
     getMapPlatforms,
     platformsWithoutStandingPlatform,
+    getGroundedPlatform,
     getAttackSpriteOffset,
     applyKnockback,
     getAttackDamageScale,
