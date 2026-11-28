@@ -114,6 +114,51 @@ own user.
 
 ## 4. Run it 24/7 with systemd
 
+### Quick install (recommended)
+
+`server/deploy/install.sh` does this whole step for you. It checks everything first and
+installs nothing if something is missing or wrong, then writes and starts the service.
+
+```bash
+cd /home/blockbattle/BlockBattle
+sudo server/deploy/install.sh                  # first run creates server/deploy/server.conf
+nano server/deploy/server.conf                 # fill in BB_ALLOWED_ORIGINS (and anything else)
+sudo server/deploy/install.sh                  # second run installs and starts the server
+```
+
+The first run writes `server/deploy/server.conf` with every setting, blank or at its
+default, and a short note above each one, then stops and tells you what still needs
+filling in. Run it again once it's filled in. Add `--user blockbattle` to both runs to use
+the separate user from step 1.
+
+- **It needs `sudo`**, because it installs a systemd service.
+- **The service runs as your user** unless you pass `--user`. It warns you and asks before
+  doing anything: the server can read anything that user can, so a separate user (step 1)
+  is safer.
+- **Settings live in `server/deploy/server.conf`**, not in the service file. It's never
+  committed, so secrets (TURN token, Discord webhooks) are safe there, and the script makes
+  it readable only by the server's user. After changing it: `sudo systemctl restart blockbattle`.
+- **WebSocket only by default** (`BB_FAST_PATH=false`), so no Cloudflare TURN setup is
+  needed. See "Faster online play" below to turn the fast path on.
+- **Missing settings:** if your `server.conf` is missing a setting (for example, one added
+  in a newer version), the script adds it at the end at its default and stops so you can
+  check it. A setting it doesn't recognize, like a typo, gets a note but doesn't stop it.
+- **What it checks first:** the required settings are filled in and every value is valid
+  (origins written as `https://domain`, numbers that are numbers), the user exists and owns the repo,
+  Node.js 18+ and npm, Chrome/Chromium/Edge, and that the port is free. Every problem is
+  listed at once.
+- It runs `npm ci` and `npm run build` as the server's user, then starts the service and
+  shows the last log lines if it doesn't stay up.
+
+Options: `--with-autoupdate` also installs the update timer (see "Automatic updates"),
+`--skip-build` uses the existing `dist/`, `--dry-run` shows what it would do without
+changing anything, `--yes` skips the question, and `--uninstall` removes the service (the
+repo and `server.conf` stay).
+
+It doesn't set up the tunnel. After it finishes, continue with step 5.
+
+### Manual install
+
 systemd starts the server on boot and restarts it if it crashes.
 
 ```bash

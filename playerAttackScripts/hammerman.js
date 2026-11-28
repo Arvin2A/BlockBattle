@@ -528,6 +528,7 @@ const WHIRLWIND = {
     riseHeight: 340,
     riseEase: 'Quad.easeOut',
     range: 115,
+    extraDownReach: 50,
     sound: { key: 'twirl', seek: 0.2, rate: 1.5, volume: 0.8 },
     hitSound: { key: 'hammerhit', rate: 0.7 },
     carry: {
@@ -618,6 +619,12 @@ function trySledgeWhirlwind(api, scene, player, victim, currentTime) {
     };
     const playHitSound = () => scene.sound.play(WHIRLWIND.hitSound.key, { rate: WHIRLWIND.hitSound.rate });
     const whirlBypass = { ignoreCanAttack: true, allowTargetBelow: true, ignoreFacing: true };
+    const whirlRange = WHIRLWIND.range + WHIRLWIND.extraDownReach;
+    const inWhirlReach = foe => {
+        const dy = foe.y - player.y;
+        const reachDy = dy > 0 ? Math.max(0, dy - WHIRLWIND.extraDownReach) : dy;
+        return Math.hypot(foe.x - player.x, reachDy) <= WHIRLWIND.range;
+    };
     const carrySpec = {
         ...WHIRLWIND.carry,
         onHit: (hitScene, target) => {
@@ -642,13 +649,20 @@ function trySledgeWhirlwind(api, scene, player, victim, currentTime) {
                 }
             }
             : carrySpec;
-        api.strike(scene, player, victim ?? api.getEnemies(scene, player)[0], {
-            special: true,
-            ...spec,
-            range: WHIRLWIND.range,
-            bypass: whirlBypass,
-            direction: { x: launchX, y: 0 }
-        });
+        let plankDamage = spec.plankDamage;
+        for (const foe of api.getEnemies(scene, player).filter(inWhirlReach)) {
+            api.strike(scene, player, foe, {
+                special: true,
+                ...spec,
+                plankDamage,
+                range: whirlRange,
+                bypass: whirlBypass,
+                direction: { x: launchX, y: 0 },
+                singleTarget: true
+            });
+            plankDamage = 0;
+        }
+        if (plankDamage) api.damagePlanksInAttack(player, plankDamage * api.getAttackDamageScale(player));
         if (last) scene.time.delayedCall(WHIRLWIND.endAfterLastHitMs, finishAfterFreeze);
     };
     const catchTries = new Map();
@@ -656,12 +670,12 @@ function trySledgeWhirlwind(api, scene, player, victim, currentTime) {
         if (player.hitstun || scene.time.now - startedAt >= lastHitMs) return;
         for (const foe of api.getEnemies(scene, player)) {
             if (carried.has(foe) || scene.time.now < (catchTries.get(foe) ?? 0)) continue;
-            if (!api.attackIsElligible(player, foe, WHIRLWIND.range, { ...whirlBypass, silent: true })) continue;
+            if (!inWhirlReach(foe) || !api.attackIsElligible(player, foe, whirlRange, { ...whirlBypass, silent: true })) continue;
             catchTries.set(foe, scene.time.now + WHIRLWIND.hitEveryMs);
             api.strike(scene, player, foe, {
                 special: true,
                 ...carrySpec,
-                range: WHIRLWIND.range,
+                range: whirlRange,
                 bypass: whirlBypass,
                 direction: { x: launchX, y: 0 },
                 singleTarget: true
