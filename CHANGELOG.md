@@ -6,6 +6,7 @@
 - MALLET's up/down special has its own 3-strike swing animation (malletswing1.3), one strike per dash. The down version plays it mirrored vertically. It has a gold version for the MALLET gold skin.
 
 ### Changed
+- ANGLER's GRAPPLE ignores knockback resistance. Against SLATE in his first two phases (under 100%), it pulls ANGLER to SLATE instead of pulling SLATE in.
 - SPIKES launch twice as hard (except SLEDGEHAMMER's, which has its own launch).
 - Fighters hit by an up tilt stay unable to act for 0.6s after their hitstun ends (was 0.3s).
 - SLEDGEHAMMER's DOWN SLAM reaches 50px further downward.

@@ -393,6 +393,7 @@ export default {
     demoAnimations: ['slateatk', 'slateatksecond', 'slateatkthird', 'slateatktilt'],
     demoIdle: 'slateatk1',
     armColor: 0x2c2d31,
+    variantStats: { SLATE: { anchorsGrapple: player => (player.slatePhase ?? 0) <= 1 } },
     heat: { damageScale: 1.3, slideScale: 1.3, speedScale: 1.5, resistanceScale: 0.75, rangeBonus: 10, tint: 0xff9c8a },
     hitSounds: {
         light: ['slatelight1', 'slatelight2'],

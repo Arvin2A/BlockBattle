@@ -4,6 +4,7 @@
 
 import Phaser from 'phaser';
 import { applySkin } from '../combat/skins.js';
+import { getCharacterStat } from '../combat/characterStats.js';
 import { SIDE_SPECIAL_POWER } from '../gameSettings.js';
 
 function basicAttack(api, scene, attacker, victim) {
@@ -1523,6 +1524,7 @@ function tryPull(api, scene, player, target, direction, currentTime) {
                 const dy = player.y - target.y;
                 const dist = Math.hypot(dx, dy) || 1;
                 const pullStrength = 900;
+                const anchored = getCharacterStat(target, 'anchorsGrapple', null)?.(target) ?? false;
 
                 api.landHit(scene, player, target, {
                     special: true,
@@ -1532,7 +1534,8 @@ function tryPull(api, scene, player, target, direction, currentTime) {
                     hitstun: 550,
                     hitstunGrowth: false,
                     sound: 'anyhit',
-                    knockback: () => ({ x: (dx / dist) * pullStrength, y: (dy / dist) * pullStrength }),
+                    knockback: anchored ? null : () => ({ x: (dx / dist) * pullStrength, y: (dy / dist) * pullStrength }),
+                    ignoreResistance: true,
                     noDeathRay: true,
                     decelerateAfter: 550,
                     resetCombo: false,
@@ -1541,6 +1544,11 @@ function tryPull(api, scene, player, target, direction, currentTime) {
                     }
                 });
                 latchToTarget(target);
+                if (anchored) {
+                    pullingToPlatform = true;
+                    pullLift = 0;
+                    swingUntil = 0;
+                }
             }),
 
             scene.physics.add.overlap(
